@@ -289,7 +289,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <input class="sb" type="text" id="mkQ" placeholder="🔍 Buscar nombre, club o liga..." oninput="renderMkt()">
         <div class="frow">
           <select class="fs" id="mkPos" onchange="renderMkt()"><option value="">Todas posiciones</option><option>ARQ</option><option>DFC</option><option>DFD</option><option>DFI</option><option>MCD</option><option>MC</option><option>MCO</option><option>MI</option><option>MD</option><option>EI</option><option>ED</option><option>DC</option></select>
-          <select class="fs" id="mkLg" onchange="renderMkt()"><option value="">Todas ligas</option><option>Liga ARG</option><option>Brasil</option><option>Premier</option><option>Italia</option><option>España</option><option>Alemania</option><option>Francia</option><option>MLS</option><option>Uruguay</option><option>Otras</option></select>
+          <select class="fs" id="mkLg" onchange="renderMkt()"><option value="">Todas ligas</option><option>Liga ARG</option><option>Brasil</option><option>Uruguay</option><option>Colombia</option><option>Chile</option><option>Paraguay</option><option>Ecuador</option><option>Perú</option><option>Bolivia</option><option>Venezuela</option><option>Premier</option><option>Italia</option><option>España</option><option>Alemania</option><option>Francia</option><option>MLS</option><option>Otras</option></select>
           <select class="fs" id="mkNat" onchange="renderMkt()"><option value="">Todas naciones</option><option>ARG</option><option>URU</option><option>COL</option><option>BRA</option><option>CHI</option><option>PAR</option><option>ESP</option><option>FRA</option></select>
           <select class="fs" id="mkMaxV" onchange="renderMkt()"><option value="">Cualquier precio</option><option value="3">≤€3M</option><option value="8">≤€8M</option><option value="20">≤€20M</option><option value="50">≤€50M</option></select>
           <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option></select>
@@ -577,12 +577,12 @@ function buildMkt(){
   a(4, 'Emmanuel Mammana',     'DFC',29,'ARG','River Plate','Liga ARG', 6,0,20);  // volvió de Europa
   a(23,'Paulo Díaz',           'DFC',29,'CHI','River Plate','Liga ARG', 8,0,22);
   a(22,'Germán Pezzella',      'DFC',33,'ARG','River Plate','Liga ARG', 2,0,18);
-  a(2, 'Gonzalo Montiel',      'DFD',28,'ARG','River Plate','Liga ARG', 4,0,18);
+  a(2, 'Gonzalo Montiel',      'DFD',29,'ARG','River Plate','Liga ARG', 4,0,18);
   a(3, 'Enzo Díaz',            'DFI',28,'ARG','River Plate','Liga ARG', 5.5,0,14);  // volvió de Talleres
   a(8, 'Rodrigo Aliendro',     'MCD',28,'ARG','River Plate','Liga ARG', 3.5,0,14);
-  a(10,'Ignacio Fernández',    'MCO',32,'ARG','River Plate','Liga ARG', 4,0,25);
-  a(7, 'Facundo Colidio',      'EI', 24,'ARG','River Plate','Liga ARG', 7,0,20);
-  a(9, 'Miguel Borja',         'DC', 29,'COL','River Plate','Liga ARG', 8,0,28);  // goleador
+  a(10,'Ignacio Fernández',    'MCO',34,'ARG','River Plate','Liga ARG', 4,0,25);
+  a(7, 'Facundo Colidio',      'EI', 27,'ARG','River Plate','Liga ARG', 7,0,20);
+  a(9, 'Miguel Borja',         'DC', 33,'COL','River Plate','Liga ARG', 8,0,28);  // goleador
   a(11,'Gonzalo Tapia',        'DC', 26,'CHI','River Plate','Liga ARG', 5,0,18);
 
   // === INDEPENDIENTE 2025/26 ===
@@ -690,41 +690,143 @@ function buildMkt(){
 
   // === BRASIL ===
   a(1,'Rossi','ARQ',31,'ARG','Flamengo','Brasil',8,79,30,79);
-  a(8,'Gerson','MC',28,'BRA','Flamengo','Brasil',22,80,55,81);
+  a(8,'Gerson','MC',30,'BRA','Flamengo','Brasil',22,80,55,81);
   a(10,'De La Cruz','MCO',27,'URU','Flamengo','Brasil',18,79,40,80);
-  a(9,'Pedro','DC',28,'BRA','Flamengo','Brasil',35,85,80,86);
+  a(9,'Pedro','DC',30,'BRA','Flamengo','Brasil',35,85,80,86);
   a(1,'Weverton','ARQ',37,'BRA','Palmeiras','Brasil',5,78,22,78);
   a(4,'Gustavo Gómez','DFC',31,'PAR','Palmeiras','Brasil',8,78,30,78);
-  a(2,'Agustín Giay','DFD',22,'ARG','Palmeiras','Brasil',14,76,21,83);
-  a(7,'Jhon Arias','ED',28,'COL','Palmeiras','Brasil',18,79,38,80);
-  a(9,'Vitor Roque','DC',19,'BRA','Palmeiras','Brasil',30,78,35,90);
-  a(11,'Estêvão','EI',18,'BRA','Palmeiras','Brasil',28,80,35,92);
+  a(2,'Agustín Giay','DFD',23,'ARG','Palmeiras','Brasil',14,76,21,83);
+  a(7,'Jhon Arias','ED',29,'COL','Palmeiras','Brasil',18,79,38,80);
+  a(9,'Vitor Roque','DC',21,'BRA','Palmeiras','Brasil',30,78,35,90);
+  a(11,'Estêvão','EI',18,'BRA','Chelsea','Brasil',28,80,35,92);
   a(1,'Sergio Rochet','ARQ',33,'URU','Internacional','Brasil',5,77,21,77);
   a(9,'Gabriel Barbosa','DC',28,'BRA','Cruzeiro','Brasil',12,79,50,79);
 
+  // === BRASIL — CLUBES ADICIONALES ===
+  a(1,'Weverton','ARQ',38,'BRA','Palmeiras','Brasil',3,0,20);
+  a(4,'Gustavo Gómez','DFC',33,'PAR','Palmeiras','Brasil',6,0,22);
+  a(23,'Richard Ríos','MC',26,'COL','Palmeiras','Brasil',22,0,28);
+  a(9,'Facundo Buonanotte','MCO',21,'ARG','Palmeiras','Brasil',18,0,22);
+  a(11,'Felipe Anderson','EI',32,'BRA','Palmeiras','Brasil',5,0,25);
+  a(10,'Maurício','MCO',24,'BRA','Flamengo','Brasil',12,0,18);
+  a(7,'Michael','EI',28,'BRA','Flamengo','Brasil',8,0,22);
+  a(5,'Léo Ortiz','DFC',28,'BRA','Flamengo','Brasil',14,0,20);
+  a(9,'Jhon Jáder Durán','DC',22,'COL','Flamengo','Brasil',35,0,25);
+  a(10,'Alan Patrick','MCO',32,'BRA','Internacional','Brasil',6,0,22);
+  a(9,'Enner Valencia','DC',36,'ECU','Internacional','Brasil',1.5,0,20);
+  a(11,'Luiz Henrique','EI',24,'BRA','Botafogo','Brasil',20,0,24);
+  a(8,'Marlon Freitas','MCD',28,'BRA','Botafogo','Brasil',10,0,20);
+  a(4,'Alexander Barboza','DFC',27,'URU','Botafogo','Brasil',6,0,18);
+  a(9,'Igor Jesus','DC',23,'BRA','Botafogo','Brasil',16,0,22);
+  a(11,'Paulinho','EI',24,'BRA','Atlético Mineiro','Brasil',18,0,24);
+  a(3,'Guilherme Arana','DFI',28,'BRA','Atlético Mineiro','Brasil',12,0,20);
+  a(9,'Deyverson','DC',34,'BRA','Atlético Mineiro','Brasil',2,0,16);
+  a(10,'Jhon Arias','ED',29,'COL','Fluminense','Brasil',14,0,24);
+  a(9,'Germán Cano','DC',37,'ARG','Fluminense','Brasil',1.5,0,18);
+  a(8,'André','MCD',23,'BRA','Fluminense','Brasil',28,0,26);
+  a(9,'Yuri Alberto','DC',24,'BRA','Corinthians','Brasil',12,0,22);
+  a(10,'Rodrigo Garro','MCO',26,'ARG','Corinthians','Brasil',8,0,20);
+  a(9,'Jonathan Calleri','DC',32,'ARG','São Paulo','Brasil',4,0,22);
+  a(11,'Lucas Moura','EI',33,'BRA','São Paulo','Brasil',3,0,20);
+  a(9,'Pepê','ED',27,'BRA','Grêmio','Brasil',8,0,18);
+  a(1,'Mycael','ARQ',22,'BRA','Athletico PR','Brasil',8,0,16);
+  a(9,'Pablo','DC',33,'BRA','Athletico PR','Brasil',3,0,18);
+  a(4,'Pedro Henrique','DFC',27,'BRA','Red Bull Bragantino','Brasil',10,0,18);
+
   // === URUGUAY ===
-  a(9,'Darwin Núñez','DC',26,'URU','Liverpool','Premier',70,85,120,87);
-  a(8,'Federico Valverde','MC',26,'URU','Real Madrid','España',100,88,150,90);
-  a(6,'Rodrigo Bentancur','MC',27,'URU','Tottenham','Premier',35,82,80,83);
-  a(4,'Manuel Ugarte','MCD',23,'URU','Man. United','Premier',40,82,75,86);
-  a(5,'Ronald Araújo','DFC',26,'URU','Barcelona','España',55,84,100,86);
+  a(1,'Sergio Rochet','ARQ',34,'URU','Nacional','Uruguay',4,0,18);
+  a(4,'Mathías Laborda','DFC',23,'URU','Nacional','Uruguay',6,0,16);
+  a(9,'Luciano Rodríguez','DC',23,'URU','Nacional','Uruguay',10,0,18);
+  a(10,'Gonzalo Napout','MCO',26,'URU','Nacional','Uruguay',4,0,14);
+  a(7,'Iñaki Risso','EI',21,'URU','Nacional','Uruguay',5,0,14);
+  a(1,'Kevin Dawson','ARQ',33,'URU','Peñarol','Uruguay',3,0,16);
+  a(10,'Facundo Torres','MCO',25,'URU','Peñarol','Uruguay',14,0,22);
+  a(9,'Jonathan Rodríguez','DC',30,'URU','Peñarol','Uruguay',6,0,20);
+  a(11,'Maximiliano Olivera','EI',25,'URU','Peñarol','Uruguay',5,0,16);
+  a(5,'Gary Kagelmacher','DFC',33,'URU','Peñarol','Uruguay',2,0,14);
+
+  // === COLOMBIA ===
+  a(1,'Camilo Vargas','ARQ',34,'COL','Atlético Nacional','Colombia',2,0,16);
+  a(4,'Jhon Duque','DFC',28,'COL','Atlético Nacional','Colombia',6,0,18);
+  a(10,'Edwin Cardona','MCO',33,'COL','Atlético Nacional','Colombia',3,0,20);
+  a(11,'Marino Hinestroza','EI',27,'COL','Atlético Nacional','Colombia',5,0,16);
+  a(9,'Alfredo Morelos','DC',29,'COL','Atlético Nacional','Colombia',4,0,18);
+  a(10,'Daniel Ruiz','MCO',22,'COL','Millonarios','Colombia',8,0,16);
+  a(9,'Radamel Falcao','DC',40,'COL','Millonarios','Colombia',0.4,0,22);
+  a(4,'Juan Pablo Vargas','DFC',29,'CRC','Millonarios','Colombia',3,0,14);
+  a(10,'Rafael Carrascal','MCO',29,'COL','América de Cali','Colombia',4,0,16);
+  a(9,'Carlos Bacca','DC',38,'COL','Junior','Colombia',0.5,0,18);
+
+  // === CHILE ===
+  a(1,'Brayan Cortés','ARQ',30,'CHI','Colo-Colo','Chile',4,0,18);
+  a(8,'Arturo Vidal','MC',39,'CHI','Colo-Colo','Chile',0.8,0,24);
+  a(11,'Darío Osorio','EI',21,'CHI','Colo-Colo','Chile',10,0,18);
+  a(6,'Esteban Pavez','MCD',35,'CHI','Colo-Colo','Chile',2,0,16);
+  a(9,'Pablo Solari','EI',24,'ARG','Colo-Colo','Chile',5,0,16);
+  a(10,'Marcelo Díaz','MCD',39,'CHI','Universidad de Chile','Chile',0.5,0,16);
+  a(9,'Lucas Assadi','MCO',22,'CHI','Universidad de Chile','Chile',6,0,16);
+  a(9,'Fernando Zampedri','DC',37,'ARG','Universidad Católica','Chile',1,0,16);
+  a(10,'Marcelino Núñez','MCO',24,'CHI','Norwich City','Chile',8,0,18);
+
+  // === PARAGUAY ===
+  a(1,'Antony Silva','ARQ',38,'PAR','Olimpia','Paraguay',0.8,0,14);
+  a(8,'Richard Ortiz','MCD',37,'PAR','Olimpia','Paraguay',0.8,0,16);
+  a(10,'Derlis González','EI',31,'PAR','Olimpia','Paraguay',2.5,0,18);
+  a(5,'Omar Alderete','DFC',29,'PAR','Cerro Porteño','Paraguay',5,0,18);
+  a(9,'Antonio Sanabria','DC',29,'PAR','Cerro Porteño','Paraguay',4,0,20);
+  a(10,'Ángel Romero','MCO',33,'PAR','Cerro Porteño','Paraguay',2,0,18);
+  a(10,'Miguel Almirón','MCO',31,'PAR','Libertad','Paraguay',6,0,24);
+
+  // === ECUADOR ===
+  a(1,'Alexander Domínguez','ARQ',41,'ECU','LDU Quito','Ecuador',0.5,0,16);
+  a(10,'Romario Ibarra','MCO',30,'ECU','LDU Quito','Ecuador',3,0,18);
+  a(9,'Alex Arce','DC',27,'PAR','LDU Quito','Ecuador',4,0,16);
+  a(10,'Kendry Páez','MC',18,'ECU','Independiente del Valle','Ecuador',20,0,18);
+  a(11,'Ayrton Preciado','ED',27,'ECU','Barcelona SC','Ecuador',4,0,16);
+  a(9,'Jonatan Álvez','DC',31,'URU','Barcelona SC','Ecuador',3,0,18);
+
+  // === PERÚ ===
+  a(1,'Pedro Gallese','ARQ',35,'PER','Universitario','Perú',2,0,16);
+  a(9,'Alex Valera','DC',30,'PER','Universitario','Perú',3,0,16);
+  a(10,'Andy Polo','ED',31,'PER','Universitario','Perú',1.5,0,14);
+  a(9,'Hernán Barcos','DC',42,'ARG','Alianza Lima','Perú',0.3,0,14);
+  a(10,'Kevin Quevedo','EI',27,'PER','Alianza Lima','Perú',2,0,14);
+  a(9,'Christofer Gonzales','MCO',31,'PER','Sporting Cristal','Perú',1.5,0,14);
+
+  // === BOLIVIA ===
+  a(9,'Matías Succar','DC',26,'PER','Bolívar','Bolivia',3,0,14);
+  a(10,'Pablo Escobar','MCO',31,'BOL','Bolívar','Bolivia',1.5,0,14);
+  a(1,'Carlos Lampe','ARQ',38,'BOL','The Strongest','Bolivia',1,0,14);
+  a(9,'Gilbert Álvarez','DC',27,'BOL','The Strongest','Bolivia',1.5,0,12);
+
+  // === VENEZUELA ===
+  a(10,'Jhon Murillo','MCO',28,'VEN','Caracas FC','Venezuela',3,0,14);
+  a(4,'Jon Aramburu','DFC',29,'VEN','Caracas FC','Venezuela',3,0,14);
+  a(9,'Salomón Rondón','DC',36,'VEN','Deportivo Táchira','Venezuela',1,0,18);
+
+  // === URUGUAY (Europa) ===
+  a(9,'Darwin Núñez','DC',27,'URU','Liverpool','Premier',70,85,120,87);
+  a(8,'Federico Valverde','MC',28,'URU','Real Madrid','España',100,88,150,90);
+  a(6,'Rodrigo Bentancur','MC',28,'URU','Tottenham','Premier',35,82,80,83);
+  a(4,'Manuel Ugarte','MCD',25,'URU','Man. United','Premier',40,82,75,86);
+  a(5,'Ronald Araújo','DFC',27,'URU','Barcelona','España',55,84,100,86);
   a(2,'José M. Giménez','DFC',30,'URU','Atlético Madrid','España',28,81,80,81);
-  a(3,'Matías Olivera','DFI',26,'URU','Nápoles','Italia',22,79,55,80);
-  a(7,'Facundo Pellistri','ED',23,'URU','Man. United','Premier',20,76,40,83);
+  a(3,'Matías Olivera','DFI',28,'URU','Nápoles','Italia',22,79,55,80);
+  a(7,'Facundo Pellistri','ED',25,'URU','Man. United','Premier',20,76,40,83);
 
   // === ARGENTINA EN EUROPA - PREMIER LEAGUE ===
   a(10,'Alexis Mac Allister','MC',26,'ARG','Liverpool','Premier',65,86,95,88);
-  a(11,'Alejandro Garnacho','EI',22,'ARG','Chelsea','Premier',60,84,80,90);
-  a(8,'Enzo Fernández','MC',25,'ARG','Chelsea','Premier',70,85,120,88);
-  a(5,'Lisandro Martínez','DFC',27,'ARG','Man. United','Premier',55,84,90,85);
-  a(4,'Cristian Romero','DFC',27,'ARG','Tottenham','Premier',60,85,95,86);
+  a(11,'Alejandro Garnacho','EI',21,'ARG','Chelsea','Premier',60,84,80,90);
+  a(8,'Enzo Fernández','MC',29,'ARG','Chelsea','Premier',70,85,120,88);
+  a(5,'Lisandro Martínez','DFC',28,'ARG','Man. United','Premier',55,84,90,85);
+  a(4,'Cristian Romero','DFC',28,'ARG','Tottenham','Premier',60,85,95,86);
   a(1,'Emiliano Dibu Martínez','ARQ',33,'ARG','Aston Villa','Premier',25,87,120,87);
-  a(2,'Nahuel Molina','DFD',26,'ARG','Atlético Madrid','España',25,80,55,81);
+  a(2,'Nahuel Molina','DFD',28,'ARG','Atlético Madrid','España',25,80,55,81);
 
   // === ARGENTINA EN EUROPA - SERIE A ===
   a(10,'Paulo Dybala','MCO',32,'ARG','AS Roma','Italia',12,86,120,86);
   a(11,'Matías Soulé','EI',23,'ARG','AS Roma','Italia',28,79,45,85);
-  a(10,'Nicolás Paz','MCO',20,'ARG','Como 1907','Italia',22,79,35,89);
+  a(10,'Nicolás Paz','MCO',22,'ARG','Como 1907','Italia',22,79,35,89);
   a(9,'Santiago Castro','DC',22,'ARG','Bologna FC','Italia',18,77,30,87);
   a(9,'Mateo Retegui','DC',26,'ARG','Atalanta','Italia',40,83,75,84);
   a(8,'Máximo Perrone','MCD',23,'ARG','Como 1907','Italia',12,76,21,84);
@@ -732,11 +834,11 @@ function buildMkt(){
   a(1,'Juan Musso','ARQ',32,'ARG','Atalanta','Italia',12,80,38,80);
 
   // === ARGENTINA EN EUROPA - ESPAÑA ===
-  a(10,'Thiago Almada','MCO',24,'ARG','Atlético Madrid','España',35,81,55,84);
+  a(10,'Thiago Almada','MCO',25,'ARG','Atlético Madrid','España',35,81,55,84);
   a(7,'Giuliano Simeone','ED',22,'ARG','Atlético Madrid','España',25,78,42,84);
   a(10,'Franco Mastantuono','MCO',18,'ARG','Real Madrid','España',35,78,30,93);
   a(10,'Giovani Lo Celso','MCO',30,'ARG','Real Betis','España',12,81,55,81);
-  a(9,'Julián Álvarez','DC',25,'ARG','Atlético Madrid','España',95,89,140,91);
+  a(9,'Julián Álvarez','DC',27,'ARG','Atlético Madrid','España',95,89,140,91);
   a(4,'Facundo Medina','DFC',26,'ARG','O. Marsella','Francia',20,78,40,80);
   a(3,'Valentín Barco','DFI',21,'ARG','Estrasburgo','Francia',10,75,21,83);
   a(5,'Zaid Romero','DFC',26,'ARG','Getafe','España',10,75,21,78);
@@ -744,7 +846,7 @@ function buildMkt(){
   // === ALEMANIA Y OTROS ===
   a(8,'Ezequiel Fernández','MC',24,'ARG','Bayer Leverkusen','Alemania',22,78,42,83);
   a(6,'Exequiel Palacios','MC',27,'ARG','Bayer Leverkusen','Alemania',18,79,40,81);
-  a(4,'Alan Varela','MCD',23,'ARG','FC Porto','Otras',16,76,30,82);
+  a(4,'Alan Varela','MCD',25,'ARG','FC Porto','Otras',16,76,30,82);
   a(11,'Benjamín Rollheiser','EI',24,'ARG','Benfica','Otras',12,75,28,80);
   a(11,'Gianluca Prestianni','ED',21,'ARG','Benfica','Otras',15,76,24,84);
 
@@ -756,10 +858,10 @@ function buildMkt(){
   a(10,'Kylian Mbappé','ED',27,'FRA','Real Madrid','España',180,95,400,95);
   a(7,'Vinicius Jr.','EI',25,'BRA','Real Madrid','España',160,92,350,93);
   a(9,'Erling Haaland','DC',26,'NOR','Man. City','Premier',200,94,400,95);
-  a(5,'Jude Bellingham','MC',22,'ING','Real Madrid','España',180,91,280,94);
+  a(5,'Jude Bellingham','MC',23,'ING','Real Madrid','España',180,91,280,94);
   a(11,'Lamine Yamal','EI',18,'ESP','Barcelona','España',150,87,180,96);
-  a(7,'Bukayo Saka','ED',24,'ING','Arsenal','Premier',150,88,200,91);
-  a(8,'Pedri','MC',23,'ESP','Barcelona','España',100,87,180,91);
+  a(7,'Bukayo Saka','ED',25,'ING','Arsenal','Premier',150,88,200,91);
+  a(8,'Pedri','MC',24,'ESP','Barcelona','España',100,87,180,91);
 
   return m;
 }
@@ -932,7 +1034,7 @@ function buildCal(){
     'Argentinos Jrs','Barracas Central','Gimnasia LP'
   ];
   // Libertadores group rivals
-  const libG = ['Flamengo','Nacional (URU)','Cerro Porteño'];
+  const libG = ['Flamengo','Nacional (URU)','LDU Quito'];
   // Copa Argentina knockout sequence
   const caOpps = ['Almagro','Tigre','Newell\'s','San Lorenzo','Racing Club'];
   const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF','Copa Argentina Final'];
@@ -949,10 +1051,12 @@ function buildCal(){
     sch.push({week:4+i*4,  comp:'Copa Libertadores - Fase de Grupos', home:r, away:'Boca Juniors', played:false,result:null,score:null});
   });
   // Libertadores Knockout (played conditionally but always generated)
-  sch.push({week:27, comp:'Copa Libertadores - Octavos IDA',     home:'Boca Juniors', away:'Fluminense',   played:false,result:null,score:null});
-  sch.push({week:29, comp:'Copa Libertadores - Octavos VUELTA',  home:'Fluminense',   away:'Boca Juniors', played:false,result:null,score:null});
-  sch.push({week:32, comp:'Copa Libertadores - Cuartos',         home:'Boca Juniors', away:'Palmeiras',    played:false,result:null,score:null});
-  sch.push({week:35, comp:'Copa Libertadores - Semifinal',       home:'Atlético MG',  away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:27, comp:'Copa Libertadores - Octavos IDA',     home:'Boca Juniors', away:'Botafogo',     played:false,result:null,score:null});
+  sch.push({week:29, comp:'Copa Libertadores - Octavos VUELTA',  home:'Botafogo',     away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:32, comp:'Copa Libertadores - Cuartos IDA',     home:'Boca Juniors', away:'Colo-Colo',    played:false,result:null,score:null});
+  sch.push({week:33, comp:'Copa Libertadores - Cuartos VUELTA',  home:'Colo-Colo',    away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:35, comp:'Copa Libertadores - Semifinal IDA',   home:'Atlético MG',  away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:36, comp:'Copa Libertadores - Semifinal VUELTA',home:'Boca Juniors', away:'Atlético MG',  played:false,result:null,score:null});
   sch.push({week:39, comp:'Copa Libertadores - Final',           home:'Boca Juniors', away:'River Plate',  played:false,result:null,score:null});
   // Copa Argentina
   caOpps.forEach((r,i) => {
