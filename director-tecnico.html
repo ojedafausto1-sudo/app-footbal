@@ -187,6 +187,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="gTab('stad',this)">🏟️ Estadio</button>
     <button class="nb" onclick="gTab('juv',this)">🌱 Juveniles</button>
     <button class="nb" onclick="gTab('ct',this)">🤝 CT</button>
+    <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 PATROC.</button>
     <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
   </div>
   <div class="main">
@@ -334,6 +335,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div><div class="card" style="margin-bottom:8px" id="curDT"></div><div class="card" id="curStaff"></div></div>
         <div class="card" id="availDTs"></div>
       </div>
+    </div>
+
+    <!-- PATROCINIOS -->
+    <div id="tab-pat" class="tc">
+      <div class="stitle">📋 Patrocinios</div>
+      <div class="note">Firmá contratos con sponsors para generar ingresos pasivos cada semana. Solo podés tener un sponsor activo por categoría.</div>
+      <div id="sponsorsList"></div>
     </div>
 
     <!-- TEMPORADA -->
@@ -520,124 +528,158 @@ function buildMkt(){
   const m = [];
   const a = (...x) => m.push(P(...x));
 
-  // === RACING CLUB 2025/26 ===
-  a(25,'Facundo Cambeses',    'ARQ',29,'ARG','Racing Club','Liga ARG', 6,0,22);
-  a(30,'Matías Tagliamonte',  'ARQ',27,'ARG','Racing Club','Liga ARG', 1.5,0,11);
-  a(2, 'Marco Di Cesare',     'DFC',24,'ARG','Racing Club','Liga ARG', 6,0,17);
-  a(18,'Franco Pardo',        'DFC',26,'ARG','Racing Club','Liga ARG', 5,0,15);
-  a(6, 'Marcos Rojo',         'DFC',36,'ARG','Racing Club','Liga ARG', 0.8,0,19);
-  a(15,'Gastón Martirena',    'DFD',29,'URU','Racing Club','Liga ARG', 4.5,0,16);
-  a(27,'Gabriel Rojas',       'DFI',26,'ARG','Racing Club','Liga ARG', 5.5,0,17);
-  a(23,'Nazareno Colombo',    'DFC',25,'ARG','Racing Club','Liga ARG', 3.5,0,12);
-  a(8, 'Alan Forneris',       'MCD',24,'ARG','Racing Club','Liga ARG', 5,0,14);
-  a(11,'Matías Zaracho',      'MC', 26,'ARG','Racing Club','Liga ARG', 9,0,18);
-  a(13,'Santiago Sosa',       'MCD',27,'ARG','Racing Club','Liga ARG', 6.5,0,16);
-  a(10,'Matko Miljevic',      'MCO',23,'ARG','Racing Club','Liga ARG', 6,0,14);
-  a(21,'Valentín Carboni',    'MCO',20,'ITA','Racing Club','Liga ARG',12,0,22);  // préstamo Inter
-  a(36,'Bruno Zuculini',      'MCD',32,'ARG','Racing Club','Liga ARG', 2,0,15);
-  a(7, 'Duván Vergara',       'EI', 28,'COL','Racing Club','Liga ARG', 5.5,0,18);
-  a(9, 'Adrián Maravilla Martínez','DC',33,'ARG','Racing Club','Liga ARG',16,0,40);
-  a(14,'Damián Pizarro',      'DC', 20,'CHI','Racing Club','Liga ARG', 8,0,17);  // joya chilena
-  a(17,'Tomás Conechny',      'ED', 26,'ARG','Racing Club','Liga ARG', 4.5,0,14);
-  a(28,'Santiago Solari',     'EI', 27,'ARG','Racing Club','Liga ARG', 5.5,0,16);
+  // === RACING CLUB 2025/26 === (Copa Libertadores 2024 champions)
+  a(1, 'Gabriel Arias',        'ARQ',37,'CHI','Racing Club','Liga ARG', 1.5,0,20);
+  a(5, 'Marco Di Cesare',      'DFC',24,'ARG','Racing Club','Liga ARG',10,0,18);  // joya defensiva
+  a(4, 'Emiliano Aguilar',     'DFC',27,'ARG','Racing Club','Liga ARG', 4,0,14);
+  a(22,'Gastón Martirena',     'DFD',27,'ARG','Racing Club','Liga ARG', 5,0,16);
+  a(3, 'Facundo Mura',         'DFI',25,'ARG','Racing Club','Liga ARG', 4.5,0,14);
+  a(8, 'Juan Nardoni',         'MCD',23,'ARG','Racing Club','Liga ARG',12,0,18);  // crack del Racing
+  a(10,'Maxi Meza',            'MCO',33,'ARG','Racing Club','Liga ARG', 3,0,22);
+  a(16,'Matías Zaracho',       'MC', 27,'ARG','Racing Club','Liga ARG', 9,0,20);
+  a(7, 'Tomás Conechny',       'ED', 26,'ARG','Racing Club','Liga ARG', 4.5,0,15);
+  a(14,'Damián Pizarro',       'DC', 20,'CHI','Racing Club','Liga ARG', 9,0,17);  // joya chilena
+  a(9, 'Adrián Martínez',      'DC', 28,'URU','Racing Club','Liga ARG', 8,0,22);  // goleador
 
   // === SAN LORENZO 2025/26 ===
-  a(1, 'Augusto Batalla',     'ARQ',29,'ARG','San Lorenzo','Liga ARG', 3.5,0,15);
-  a(40,'Marcos Senesi',       'DFC',28,'ARG','San Lorenzo','Liga ARG',22,0,38);  // volvió de Europa
-  a(5, 'Matías De Ritis',     'DFC',30,'ARG','San Lorenzo','Liga ARG', 2.5,0,13);
-  a(3, 'Nahuel Barrios',      'DFI',27,'ARG','San Lorenzo','Liga ARG', 4,0,13);
-  a(2, 'Gastón Hernández',    'DFD',29,'ARG','San Lorenzo','Liga ARG', 2.5,0,12);
-  a(8, 'Iker Muniain',        'MCO',32,'ESP','San Lorenzo','Liga ARG', 2.5,0,27);
-  a(14,'Elián Irala',         'MCD',23,'ARG','San Lorenzo','Liga ARG', 5,0,12);
-  a(10,'Fabricio Gulli',      'MCO',27,'ARG','San Lorenzo','Liga ARG', 4.5,0,16);
-  a(9, 'Alexis Cuello',       'ED', 27,'ARG','San Lorenzo','Liga ARG', 3.5,0,14);
-  a(19,'Lucas Vietto',        'DC', 30,'ESP','San Lorenzo','Liga ARG', 4,0,18);
-  a(22,'Malcom Braida',       'EI', 22,'ARG','San Lorenzo','Liga ARG', 4,0,12);
+  a(1, 'Augusto Batalla',      'ARQ',29,'ARG','San Lorenzo','Liga ARG', 3.5,0,15);
+  a(5, 'Matías De Ritis',      'DFC',30,'ARG','San Lorenzo','Liga ARG', 2.5,0,13);
+  a(4, 'Nicolás Valentini',    'DFC',24,'ARG','San Lorenzo','Liga ARG', 4,0,14);
+  a(3, 'Nahuel Barrios',       'DFI',27,'ARG','San Lorenzo','Liga ARG', 4,0,13);
+  a(2, 'Gastón Hernández',     'DFD',29,'ARG','San Lorenzo','Liga ARG', 2.5,0,12);
+  a(8, 'Iker Muniain',         'MCO',32,'ESP','San Lorenzo','Liga ARG', 2.5,0,27);
+  a(14,'Elián Irala',          'MCD',23,'ARG','San Lorenzo','Liga ARG', 5,0,12);
+  a(10,'Fabricio Gulli',       'MCO',27,'ARG','San Lorenzo','Liga ARG', 4.5,0,16);
+  a(7, 'Pablo Paz',            'ED', 23,'ARG','San Lorenzo','Liga ARG', 3,0,12);
+  a(9, 'Lucas Vietto',         'DC', 30,'ESP','San Lorenzo','Liga ARG', 4,0,18);
+  a(22,'Malcom Braida',        'EI', 22,'ARG','San Lorenzo','Liga ARG', 4,0,12);
 
   // === VÉLEZ SARSFIELD 2025/26 ===
-  a(1, 'Tomás Marchiori',     'ARQ',27,'ARG','Vélez Sarsfield','Liga ARG', 4,0,15);
-  a(4, 'Valentín Gómez',      'DFC',22,'ARG','Vélez Sarsfield','Liga ARG',14,0,20);  // la gran joya
-  a(5, 'Daniele Rugani',      'DFC',31,'ITA','Vélez Sarsfield','Liga ARG', 4,0,22);
-  a(3, 'Braian Cufré',        'DFI',27,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,12);
-  a(22,'Manuel Lanzini',      'MC', 32,'ARG','Vélez Sarsfield','Liga ARG', 6,0,30);
-  a(10,'Diego Valdés',        'MCO',31,'CHI','Vélez Sarsfield','Liga ARG', 4,0,20);
-  a(8, 'Lucas Orellano',      'MCO',26,'ARG','Vélez Sarsfield','Liga ARG', 6,0,17);
-  a(7, 'Thiago Fernández',    'MI', 22,'ARG','Vélez Sarsfield','Liga ARG', 5,0,12);
-  a(9, 'Mariano Pellegrini',  'DC', 25,'ARG','Vélez Sarsfield','Liga ARG', 6,0,18);
-  a(50,'Tomás Andrada',       'DC', 23,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,13);
+  a(1, 'Tomás Marchiori',      'ARQ',27,'ARG','Vélez Sarsfield','Liga ARG', 4,0,15);
+  a(4, 'Valentín Gómez',       'DFC',22,'ARG','Vélez Sarsfield','Liga ARG',14,0,20);  // la gran joya
+  a(5, 'Agustín Mulet',        'DFC',24,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,13);
+  a(3, 'Braian Cufré',         'DFI',27,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,12);
+  a(22,'Manuel Lanzini',       'MC', 32,'ARG','Vélez Sarsfield','Liga ARG', 6,0,30);
+  a(10,'Diego Valdés',         'MCO',31,'CHI','Vélez Sarsfield','Liga ARG', 4,0,20);
+  a(8, 'Lucas Orellano',       'MCO',26,'ARG','Vélez Sarsfield','Liga ARG', 6,0,17);
+  a(7, 'Thiago Fernández',     'MI', 22,'ARG','Vélez Sarsfield','Liga ARG', 5,0,12);
+  a(9, 'Mariano Pellegrini',   'DC', 25,'ARG','Vélez Sarsfield','Liga ARG', 6,0,18);
 
   // === RIVER PLATE 2025/26 ===
-  a(1, 'Franco Armani',       'ARQ',38,'ARG','River Plate','Liga ARG', 1.5,0,22);
-  a(4, 'Germán Pezzella',     'DFC',33,'ARG','River Plate','Liga ARG', 3,0,22);
-  a(23,'Paulo Díaz',          'DFC',28,'CHI','River Plate','Liga ARG', 8,0,22);
-  a(2, 'Gonzalo Montiel',     'DFD',28,'ARG','River Plate','Liga ARG', 5,0,18);
-  a(3, 'Marcos Acuña',        'DFI',33,'ARG','River Plate','Liga ARG', 3.5,0,20);
-  a(5, 'Enzo Pérez',          'MCD',38,'ARG','River Plate','Liga ARG', 0.5,0,20);
-  a(8, 'Nicolás De La Cruz',  'MCO',27,'URU','River Plate','Liga ARG',14,0,36);  // volvió de Fla
-  a(14,'Claudio Echeverri',   'MCO',19,'ARG','River Plate','Liga ARG',16,0,18);  // crack joven
-  a(7, 'Facundo Colidio',     'EI', 24,'ARG','River Plate','Liga ARG', 7,0,20);
-  a(9, 'Gonzalo Tapia',       'DC', 26,'CHI','River Plate','Liga ARG', 5,0,18);
-  a(10,'Ignacio Fernández',   'MCO',32,'ARG','River Plate','Liga ARG', 4,0,25);
+  a(1, 'Franco Armani',        'ARQ',38,'ARG','River Plate','Liga ARG', 1.5,0,22);
+  a(4, 'Emmanuel Mammana',     'DFC',29,'ARG','River Plate','Liga ARG', 6,0,20);  // volvió de Europa
+  a(23,'Paulo Díaz',           'DFC',28,'CHI','River Plate','Liga ARG', 8,0,22);
+  a(22,'Germán Pezzella',      'DFC',33,'ARG','River Plate','Liga ARG', 2,0,18);
+  a(2, 'Gonzalo Montiel',      'DFD',28,'ARG','River Plate','Liga ARG', 4,0,18);
+  a(3, 'Enzo Díaz',            'DFI',28,'ARG','River Plate','Liga ARG', 5.5,0,14);  // volvió de Talleres
+  a(8, 'Rodrigo Aliendro',     'MCD',28,'ARG','River Plate','Liga ARG', 3.5,0,14);
+  a(10,'Ignacio Fernández',    'MCO',32,'ARG','River Plate','Liga ARG', 4,0,25);
+  a(7, 'Facundo Colidio',      'EI', 24,'ARG','River Plate','Liga ARG', 7,0,20);
+  a(9, 'Miguel Borja',         'DC', 29,'COL','River Plate','Liga ARG', 8,0,28);  // goleador
+  a(11,'Gonzalo Tapia',        'DC', 26,'CHI','River Plate','Liga ARG', 5,0,18);
 
   // === INDEPENDIENTE 2025/26 ===
-  a(1, 'Rodrigo Rey',         'ARQ',35,'ARG','Independiente','Liga ARG', 1.5,0,15);
-  a(4, 'Matías Giménez',      'DFC',27,'ARG','Independiente','Liga ARG', 3.5,0,12);
-  a(3, 'Federico Vera',       'DFD',25,'ARG','Independiente','Liga ARG', 3,0,12);
-  a(6, 'Lucas Romero',        'MCD',32,'ARG','Independiente','Liga ARG', 2,0,13);
-  a(10,'Rodrigo Márquez',     'MCO',25,'ARG','Independiente','Liga ARG', 3.5,0,14);
-  a(7, 'Alexis Canelo',       'EI', 29,'CHI','Independiente','Liga ARG', 3,0,13);
-  a(9, 'Lautaro Millán',      'DC', 24,'ARG','Independiente','Liga ARG', 4.5,0,14);
+  a(1, 'Rodrigo Rey',          'ARQ',35,'ARG','Independiente','Liga ARG', 1.5,0,15);
+  a(4, 'Gastón Togni',         'DFC',27,'ARG','Independiente','Liga ARG', 3.5,0,12);
+  a(3, 'Lucas Rodríguez',      'DFD',26,'ARG','Independiente','Liga ARG', 3,0,12);
+  a(6, 'Iván Marcone',         'MCD',34,'ARG','Independiente','Liga ARG', 1.5,0,14);
+  a(10,'Rodrigo Márquez',      'MCO',25,'ARG','Independiente','Liga ARG', 3.5,0,14);
+  a(7, 'Alexis Canelo',        'EI', 29,'CHI','Independiente','Liga ARG', 3,0,13);
+  a(9, 'Lautaro Millán',       'DC', 24,'ARG','Independiente','Liga ARG', 4.5,0,14);
 
   // === ESTUDIANTES LP 2025/26 ===
-  a(22,'Ezequiel Unsain',     'ARQ',31,'ARG','Estudiantes LP','Liga ARG', 2,0,13);
-  a(5, 'Mauricio Ardente',    'DFC',30,'ARG','Estudiantes LP','Liga ARG', 3,0,13);
-  a(8, 'Manuel Castro',       'MC', 28,'ARG','Estudiantes LP','Liga ARG', 3.5,0,14);
-  a(7, 'Edwuin Cetré',        'EI', 29,'COL','Estudiantes LP','Liga ARG', 4.5,0,16);
-  a(9, 'Jorge Morel',         'DC', 30,'PAR','Estudiantes LP','Liga ARG', 3.5,0,14);
-  a(11,'Gustavo del Prete',   'DC', 31,'ARG','Estudiantes LP','Liga ARG', 2,0,13);
+  a(22,'Ezequiel Unsain',      'ARQ',31,'ARG','Estudiantes LP','Liga ARG', 2,0,13);
+  a(5, 'Zaid Romero',          'DFC',26,'ARG','Estudiantes LP','Liga ARG', 7,0,16);  // volvió de Europa
+  a(8, 'Manuel Castro',        'MC', 28,'ARG','Estudiantes LP','Liga ARG', 3.5,0,14);
+  a(7, 'Edwuin Cetré',         'EI', 29,'COL','Estudiantes LP','Liga ARG', 4.5,0,16);
+  a(9, 'Leandro Díaz',         'DC', 29,'ARG','Estudiantes LP','Liga ARG', 3.5,0,14);
+  a(11,'Gustavo del Prete',    'DC', 31,'ARG','Estudiantes LP','Liga ARG', 2,0,13);
 
   // === ROSARIO CENTRAL 2025/26 ===
-  a(1, 'Jorge Broun',         'ARQ',31,'ARG','Rosario Central','Liga ARG', 3,0,15);
-  a(6, 'Agustín Sández',      'DFI',27,'ARG','Rosario Central','Liga ARG', 3,0,12);
-  a(14,'Federico Navarro',    'MC', 27,'ARG','Rosario Central','Liga ARG', 4,0,14);
-  a(10,'Vicente Pizarro',     'MC', 25,'CHI','Rosario Central','Liga ARG', 5.5,0,16);
-  a(7, 'Ángel Di María',      'EI', 37,'ARG','Rosario Central','Liga ARG', 2.5,0,44);  // leyenda
-  a(9, 'Alejo Véliz',         'DC', 22,'ARG','Rosario Central','Liga ARG', 8,0,18);   // joya, ex-Tottenham
+  a(1, 'Jorge Broun',          'ARQ',31,'ARG','Rosario Central','Liga ARG', 3,0,15);
+  a(6, 'Agustín Sández',       'DFI',27,'ARG','Rosario Central','Liga ARG', 3,0,12);
+  a(14,'Federico Navarro',     'MC', 27,'ARG','Rosario Central','Liga ARG', 4,0,14);
+  a(10,'Vicente Pizarro',      'MC', 25,'CHI','Rosario Central','Liga ARG', 5.5,0,16);
+  a(7, 'Ángel Di María',       'EI', 37,'ARG','Rosario Central','Liga ARG', 2.5,0,44);  // leyenda, retirado en Central
+  a(9, 'Alejo Véliz',          'DC', 22,'ARG','Rosario Central','Liga ARG', 8,0,18);    // ex-Tottenham
 
   // === ARGENTINOS JUNIORS 2025/26 ===
-  a(8, 'Federico Fattori',    'MCD',29,'ARG','Argentinos Jrs','Liga ARG', 4.5,0,14);
-  a(14,'Alan Lescano',        'MC', 26,'ARG','Argentinos Jrs','Liga ARG', 8,0,18);
-  a(10,'Hernán López Muñoz',  'MCO',26,'ARG','Argentinos Jrs','Liga ARG',10,0,20);   // crack
-  a(9, 'Luciano Gondou',      'DC', 26,'ARG','Argentinos Jrs','Liga ARG', 5.5,0,16);
-  a(17,'Jonathan Gómez',      'MD', 24,'MEX','Argentinos Jrs','Liga ARG', 5.5,0,14);
+  a(8, 'Federico Fattori',     'MCD',29,'ARG','Argentinos Jrs','Liga ARG', 4.5,0,14);
+  a(14,'Alan Lescano',         'MC', 26,'ARG','Argentinos Jrs','Liga ARG', 8,0,18);
+  a(10,'Hernán López Muñoz',   'MCO',26,'ARG','Argentinos Jrs','Liga ARG',10,0,20);    // crack
+  a(9, 'Luciano Gondou',       'DC', 26,'ARG','Argentinos Jrs','Liga ARG', 5.5,0,16);
+  a(17,'Jonathan Gómez',       'MD', 24,'MEX','Argentinos Jrs','Liga ARG', 5.5,0,14);
 
   // === TALLERES 2025/26 ===
-  a(3, 'Enzo Díaz',           'DFI',28,'ARG','Talleres','Liga ARG', 5.5,0,14);
-  a(8, 'Rodrigo Villagra',    'MCD',27,'ARG','Talleres','Liga ARG', 4.5,0,14);
-  a(10,'Rodrigo Garro',       'MCO',25,'ARG','Talleres','Liga ARG', 7,0,16);
-  a(9, 'Michael Santos',      'DC', 28,'URU','Talleres','Liga ARG', 4.5,0,16);
-  a(11,'Juan Méndez',         'EI', 22,'ARG','Talleres','Liga ARG', 4,0,12);
+  a(1, 'Guido Herrera',        'ARQ',32,'ARG','Talleres','Liga ARG', 3,0,16);
+  a(4, 'Gastón Benavídez',     'DFC',25,'ARG','Talleres','Liga ARG', 4,0,14);
+  a(8, 'Rodrigo Villagra',     'MCD',27,'ARG','Talleres','Liga ARG', 4.5,0,14);
+  a(10,'Rodrigo Garro',        'MCO',25,'ARG','Talleres','Liga ARG', 7,0,16);
+  a(9, 'Michael Santos',       'DC', 28,'URU','Talleres','Liga ARG', 4.5,0,16);
+  a(11,'Juan Méndez',          'EI', 22,'ARG','Talleres','Liga ARG', 4,0,12);
 
   // === HURACÁN 2025/26 ===
-  a(10,'Bruno Zapelli',       'MCO',24,'ARG','Huracán','Liga ARG', 5,0,12);
-  a(11,'Benjamín Garré',      'EI', 25,'ARG','Huracán','Liga ARG', 4.5,0,14);
-  a(9, 'Walter Mazzantti',    'DC', 30,'ARG','Huracán','Liga ARG', 2,0,11);
-  a(7, 'Erik Ramírez',        'ED', 28,'COL','Huracán','Liga ARG', 3,0,13);
+  a(1, 'Antony Silva',         'ARQ',37,'PAR','Huracán','Liga ARG', 1.5,0,13);
+  a(10,'Bruno Zapelli',        'MCO',24,'ARG','Huracán','Liga ARG', 5,0,12);
+  a(11,'Benjamín Garré',       'EI', 25,'ARG','Huracán','Liga ARG', 4.5,0,14);
+  a(9, 'Walter Mazzantti',     'DC', 30,'ARG','Huracán','Liga ARG', 2,0,11);
+  a(7, 'Erik Ramírez',         'ED', 28,'COL','Huracán','Liga ARG', 3,0,13);
 
   // === LANÚS 2025/26 ===
-  a(9, 'José Sand',           'DC', 41,'ARG','Lanús','Liga ARG', 0.3,0,11);  // leyenda del club
-  a(10,'Tomás Milán',         'MCO',22,'ARG','Lanús','Liga ARG', 3.5,0,12);
-  a(7, 'Iván Cardona',        'EI', 25,'COL','Lanús','Liga ARG', 4,0,15);
-  a(8, 'Tomás Pozzo',         'MC', 26,'ARG','Lanús','Liga ARG', 3.5,0,13);
+  a(10,'Tomás Milán',          'MCO',22,'ARG','Lanús','Liga ARG', 3.5,0,12);
+  a(7, 'Iván Cardona',         'EI', 25,'COL','Lanús','Liga ARG', 4,0,15);
+  a(8, 'Tomás Pozzo',          'MC', 26,'ARG','Lanús','Liga ARG', 3.5,0,13);
+  a(9, 'Nicolás Orsini',       'DC', 28,'ARG','Lanús','Liga ARG', 4,0,16);
+  a(11,'Lucas Vera',           'ED', 22,'ARG','Lanús','Liga ARG', 3,0,11);
 
   // === NEWELL'S 2025/26 ===
-  a(10,'Ramiro Enrique',      'MCO',27,'ARG','Newell\'s','Liga ARG', 3,0,14);
-  a(9, 'Ignacio Russo',       'DC', 26,'ARG','Newell\'s','Liga ARG', 3.5,0,13);
-  a(7, 'Manuel Llano',        'EI', 23,'ARG','Newell\'s','Liga ARG', 3,0,12);
+  a(10,'Ramiro Enrique',       'MCO',27,'ARG','Newell\'s','Liga ARG', 3,0,14);
+  a(9, 'Ignacio Russo',        'DC', 26,'ARG','Newell\'s','Liga ARG', 3.5,0,13);
+  a(7, 'Manuel Llano',         'EI', 23,'ARG','Newell\'s','Liga ARG', 3,0,12);
+  a(5, 'Gustavo Velázquez',    'DFC',29,'ARG','Newell\'s','Liga ARG', 2.5,0,12);
+  a(8, 'Pablo Pérez',          'MC', 38,'ARG','Newell\'s','Liga ARG', 0.5,0,16);   // leyenda
 
   // === BELGRANO 2025/26 ===
-  a(9, 'Nahuel Bustos',       'DC', 28,'ARG','Belgrano','Liga ARG', 5,0,16);
-  a(10,'Ulises Sánchez',      'MCO',26,'ARG','Belgrano','Liga ARG', 3,0,13);
+  a(9, 'Nahuel Bustos',        'DC', 28,'ARG','Belgrano','Liga ARG', 5,0,16);
+  a(10,'Ulises Sánchez',       'MCO',26,'ARG','Belgrano','Liga ARG', 3,0,13);
+  a(7, 'Nicolás Meriano',      'ED', 25,'ARG','Belgrano','Liga ARG', 3,0,12);
+  a(5, 'Alejandro Rébola',     'DFC',28,'ARG','Belgrano','Liga ARG', 2.5,0,12);
+
+  // === DEFENSA Y JUSTICIA 2025/26 ===
+  a(1, 'Francisco Fydriszewski','ARQ',26,'ARG','Defensa y Justicia','Liga ARG', 3.5,0,13);
+  a(4, 'Marcelo Meli',         'DFC',25,'ARG','Defensa y Justicia','Liga ARG', 3.5,0,13);
+  a(10,'Nicolás Fernández',    'MCO',27,'ARG','Defensa y Justicia','Liga ARG', 4,0,14);
+  a(9, 'Matías Reali',         'DC', 25,'ARG','Defensa y Justicia','Liga ARG', 3.5,0,13);
+  a(7, 'Alexander Barboza',    'DFC',26,'URU','Defensa y Justicia','Liga ARG', 5,0,15);
+
+  // === GODOY CRUZ 2025/26 ===
+  a(1, 'Juan Espínola',        'ARQ',30,'ARG','Godoy Cruz','Liga ARG', 2,0,13);
+  a(10,'Tadeo Allende',        'MCO',24,'ARG','Godoy Cruz','Liga ARG', 5,0,14);  // ex-Estudiantes
+  a(9, 'Salomón Rondón',       'DC', 35,'VEN','Godoy Cruz','Liga ARG', 1.5,0,20);
+  a(8, 'Ulises Rinaudo',       'MC', 30,'ARG','Godoy Cruz','Liga ARG', 2.5,0,13);
+  a(7, 'Tomás Badaloni',       'EI', 24,'ARG','Godoy Cruz','Liga ARG', 3.5,0,13);
+
+  // === PLATENSE 2025/26 ===
+  a(1, 'Nahuel Pezzella',      'ARQ',27,'ARG','Platense','Liga ARG', 2.5,0,13);
+  a(10,'Hernán Lamberti',      'MCO',28,'ARG','Platense','Liga ARG', 2.5,0,12);
+  a(9, 'Nicolás Bertolo',      'DC', 32,'ARG','Platense','Liga ARG', 1.5,0,12);
+  a(7, 'Facundo Kruspzky',     'EI', 26,'ARG','Platense','Liga ARG', 2.5,0,12);
+
+  // === BARRACAS CENTRAL 2025/26 ===
+  a(9, 'Ariel Rojas',          'DC', 26,'ARG','Barracas Central','Liga ARG', 2.5,0,11);
+  a(10,'Franco Jara',          'MCO',35,'CHI','Barracas Central','Liga ARG', 1.5,0,16);
+  a(5, 'Leandro Díaz',         'DFC',30,'ARG','Barracas Central','Liga ARG', 2,0,12);
+
+  // === TIGRE 2025/26 ===
+  a(9, 'Ezequiel Centurión',   'DC', 27,'ARG','Tigre','Liga ARG', 2.5,0,12);
+  a(10,'Jonatan Cristaldo',    'MCO',25,'ARG','Tigre','Liga ARG', 3,0,13);
+  a(8, 'Alexis Castro',        'MC', 30,'ARG','Tigre','Liga ARG', 2,0,12);
+
+  // === GIMNASIA LA PLATA 2025/26 ===
+  a(10,'Rodrigo Rey',          'MCO',28,'ARG','Gimnasia LP','Liga ARG', 2.5,0,13);
+  a(9, 'Eric Ramírez',         'DC', 26,'ARG','Gimnasia LP','Liga ARG', 3,0,12);
+  a(7, 'Brahian Alemán',       'EI', 28,'ARG','Gimnasia LP','Liga ARG', 2.5,0,12);
+  a(5, 'Nelson Insfrán',       'DFC',28,'PAR','Gimnasia LP','Liga ARG', 2,0,12);
 
   // === BRASIL ===
   a(1,'Rossi','ARQ',31,'ARG','Flamengo','Brasil',8,79,30,79);
@@ -742,6 +784,103 @@ const DTS = [
 ];
 
 // =============================================
+// SPONSORSHIPS
+// =============================================
+const SPONSORS = [
+  {id:'sp1',cat:'Camiseta',name:'Adidas',icon:'👕',income:0.35,weeks:26,reqRep:60},
+  {id:'sp2',cat:'Camiseta',name:'Nike',icon:'👕',income:0.45,weeks:26,reqRep:72},
+  {id:'sp3',cat:'Camiseta',name:'Puma',icon:'👕',income:0.28,weeks:26,reqRep:55},
+  {id:'sp4',cat:'Secundario',name:'YPF',icon:'⛽',income:0.18,weeks:20,reqRep:55},
+  {id:'sp5',cat:'Secundario',name:'Mercado Libre',icon:'🛒',income:0.25,weeks:20,reqRep:65},
+  {id:'sp6',cat:'Secundario',name:'Claro',icon:'📱',income:0.15,weeks:20,reqRep:50},
+  {id:'sp7',cat:'Naming Estadio',name:'Naming Rights Bombonera',icon:'🏟️',income:0.42,weeks:52,reqRep:80},
+  {id:'sp8',cat:'TV',name:'TyC Sports',icon:'📺',income:0.22,weeks:26,reqRep:58},
+  {id:'sp9',cat:'TV',name:'ESPN Premium',icon:'📺',income:0.32,weeks:26,reqRep:70},
+  {id:'sp10',cat:'Manga',name:'San Cristóbal Seguros',icon:'🛡️',income:0.12,weeks:26,reqRep:50},
+  {id:'sp11',cat:'Manga',name:'Mastercard',icon:'💳',income:0.22,weeks:26,reqRep:68},
+  {id:'sp12',cat:'Global',name:'Betano',icon:'🎰',income:0.55,weeks:52,reqRep:82},
+  {id:'sp13',cat:'Global',name:'Stake.com',icon:'♠️',income:0.48,weeks:52,reqRep:78},
+  {id:'sp14',cat:'Secundario',name:'Banco Galicia',icon:'🏦',income:0.20,weeks:20,reqRep:60},
+  {id:'sp15',cat:'Equipamiento',name:'Kappa',icon:'🧤',income:0.10,weeks:26,reqRep:50},
+];
+
+function rSponsors(){
+  const el=document.getElementById('sponsorsList');
+  if(!el||!G) return;
+  if(!G.sponsors) G.sponsors=[];
+  const active=G.sponsors;
+  const activeIds=new Set(active.map(s=>s.id));
+  const activeCats=new Set(active.map(s=>s.cat));
+  const available=SPONSORS.filter(s=>!activeIds.has(s.id)&&G.rep>=s.reqRep&&!activeCats.has(s.cat));
+  const locked=SPONSORS.filter(s=>!activeIds.has(s.id)&&(G.rep<s.reqRep||activeCats.has(s.cat)));
+
+  const incomeWeek=active.reduce((a,s)=>a+s.income,0);
+  el.innerHTML=`
+    ${active.length?`
+    <div class="ctitle">✅ Contratos activos — <span style="color:var(--green)">+$${incomeWeek.toFixed(2)}M/sem</span></div>
+    ${active.map(s=>`
+      <div class="card" style="padding:9px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="font-size:22px">${s.icon}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:12px;font-family:'Barlow Condensed',sans-serif">${s.name}</div>
+            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span></div>
+          </div>
+          <div style="text-align:right;font-size:9px;color:var(--t3)">${s.weeksLeft}s restantes</div>
+        </div>
+        <div style="margin-top:5px;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden">
+          <div style="width:${Math.round((1-s.weeksLeft/s.weeksTotal)*100)}%;height:100%;background:var(--green);border-radius:2px"></div>
+        </div>
+      </div>
+    `).join('')}`:
+    '<div class="note">Sin contratos activos.</div>'}
+
+    ${available.length?`
+    <div class="ctitle" style="margin-top:10px">🤝 Disponibles para firmar</div>
+    ${available.map(s=>`
+      <div class="card" style="padding:9px;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="font-size:22px">${s.icon}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:12px;font-family:'Barlow Condensed',sans-serif">${s.name}</div>
+            <div style="font-size:10px;color:var(--t3)">${s.cat} · ${s.weeks} semanas · Rep ${s.reqRep}+</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:12px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed',sans-serif">+$${s.income}M/sem</div>
+            <button class="btn bg bs" style="margin-top:3px" onclick="signSponsor('${s.id}')">Firmar</button>
+          </div>
+        </div>
+      </div>
+    `).join('')}`:''}
+
+    ${locked.length?`
+    <div class="ctitle" style="margin-top:10px;color:var(--t3)">🔒 Bloqueados</div>
+    ${locked.slice(0,4).map(s=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,.05);margin-bottom:3px;opacity:.5">
+        <div style="font-size:18px">${s.icon}</div>
+        <div style="flex:1;font-size:11px">${s.name} <span style="color:var(--t3)">(${activeCats.has(s.cat)?'categoría ocupada':'Rep. '+s.reqRep+' req'})</span></div>
+        <div style="font-size:10px;color:var(--t3)">+$${s.income}M/sem</div>
+      </div>
+    `).join('')}`:''}
+  `;
+}
+
+function signSponsor(id){
+  if(!G) return;
+  if(!G.sponsors) G.sponsors=[];
+  const sp=SPONSORS.find(s=>s.id===id);
+  if(!sp) return;
+  if(G.rep<sp.reqRep){flash('❌ Reputación insuficiente (necesitás '+sp.reqRep+')','loss');return;}
+  const activeCats=new Set(G.sponsors.map(s=>s.cat));
+  if(activeCats.has(sp.cat)){flash('❌ Ya tenés un contrato en '+sp.cat,'loss');return;}
+  G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks});
+  lg('✍️',`Patrocinio: ${sp.name} (+$${sp.income}M/sem x${sp.weeks}sem)`);
+  flash('✅ ¡'+sp.name+' firma con Boca!','win');
+  rSponsors();
+  if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
+}
+
+// =============================================
 // STADIUM & YOUTH
 // =============================================
 const STAD_INIT = {
@@ -778,13 +917,42 @@ function buildYouth(){
 }
 
 function buildCal(){
-  const rivals = ['Racing Club','San Lorenzo','Independiente','Estudiantes LP','Rosario Central','Talleres','Vélez','Huracán','Banfield','Lanús','Colón','Newell\'s','Belgrano','Defensa y Justicia','Argentinos Jrs','Platense','Tigre','Unión','Instituto','Barracas Central','Gimnasia LP','Godoy Cruz'];
-  return Array.from({length:38},(_,i) => {
-    const r = rivals[~~(Math.random()*rivals.length)];
-    const comp = i<20?'Liga Profesional':i<26?'Copa Argentina':i<34?'Copa Libertadores':'Supercopa';
-    const h = Math.random()>.5;
-    return {week:i+1, home:h?'Boca Juniors':r, away:h?r:'Boca Juniors', comp, played:false, result:null, score:null};
+  // Liga Profesional: 18 rivals, home/away alternated
+  const lr = [
+    'Racing Club','San Lorenzo','River Plate','Independiente','Estudiantes LP',
+    'Rosario Central','Talleres','Vélez Sarsfield','Huracán','Belgrano',
+    'Lanús','Newell\'s','Defensa y Justicia','Godoy Cruz','Platense',
+    'Argentinos Jrs','Barracas Central','Gimnasia LP'
+  ];
+  // Libertadores group rivals
+  const libG = ['Flamengo','Nacional (URU)','Cerro Porteño'];
+  // Copa Argentina knockout sequence
+  const caOpps = ['Almagro','Tigre','Newell\'s','San Lorenzo','Racing Club'];
+  const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF','Copa Argentina Final'];
+
+  const sch = [];
+  // Liga: weeks 1–18 (home) and 21–38 (away, reversed)
+  lr.forEach((r,i) => {
+    sch.push({week:i+1,          comp:'Liga Profesional', home:'Boca Juniors', away:r,             played:false,result:null,score:null});
+    sch.push({week:i+21,         comp:'Liga Profesional', home:r,              away:'Boca Juniors', played:false,result:null,score:null});
   });
+  // Libertadores GS: interleaved weeks 2,6,10,14,18,22
+  libG.forEach((r,i) => {
+    sch.push({week:2+i*4,  comp:'Copa Libertadores - Fase de Grupos', home:'Boca Juniors', away:r, played:false,result:null,score:null});
+    sch.push({week:4+i*4,  comp:'Copa Libertadores - Fase de Grupos', home:r, away:'Boca Juniors', played:false,result:null,score:null});
+  });
+  // Libertadores Knockout (played conditionally but always generated)
+  sch.push({week:27, comp:'Copa Libertadores - Octavos IDA',     home:'Boca Juniors', away:'Fluminense',   played:false,result:null,score:null});
+  sch.push({week:29, comp:'Copa Libertadores - Octavos VUELTA',  home:'Fluminense',   away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:32, comp:'Copa Libertadores - Cuartos',         home:'Boca Juniors', away:'Palmeiras',    played:false,result:null,score:null});
+  sch.push({week:35, comp:'Copa Libertadores - Semifinal',       home:'Atlético MG',  away:'Boca Juniors', played:false,result:null,score:null});
+  sch.push({week:39, comp:'Copa Libertadores - Final',           home:'Boca Juniors', away:'River Plate',  played:false,result:null,score:null});
+  // Copa Argentina
+  caOpps.forEach((r,i) => {
+    sch.push({week:5+i*7, comp:caRnds[i], home:i%2===0?'Boca Juniors':r, away:i%2===0?r:'Boca Juniors', played:false,result:null,score:null});
+  });
+
+  return sch.sort((a,b)=>a.week-b.week);
 }
 
 // =============================================
@@ -810,6 +978,7 @@ function initGame(){
     bench: [],
     stadium: JSON.parse(JSON.stringify(STAD_INIT)),
     youth: buildYouth(),
+    sponsors: [],
   };
   G.offers = genOffers();
   autoFill();
@@ -884,6 +1053,7 @@ function updateUI(){
   rInd();
   rStad();
   rJuv();
+  if(G.sponsors!==undefined) rSponsors();
 }
 
 // =============================================
@@ -1771,13 +1941,50 @@ function hireDT(name){
 function rStand(){
   const el=document.getElementById('standPrev');
   if(!el||!G) return;
-  const clubs=['Boca Juniors','Racing Club','San Lorenzo','Independiente','Estudiantes LP','Rosario Central','Talleres','Vélez','Huracán','Belgrano'];
-  const tbl=clubs.map(c=>({c,pts:c==='Boca Juniors'?G.wins*3+G.draws:~~(Math.random()*Math.max(1,G.wins*3+G.draws)+Math.random()*4)})).sort((a,b)=>b.pts-a.pts);
-  el.innerHTML=tbl.slice(0,8).map((t,i)=>`
-    <div style="font-size:11px;display:flex;justify-content:space-between;padding:3px 3px;border-radius:3px;${t.c==='Boca Juniors'?'background:rgba(246,211,24,.08)':''}">
-      <span style="color:var(--t3);margin-right:4px">${i+1}</span>
-      <span style="${t.c==='Boca Juniors'?'color:var(--gold);font-weight:600':''}flex:1">${t.c}</span>
-      <span style="font-weight:600">${t.pts}</span>
+  const ALL_CLUBS=[
+    {c:'Boca Juniors',str:0.78},{c:'Racing Club',str:0.73},{c:'River Plate',str:0.70},
+    {c:'San Lorenzo',str:0.62},{c:'Independiente',str:0.60},{c:'Estudiantes LP',str:0.63},
+    {c:'Rosario Central',str:0.60},{c:'Talleres',str:0.62},{c:'Vélez Sarsfield',str:0.61},
+    {c:'Huracán',str:0.55},{c:'Belgrano',str:0.55},{c:'Lanús',str:0.57},
+    {c:'Newell\'s',str:0.54},{c:'Defensa y Justicia',str:0.56},{c:'Godoy Cruz',str:0.52},
+    {c:'Platense',str:0.50},{c:'Argentinos Jrs',str:0.58},{c:'Barracas Central',str:0.48},
+    {c:'Gimnasia LP',str:0.51},{c:'Tigre',str:0.49}
+  ];
+  // Boca: real data from played liga matches
+  const bocaPlayed = G.calendar.filter(m=>m.comp==='Liga Profesional'&&m.played);
+  let bocaPts=0, bocaGF=0, bocaGA=0;
+  bocaPlayed.forEach(m=>{
+    const mine=m.home==='Boca Juniors';
+    const [gf,ga]=m.score.split('-').map(Number);
+    bocaGF+=mine?gf:ga; bocaGA+=mine?ga:gf;
+    if(m.result==='W') bocaPts+=3;
+    else if(m.result==='D') bocaPts+=1;
+  });
+  const pj=bocaPlayed.length;
+  // Other clubs: simulated deterministically using a seeded-ish approach
+  const seed=G.week*13+7;
+  const tbl=ALL_CLUBS.map((t,i)=>{
+    if(t.c==='Boca Juniors') return {c:t.c,pts:bocaPts,pj,gf:bocaGF,ga:bocaGA,dif:bocaGF-bocaGA};
+    const simW=Math.floor(pj*t.str*0.9+((seed+i*7)%3)*0.15);
+    const simD=Math.floor(pj*(1-t.str)*0.4+((seed+i*3)%2)*0.1);
+    const simL=Math.max(0,pj-simW-simD);
+    const sgf=simW*2+simD+Math.floor((seed*i)%4);
+    const sga=simL*2+simD+Math.floor((seed*(i+1))%3);
+    return {c:t.c,pts:simW*3+simD,pj,gf:sgf,ga:sga,dif:sgf-sga};
+  }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
+
+  const zoneColor=i=>i<4?'#0fb866':i<8?'#f0943a':'transparent';
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:14px 1fr 18px 24px 22px;gap:2px;padding:2px 5px;font-size:8px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-bottom:2px">
+      <span></span><span>Club</span><span style="text-align:center">PJ</span><span style="text-align:center">Pts</span><span style="text-align:center">GD</span>
+    </div>
+  `+tbl.slice(0,10).map((t,i)=>`
+    <div style="display:grid;grid-template-columns:14px 1fr 18px 24px 22px;gap:2px;align-items:center;padding:3px 5px;border-radius:3px;${t.c==='Boca Juniors'?'background:rgba(246,211,24,.08)':''}">
+      <div style="width:3px;height:16px;border-radius:2px;background:${zoneColor(i)};margin:auto"></div>
+      <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.c==='Boca Juniors'?'color:var(--gold);font-weight:700':''}">${t.c.replace(' Juniors','').replace(' Sarsfield','').replace('Defensa y Justicia','Defensa')}</span>
+      <span style="text-align:center;font-size:10px;color:var(--t3)">${t.pj}</span>
+      <span style="text-align:center;font-weight:700;font-size:11px">${t.pts}</span>
+      <span style="text-align:center;font-size:10px;color:${t.dif>=0?'var(--green)':'var(--red)'}">${t.dif>0?'+':''}${t.dif}</span>
     </div>
   `).join('');
 }
@@ -1842,6 +2049,13 @@ function simMatch(auto){
   const att = G.squad.filter(p=>pgr(p.pos)==='DEL');
   for(let i=0;i<gf;i++){ const s=att[~~(Math.random()*att.length)]; if(s){ s.goals++; s.apps++; } }
   G.week++;
+  // Sponsor income
+  if(G.sponsors){
+    let spInc=0;
+    G.sponsors.forEach(s=>{ spInc+=s.income; s.weeksLeft=Math.max(0,s.weeksLeft-1); });
+    G.sponsors=G.sponsors.filter(s=>s.weeksLeft>0);
+    if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
+  }
   G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); } });
   if(Math.random()<.12){ const ip=G.squad[~~(Math.random()*G.squad.length)]; ip.injured=true; lg('🏥',`${ip.name} lesionado`); }
   if(Math.random()<.18){ const no=genOffers().slice(0,1); G.offers=G.offers.concat(no); }
