@@ -406,6 +406,13 @@ function rb(r) {
   return `<span class="rb ${cl}">${r}</span>`;
 }
 // Etiqueta de edad
+function ratToVal(rat, age) {
+  // Inverse of valToRat: derive market value from rating + age
+  const base = rat - ageAdj(age);
+  const val = Math.pow(10, (base - 60) / 7) / 100;
+  return Math.max(0.1, Math.round(val * 10) / 10);
+}
+
 function ageLabel(age) {
   if (age <= 23) return `<span class="age-young">◆ Joven</span>`;
   if (age <= 29) return `<span class="age-peak">◆ Pico</span>`;
@@ -473,13 +480,13 @@ function buildBoca(){
   // Rating = f(valor TM, edad): jóvenes penalizados por rating actual, premiados en potencial
   return [
     // ARQUEROS
-    P(1, 'Leandro Brey',       'ARQ',23,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 18),  // titular indiscutido, en ascenso
+    P(1, 'Leandro Brey',       'ARQ',24,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 18),  // titular indiscutido, en ascenso
     P(25,'Agustín Marchesín',  'ARQ',37,'ARG','Boca Juniors','Liga ARG', 0.4, 0, 30),  // veterano, backup
     P(34,'Javier García',      'ARQ',39,'ARG','Boca Juniors','Liga ARG', 0.1, 0,  8),  // 3er arco
 
     // DEFENSORES CENTRALES
-    P(2, 'Lautaro Di Lollo',   'DFC',21,'ARG','Boca Juniors','Liga ARG', 9.0, 0, 14),  // joya – val incluye potencial
-    P(5, 'Marco Pellegrino',   'DFC',23,'ARG','Boca Juniors','Liga ARG', 7.0, 0, 14),  // ex-Milan, titular
+    P(2, 'Lautaro Di Lollo',   'DFC',23,'ARG','Boca Juniors','Liga ARG', 9.0, 0, 14),  // joya – val incluye potencial
+    P(5, 'Marco Pellegrino',   'DFC',24,'ARG','Boca Juniors','Liga ARG', 7.0, 0, 14),  // ex-Milan, titular
     P(19,'Nicolás Figal',      'DFC',31,'ARG','Boca Juniors','Liga ARG', 0.8, 0, 14),  // experimentado, sólido
     P(26,'Cristian Lema',      'DFC',35,'ARG','Boca Juniors','Liga ARG', 0.2, 0, 12),  // veterano
     P(29,'Agustín Heredia',    'DFC',28,'ARG','Boca Juniors','Liga ARG', 0.5, 0, 10),
@@ -495,8 +502,8 @@ function buildBoca(){
     P(22,'Frank Fabra',        'DFI',33,'COL','Boca Juniors','Liga ARG', 0.5, 0, 14),  // veterano colombiano
 
     // MEDIOCAMPISTAS DEFENSIVOS
-    P(8, 'Leandro Paredes',    'MCD',31,'ARG','Boca Juniors','Liga ARG', 6.0, 0, 55),  // capitán, ex-PSG/Roma
-    P(16,'Milton Delgado',     'MCD',20,'ARG','Boca Juniors','Liga ARG',11.0, 0, 16),  // la gran joya del plantel
+    P(8, 'Leandro Paredes',    'MCD',32,'ARG','Boca Juniors','Liga ARG', 6.0, 0, 55),  // capitán, ex-PSG/Roma
+    P(16,'Milton Delgado',     'MCD',22,'ARG','Boca Juniors','Liga ARG',11.0, 0, 16),  // la gran joya del plantel
     P(15,'Santiago Ascacíbar', 'MCD',28,'ARG','Boca Juniors','Liga ARG', 3.0, 0, 22),  // recuperador incansable
 
     // MEDIOCAMPISTAS CENTRALES
@@ -515,8 +522,8 @@ function buildBoca(){
     P(23,'Luca Langoni',       'ED', 22,'ARG','Boca Juniors','Liga ARG', 4.0, 0, 12),  // joven promesa
 
     // DELANTEROS
-    P(12,'Miguel Merentiel',   'DC', 29,'URU','Boca Juniors','Liga ARG', 9.0, 0, 24),  // goleador top
-    P(9, 'Edinson Cavani',     'DC', 38,'URU','Boca Juniors','Liga ARG', 0.8, 0, 40),  // leyenda, veterano
+    P(12,'Miguel Merentiel',   'DC', 30,'URU','Boca Juniors','Liga ARG', 9.0, 0, 24),  // goleador top
+    P(9, 'Edinson Cavani',     'DC', 39,'URU','Boca Juniors','Liga ARG', 0.8, 0, 40),  // leyenda, veterano
     P(39,'Ángel Romero',       'DC', 31,'PAR','Boca Juniors','Liga ARG', 2.0, 0, 18),
     P(40,'Adam Bareiro',       'DC', 30,'PAR','Boca Juniors','Liga ARG', 3.0, 0, 17),
     P(41,'Guillermo Fernández','DC', 29,'ARG','Boca Juniors','Liga ARG', 1.8, 0, 16),
@@ -530,15 +537,15 @@ function buildMkt(){
 
   // === RACING CLUB 2025/26 === (Copa Libertadores 2024 champions)
   a(1, 'Gabriel Arias',        'ARQ',37,'CHI','Racing Club','Liga ARG', 1.5,0,20);
-  a(5, 'Marco Di Cesare',      'DFC',24,'ARG','Racing Club','Liga ARG',10,0,18);  // joya defensiva
+  a(5, 'Marco Di Cesare',      'DFC',25,'ARG','Racing Club','Liga ARG',10,0,18);  // joya defensiva
   a(4, 'Emiliano Aguilar',     'DFC',27,'ARG','Racing Club','Liga ARG', 4,0,14);
   a(22,'Gastón Martirena',     'DFD',27,'ARG','Racing Club','Liga ARG', 5,0,16);
   a(3, 'Facundo Mura',         'DFI',25,'ARG','Racing Club','Liga ARG', 4.5,0,14);
-  a(8, 'Juan Nardoni',         'MCD',23,'ARG','Racing Club','Liga ARG',12,0,18);  // crack del Racing
+  a(8, 'Juan Nardoni',         'MCD',25,'ARG','Racing Club','Liga ARG',12,0,18);  // crack del Racing
   a(10,'Maxi Meza',            'MCO',33,'ARG','Racing Club','Liga ARG', 3,0,22);
   a(16,'Matías Zaracho',       'MC', 27,'ARG','Racing Club','Liga ARG', 9,0,20);
   a(7, 'Tomás Conechny',       'ED', 26,'ARG','Racing Club','Liga ARG', 4.5,0,15);
-  a(14,'Damián Pizarro',       'DC', 20,'CHI','Racing Club','Liga ARG', 9,0,17);  // joya chilena
+  a(14,'Damián Pizarro',       'DC', 21,'CHI','Racing Club','Liga ARG', 9,0,17);  // joya chilena
   a(9, 'Adrián Martínez',      'DC', 28,'URU','Racing Club','Liga ARG', 8,0,22);  // goleador
 
   // === SAN LORENZO 2025/26 ===
@@ -556,7 +563,7 @@ function buildMkt(){
 
   // === VÉLEZ SARSFIELD 2025/26 ===
   a(1, 'Tomás Marchiori',      'ARQ',27,'ARG','Vélez Sarsfield','Liga ARG', 4,0,15);
-  a(4, 'Valentín Gómez',       'DFC',22,'ARG','Vélez Sarsfield','Liga ARG',14,0,20);  // la gran joya
+  a(4, 'Valentín Gómez',       'DFC',23,'ARG','Vélez Sarsfield','Liga ARG',14,0,20);  // la gran joya
   a(5, 'Agustín Mulet',        'DFC',24,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,13);
   a(3, 'Braian Cufré',         'DFI',27,'ARG','Vélez Sarsfield','Liga ARG', 3.5,0,12);
   a(22,'Manuel Lanzini',       'MC', 32,'ARG','Vélez Sarsfield','Liga ARG', 6,0,30);
@@ -566,9 +573,9 @@ function buildMkt(){
   a(9, 'Mariano Pellegrini',   'DC', 25,'ARG','Vélez Sarsfield','Liga ARG', 6,0,18);
 
   // === RIVER PLATE 2025/26 ===
-  a(1, 'Franco Armani',        'ARQ',38,'ARG','River Plate','Liga ARG', 1.5,0,22);
+  a(1, 'Franco Armani',        'ARQ',40,'ARG','River Plate','Liga ARG', 1.5,0,22);
   a(4, 'Emmanuel Mammana',     'DFC',29,'ARG','River Plate','Liga ARG', 6,0,20);  // volvió de Europa
-  a(23,'Paulo Díaz',           'DFC',28,'CHI','River Plate','Liga ARG', 8,0,22);
+  a(23,'Paulo Díaz',           'DFC',29,'CHI','River Plate','Liga ARG', 8,0,22);
   a(22,'Germán Pezzella',      'DFC',33,'ARG','River Plate','Liga ARG', 2,0,18);
   a(2, 'Gonzalo Montiel',      'DFD',28,'ARG','River Plate','Liga ARG', 4,0,18);
   a(3, 'Enzo Díaz',            'DFI',28,'ARG','River Plate','Liga ARG', 5.5,0,14);  // volvió de Talleres
@@ -1728,7 +1735,7 @@ function trAttr(id, attr){
   p.attrs[attr] = Math.min(99, p.attrs[attr]+3);
   G.budget = Math.round((G.budget-.1)*10)/10;
   const avg = Math.round(Object.values(p.attrs).reduce((a,b)=>a+b,0)/Object.values(p.attrs).length);
-  if(avg>p.rat) p.rat = Math.min(99,p.rat+1);
+  if(avg>p.rat){ p.rat = Math.min(p.pot,p.rat+1); p.val = ratToVal(p.rat, p.age); }
   lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]}`);
   closeMod(); updateUI();
   flash(`✅ ${p.name}: ${attr} ${p.attrs[attr]}`,'win');
@@ -2056,7 +2063,7 @@ function simMatch(auto){
     G.sponsors=G.sponsors.filter(s=>s.weeksLeft>0);
     if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
   }
-  G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); } });
+  G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); p.val=ratToVal(p.rat,p.age); p.progress=0; } });
   if(Math.random()<.12){ const ip=G.squad[~~(Math.random()*G.squad.length)]; ip.injured=true; lg('🏥',`${ip.name} lesionado`); }
   if(Math.random()<.18){ const no=genOffers().slice(0,1); G.offers=G.offers.concat(no); }
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
