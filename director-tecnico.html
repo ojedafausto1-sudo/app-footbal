@@ -188,6 +188,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="gTab('ct',this)">🤝 CT</button>
     <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 Patroc.</button>
     <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
+    <button class="nb" onclick="gTab('stats',this);rStats()">📊 Stats</button>
   </div>
   <div class="main">
 
@@ -350,6 +351,12 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <div id="tab-cal" class="tc">
       <div class="stitle">📅 Temporada 2026</div>
       <div id="calView"></div>
+    </div>
+
+    <!-- STATS -->
+    <div id="tab-stats" class="tc">
+      <div class="stitle">📊 Estadísticas</div>
+      <div id="statsContent"></div>
     </div>
 
   </div>
@@ -690,6 +697,31 @@ function buildMkt(){
   a(7, 'Brahian Alemán',       'EI', 28,'ARG','Gimnasia LP','Liga ARG', 2.5,0,12);
   a(5, 'Nelson Insfrán',       'DFC',28,'PAR','Gimnasia LP','Liga ARG', 2,0,12);
 
+  // === CENTRAL CÓRDOBA 2025/26 ===
+  a(1, 'Diego Rodríguez',       'ARQ',30,'ARG','Central Córdoba','Liga ARG', 2,0,12);
+  a(9, 'Claudio Riaño',         'DC', 29,'COL','Central Córdoba','Liga ARG', 2.5,0,13);
+  a(5, 'Guillermo Ortiz',       'DFC',28,'ARG','Central Córdoba','Liga ARG', 2,0,12);
+
+  // === BANFIELD 2025/26 ===
+  a(1, 'Facundo Altamirano',    'ARQ',28,'ARG','Banfield','Liga ARG', 2,0,13);
+  a(10,'Giuliano Galoppo',      'MCO',26,'ARG','Banfield','Liga ARG', 4,0,15);
+  a(9, 'Juan Álvarez',          'DC', 23,'ARG','Banfield','Liga ARG', 6,0,16);
+  a(7, 'Luciano Pons',          'EI', 29,'ARG','Banfield','Liga ARG', 3,0,14);
+
+  // === SAN MARTÍN TUCUMÁN 2025/26 ===
+  a(9, 'Lautaro Torres',        'DC', 25,'ARG','San Martín TUC','Liga ARG', 2,0,12);
+  a(10,'Facundo Barceló',       'MCO',24,'ARG','San Martín TUC','Liga ARG', 2.5,0,12);
+
+  // === INDEPENDIENTE RIVADAVIA ===
+  a(9, 'Tomás Conechny',        'DC', 27,'ARG','Ind. Rivadavia','Liga ARG', 3,0,13);
+  a(10,'Santiago López',        'MCO',25,'ARG','Ind. Rivadavia','Liga ARG', 2.5,0,12);
+
+  // === ATLÉTICO TUCUMÁN 2025/26 ===
+  a(1, 'Tomás Marchiori',       'ARQ',28,'ARG','Atl. Tucumán','Liga ARG', 2.5,0,13);
+  a(8, 'Ramiro Ruiz Rodríguez', 'MC', 32,'ARG','Atl. Tucumán','Liga ARG', 2,0,13);
+  a(9, 'Ramiro Carrera',        'DC', 27,'ARG','Atl. Tucumán','Liga ARG', 3.5,0,14);
+  a(10,'Rafael Pérez',          'MCO',30,'COL','Atl. Tucumán','Liga ARG', 2.5,0,14);
+
   // === BRASIL ===
   a(1,'Rossi','ARQ',31,'ARG','Flamengo','Brasil',8,79,30,79);
   a(8,'Gerson','MC',30,'BRA','Flamengo','Brasil',22,80,55,81);
@@ -852,6 +884,22 @@ function buildMkt(){
   a(11,'Benjamín Rollheiser','EI',24,'ARG','Benfica','Otras',12,75,28,80);
   a(11,'Gianluca Prestianni','ED',21,'ARG','Benfica','Otras',15,76,24,84);
 
+  // === LIBERTADORES — SUDAMÉRICA ===
+  a(1,'Agustín Rossi','ARQ',30,'ARG','Flamengo','Brasil',7,0,25);
+  a(9,'Pablo Solari','EI',24,'ARG','River Plate','Liga ARG',4,0,16);
+  a(10,'Cristian Pavón','ED',29,'ARG','Krasnodar','Otras',5,0,18);
+  a(4,'Gustavo Cuellar','MCD',31,'COL','Flamengo','Brasil',4,0,16);
+  a(9,'Jan Lucumí','DFC',27,'COL','Bologna FC','Italia',14,0,20);
+  a(10,'Sebastián Villa','EI',28,'COL','Boca Juniors','Liga ARG',4,0,16);
+  a(9,'Braian Romero','DC',28,'ARG','Vélez Sarsfield','Liga ARG',3,0,14);
+  a(4,'Nico Hernández','DFI',25,'COL','Talleres','Liga ARG',4,0,15);
+  a(10,'Rodrigo Bentancur','MC',28,'URU','Tottenham','Premier',30,0,30);
+  a(9,'Mauro Zárate','DC',38,'ARG','Vélez Sarsfield','Liga ARG',0.5,0,14);
+  a(5,'Nicolás Otamendi','DFC',38,'ARG','Benfica','Otras',3,0,22);
+  a(8,'Leandro Castan','DFC',40,'BRA','Independiente','Liga ARG',0.3,0,12);
+  a(10,'Sebastián Driussi','MCO',30,'ARG','Austin FC','MLS',4,0,18);
+  a(9,'Carlos Tevez','DC',42,'ARG','Independiente','Liga ARG',0.2,0,14);
+
   // === MLS ===
   a(10,'Lionel Messi','MCO',38,'ARG','Inter Miami','MLS',20,90,200,90);
   a(10,'Rodrigo De Paul','MC',32,'ARG','Inter Miami','MLS',10,80,50,80);
@@ -906,6 +954,14 @@ const DTS = [
   {name:'Pep Guardiola',       nat:'ESP',age:55,rat:99,style:'4-3-3',  str:'Posesión total, pressing', salary:700,trait:'Filósofo',  wantedPos:['MCD','DFC','MCO'],  philosophy:'Dominar el balón para dominar el partido'},
   {name:'Zinedine Zidane',     nat:'FRA',age:54,rat:88,style:'4-3-3',  str:'Calidad, talento',         salary:350,trait:'Clase',     wantedPos:['MCO','EI','DC'],    philosophy:'Libertad a los talentosos, orden al colectivo'},
   {name:'Jürgen Klopp',        nat:'ALE',age:58,rat:91,style:'4-3-3',  str:'Gegenpressing, velocidad', salary:400,trait:'Heavy Metal',wantedPos:['EI','MCD','DC'],   philosophy:'Presión inmediata, fútbol de alta energía'},
+  // --- TÉCNICOS ADICIONALES ---
+  {name:'Mauricio Pochettino', nat:'ARG',age:54,rat:87,style:'4-2-3-1',str:'Pressing alto, físico',      salary:220,trait:'Intenso',   wantedPos:['EI','MCD','DFC'],  philosophy:'Trabajo duro y pressing sin pausa'},
+  {name:'Hugo Tocalli',        nat:'ARG',age:73,rat:76,style:'4-3-3',  str:'Formación de jóvenes',       salary:40, trait:'Formador',  wantedPos:['DC','MCD','EI'],   philosophy:'Los jóvenes son el futuro del club'},
+  {name:'Néstor Gorosito',     nat:'ARG',age:58,rat:73,style:'4-4-2',  str:'Solidez y orden',            salary:45, trait:'Defensivo', wantedPos:['DFC','MCD','DC'],  philosophy:'Equipo sólido y ordenado como base'},
+  {name:'Antonio Mohamed',     nat:'ARG',age:52,rat:76,style:'4-3-3',  str:'Ataque fluido',              salary:55, trait:'Ofensivo',  wantedPos:['EI','MCO','DC'],   philosophy:'Fútbol atractivo con mucho ataque'},
+  {name:'Rodolfo Arruabarrena',nat:'ARG',age:56,rat:74,style:'4-2-3-1',str:'Experiencia copera',         salary:50, trait:'Copero',    wantedPos:['MC','DFC','ED'],   philosophy:'Equilibrio para competir en todos los torneos'},
+  {name:'Hernán Crespo',       nat:'ARG',age:50,rat:77,style:'4-3-3',  str:'Fútbol moderno',             salary:70, trait:'Moderno',   wantedPos:['DC','MCO','EI'],   philosophy:'Posesión y presión alta con calidad'},
+  {name:'José Néstor Pékerman',nat:'ARG',age:76,rat:82,style:'4-2-3-1',str:'Organización táctica',       salary:100,trait:'Maestro',   wantedPos:['MCD','DFC','MCO'], philosophy:'Organización táctica superior y selección de talento'},
 ];
 
 // =============================================
@@ -927,6 +983,14 @@ const SPONSORS = [
   {id:'sp13',cat:'Global',name:'Stake.com',icon:'♠️',income:0.48,weeks:52,reqRep:78},
   {id:'sp14',cat:'Secundario',name:'Banco Galicia',icon:'🏦',income:0.20,weeks:20,reqRep:60},
   {id:'sp15',cat:'Equipamiento',name:'Kappa',icon:'🧤',income:0.10,weeks:26,reqRep:50},
+  {id:'sp16',cat:'Bebidas',name:'Quilmes',icon:'🍺',income:0.18,weeks:26,reqRep:58},
+  {id:'sp17',cat:'Delivery',name:'Rappi',icon:'🛵',income:0.14,weeks:20,reqRep:52},
+  {id:'sp18',cat:'Transporte',name:'Toyota',icon:'🚗',income:0.30,weeks:52,reqRep:70},
+  {id:'sp19',cat:'Telecom 2',name:'Movistar',icon:'📡',income:0.12,weeks:20,reqRep:48},
+  {id:'sp20',cat:'Medios',name:'La Nación',icon:'📰',income:0.10,weeks:26,reqRep:55},
+  {id:'sp21',cat:'TV Internacional',name:'DAZN',icon:'🎬',income:0.40,weeks:52,reqRep:82},
+  {id:'sp22',cat:'App',name:'PedidosYa',icon:'🚀',income:0.13,weeks:20,reqRep:50},
+  {id:'sp23',cat:'Fintech',name:'Mercado Pago',icon:'💚',income:0.28,weeks:26,reqRep:68},
 ];
 
 function rSponsors(){
@@ -1018,6 +1082,12 @@ const STAD_INIT = {
     {id:'ct',name:'Centro de entrenamiento',desc:'Mejora desarrollo.',cost:15,eff:'train',built:false},
     {id:'museum',name:'Museo Boca Juniors',desc:'Ingresos + reputación.',cost:6,eff:'rep+3',built:false},
     {id:'exp2',name:'+12.000 butacas (norte)',desc:'Gran ampliación.',cost:25,eff:'cap+12000',built:false},
+    {id:'press',name:'Sala de Prensa Premium',desc:'Mejor cobertura mediática. Rep +3.',cost:3,eff:'rep+3',built:false},
+    {id:'medical',name:'Clínica Médica',desc:'Reducción de lesiones 30%.',cost:7,eff:'medical',built:false},
+    {id:'parking',name:'Estacionamiento Cubierto',desc:'Ingresos extra por partido.',cost:4,eff:'inc+0.3',built:false},
+    {id:'store',name:'Tienda Oficial Boca',desc:'Ingresos comerciales semanales.',cost:6,eff:'inc+0.5',built:false},
+    {id:'restaurant',name:'Restaurante VIP',desc:'Hospitality premium.',cost:9,eff:'inc+0.8',built:false},
+    {id:'academy',name:'Academia Fútbol 7',desc:'Más jugadores en inferiores.',cost:11,eff:'train',built:false},
   ]
 };
 
@@ -1107,7 +1177,10 @@ function initGame(){
     youth: buildYouth(),
     sponsors: [],
     dtRequests: [],
+    tourney: null,
+    medicalCenter: false,
   };
+  G.tourney = buildTourney();
   G.offers = genOffers();
   autoFill();
   lg('🏁','Temporada 2026 iniciada. ¡Arranca Boca!');
@@ -1182,6 +1255,7 @@ function updateUI(){
   rStad();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
+  if(typeof rStats === 'function') rStats();
   rDtPedidos();
 }
 
@@ -1930,6 +2004,7 @@ function confirmBuildStad(id){
   if(u.eff.startsWith('inc+')) G.stadium.income = Math.round((G.stadium.income+parseFloat(u.eff.split('+')[1]))*10)/10;
   if(u.eff.startsWith('rep+')) G.rep = Math.min(100,G.rep+parseInt(u.eff.split('+')[1]));
   if(u.eff==='train') G.youth.level = Math.min(5,G.youth.level+1);
+  if(u.eff==='medical') G.medicalCenter = true;
   G.stadium.level = Math.min(5,1+G.stadium.upgrades.filter(x=>x.built).length);
   lg('🏟️','Construido: '+u.name);
   closeMod(); updateUI();
@@ -2184,6 +2259,41 @@ function genDtRequest(){
     rejected:false
   });
   lg('📬',`${d.name} pide: ${pick.name} (${pick.pos}, ${fv(pick.val)})`);
+  // Also maybe generate sell recommendation
+  if(Math.random() < 0.35) genDtSellReq();
+}
+
+function genDtSellReq(){
+  if(!G||!G.dtRequests) return;
+  const pending = G.dtRequests.filter(r=>!r.approved&&!r.rejected);
+  if(pending.length>=3) return;
+  const xiSet = new Set(Object.values(G.slots).filter(Boolean));
+  const sellCands = G.squad.filter(p =>
+    !xiSet.has(p.id) &&
+    (
+      (p.age >= 34 && p.rat < 76) ||
+      (p.age >= 32 && p.rat < 72) ||
+      (p.rat < 68 && p.age >= 28)
+    )
+  ).sort((a,b) => a.rat - b.rat);
+  if(!sellCands.length) return;
+  const pick = sellCands[0];
+  const reasons = [
+    `${pick.name} ya no es titular y tiene ${pick.age} años`,
+    `Con ${pick.name} podemos conseguir dinero para reforzar el plantel`,
+    `${pick.name} rinde por debajo de lo esperado, conviene venderlo`
+  ];
+  G.dtRequests.push({
+    id:'req'+(Date.now()+Math.random()),
+    week:G.week,
+    type:'sell',
+    pos:pick.pos,
+    player:pick,
+    reason:reasons[~~(Math.random()*reasons.length)],
+    approved:false,
+    rejected:false
+  });
+  lg('📤',`${G.dt.name} sugiere vender a ${pick.name}`);
 }
 
 function rDtPedidos(){
@@ -2205,8 +2315,8 @@ function rDtPedidos(){
 function renderDtReqs(reqs, ctx){
   if(!reqs.length) return '<div class="note">Sin pedidos activos del DT.</div>';
   return reqs.map(r=>`
-    <div class="card" style="padding:9px;margin-bottom:6px;border-color:rgba(246,211,24,.2)">
-      <div style="font-size:9px;color:var(--t3);margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">Semana ${r.week} · ${r.pos}</div>
+    <div class="card" style="padding:9px;margin-bottom:6px;border-color:${r.type==='sell'?'rgba(232,69,69,.25)':'rgba(246,211,24,.2)'}">
+      <div style="font-size:9px;color:var(--t3);margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">Semana ${r.week} · ${r.type==='sell'?'💸 VENDER':'🤝 COMPRAR'} · ${r.pos}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
         ${rb(r.player.rat)}
         <div style="flex:1">
@@ -2218,9 +2328,15 @@ function renderDtReqs(reqs, ctx){
       </div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:8px;font-style:italic">"${r.reason}"</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button>
-        <button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button>
-        <button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>
+        ${r.type==='sell' ? `
+          <button class="btn bR bs" onclick="approveDtSell('${r.id}')">💸 Vender — ${fv(r.player.val)}</button>
+          <button class="btn bo bs" onclick="openP('${r.player.id}',true)">👤 Ver ficha</button>
+          <button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ No vender</button>
+        ` : `
+          <button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button>
+          <button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button>
+          <button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>
+        `}
       </div>
     </div>
   `).join('');
@@ -2236,6 +2352,16 @@ function approveDtReq(id){
   openNeg(req.player.id);
   lg('✅',`Aprobaste el pedido de ${G.dt.name}: ${req.player.name}`);
   rDtPedidos();
+}
+
+function approveDtSell(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  req.approved=true;
+  lg('✅',`Aprobaste vender a ${req.player.name} (sugerencia de ${G.dt.name})`);
+  rDtPedidos();
+  sellPlayer(req.player.id);
 }
 
 function rejectDtReq(id){
@@ -2441,8 +2567,60 @@ function simMatch(auto){
   }
   G.gf+=gf; G.ga+=ga;
   m.played=true; m.result=res; m.score=gf+'-'+ga;
-  const att = G.squad.filter(p=>pgr(p.pos)==='DEL');
-  for(let i=0;i<gf;i++){ const s=att[~~(Math.random()*att.length)]; if(s){ s.goals++; s.apps++; } }
+
+  // === SCORERS & STATS ===
+  const xiPlayers = Object.values(G.slots).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  const attackers = xiPlayers.filter(p=>pgr(p.pos)==='DEL');
+  const midfielders = xiPlayers.filter(p=>pgr(p.pos)==='MED');
+  const scorersList = [];
+  const usedMins = new Set();
+  // Track apps for all XI
+  xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  // Generate scorer events
+  for(let i=0;i<gf;i++){
+    let scorer;
+    const r2 = Math.random();
+    if(r2<0.7 && attackers.length) scorer = attackers[~~(Math.random()*attackers.length)];
+    else if(r2<0.9 && midfielders.length) scorer = midfielders[~~(Math.random()*midfielders.length)];
+    else if(xiPlayers.length) scorer = xiPlayers[~~(Math.random()*xiPlayers.length)];
+    if(scorer){
+      scorer.goals++;
+      let min = 5 + ~~(Math.random()*85);
+      while(usedMins.has(min)) min = (min % 90) + 1;
+      usedMins.add(min);
+      scorersList.push({name:scorer.name, min});
+    }
+  }
+  scorersList.sort((a,b)=>a.min-b.min);
+  // Match stats
+  const stats = {
+    poss: 35 + ~~(Math.random()*30),
+    shots: gf*3 + ~~(Math.random()*8),
+    onTarget: gf + ~~(Math.random()*4),
+    passes: 280 + ~~(Math.random()*320)
+  };
+
+  // === TOURNEY TRACKING ===
+  if(!G.tourney) G.tourney = buildTourney();
+  const t = m.comp.includes('Liga')?G.tourney.liga:m.comp.includes('Libertadores')?G.tourney.lib:G.tourney.copa;
+  t.pj++; t.gf+=gf; t.ga+=ga;
+  if(res==='W') t.pts=(t.pts||0)+3;
+  else if(res==='D') t.pts=(t.pts||0)+1;
+  scorersList.forEach(s=>{ t.scorers[s.name]=(t.scorers[s.name]||0)+1; });
+
+  // === PLAYER FORM EVOLUTION ===
+  xiPlayers.forEach(p => {
+    if(!p.formPts) p.formPts = 0;
+    if(!p.matchCount) p.matchCount = 0;
+    p.matchCount++;
+    p.formPts += res==='W'?(Math.random()>0.6?0.5:0):res==='D'?(Math.random()>0.7?-0.3:0):-(Math.random()*0.5);
+    if(p.matchCount % 8 === 0){
+      if(p.formPts > 2){ p.rat = Math.min(p.pot, p.rat+1); p.val = ratToVal(p.rat, p.age); }
+      else if(p.formPts < -2){ p.rat = Math.max(55, p.rat-1); p.val = ratToVal(p.rat, p.age); }
+      p.formPts = 0;
+    }
+  });
+
   G.week++;
   // DT requests every ~5 weeks
   if(G.week%5===0||(G.week===2)) genDtRequest();
@@ -2454,12 +2632,120 @@ function simMatch(auto){
     if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
   }
   G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); p.val=ratToVal(p.rat,p.age); p.progress=0; } });
-  if(Math.random()<.12){ const ip=G.squad[~~(Math.random()*G.squad.length)]; ip.injured=true; lg('🏥',`${ip.name} lesionado`); }
+  // Injury (reduced if medical center built)
+  const injChance = G.medicalCenter ? 0.07 : 0.12;
+  if(Math.random()<injChance){
+    const ip=G.squad[~~(Math.random()*G.squad.length)];
+    ip.injured=true;
+    ip.injuredWeeks = 1 + ~~(Math.random()*4);
+    lg('🏥',`${ip.name} lesionado (${ip.injuredWeeks} sem)`);
+  }
+  // Heal injured players
+  G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
   if(Math.random()<.18){ const no=genOffers().slice(0,1); G.offers=G.offers.concat(no); }
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   updateUI();
-  if(!auto) flash(`${m.home} ${gf}-${ga} ${m.away}`, res==='W'?'win':res==='D'?'draw':'loss');
+  const isLastMatch = G.calendar.every(x=>x.played);
+  if(!auto){
+    showMatchSummary(m, res, gf, ga, scorersList, stats, isLastMatch);
+  } else {
+    if(isLastMatch) checkSeasonEnd();
+  }
+}
+
+function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
+  const resColor = res==='W'?'var(--green)':res==='D'?'var(--gold)':'var(--red)';
+  const resLabel = res==='W'?'VICTORIA':res==='D'?'EMPATE':'DERROTA';
+  const scoreStr = gf+'-'+ga;
+  const xl = Object.values(G.slots).filter(Boolean).map(id => G.squad.find(p=>p.id===id)).filter(Boolean);
+  const motm = xl.length ? xl.sort((a,b)=>(b.rat+(res==='W'?Math.random()*5:0))-(a.rat+(res==='W'?Math.random()*5:0)))[0] : null;
+
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:10px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">${m.comp}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;color:${resColor};letter-spacing:.05em">${scoreStr}</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">${m.home} <span style="color:var(--t3)">vs</span> ${m.away}</div>
+      <div style="font-size:11px;color:${resColor};font-weight:700;margin-top:5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em">${resLabel}</div>
+    </div>
+
+    ${scorers.length ? `
+    <div class="ctitle">⚽ Goles Boca</div>
+    <div style="margin-bottom:10px">
+      ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span></div>`).join('')}
+    </div>` : `<div class="note" style="margin-bottom:10px">Boca no anotó</div>`}
+
+    <div class="ctitle">📊 Estadísticas</div>
+    <div class="g2" style="gap:5px;margin-bottom:12px">
+      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed'">${stats.poss}%</div><div style="font-size:9px;color:var(--t3)">Posesión</div></div>
+      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Barlow Condensed'">${stats.shots}</div><div style="font-size:9px;color:var(--t3)">Tiros</div></div>
+      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--ora);font-family:'Barlow Condensed'">${stats.onTarget}</div><div style="font-size:9px;color:var(--t3)">Al arco</div></div>
+      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;font-family:'Barlow Condensed'">${stats.passes}</div><div style="font-size:9px;color:var(--t3)">Pases</div></div>
+    </div>
+
+    ${motm ? `
+    <div class="note G" style="display:flex;align-items:center;gap:8px">
+      <div>⭐</div>
+      <div><div style="font-size:11px;font-weight:700">Figura del partido</div><div style="font-size:13px;font-weight:700;font-family:'Barlow Condensed'">${motm.name}</div><div style="font-size:10px;color:var(--t3)">${motm.pos} · ${rb(motm.rat)}</div></div>
+    </div>` : ''}
+
+    ${isLastMatch ? `
+    <div style="margin-top:12px">
+      <button class="btn bg" style="width:100%;font-size:13px;padding:9px" onclick="showSeasonSummary()">🏆 Ver Resumen de Temporada →</button>
+    </div>` : ''}
+  `);
+}
+
+// =============================================
+// STATS TAB
+// =============================================
+function rStats(){
+  const el = document.getElementById('statsContent');
+  if(!el||!G) return;
+  if(!G.tourney) G.tourney = buildTourney();
+
+  const scorers = G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals).slice(0,10);
+  const apps = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps).slice(0,10);
+
+  const t = G.tourney;
+  el.innerHTML = `
+    <div class="g2" style="margin-bottom:10px">
+      <div class="card">
+        <div class="ctitle">🇦🇷 Liga Profesional</div>
+        <div class="sr"><span class="sl">Partidos</span><span class="sv">${t.liga.pj}</span></div>
+        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${t.liga.pts||0}</span></div>
+        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${t.liga.gf}/${t.liga.ga}</span></div>
+      </div>
+      <div class="card">
+        <div class="ctitle">🏆 Copa Libertadores</div>
+        <div class="sr"><span class="sl">Partidos</span><span class="sv">${t.lib.pj}</span></div>
+        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${t.lib.pts||0}</span></div>
+        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${t.lib.gf}/${t.lib.ga}</span></div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="ctitle">⚽ Goleadores</div>
+        ${scorers.length ? scorers.map((p,i)=>`
+          <div class="sr">
+            <span class="sl">${i+1}. ${p.name.split(' ').pop()}</span>
+            <span class="sv" style="color:var(--gold)">${p.goals}⚽</span>
+          </div>
+        `).join('') : '<div class="note">Sin goles aún.</div>'}
+      </div>
+      <div class="card">
+        <div class="ctitle">📋 Más convocados</div>
+        ${apps.length ? apps.map((p,i)=>`
+          <div class="sr">
+            <span class="sl">${i+1}. ${p.name.split(' ').pop()}</span>
+            <span class="sv">${p.apps}</span>
+          </div>
+        `).join('') : '<div class="note">Sin partidos aún.</div>'}
+      </div>
+    </div>
+  `;
 }
 
 // =============================================
