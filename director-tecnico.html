@@ -169,7 +169,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 <div id="game" class="scr">
   <div class="topbar">
     <div class="cbadge">BJ</div>
-    <div><div class="cname">Boca Juniors</div><div style="font-size:9px;color:var(--t3)" id="dtTop">DT: Claudio Úbeda</div></div>
+    <div><div class="cname">Boca Juniors</div><div style="font-size:9px;color:var(--t3)" id="dtTop">DT: Claudio Úbeda</div><div style="font-size:8px;color:var(--gold);font-family:'Barlow Condensed',sans-serif">PRESIDENTE</div></div>
     <div class="pills">
       <div class="pill">💰 <span class="pv" id="bTop">$28M</span></div>
       <div class="pill">📅 <span class="pv" id="wTop">S1</span></div>
@@ -181,13 +181,12 @@ tr:hover td{background:rgba(255,255,255,.025)}
   <div class="nav">
     <button class="nb on" onclick="gTab('ov',this)">📋 Resumen</button>
     <button class="nb" onclick="gTab('sq',this)">👥 Plantel</button>
-    <button class="nb" onclick="gTab('tac',this)">🎯 Tácticas</button>
+    <button class="nb" onclick="gTab('dt',this);rDtTab()">🎯 Mi DT</button>
     <button class="nb" onclick="gTab('mkt',this)">💰 Mercado</button>
-    <button class="nb" onclick="gTab('trn',this)">🏋️ Entreno</button>
     <button class="nb" onclick="gTab('stad',this)">🏟️ Estadio</button>
     <button class="nb" onclick="gTab('juv',this)">🌱 Juveniles</button>
     <button class="nb" onclick="gTab('ct',this)">🤝 CT</button>
-    <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 PATROC.</button>
+    <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 Patroc.</button>
     <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
   </div>
   <div class="main">
@@ -213,7 +212,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="card"><div class="ctitle">🏆 Posiciones</div><div id="standPrev"></div></div>
       </div>
       <div class="tc2">
-        <div class="card"><div class="ctitle">📰 Novedades</div><div id="newsLog"></div></div>
+        <div>
+          <div class="card" style="margin-bottom:8px"><div class="ctitle">📰 Novedades</div><div id="newsLog"></div></div>
+          <div class="card" id="ovDtReqCard" style="display:none">
+            <div class="ctitle">📬 Pedidos del DT <span id="ovDtReqBadge" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px"></span></div>
+            <div id="ovDtReqList"></div>
+          </div>
+        </div>
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">💰 Finanzas</div>
             <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:var(--gold)" id="bFull">$28M</span></div>
@@ -246,36 +251,33 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div id="sqList"></div>
     </div>
 
-    <!-- TÁCTICAS -->
-    <div id="tab-tac" class="tc">
-      <div class="stitle">🎯 Tácticas</div>
+    <!-- MI DT -->
+    <div id="tab-dt" class="tc">
+      <div class="stitle">🎯 Mi Director Técnico</div>
       <div class="tc2">
         <div>
-          <div class="card" style="margin-bottom:9px">
-            <div class="ctitle">Formación</div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:9px" id="fBtns"></div>
-            <div style="font-size:10px;color:var(--t3);margin-bottom:6px">👆 Tocá un jugador en el campo para cambiarlo</div>
-            <div class="pitch" id="pitchWrap" style="height:440px">
-              <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.15" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <rect x="5" y="3" width="90" height="94" fill="none" stroke="white" stroke-width=".6"/>
-                <line x1="5" y1="50" x2="95" y2="50" stroke="white" stroke-width=".6"/>
-                <circle cx="50" cy="50" r="12" fill="none" stroke="white" stroke-width=".5"/>
-                <rect x="22" y="3" width="56" height="18" fill="none" stroke="white" stroke-width=".4"/>
-                <rect x="22" y="79" width="56" height="18" fill="none" stroke="white" stroke-width=".4"/>
-              </svg>
-              <div id="pitchSlots"></div>
-            </div>
-            <div style="font-size:10px;color:var(--t3);margin:7px 0 4px;font-family:'Barlow Condensed',sans-serif">SUPLENTES (tocá para subir al campo)</div>
-            <div class="bench" id="benchArea"></div>
+          <div class="card" style="margin-bottom:9px" id="dtProfileCard"></div>
+          <div class="card">
+            <div class="ctitle">📋 11 Inicial del DT</div>
+            <div style="font-size:10px;color:var(--t3);margin-bottom:7px">El DT arma su equipo según su estilo. Vos decidís los refuerzos.</div>
+            <div id="dtXiList"></div>
           </div>
         </div>
         <div>
-          <div class="card" style="margin-bottom:8px"><div class="ctitle">Estilo</div><div id="styleOpts"></div></div>
-          <div class="card" style="margin-bottom:8px"><div class="ctitle">Instrucciones</div><div id="tacOpts"></div></div>
-          <div class="card"><div class="ctitle">11 Inicial</div><div id="xi"></div></div>
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">📬 Pedidos del DT <span id="dtReqBadge" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px;display:none"></span></div>
+            <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Como presidente podés aprobar o rechazar los pedidos de refuerzos.</div>
+            <div id="dtReqList"></div>
+          </div>
+          <div class="card">
+            <div class="ctitle">📊 Informe del DT</div>
+            <div id="dtReport"></div>
+          </div>
         </div>
       </div>
     </div>
+    <!-- hidden pitch elements needed by rFormation/autoFill -->
+    <div style="display:none"><div id="pitchSlots"></div><div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div></div>
 
     <!-- MERCADO -->
     <div id="tab-mkt" class="tc">
@@ -882,14 +884,28 @@ const FORMS = {
 // DTs
 // =============================================
 const DTS = [
-  {name:'Claudio Úbeda',nat:'ARG',age:46,rat:70,style:'4-3-3',str:'Jóvenes, cantera',salary:30,trait:'Interno'},
-  {name:'Guillermo Barros Schelotto',nat:'ARG',age:51,rat:78,style:'4-2-3-1',str:'Extremos, 9 área',salary:80,trait:'Ofensivo'},
-  {name:'Miguel Ángel Russo',nat:'ARG',age:63,rat:76,style:'4-4-2',str:'Defensa sólida',salary:60,trait:'Equilibrado'},
-  {name:'Jorge Almirón',nat:'ARG',age:54,rat:77,style:'4-2-3-1',str:'Copa, gestión',salary:70,trait:'Táctico'},
-  {name:'Gustavo Alfaro',nat:'ARG',age:62,rat:73,style:'4-4-2',str:'Solidez defensiva',salary:50,trait:'Defensivo'},
-  {name:'Gabriel Milito',nat:'ARG',age:47,rat:76,style:'4-2-3-1',str:'Salida jugando',salary:55,trait:'Moderno'},
-  {name:'Marcelo Gallardo',nat:'ARG',age:49,rat:88,style:'4-3-3',str:'Transiciones, intensidad',salary:150,trait:'Muñeco'},
-  {name:'Pep Guardiola',nat:'ESP',age:55,rat:98,style:'4-3-3',str:'Posesión total',salary:600,trait:'Maestro'},
+  // --- TÉCNICOS ARGENTINOS ---
+  {name:'Claudio Úbeda',       nat:'ARG',age:47,rat:70,style:'4-3-3',  str:'Cantera y juveniles',      salary:30, trait:'Formador',  wantedPos:['EI','MCD','DFC'],   philosophy:'Apuesta a los jóvenes de la casa'},
+  {name:'Fernando Gago',       nat:'ARG',age:39,rat:75,style:'4-3-3',  str:'Posesión, salida limpia',  salary:65, trait:'Moderno',   wantedPos:['MCD','MCO','DFC'],  philosophy:'Dominio del balón desde el fondo'},
+  {name:'Sebastián Battaglia', nat:'ARG',age:43,rat:72,style:'4-4-2',  str:'Intensidad, presión',      salary:50, trait:'Guerrero',  wantedPos:['DC','MC','DFC'],    philosophy:'Equipo agresivo que no le regala nada al rival'},
+  {name:'Miguel Ángel Russo',  nat:'ARG',age:64,rat:79,style:'4-4-2',  str:'Defensa sólida, vertical', salary:65, trait:'Equilibrado',wantedPos:['DC','DFC','MCD'],  philosophy:'Primero no perder, después ganar'},
+  {name:'Gabriel Milito',      nat:'ARG',age:47,rat:77,style:'4-2-3-1',str:'Salida jugando, presión',  salary:60, trait:'Táctico',   wantedPos:['DFC','MCD','EI'],   philosophy:'Construcción desde atrás con transiciones rápidas'},
+  {name:'Jorge Almirón',       nat:'ARG',age:54,rat:78,style:'4-2-3-1',str:'Gestión de copas',         salary:75, trait:'Copero',    wantedPos:['MCO','EI','MCD'],   philosophy:'Orden defensivo y explosión ofensiva'},
+  {name:'Ricardo Gareca',      nat:'ARG',age:67,rat:79,style:'4-3-3',  str:'Contragolpe, velocidad',   salary:80, trait:'Maestro',   wantedPos:['EI','ED','DC'],     philosophy:'Explotar los espacios con velocidad'},
+  {name:'Eduardo Berizzo',     nat:'ARG',age:55,rat:74,style:'4-2-3-1',str:'Pressing alto, físico',    salary:55, trait:'Intenso',   wantedPos:['MC','MCD','DFD'],   philosophy:'Apretar alto y recuperar rápido'},
+  {name:'Ariel Holan',         nat:'ARG',age:55,rat:76,style:'4-2-3-1',str:'Moderno, posición alta',   salary:60, trait:'Analítico', wantedPos:['MCD','EI','DC'],    philosophy:'Presión intensa y juego en campo rival'},
+  {name:'Guillermo Barros Schelotto',nat:'ARG',age:51,rat:77,style:'4-2-3-1',str:'Extremos desequilibrantes',salary:80,trait:'Ofensivo',wantedPos:['EI','ED','DC'],philosophy:'Aprovechar las bandas con desborde y centros'},
+  {name:'Gustavo Alfaro',      nat:'ARG',age:62,rat:74,style:'4-4-2',  str:'Solidez y trabajo táctico',salary:55, trait:'Defensivo', wantedPos:['DFC','MCD','DC'],   philosophy:'Base sólida para construir resultados'},
+  {name:'Diego Dabove',        nat:'ARG',age:53,rat:72,style:'4-3-3',  str:'Transición rápida',        salary:45, trait:'Pragmático',wantedPos:['MC','EI','DFD'],    philosophy:'Bloque bajo y salir rápido al ataque'},
+  {name:'Diego Martínez',      nat:'ARG',age:45,rat:74,style:'4-2-3-1',str:'Pressing, intensidad',     salary:55, trait:'Moderno',   wantedPos:['MCD','MCO','DFC'],  philosophy:'Fútbol vertical con presión constante'},
+  {name:'Carlos Bianchi',      nat:'ARG',age:77,rat:90,style:'4-4-2',  str:'Pragmatismo ganador',      salary:200,trait:'Leyenda',   wantedPos:['DC','DFC','MCD'],   philosophy:'Ganar siempre, con lo que tenés'},
+  // --- TÉCNICOS INTERNACIONALES ---
+  {name:'Marcelo Gallardo',    nat:'ARG',age:49,rat:90,style:'4-3-3',  str:'Intensidad, transiciones', salary:160,trait:'Muñeco',    wantedPos:['EI','MCO','DFC'],   philosophy:'Fútbol vertical de alta intensidad'},
+  {name:'Diego Simeone',       nat:'ARG',age:54,rat:90,style:'4-4-2',  str:'Defensivo, contraataque',  salary:280,trait:'Cholo',     wantedPos:['MCD','DFC','DC'],   philosophy:'Orden total, cero espacios, un gol y a defender'},
+  {name:'Carlo Ancelotti',     nat:'ITA',age:66,rat:94,style:'4-3-3',  str:'Gestión, experiencia',     salary:400,trait:'Maestro',   wantedPos:['MC','DFC','EI'],    philosophy:'Calidad individual y equilibrio colectivo'},
+  {name:'Pep Guardiola',       nat:'ESP',age:55,rat:99,style:'4-3-3',  str:'Posesión total, pressing', salary:700,trait:'Filósofo',  wantedPos:['MCD','DFC','MCO'],  philosophy:'Dominar el balón para dominar el partido'},
+  {name:'Zinedine Zidane',     nat:'FRA',age:54,rat:88,style:'4-3-3',  str:'Calidad, talento',         salary:350,trait:'Clase',     wantedPos:['MCO','EI','DC'],    philosophy:'Libertad a los talentosos, orden al colectivo'},
+  {name:'Jürgen Klopp',        nat:'ALE',age:58,rat:91,style:'4-3-3',  str:'Gegenpressing, velocidad', salary:400,trait:'Heavy Metal',wantedPos:['EI','MCD','DC'],   philosophy:'Presión inmediata, fútbol de alta energía'},
 ];
 
 // =============================================
@@ -1090,6 +1106,7 @@ function initGame(){
     stadium: JSON.parse(JSON.stringify(STAD_INIT)),
     youth: buildYouth(),
     sponsors: [],
+    dtRequests: [],
   };
   G.offers = genOffers();
   autoFill();
@@ -1165,6 +1182,7 @@ function updateUI(){
   rStad();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
+  rDtPedidos();
 }
 
 // =============================================
@@ -2049,6 +2067,187 @@ function hireDT(name){
 // =============================================
 // STANDINGS & NEWS & CALENDAR
 // =============================================
+// =============================================
+// DT TAB — Presidente ve el DT, su XI y sus pedidos
+// =============================================
+function rDtTab(){
+  if(!G) return;
+  rDtProfile();
+  rDtXI();
+  rDtPedidos();
+  rDtReport();
+}
+
+function rDtProfile(){
+  const el=document.getElementById('dtProfileCard');
+  if(!el||!G) return;
+  const d=G.dt;
+  const traitColor={Leyenda:'var(--pur)',Muñeco:'var(--green)',Maestro:'var(--gold)',Cholo:'var(--red)',Filósofo:'var(--ora)'};
+  const tc=traitColor[d.trait]||'var(--t2)';
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--mid),var(--d3));border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧑‍💼</div>
+      <div style="flex:1">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700">${d.name}</div>
+        <div style="font-size:10px;color:var(--t2)">${d.nat} · ${d.age} años · ${d.style}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px;font-style:italic">"${d.philosophy||d.str}"</div>
+      </div>
+      <div style="text-align:center;flex-shrink:0">
+        ${rb(d.rat)}
+        <div style="font-size:8px;color:var(--t3);margin-top:2px">RAT</div>
+      </div>
+    </div>
+    <div class="sr"><span class="sl">Formación favorita</span><span class="sv" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--gold)">${d.style}</span></div>
+    <div class="sr"><span class="sl">Sueldo semanal</span><span class="sv" style="color:var(--red)">$${d.salary}K/sem</span></div>
+    <div class="sr"><span class="sl">Rasgo</span><span class="sv"><span style="color:${tc};font-weight:600;font-size:10px">${d.trait}</span></span></div>
+    <div class="sr"><span class="sl">Busca reforzar</span><span class="sv" style="display:flex;gap:3px;flex-wrap:wrap">${(d.wantedPos||[]).map(p=>`<span class="badge bau" style="font-size:8px">${p}</span>`).join('')}</span></div>
+    <button class="btn bo bs" style="margin-top:8px;width:100%" onclick="gTab('ct',document.querySelector('.nb[onclick*=ct]'))">🔄 Cambiar DT</button>
+  `;
+}
+
+function rDtXI(){
+  const el=document.getElementById('dtXiList');
+  if(!el||!G) return;
+  autoFill();
+  const sl=FORMS[G.formation]||FORMS['4-3-3'];
+  el.innerHTML=sl.map((s,i)=>{
+    const p=G.slots[i]?G.squad.find(x=>x.id===G.slots[i]):null;
+    return `<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="color:var(--t3);font-size:9px;width:32px;font-family:'Barlow Condensed',sans-serif">${s.lbl}</span>
+      <span style="flex:1;font-size:11px;font-weight:${p?600:400};color:${p?'var(--tx)':'var(--t3)'}">${p?p.name:'— vacante —'}</span>
+      ${p?rb(p.rat):''}
+      ${p?`<span style="font-size:9px;color:var(--t3)">${p.age}a</span>`:''}
+    </div>`;
+  }).join('');
+}
+
+function rDtReport(){
+  const el=document.getElementById('dtReport');
+  if(!el||!G) return;
+  const avgRat=Math.round(G.squad.reduce((a,p)=>a+p.rat,0)/G.squad.length);
+  const byGrp={ARQ:[],DEF:[],MED:[],DEL:[]};
+  G.squad.forEach(p=>{ const g=pgr(p.pos); if(byGrp[g]) byGrp[g].push(p.rat); });
+  const grpAvg=g=>byGrp[g].length?Math.round(byGrp[g].reduce((a,b)=>a+b,0)/byGrp[g].length):0;
+  const weakGrp=['ARQ','DEF','MED','DEL'].sort((a,b)=>grpAvg(a)-grpAvg(b))[0];
+  const grpName={ARQ:'arqueros',DEF:'defensores',MED:'mediocampistas',DEL:'delanteros'};
+  el.innerHTML=`
+    <div class="sr"><span class="sl">Rating promedio plantel</span><span class="sv">${rb(avgRat)}</span></div>
+    <div class="sr"><span class="sl">ARQ</span><div class="sbar"><div class="sbf" style="width:${grpAvg('ARQ')-55}%;"></div></div><span class="sv">${grpAvg('ARQ')}</span></div>
+    <div class="sr"><span class="sl">DEF</span><div class="sbar"><div class="sbf" style="width:${grpAvg('DEF')-55}%;"></div></div><span class="sv">${grpAvg('DEF')}</span></div>
+    <div class="sr"><span class="sl">MED</span><div class="sbar"><div class="sbf" style="width:${grpAvg('MED')-55}%;"></div></div><span class="sv">${grpAvg('MED')}</span></div>
+    <div class="sr"><span class="sl">DEL</span><div class="sbar"><div class="sbf" style="width:${grpAvg('DEL')-55}%;"></div></div><span class="sv">${grpAvg('DEL')}</span></div>
+    <div class="note" style="margin-top:8px">📌 Línea más débil: <strong style="color:var(--red)">${grpName[weakGrp]}</strong></div>
+  `;
+}
+
+function genDtRequest(){
+  if(!G||!G.dtRequests) return;
+  // Max 3 active requests
+  const pending=G.dtRequests.filter(r=>!r.approved&&!r.rejected);
+  if(pending.length>=3) return;
+  const d=G.dt;
+  // Find weakest position group
+  const byGrp={ARQ:[],DEF:[],MED:[],DEL:[]};
+  G.squad.forEach(p=>{ const g=pgr(p.pos); if(byGrp[g]) byGrp[g].push(p.rat); });
+  const grpAvg=g=>byGrp[g].length?byGrp[g].reduce((a,b)=>a+b,0)/byGrp[g].length:60;
+  // Combine DT wanted positions with weakest group
+  const weakGrp=['ARQ','DEF','MED','DEL'].sort((a,b)=>grpAvg(a)-grpAvg(b))[0];
+  const posMap={ARQ:['ARQ'],DEF:['DFC','DFD','DFI'],MED:['MCD','MC','MCO'],DEL:['DC','EI','ED']};
+  // Prefer DT's wantedPos that fall in weak group, else any wantedPos
+  const wPos=(d.wantedPos||['DC','MCD','DFC']);
+  const weakPosPool=posMap[weakGrp]||[];
+  const targetPosOptions=wPos.filter(p=>weakPosPool.includes(p));
+  const targetPos=targetPosOptions.length?targetPosOptions[~~(Math.random()*targetPosOptions.length)]:wPos[~~(Math.random()*wPos.length)];
+  // Find a suitable candidate from market (not already at Boca, fits position, reasonable budget)
+  const maxBudget=Math.min(G.budget*0.6,20);
+  const candidates=G.market.filter(p=>
+    p.pos===targetPos && p.val<=maxBudget+5 && p.val>=0.5 &&
+    p.club!=='Boca Juniors' && !G.squad.find(s=>s.id===p.id)
+  ).sort((a,b)=>b.rat-a.rat).slice(0,10);
+  if(!candidates.length) return;
+  const pick=candidates[~~(Math.random()*Math.min(3,candidates.length))];
+  const reasons={
+    ARQ:['Brey necesita competencia seria','El arco necesita más profundidad'],
+    DEF:['La defensa mostró fisuras','Necesitamos más solidez atrás','Los centrales están justos'],
+    MED:['El mediocampo necesita jerarquía','Necesitamos más control del juego','Falta creatividad en el medio'],
+    DEL:['Necesitamos más goles','El ataque necesita variantes','Un 9 de garantía nos falta']
+  };
+  const reasonPool=reasons[weakGrp]||['El plantel necesita refuerzos'];
+  const reason=reasonPool[~~(Math.random()*reasonPool.length)];
+  G.dtRequests.push({
+    id:'req'+(Date.now()+Math.random()),
+    week:G.week,
+    pos:targetPos,
+    player:pick,
+    reason,
+    approved:false,
+    rejected:false
+  });
+  lg('📬',`${d.name} pide: ${pick.name} (${pick.pos}, ${fv(pick.val)})`);
+}
+
+function rDtPedidos(){
+  const pending=(G&&G.dtRequests)?G.dtRequests.filter(r=>!r.approved&&!r.rejected):[];
+  // Update DT tab
+  const el=document.getElementById('dtReqList');
+  const badge=document.getElementById('dtReqBadge');
+  if(badge){ if(pending.length){badge.textContent=pending.length;badge.style.display='inline';}else{badge.style.display='none';} }
+  if(el) el.innerHTML=renderDtReqs(pending,'dt');
+  // Update overview widget
+  const ovCard=document.getElementById('ovDtReqCard');
+  const ovEl=document.getElementById('ovDtReqList');
+  const ovBadge=document.getElementById('ovDtReqBadge');
+  if(ovCard){ ovCard.style.display=pending.length?'block':'none'; }
+  if(ovBadge&&pending.length) ovBadge.textContent=pending.length+' nuevo'+(pending.length>1?'s':'');
+  if(ovEl) ovEl.innerHTML=renderDtReqs(pending.slice(0,2),'ov');
+}
+
+function renderDtReqs(reqs, ctx){
+  if(!reqs.length) return '<div class="note">Sin pedidos activos del DT.</div>';
+  return reqs.map(r=>`
+    <div class="card" style="padding:9px;margin-bottom:6px;border-color:rgba(246,211,24,.2)">
+      <div style="font-size:9px;color:var(--t3);margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">Semana ${r.week} · ${r.pos}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        ${rb(r.player.rat)}
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:12px">${r.player.name}</div>
+          <div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a · ${r.player.club}</div>
+          <div style="font-size:10px;color:var(--gold)">${fv(r.player.val)}</div>
+        </div>
+        ${ageLabel(r.player.age)}
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px;font-style:italic">"${r.reason}"</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button>
+        <button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button>
+        <button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function approveDtReq(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  req.approved=true;
+  closeMod();
+  // Pre-filter market to that player and open negotiation
+  openNeg(req.player.id);
+  lg('✅',`Aprobaste el pedido de ${G.dt.name}: ${req.player.name}`);
+  rDtPedidos();
+}
+
+function rejectDtReq(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  req.rejected=true;
+  flash('Pedido rechazado','draw');
+  lg('❌',`Rechazaste el pedido de ${G.dt.name}: ${req.player.name}`);
+  rDtPedidos();
+}
+
 function rStand(){
   const el=document.getElementById('standPrev');
   if(!el||!G) return;
@@ -2160,6 +2359,8 @@ function simMatch(auto){
   const att = G.squad.filter(p=>pgr(p.pos)==='DEL');
   for(let i=0;i<gf;i++){ const s=att[~~(Math.random()*att.length)]; if(s){ s.goals++; s.apps++; } }
   G.week++;
+  // DT requests every ~5 weeks
+  if(G.week%5===0||(G.week===2)) genDtRequest();
   // Sponsor income
   if(G.sponsors){
     let spInc=0;
