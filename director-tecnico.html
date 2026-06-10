@@ -149,27 +149,64 @@ tr:hover td{background:rgba(255,255,255,.025)}
 </head>
 <body>
 
+<!-- TEAM SELECTION OVERLAY -->
+<div id="teamSelect" style="position:fixed;inset:0;background:#0a0e14;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
+  <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;color:#fff;letter-spacing:.1em;margin-bottom:6px">DIRECTOR TÉCNICO</div>
+  <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:28px;letter-spacing:.15em">ELEGÍ TU EQUIPO — TEMPORADA 2026</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;width:100%;max-width:780px">
+    <div onclick="selectTeam('boca')" style="cursor:pointer;background:rgba(0,48,135,.25);border:2px solid #003087;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,48,135,.5)'" onmouseout="this.style.background='rgba(0,48,135,.25)'">
+      <div style="font-size:36px;margin-bottom:8px">🔵🟡</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFD700">BOCA</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Juniors</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €95.4M</div>
+    </div>
+    <div onclick="selectTeam('river')" style="cursor:pointer;background:rgba(204,0,0,.2);border:2px solid #cc0000;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(204,0,0,.4)'" onmouseout="this.style.background='rgba(204,0,0,.2)'">
+      <div style="font-size:36px;margin-bottom:8px">🔴⚪</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">RIVER</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Plate</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €102.8M</div>
+    </div>
+    <div onclick="selectTeam('indep')" style="cursor:pointer;background:rgba(204,0,0,.2);border:2px solid #cc0000;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(204,0,0,.4)'" onmouseout="this.style.background='rgba(204,0,0,.2)'">
+      <div style="font-size:36px;margin-bottom:8px">🔴</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">INDEP.</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Independiente</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €36.4M</div>
+    </div>
+    <div onclick="selectTeam('racing')" style="cursor:pointer;background:rgba(0,51,153,.2);border:2px solid #003399;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,51,153,.4)'" onmouseout="this.style.background='rgba(0,51,153,.2)'">
+      <div style="font-size:36px;margin-bottom:8px">🔵⚪</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">RACING</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Club</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €62.6M</div>
+    </div>
+    <div onclick="selectTeam('sanlo')" style="cursor:pointer;background:rgba(0,76,151,.2);border:2px solid #004c97;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,76,151,.4)'" onmouseout="this.style.background='rgba(0,76,151,.2)'">
+      <div style="font-size:36px;margin-bottom:8px">🔵🔴</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">SAN LORENZO</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">de Almagro</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €47.2M</div>
+    </div>
+  </div>
+</div>
+
 <!-- INTRO -->
-<div id="intro" class="scr on">
+<div id="intro" class="scr" style="display:none">
   <div style="text-align:center;max-width:480px;padding:24px 16px">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;color:var(--gold);line-height:.95;margin-bottom:8px;letter-spacing:-.01em;text-shadow:0 0 40px rgba(246,211,24,.25)">DIRECTOR<br>TÉCNICO</div>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:4px;letter-spacing:.12em;text-transform:uppercase">Boca Juniors · Temporada 2026</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:4px;letter-spacing:.12em;text-transform:uppercase" id="teamLabel">Director Técnico · Temporada 2026</div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:22px">v7.0 · Ratings por valor TM + edad · Planteles 2025/26</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;text-align:left;margin-bottom:20px">
       <div class="card" style="padding:9px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;margin-bottom:1px">📊 Ratings TM reales</div><div style="font-size:10px;color:var(--t2)">Valoraciones basadas en Transfermarkt</div></div>
       <div class="card" style="padding:9px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;margin-bottom:1px">🤝 Negociación real</div><div style="font-size:10px;color:var(--t2)">Slider, contraofertas, rechazo</div></div>
       <div class="card" style="padding:9px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;margin-bottom:1px">🎯 Tácticas fáciles</div><div style="font-size:10px;color:var(--t2)">Click para cambiar jugadores</div></div>
-      <div class="card" style="padding:9px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;margin-bottom:1px">👥 Planteles reales 2026</div><div style="font-size:10px;color:var(--t2)">Racing, San Lorenzo, Vélez y más</div></div>
+      <div class="card" style="padding:9px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;margin-bottom:1px">👥 Planteles reales 2026</div><div style="font-size:10px;color:var(--t2)">Boca, River, Independiente, Racing y San Lorenzo</div></div>
     </div>
-    <button class="btn bg" style="font-size:16px;padding:12px 36px" onclick="startGame()">⚽ INICIAR CON BOCA JUNIORS</button>
   </div>
 </div>
 
 <!-- GAME -->
 <div id="game" class="scr">
   <div class="topbar">
-    <div class="cbadge">BJ</div>
-    <div><div class="cname">Boca Juniors</div><div style="font-size:9px;color:var(--t3)" id="dtTop">DT: Claudio Úbeda</div><div style="font-size:8px;color:var(--gold);font-family:'Barlow Condensed',sans-serif">PRESIDENTE</div></div>
+    <div class="cbadge" id="teamBadge">BJ</div>
+    <div><div class="cname" id="teamNameTop">Boca Juniors</div><div style="font-size:9px;color:var(--t3)" id="dtTop">DT: Claudio Úbeda</div><div style="font-size:8px;color:var(--gold);font-family:'Barlow Condensed',sans-serif">PRESIDENTE</div></div>
     <div class="pills">
       <div class="pill">💰 <span class="pv" id="bTop">$28M</span></div>
       <div class="pill">📅 <span class="pv" id="wTop">S1</span></div>
