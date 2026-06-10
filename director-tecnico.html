@@ -498,6 +498,19 @@ function pgr(pos){
   return 'DEL';
 }
 
+// =============================================
+// FOREIGN QUOTA HELPERS
+// =============================================
+function isForeign(nat){ return nat !== 'ARG'; }
+function isMercosur(nat){ return ['URU','PAR','BRA','BOL','CHI','ECU','PER','VEN','COL'].includes(nat); }
+function foreignCount(squad){ return (squad||[]).filter(p=>isForeign(p.nat)).length; }
+function foreignStats(squad){
+  const all = (squad||[]).filter(p=>isForeign(p.nat));
+  const mercosur = all.filter(p=>isMercosur(p.nat));
+  const nonMercosur = all.filter(p=>!isMercosur(p.nat));
+  return {total:all.length, mercosur:mercosur.length, nonMercosur:nonMercosur.length};
+}
+
 function starsH(rat,sz){
   sz = sz||11;
   const s = Math.min(5, Math.max(0, Math.round((rat/99)*10)/2));
@@ -1410,7 +1423,7 @@ function signSponsor(id){
   if(activeCats.has(sp.cat)){flash('❌ Ya tenés un contrato en '+sp.cat,'loss');return;}
   G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks});
   lg('✍️',`Patrocinio: ${sp.name} (+$${sp.income}M/sem x${sp.weeks}sem)`);
-  flash('✅ ¡'+sp.name+' firma con Boca!','win');
+  flash('✅ ¡'+sp.name+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
   rSponsors();
   if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
 }
@@ -1581,6 +1594,7 @@ function initGame(teamId){
     youth: buildYouth(),
     sponsors: [],
     dtRequests: [],
+    pressDemands: [],
     tourney: null,
     medicalCenter: false,
   };
@@ -1629,8 +1643,11 @@ function updateUI(){
   $('wTop').textContent='S'+G.week;
   $('rTop').textContent=G.wins+'-'+G.draws+'-'+G.losses;
   $('repTop').textContent=G.rep;
-  $('stadTop').textContent=G.stadium.name.replace('La ','');
+  $('stadTop').textContent=G.stadium.name.replace('La ','').replace('El ','');
   $('dtTop').textContent='DT: '+G.dt.name;
+  if($('teamNameTop'))$('teamNameTop').textContent=G.teamName||'Boca Juniors';
+  if($('teamLabel'))$('teamLabel').textContent=(G.teamName||'Director Técnico')+' · Temporada '+G.season;
+  if($('teamBadge')){const tc=TEAMS[G.teamId||'boca'];if(tc)$('teamBadge').textContent=tc.badge;}
   if($('ovSeason'))$('ovSeason').textContent='Temporada '+G.season;
   if($('sLine'))$('sLine').textContent=`${G.wins+G.draws+G.losses}/${G.wins}/${G.draws}/${G.losses}`;
   if($('sGfc'))$('sGfc').textContent=G.gf+'/'+G.ga;
@@ -1816,6 +1833,7 @@ function subNegI(id, demand){
   if(!p){flash('Jugador no disponible','draw');return;}
   if(isNaN(offer)||offer<=0){flash('Ingresá un monto válido','draw');return;}
   if(G.budget<offer){flash('❌ Presupuesto insuficiente','loss');return;}
+  if(isForeign(p.nat) && foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss');return;}
   const ratio=offer/demand;
   const rnd=Math.random();
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
@@ -1823,7 +1841,7 @@ function subNegI(id, demand){
   const adj=ratio*hard;
   if(adj>=0.97||(adj>=0.88&&rnd>.15)||(adj>=0.76&&rnd>.5)){
     G.budget=Math.round((G.budget-offer)*10)/10;
-    p.club='Boca Juniors';p.lg='Liga ARG';
+    p.club=G.teamName||'Boca Juniors';p.lg='Liga ARG';
     G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
     lg('💰',`${p.name} fichado por ${fv(offer)} ✅`);
     closeMod();updateUI();flash('✅ ¡'+p.name+' firmó por '+fv(offer)+'!','win');
@@ -1861,8 +1879,9 @@ function accCounter(id, val){
   const p = G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<val){ flash('❌ Sin presupuesto','loss'); return; }
+  if(isForeign(p.nat) && foreignCount(G.squad)>=5){ flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss'); return; }
   G.budget = Math.round((G.budget-val)*10)/10;
-  p.club='Boca Juniors'; p.lg='Liga ARG';
+  p.club=G.teamName||'Boca Juniors'; p.lg='Liga ARG';
   G.squad.push(p);
   G.market = G.market.filter(x=>x.id!==id);
   G.bench.push(p);
@@ -2493,7 +2512,7 @@ function promOne(id){
   const yp = G.youth.players.find(x=>x.id===id);
   if(!yp) return;
   if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
-  const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG','Boca Juniors','Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
+  const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors','Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
   G.squad.push(np); G.bench.push(np);
   G.youth.players = G.youth.players.filter(x=>x.id!==id);
   // Generate replacement
@@ -2697,7 +2716,7 @@ function genDtRequest(){
   const maxBudget=Math.min(G.budget*0.6,20);
   const candidates=G.market.filter(p=>
     p.pos===targetPos && p.val<=maxBudget+5 && p.val>=0.5 &&
-    p.club!=='Boca Juniors' && !G.squad.find(s=>s.id===p.id)
+    p.club!==(G.teamName||'Boca Juniors') && !G.squad.find(s=>s.id===p.id)
   ).sort((a,b)=>b.rat-a.rat).slice(0,10);
   if(!candidates.length) return;
   const pick=candidates[~~(Math.random()*Math.min(3,candidates.length))];
@@ -2837,6 +2856,7 @@ function rejectDtReq(id){
 function rStand(){
   const el=document.getElementById('standPrev');
   if(!el||!G) return;
+  const tn = G.teamName || 'Boca Juniors';
   const ALL_CLUBS=[
     {c:'Boca Juniors',str:0.78},{c:'Racing Club',str:0.73},{c:'River Plate',str:0.70},
     {c:'San Lorenzo',str:0.62},{c:'Independiente',str:0.60},{c:'Estudiantes LP',str:0.63},
@@ -2846,20 +2866,22 @@ function rStand(){
     {c:'Platense',str:0.50},{c:'Argentinos Jrs',str:0.58},{c:'Barracas Central',str:0.48},
     {c:'Gimnasia LP',str:0.51},{c:'Tigre',str:0.49}
   ];
-  const bocaPlayed = G.calendar.filter(m=>m.comp==='Liga Profesional'&&m.played);
-  let bocaPts=0,bocaGF=0,bocaGA=0,bocaW=0,bocaD=0,bocaL=0;
-  bocaPlayed.forEach(m=>{
-    const mine=m.home==='Boca Juniors';
+  // If selected team not in the default list, add it with a reasonable str
+  if(!ALL_CLUBS.find(x=>x.c===tn)) ALL_CLUBS.push({c:tn,str:0.70});
+  const myPlayed = G.calendar.filter(m=>m.comp==='Liga Profesional'&&m.played);
+  let myPts=0,myGF=0,myGA=0,myW=0,myD=0,myL=0;
+  myPlayed.forEach(m=>{
+    const mine=m.home===tn;
     const [gf,ga]=m.score.split('-').map(Number);
-    bocaGF+=mine?gf:ga; bocaGA+=mine?ga:gf;
-    if(m.result==='W'){bocaPts+=3;bocaW++;}
-    else if(m.result==='D'){bocaPts+=1;bocaD++;}
-    else bocaL++;
+    myGF+=mine?gf:ga; myGA+=mine?ga:gf;
+    if(m.result==='W'){myPts+=3;myW++;}
+    else if(m.result==='D'){myPts+=1;myD++;}
+    else myL++;
   });
-  const pj=bocaPlayed.length;
+  const pj=myPlayed.length;
   const seed=G.week*13+7;
   const tbl=ALL_CLUBS.map((t,i)=>{
-    if(t.c==='Boca Juniors') return {c:t.c,pts:bocaPts,pj,w:bocaW,d:bocaD,l:bocaL,gf:bocaGF,ga:bocaGA,dif:bocaGF-bocaGA};
+    if(t.c===tn) return {c:t.c,pts:myPts,pj,w:myW,d:myD,l:myL,gf:myGF,ga:myGA,dif:myGF-myGA};
     const simW=Math.floor(pj*t.str*0.85+((seed+i*7)%3)*0.1);
     const simD=Math.floor(pj*(1-t.str)*0.3+((seed+i*3)%2)*0.1);
     const simL=Math.max(0,pj-simW-simD);
@@ -2875,10 +2897,10 @@ function rStand(){
       <span></span><span>#</span><span>Club</span><span>PJ</span><span style="color:var(--green)">G</span><span style="color:var(--gold)">E</span><span style="color:var(--red)">P</span><span>DIF</span><span>PTS</span>
     </div>
   `+tbl.slice(0,12).map((t,i)=>`
-    <div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;align-items:center;padding:3px 4px;border-radius:3px;${t.c==='Boca Juniors'?'background:rgba(246,211,24,.08)':''}">
+    <div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;align-items:center;padding:3px 4px;border-radius:3px;${t.c===tn?'background:rgba(246,211,24,.08)':''}">
       <div style="width:3px;height:14px;border-radius:2px;background:${zc(i)};margin:auto"></div>
       <span style="text-align:center;font-size:9px;color:var(--t3)">${i+1}</span>
-      <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.c==='Boca Juniors'?'color:var(--gold);font-weight:700':''}">${sn(t.c)}</span>
+      <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.c===tn?'color:var(--gold);font-weight:700':''}">${sn(t.c)}</span>
       <span style="text-align:center;font-size:9px;color:var(--t3)">${t.pj}</span>
       <span style="text-align:center;font-size:9px;color:var(--green)">${t.w}</span>
       <span style="text-align:center;font-size:9px;color:var(--gold)">${t.d}</span>
@@ -2910,8 +2932,8 @@ function rCal(){
         <tbody>${ms.map(m=>`
           <tr>
             <td style="color:var(--t3)">${m.week}</td>
-            <td style="${m.home==='Boca Juniors'?'font-weight:600;color:var(--gold)':''}">${m.home}</td>
-            <td style="${m.away==='Boca Juniors'?'font-weight:600;color:var(--gold)':''}">${m.away}</td>
+            <td style="${m.home===(G&&G.teamName||'Boca Juniors')?'font-weight:600;color:var(--gold)':''}">${m.home}</td>
+            <td style="${m.away===(G&&G.teamName||'Boca Juniors')?'font-weight:600;color:var(--gold)':''}">${m.away}</td>
             <td>${m.played?`<span class="badge ba${m.result==='W'?'G':m.result==='D'?'u':'R'}">${m.score}</span>`:'—'}</td>
           </tr>
         `).join('')}</tbody></table>
@@ -2992,7 +3014,7 @@ function nextSeason(){
     else if(p.age >= 35) p.rat = Math.max(55, p.rat - (Math.random()>0.4?1:0));
     if(p.rat !== oldRat) p.val = ratToVal(p.rat, p.age);
   });
-  G.calendar = buildCal();
+  G.calendar = buildCal(G.teamName);
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
   G.offers = genOffers();
   G.tourney = buildTourney();
@@ -3141,7 +3163,8 @@ function simMatch(auto){
 // MATCH LIVE SIMULATION
 // =============================================
 function generateMatchScript(m, res, gf, ga, scorersList){
-  const rival = m.home==='Boca Juniors'?m.away:m.home;
+  const tn = G&&G.teamName ? G.teamName : 'Boca Juniors';
+  const rival = m.home===tn?m.away:m.home;
   const xi = Object.values(G.slots).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
   const att = xi.filter(p=>pgr(p.pos)==='DEL');
   const mid = xi.filter(p=>pgr(p.pos)==='MED');
@@ -3151,7 +3174,7 @@ function generateMatchScript(m, res, gf, ga, scorersList){
   const ra = () => att.length?att[~~(Math.random()*att.length)]:rp();
   const rm = () => mid.length?mid[~~(Math.random()*mid.length)]:rp();
   const rd = () => def.length?def[~~(Math.random()*def.length)]:rp();
-  const n = p => p?p.name.split(' ').pop():'Boca';
+  const n = p => p?p.name.split(' ').pop():(G&&G.teamName?G.teamName.split(' ')[0]:'Boca');
 
   const events = [{min:1,icon:'⚽',txt:`Arranca el partido. ${m.home} vs ${m.away}.`,isGoal:false}];
   const usedMins = new Set([1,45,90]);
@@ -3169,11 +3192,11 @@ function generateMatchScript(m, res, gf, ga, scorersList){
     if(r<0.20){icon='🔥';txt=`${n(ra())} dispara cruzado — el portero de ${rival} la saca con dificultad!`;}
     else if(r<0.35){icon='💨';txt=`Gran jugada de ${n(rm())} — el centro no encuentra rematador!`;}
     else if(r<0.48){icon='🛡️';txt=`${rival} arma una llegada peligrosa — ${n(rd())} corta providencialmente!`;}
-    else if(r<0.60){icon='🎯';txt=`Córner a favor de Boca — ${n(rd())} remata de cabeza, arriba!`;}
+    else if(r<0.60){icon='🎯';txt=`Córner a favor de ${tn} — ${n(rd())} remata de cabeza, arriba!`;}
     else if(r<0.70){icon='🟨';txt=`Falta sobre ${n(rm())} — amarilla para ${rival}.`;}
-    else if(r<0.80){icon='⚡';txt=`Contraataque veloz de Boca — ${n(ra())} aguanta la pelota con clase.`;}
-    else if(r<0.88){icon='🧤';txt=`${arq.length?n(arq[0]):'Brey'} responde ante el disparo de ${rival}!`;}
-    else{icon='📣';txt=`Lleva${min>45?'ba':'a'} ${min} minutos. Boca presiona en busca del gol.`;}
+    else if(r<0.80){icon='⚡';txt=`Contraataque veloz de ${tn} — ${n(ra())} aguanta la pelota con clase.`;}
+    else if(r<0.88){icon='🧤';txt=`${arq.length?n(arq[0]):G.dt.name} responde ante el disparo de ${rival}!`;}
+    else{icon='📣';txt=`Lleva${min>45?'ba':'a'} ${min} minutos. ${tn} presiona en busca del gol.`;}
     events.push({min,icon,txt,isGoal:false});
   }
 
@@ -3184,12 +3207,12 @@ function generateMatchScript(m, res, gf, ga, scorersList){
     bocaRunning++;
     const celebs=['¡La Bombonera explota!','¡Golazo!','¡Qué golazo!','¡Pura magia!'];
     const celeb=celebs[~~(Math.random()*celebs.length)];
-    events.push({min:s.min,icon:'🚀',txt:`¡¡GOL DE BOCA!! ${s.name.split(' ').pop().toUpperCase()} anota — ${bocaRunning}-${gf>ga?0:ga} — ${celeb}`,isGoal:true,scorerName:s.name});
+    events.push({min:s.min,icon:'🚀',txt:`¡¡GOL DE ${tn.toUpperCase()}!! ${s.name.split(' ').pop().toUpperCase()} anota — ${bocaRunning}-${gf>ga?0:ga} — ${celeb}`,isGoal:true,scorerName:s.name});
   });
 
   // Halftime
   const htGoals=sorted.filter(s=>s.min<=45).length;
-  events.push({min:45,icon:'⏱️',txt:`DESCANSO — Boca ${htGoals} - ${(res==='L'&&gf<ga)?~~(ga*htGoals/Math.max(gf,1)):0} ${rival}. Segundo tiempo en 15 minutos.`,isGoal:false});
+  events.push({min:45,icon:'⏱️',txt:`DESCANSO — ${tn} ${htGoals} - ${(res==='L'&&gf<ga)?~~(ga*htGoals/Math.max(gf,1)):0} ${rival}. Segundo tiempo en 15 minutos.`,isGoal:false});
   events.sort((a,b)=>a.min-b.min);
   events.push({min:90,icon:'🏁',txt:`FINAL DEL PARTIDO — ${m.home} ${gf}-${ga} ${m.away}`,isGoal:false});
   return events;
@@ -3347,8 +3370,9 @@ function loanIn(id){
   if(!p) return;
   const cost = Math.round(p.val*.05*10)/10;
   if(G.budget<cost){ flash('❌ Sin presupuesto ($'+cost+'M)','loss'); return; }
+  if(isForeign(p.nat) && foreignCount(G.squad)>=5){ flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss'); return; }
   G.budget=Math.round((G.budget-cost)*10)/10;
-  p.club='Boca Jrs (prést)'; p.lg='Liga ARG';
+  p.club=(G.teamName||'Boca Juniors')+' (prést)'; p.lg='Liga ARG';
   G.squad.push(p); G.market=G.market.filter(x=>x.id!==id); G.bench.push(p);
   lg('📥',`Préstamo: ${p.name} ($${cost}M)`);
   updateUI(); closeMod(); flash('✅ '+p.name+' en préstamo','win');
@@ -3469,10 +3493,10 @@ function gTab(name, btn){
   btn.classList.add('on');
   selSlot = null; // clear tactics selection when switching tabs
 }
-function startGame(){
+function startGame(teamId){
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
-  initGame();
+  initGame(teamId||'boca');
 }
 </script>
 </body>
