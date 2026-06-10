@@ -283,6 +283,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab" onclick="fSq('MED',this)">MED</button>
         <button class="tab" onclick="fSq('DEL',this)">DEL</button>
       </div>
+      <div id="sqForeignCounter" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;padding:5px 10px;margin-bottom:6px;background:rgba(9,31,60,.5);border-radius:6px;border:1px solid var(--bdr)"></div>
       <div style="display:grid;grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px;gap:4px;padding:3px 9px;font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">
         <span>#</span><span>Jugador</span><span>Nac.</span><span>Edad</span><span>Valor TM</span><span>Rating / Edad</span><span>Ctr.</span>
       </div>
@@ -311,6 +312,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="ctitle">📊 Informe del DT</div>
             <div id="dtReport"></div>
           </div>
+          <div class="card" id="pressDemands" style="margin-top:8px"></div>
         </div>
       </div>
     </div>
@@ -1206,6 +1208,32 @@ function buildMkt(){
   a(10,'Claudio Echeverri','MCO',19,'ARG','Man. City','Premier',22,75,30,92);
   a(7,'Santiago López','EI',21,'ARG','Benfica','Otras',12,75,20,83);
 
+  // === LIGA ARG — EQUIPOS ADICIONALES 2026 ===
+  // Estudiantes LP
+  a(99,'Mauro Boselli','DC',38,'ARG','Estudiantes LP','Liga ARG',0.15,0,0);
+  a(99,'José Sosa','MC',40,'ARG','Estudiantes LP','Liga ARG',0.1,0,0);
+  a(99,'Gustavo Del Prete','DC',28,'ARG','Estudiantes LP','Liga ARG',1.2,0,0);
+  a(99,'Javier Altamirano','MCD',23,'ARG','Estudiantes LP','Liga ARG',3.5,0,0);
+  // Rosario Central
+  a(99,'Marco Ruben','DC',39,'ARG','Rosario Central','Liga ARG',0.1,0,0);
+  a(99,'Gino Infantino','EI',27,'ARG','Rosario Central','Liga ARG',1.8,0,0);
+  // Talleres (Córdoba)
+  a(99,'Rodrigo Garro','MCO',26,'ARG','Talleres','Liga ARG',5.0,0,0);
+  a(99,'Gastón Benavídez','DFD',28,'ARG','Talleres','Liga ARG',1.5,0,0);
+  // Vélez Sarsfield
+  a(99,'Lucas Janson','EI',31,'ARG','Vélez','Liga ARG',0.8,0,0);
+  a(99,'Luca Orellano','EI',23,'ARG','Vélez','Liga ARG',4.0,0,0);
+  a(99,'Federico Gomes Gerardo','DFC',24,'ARG','Vélez','Liga ARG',2.0,0,0);
+  // Huracán
+  a(99,'Rodrigo Echeverría','MC',25,'ARG','Huracán','Liga ARG',1.8,0,0);
+  a(99,'Ignacio Aliseda','EI',24,'ARG','Huracán','Liga ARG',2.5,0,0);
+  // Belgrano
+  a(99,'Pablo Vegetti','DC',36,'ARG','Belgrano','Liga ARG',0.8,0,0);
+  a(99,'Nahuel Losada','DFI',26,'ARG','Belgrano','Liga ARG',1.2,0,0);
+  // Defensa y Justicia
+  a(99,'Raúl Loaiza','MC',27,'COL','Defensa y Justicia','Liga ARG',1.5,0,0);
+  a(99,'Gastón Togni','DC',29,'ARG','Defensa y Justicia','Liga ARG',0.9,0,0);
+
   return m;
 }
 
@@ -1683,6 +1711,7 @@ function updateUI(){
   if(G.sponsors!==undefined) rSponsors();
   if(typeof rStats === 'function') rStats();
   rDtPedidos();
+  rPressDemands();
 }
 
 // =============================================
@@ -1691,6 +1720,9 @@ function updateUI(){
 function rSq(f){
   const el = document.getElementById('sqList');
   if(!el||!G) return;
+  const fs = foreignStats(G.squad);
+  const quotaEl = document.getElementById('sqForeignCounter');
+  if(quotaEl) quotaEl.innerHTML = `<span style="color:${fs.total>=5?'var(--red)':'var(--gold)'}">Extranjeros: ${fs.total}/5</span>  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`;
   const pl = G.squad.filter(p=>f==='all'||pgr(p.pos)===f).sort((a,b)=>{
     const o={ARQ:0,DEF:1,MED:2,DEL:3};
     return o[pgr(a.pos)]-o[pgr(b.pos)];
@@ -2515,6 +2547,14 @@ function promOne(id){
   const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors','Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
   G.squad.push(np); G.bench.push(np);
   G.youth.players = G.youth.players.filter(x=>x.id!==id);
+  // Check if any president demand for debut_youth is fulfilled
+  if(G.pressDemands) G.pressDemands.forEach(d=>{
+    if(!d.fulfilled&&!d.expired&&d.type==='debut_youth'&&d.detail&&d.detail.youthId===id){
+      d.fulfilled=true;
+      G.morale=Math.min(100,G.morale+3); G.rep=Math.min(100,G.rep+1);
+      lg('✅','Exigencia presidencial cumplida: '+d.desc);
+    }
+  });
   // Generate replacement
   const fn=['Thiago','Mateo','Luca','Agustín','Franco','Valentín'];
   const ln=['González','López','Fernández','Rodríguez','Martínez','García'];
@@ -2630,6 +2670,7 @@ function rDtTab(){
   rDtXI();
   rDtPedidos();
   rDtReport();
+  rPressDemands();
 }
 
 function rDtProfile(){
@@ -2694,6 +2735,102 @@ function rDtReport(){
   `;
 }
 
+// =============================================
+// PRESIDENT DEMANDS
+// =============================================
+function rPressDemands(){
+  const el = document.getElementById('pressDemands');
+  if(!el||!G) return;
+  if(!G.pressDemands) G.pressDemands=[];
+  const active = G.pressDemands.filter(d=>!d.fulfilled&&!d.expired);
+  el.innerHTML = `
+    <div class="ctitle">📋 Exigencias del Presidente
+      <button class="btn bg bs" style="float:right;margin-top:-2px" onclick="newPressDemand()">+ Nueva</button>
+    </div>
+    ${active.length ? active.map(d=>{
+      const left = d.deadline - G.week;
+      const statusCol = left<=1?'var(--red)':left<=3?'var(--ora)':'var(--t2)';
+      return `<div class="card" style="padding:8px;margin-bottom:5px;border-color:rgba(246,211,24,.18)">
+        <div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif">${d.type.replace('_',' ')}</div>
+        <div style="font-size:11px;margin-bottom:4px">${d.desc}</div>
+        <div style="font-size:9px;color:${statusCol}">Vence en ${Math.max(0,left)} semana${left===1?'':'s'}</div>
+      </div>`;
+    }).join('') : '<div class="note">Sin exigencias activas del presidente.</div>'}
+  `;
+}
+
+function newPressDemand(){
+  if(!G) return;
+  if(!G.pressDemands) G.pressDemands=[];
+  const types=['debut_youth','must_play','win_target','use_formation'];
+  const type = types[~~(Math.random()*types.length)];
+  let desc, detail={};
+  if(type==='debut_youth'){
+    const yp = G.youth && G.youth.players.length ? G.youth.players[~~(Math.random()*G.youth.players.length)] : null;
+    if(!yp){ flash('No hay juveniles disponibles','draw'); return; }
+    const n = 4+~~(Math.random()*5);
+    desc=`Quiero que ${yp.name} debute en el primer equipo en los próximos ${n} partidos.`;
+    detail={youthId:yp.id, youthName:yp.name};
+  } else if(type==='must_play'){
+    const top5 = G.squad.slice().sort((a,b)=>b.val-a.val).slice(0,5);
+    if(!top5.length){ flash('Sin jugadores en el plantel','draw'); return; }
+    const pick = top5[~~(Math.random()*top5.length)];
+    const n = 2+~~(Math.random()*3);
+    desc=`Necesito que ${pick.name} sea titular en los próximos ${n} partidos.`;
+    detail={playerId:pick.id, playerName:pick.name};
+  } else if(type==='win_target'){
+    const n=2, m=4;
+    desc=`Necesito al menos ${n} victorias en las próximas ${m} fechas. El club lo exige.`;
+    detail={targetWins:n, targetMatches:m, winsFrom:G.wins};
+  } else if(type==='use_formation'){
+    const fkeys = Object.keys(FORMS).filter(f=>f!==G.formation);
+    const form = fkeys[~~(Math.random()*fkeys.length)];
+    desc=`Quiero que el equipo juegue en ${form} de ahora en adelante.`;
+    detail={formation:form};
+  }
+  const demand = {
+    id:'pd'+(Date.now()+Math.random()),
+    type, desc, detail,
+    deadline: G.week + (type==='win_target'?4:type==='use_formation'?3:type==='must_play'?5:8),
+    fulfilled:false, expired:false, created:G.week
+  };
+  G.pressDemands.push(demand);
+  lg('📋',`Nueva exigencia presidencial: ${desc}`);
+  rPressDemands();
+  flash('📋 Nueva exigencia del presidente añadida','draw');
+}
+
+function checkPressDemands(){
+  if(!G||!G.pressDemands) return;
+  G.pressDemands.forEach(d=>{
+    if(d.fulfilled||d.expired) return;
+    // Check fulfillment
+    let fulfilled = false;
+    if(d.type==='use_formation'&&d.detail&&G.formation===d.detail.formation) fulfilled=true;
+    if(d.type==='win_target'&&d.detail){
+      const winsNow = G.wins - (d.detail.winsFrom||0);
+      if(winsNow >= (d.detail.targetWins||2)) fulfilled=true;
+    }
+    if(d.type==='must_play'&&d.detail){
+      const inXI = Object.values(G.slots).includes(d.detail.playerId);
+      if(inXI) fulfilled=true;
+    }
+    if(fulfilled){
+      d.fulfilled=true;
+      G.morale=Math.min(100,G.morale+3);
+      G.rep=Math.min(100,G.rep+1);
+      lg('✅','Exigencia presidencial cumplida: '+d.desc);
+      flash('✅ Exigencia presidencial cumplida!','win');
+    } else if(G.week > d.deadline){
+      d.expired=true;
+      G.morale=Math.max(0,G.morale-5);
+      lg('❌','Exigencia presidencial incumplida');
+      flash('❌ Exigencia presidencial incumplida','loss');
+    }
+  });
+  rPressDemands();
+}
+
 function genDtRequest(){
   if(!G||!G.dtRequests) return;
   // Max 3 active requests
@@ -2738,8 +2875,12 @@ function genDtRequest(){
     rejected:false
   });
   lg('📬',`${d.name} pide: ${pick.name} (${pick.pos}, ${fv(pick.val)})`);
-  // Also maybe generate sell recommendation
-  if(Math.random() < 0.35) genDtSellReq();
+  // Also maybe generate sell recommendation or other request types
+  const rndType = Math.random();
+  if(rndType < 0.35) genDtSellReq();
+  else if(rndType < 0.55) genDtStadReq();
+  else if(rndType < 0.70) genDtYouthReq();
+  else if(rndType < 0.80) genDtFireReq();
 }
 
 function genDtSellReq(){
@@ -2775,6 +2916,64 @@ function genDtSellReq(){
   lg('📤',`${G.dt.name} sugiere vender a ${pick.name}`);
 }
 
+function genDtStadReq(){
+  if(!G||!G.dtRequests||!G.stadium) return;
+  const pending = G.dtRequests.filter(r=>!r.approved&&!r.rejected);
+  if(pending.length>=3) return;
+  const unbuilt = G.stadium.upgrades.filter(u=>!u.built);
+  if(!unbuilt.length) return;
+  const pick = unbuilt[~~(Math.random()*unbuilt.length)];
+  G.dtRequests.push({
+    id:'req'+(Date.now()+Math.random()),
+    week:G.week,
+    type:'stad_upgrade',
+    upgradeId:pick.id,
+    upgradeName:pick.name,
+    upgradeCost:pick.cost,
+    reason:'Para seguir creciendo necesito mejores instalaciones.',
+    approved:false, rejected:false
+  });
+  lg('🏟️',`${G.dt.name} pide mejora: ${pick.name}`);
+}
+
+function genDtYouthReq(){
+  if(!G||!G.dtRequests||!G.youth) return;
+  const pending = G.dtRequests.filter(r=>!r.approved&&!r.rejected);
+  if(pending.length>=3) return;
+  const unbuilt = G.youth.upgrades.filter(u=>!u.built);
+  if(!unbuilt.length) return;
+  const pick = unbuilt[~~(Math.random()*unbuilt.length)];
+  G.dtRequests.push({
+    id:'req'+(Date.now()+Math.random()),
+    week:G.week,
+    type:'youth_invest',
+    upgradeId:pick.id,
+    upgradeName:pick.name,
+    upgradeCost:pick.cost,
+    reason:'Las inferiores son el futuro del club. Hay que invertir.',
+    approved:false, rejected:false
+  });
+  lg('🌱',`${G.dt.name} pide invertir en juveniles: ${pick.name}`);
+}
+
+function genDtFireReq(){
+  if(!G||!G.dtRequests) return;
+  const pending = G.dtRequests.filter(r=>!r.approved&&!r.rejected);
+  if(pending.length>=3) return;
+  const cands = G.squad.filter(p=>!p.injured&&(p.age>35||p.rat<65));
+  if(!cands.length) return;
+  const pick = cands[~~(Math.random()*cands.length)];
+  G.dtRequests.push({
+    id:'req'+(Date.now()+Math.random()),
+    week:G.week,
+    type:'fire_player',
+    player:pick,
+    reason:'Ya no está al nivel. Lo mejor es rescindir su contrato.',
+    approved:false, rejected:false
+  });
+  lg('🚪',`${G.dt.name} quiere rescindir a ${pick.name}`);
+}
+
 function rDtPedidos(){
   const pending=(G&&G.dtRequests)?G.dtRequests.filter(r=>!r.approved&&!r.rejected):[];
   // Update DT tab
@@ -2793,32 +2992,37 @@ function rDtPedidos(){
 
 function renderDtReqs(reqs, ctx){
   if(!reqs.length) return '<div class="note">Sin pedidos activos del DT.</div>';
-  return reqs.map(r=>`
-    <div class="card" style="padding:9px;margin-bottom:6px;border-color:${r.type==='sell'?'rgba(232,69,69,.25)':'rgba(246,211,24,.2)'}">
-      <div style="font-size:9px;color:var(--t3);margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">Semana ${r.week} · ${r.type==='sell'?'💸 VENDER':'🤝 COMPRAR'} · ${r.pos}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-        ${rb(r.player.rat)}
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:12px">${r.player.name}</div>
-          <div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a · ${r.player.club}</div>
-          <div style="font-size:10px;color:var(--gold)">${fv(r.player.val)}</div>
-        </div>
-        ${ageLabel(r.player.age)}
-      </div>
+  return reqs.map(r=>{
+    const type = r.type||'buy';
+    let typeLabel, borderColor, body, actions;
+    if(type==='sell'){
+      typeLabel='💸 VENDER'; borderColor='rgba(232,69,69,.25)';
+      body=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">${rb(r.player.rat)}<div style="flex:1"><div style="font-weight:700;font-size:12px">${r.player.name}</div><div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a · ${r.player.club}</div><div style="font-size:10px;color:var(--gold)">${fv(r.player.val)}</div></div>${ageLabel(r.player.age)}</div>`;
+      actions=`<button class="btn bR bs" onclick="approveDtSell('${r.id}')">💸 Vender — ${fv(r.player.val)}</button><button class="btn bo bs" onclick="openP('${r.player.id}',true)">👤 Ver ficha</button><button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ No vender</button>`;
+    } else if(type==='fire_player'){
+      typeLabel='🚪 RESCINDIR'; borderColor='rgba(232,69,69,.25)';
+      body=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">${rb(r.player.rat)}<div style="flex:1"><div style="font-weight:700;font-size:12px">${r.player.name}</div><div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a</div></div></div>`;
+      actions=`<button class="btn bR bs" onclick="approveDtFire('${r.id}')">🚪 Rescindir contrato</button><button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ Mantenerlo</button>`;
+    } else if(type==='stad_upgrade'){
+      typeLabel='🏟️ ESTADIO'; borderColor='rgba(246,211,24,.2)';
+      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
+      actions=`<button class="btn bg bs" onclick="approveDtStad('${r.id}')">🏗️ Aprobar mejora</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
+    } else if(type==='youth_invest'){
+      typeLabel='🌱 JUVENILES'; borderColor='rgba(15,184,102,.2)';
+      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
+      actions=`<button class="btn bG bs" onclick="approveDtYouth('${r.id}')">✅ Aprobar</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
+    } else {
+      typeLabel='🤝 COMPRAR'; borderColor='rgba(246,211,24,.2)';
+      body=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">${rb(r.player.rat)}<div style="flex:1"><div style="font-weight:700;font-size:12px">${r.player.name}</div><div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a · ${r.player.club}</div><div style="font-size:10px;color:var(--gold)">${fv(r.player.val)}</div></div>${ageLabel(r.player.age)}</div>`;
+      actions=`<button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button><button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
+    }
+    return `<div class="card" style="padding:9px;margin-bottom:6px;border-color:${borderColor}">
+      <div style="font-size:9px;color:var(--t3);margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">Semana ${r.week} · ${typeLabel}</div>
+      ${body}
       <div style="font-size:10px;color:var(--t3);margin-bottom:8px;font-style:italic">"${r.reason}"</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        ${r.type==='sell' ? `
-          <button class="btn bR bs" onclick="approveDtSell('${r.id}')">💸 Vender — ${fv(r.player.val)}</button>
-          <button class="btn bo bs" onclick="openP('${r.player.id}',true)">👤 Ver ficha</button>
-          <button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ No vender</button>
-        ` : `
-          <button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button>
-          <button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button>
-          <button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>
-        `}
-      </div>
-    </div>
-  `).join('');
+      <div style="display:flex;gap:5px;flex-wrap:wrap">${actions}</div>
+    </div>`;
+  }).join('');
 }
 
 function approveDtReq(id){
@@ -2843,13 +3047,52 @@ function approveDtSell(id){
   sellPlayer(req.player.id);
 }
 
+function approveDtFire(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req||!req.player) return;
+  req.approved=true;
+  const pid=req.player.id;
+  G.squad=G.squad.filter(x=>x.id!==pid);
+  G.bench=G.bench.filter(x=>x.id!==pid);
+  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===pid) G.slots[k]=null; });
+  lg('🚪',`${req.player.name} rescindido por pedido de ${G.dt.name}`);
+  rDtPedidos(); updateUI();
+  flash(`✅ ${req.player.name} rescindido`,'win');
+}
+
+function approveDtStad(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  const u=G.stadium.upgrades.find(x=>x.id===req.upgradeId);
+  if(!u||u.built){ flash('❌ Mejora no disponible','loss'); return; }
+  if(G.budget<u.cost){ flash('❌ Sin presupuesto ($'+u.cost+'M)','loss'); return; }
+  req.approved=true;
+  confirmBuildStad(req.upgradeId);
+  rDtPedidos();
+}
+
+function approveDtYouth(id){
+  if(!G) return;
+  const req=G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  const u=G.youth.upgrades.find(x=>x.id===req.upgradeId);
+  if(!u||u.built){ flash('❌ Mejora no disponible','loss'); return; }
+  if(G.budget<u.cost){ flash('❌ Sin presupuesto ($'+u.cost+'M)','loss'); return; }
+  req.approved=true;
+  buildYouthUpg(req.upgradeId);
+  rDtPedidos();
+}
+
 function rejectDtReq(id){
   if(!G) return;
   const req=G.dtRequests.find(r=>r.id===id);
   if(!req) return;
   req.rejected=true;
   flash('Pedido rechazado','draw');
-  lg('❌',`Rechazaste el pedido de ${G.dt.name}: ${req.player.name}`);
+  const label = req.player ? req.player.name : (req.upgradeName||'pedido');
+  lg('❌',`Rechazaste el pedido de ${G.dt.name}: ${label}`);
   rDtPedidos();
 }
 
@@ -3117,6 +3360,8 @@ function simMatch(auto){
   G.week++;
   // DT requests every ~5 weeks
   if(G.week%5===0||(G.week===2)) genDtRequest();
+  // Check president demands
+  checkPressDemands();
   // Sponsor income
   if(G.sponsors){
     let spInc=0;
