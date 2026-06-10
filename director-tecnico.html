@@ -519,62 +519,265 @@ function ptag(pos){ return `<span class="ptag pt-${pos}">${pos}</span>`; }
 function lg(ic,msg){ if(!G) return; G.log.unshift({ic,msg,w:'S'+G.week}); if(G.log.length>40) G.log.pop(); }
 
 // =============================================
-// BOCA JUNIORS 2026 — PLANTEL OFICIAL
+// BOCA JUNIORS 2026 — PLANTEL OFICIAL (Transfermarkt)
 // =============================================
 function buildBoca(){
-  // BOCA JUNIORS 2025/26 — Valores Transfermarkt actualizados
-  // Rating = f(valor TM, edad): jóvenes penalizados por rating actual, premiados en potencial
   return [
     // ARQUEROS
-    P(1, 'Leandro Brey',       'ARQ',24,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 18),  // titular indiscutido, en ascenso
-    P(25,'Agustín Marchesín',  'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.4, 0, 30),  // veterano, backup (n.1988)
-    P(34,'Javier García',      'ARQ',41,'ARG','Boca Juniors','Liga ARG', 0.1, 0,  8),  // 3er arco (n.1984)
-
+    P(1, 'Leandro Brey',        'ARQ',23,'ARG','Boca Juniors','Liga ARG', 1.5, 0, 0),
+    P(25,'Agustín Marchesín',   'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.5, 0, 0),
+    P(34,'Javier García',       'ARQ',39,'ARG','Boca Juniors','Liga ARG', 0.025,0,0),
     // DEFENSORES CENTRALES
-    P(2, 'Lautaro Di Lollo',   'DFC',23,'ARG','Boca Juniors','Liga ARG', 9.0, 0, 14),  // joya – val incluye potencial
-    P(5, 'Marco Pellegrino',   'DFC',24,'ARG','Boca Juniors','Liga ARG', 7.0, 0, 14),  // ex-Milan, titular
-    P(19,'Nicolás Figal',      'DFC',32,'ARG','Boca Juniors','Liga ARG', 0.8, 0, 14),  // n.1994
-    P(26,'Cristian Lema',      'DFC',38,'ARG','Boca Juniors','Liga ARG', 0.2, 0, 12),  // n.1988
-    P(29,'Agustín Heredia',    'DFC',29,'ARG','Boca Juniors','Liga ARG', 0.5, 0, 10),
-
-    // LATERALES DERECHOS
-    P(17,'Luis Advíncula',     'DFD',36,'PER','Boca Juniors','Liga ARG', 0.8, 0, 18),  // n.1990
-    P(21,'Marcelo Weigandt',   'DFD',26,'ARG','Boca Juniors','Liga ARG', 3.2, 0, 15),  // n.2000
-    P(4, 'Lucas Blondel',      'DFD',30,'ARG','Boca Juniors','Liga ARG', 1.5, 0, 12),
-
+    P(2, 'Lautaro Di Lollo',    'DFC',22,'ARG','Boca Juniors','Liga ARG', 7.0, 0, 0),
+    P(29,'Ayrton Costa',        'DFC',26,'ARG','Boca Juniors','Liga ARG', 5.0, 0, 0),
+    P(5, 'Marco Pellegrino',    'DFC',23,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 0),
+    P(19,'Nicolás Figal',       'DFC',32,'ARG','Boca Juniors','Liga ARG', 0.25,0, 0),
+    P(26,'Agustín Heredia',     'DFC',28,'ARG','Boca Juniors','Liga ARG', 0.075,0,0),
     // LATERALES IZQUIERDOS
-    P(6, 'Lautaro Blanco',     'DFI',27,'ARG','Boca Juniors','Liga ARG', 5.0, 0, 18),  // n.1999
-    P(33,'Ayrton Costa',       'DFI',27,'ARG','Boca Juniors','Liga ARG', 2.0, 0, 13),
-    P(22,'Frank Fabra',        'DFI',35,'COL','Boca Juniors','Liga ARG', 0.5, 0, 14),  // n.1990
-
+    P(6, 'Lautaro Blanco',      'DFI',27,'ARG','Boca Juniors','Liga ARG', 4.0, 0, 0),
+    P(33,'Malcom Braida',       'DFI',29,'ARG','Boca Juniors','Liga ARG', 2.5, 0, 0),
+    // LATERALES DERECHOS
+    P(21,'Juan Barinaga',       'DFD',25,'ARG','Boca Juniors','Liga ARG', 2.8, 0, 0),
+    P(17,'Marcelo Weigandt',    'DFD',26,'ARG','Boca Juniors','Liga ARG', 1.7, 0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
-    P(8, 'Leandro Paredes',    'MCD',32,'ARG','Boca Juniors','Liga ARG', 6.0, 0, 55),  // capitán, ex-PSG/Roma
-    P(16,'Milton Delgado',     'MCD',22,'ARG','Boca Juniors','Liga ARG',11.0, 0, 16),  // la gran joya del plantel
-    P(15,'Santiago Ascacíbar', 'MCD',29,'ARG','Boca Juniors','Liga ARG', 3.0, 0, 22),  // n.1996
-
+    P(16,'Milton Delgado',      'MCD',20,'ARG','Boca Juniors','Liga ARG',10.0, 0, 0),
+    P(15,'Santiago Ascacíbar',  'MCD',29,'ARG','Boca Juniors','Liga ARG', 5.5, 0, 0),
+    P(8, 'Leandro Paredes',     'MCD',31,'ARG','Boca Juniors','Liga ARG', 5.0, 0, 0),
+    P(30,'Tomás Belmonte',      'MCD',28,'ARG','Boca Juniors','Liga ARG', 3.0, 0, 0),
     // MEDIOCAMPISTAS CENTRALES
-    P(27,'Williams Alarcón',   'MC', 25,'CHI','Boca Juniors','Liga ARG', 7.0, 0, 20),  // chileno top
-    P(30,'Tomás Belmonte',     'MC', 27,'ARG','Boca Juniors','Liga ARG', 5.0, 0, 15),  // motor del mediocampo
-    P(14,'Tomás Aranda',       'MC', 22,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 13),  // promisorio
-    P(20,'Rodrigo Battaglia',  'MC', 35,'ARG','Boca Juniors','Liga ARG', 0.3, 0, 14),  // n.1991
-    P(10,'Ander Herrera',      'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.5, 0, 24),  // n.1989
-
-    // EXTREMOS / MEDIOCAMPISTAS OFENSIVOS
-    P(11,'Kevin Zenón',        'EI', 24,'ARG','Boca Juniors','Liga ARG',13.0, 0, 22),  // el MEJOR del plantel
-    P(13,'Exequiel Zeballos',  'ED', 24,'ARG','Boca Juniors','Liga ARG',11.0, 0, 25),  // volvió de lesiones
-    P(18,'Carlos Palacios',    'MCO',25,'CHI','Boca Juniors','Liga ARG', 6.0, 0, 24),  // chileno creativo
-    P(7, 'Alan Velasco',       'MI', 25,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 20),
-    P(44,'Brian Aguirre',      'EI', 24,'ARG','Boca Juniors','Liga ARG', 5.5, 0, 18),
-    P(23,'Luca Langoni',       'ED', 23,'ARG','Boca Juniors','Liga ARG', 4.0, 0, 12),  // n.2002
-
+    P(27,'Williams Alarcón',    'MC', 25,'CHI','Boca Juniors','Liga ARG', 3.0, 0, 0),
+    P(20,'Rodrigo Battaglia',   'MC', 34,'ARG','Boca Juniors','Liga ARG', 0.5, 0, 0),
+    P(10,'Ander Herrera',       'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.4, 0, 0),
+    P(14,'Camilo Rey Domenech', 'MC', 20,'ARG','Boca Juniors','Liga ARG', 0.4, 0, 0),
+    P(28,'Juan Ramírez',        'MC', 33,'ARG','Boca Juniors','Liga ARG', 0.15,0, 0),
+    // MEDIOCAMPISTAS OFENSIVOS
+    P(7, 'Tomás Aranda',        'MCO',19,'ARG','Boca Juniors','Liga ARG', 9.0, 0, 0),
+    P(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 3.0, 0, 0),
+    P(22,'Agustín Martegani',   'MCO',26,'ARG','Boca Juniors','Liga ARG', 0.275,0,0),
+    // EXTREMOS IZQUIERDOS
+    P(11,'Kevin Zenón',         'EI', 24,'ARG','Boca Juniors','Liga ARG', 3.5, 0, 0),
+    P(44,'Alan Velasco',        'EI', 23,'ARG','Boca Juniors','Liga ARG', 2.8, 0, 0),
+    P(23,'Lucas Janson',        'EI', 31,'ARG','Boca Juniors','Liga ARG', 0.2, 0, 0),
+    // EXTREMOS DERECHOS
+    P(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 7.0, 0, 0),
+    P(39,'Ángel Romero',        'ED', 33,'PAR','Boca Juniors','Liga ARG', 0.6, 0, 0),
+    P(43,'Gonzalo Gelini',      'ED', 19,'ARG','Boca Juniors','Liga ARG', 0.25,0, 0),
+    P(45,'Iker Zufiaurre',      'ED', 20,'ARG','Boca Juniors','Liga ARG', 0.2, 0, 0),
     // DELANTEROS
-    P(12,'Miguel Merentiel',   'DC', 30,'URU','Boca Juniors','Liga ARG', 9.0, 0, 24),  // goleador top
-    P(9, 'Edinson Cavani',     'DC', 39,'URU','Boca Juniors','Liga ARG', 0.8, 0, 40),  // leyenda, veterano
-    P(39,'Ángel Romero',       'DC', 34,'PAR','Boca Juniors','Liga ARG', 2.0, 0, 18),  // n.1992
-    P(40,'Adam Bareiro',       'DC', 30,'PAR','Boca Juniors','Liga ARG', 3.0, 0, 17),
-    P(41,'Guillermo Fernández','DC', 28,'ARG','Boca Juniors','Liga ARG', 1.8, 0, 16),  // n.1997
-    P(43,'Nicolás Orsini',     'DC', 31,'ARG','Boca Juniors','Liga ARG', 0.8, 0, 13),  // n.1994
+    P(12,'Miguel Merentiel',    'DC', 30,'URU','Boca Juniors','Liga ARG', 4.5, 0, 0),
+    P(40,'Adam Bareiro',        'DC', 29,'PAR','Boca Juniors','Liga ARG', 4.0, 0, 0),
+    P(41,'Milton Giménez',      'DC', 29,'ARG','Boca Juniors','Liga ARG', 2.5, 0, 0),
+    P(9, 'Edinson Cavani',      'DC', 39,'URU','Boca Juniors','Liga ARG', 0.5, 0, 0),
+    P(42,'Nicolás Orsini',      'DC', 31,'ARG','Boca Juniors','Liga ARG', 0.25,0, 0),
   ];
+}
+
+// =============================================
+// RIVER PLATE 2026 — PLANTEL OFICIAL (Transfermarkt)
+// =============================================
+function buildRiver(){
+  return [
+    // ARQUEROS
+    P(1, 'Santiago Beltrán',    'ARQ',21,'ARG','River Plate','Liga ARG', 9.0, 0, 0),
+    P(23,'Ezequiel Centurión',  'ARQ',29,'ARG','River Plate','Liga ARG', 1.5, 0, 0),
+    P(34,'Franco Armani',       'ARQ',39,'ARG','River Plate','Liga ARG', 0.2, 0, 0),
+    P(26,'Jeremías Ledesma',    'ARQ',33,'ARG','River Plate','Liga ARG', 0.15,0, 0),
+    // DEFENSORES CENTRALES
+    P(2, 'Lautaro Rivero',      'DFC',22,'ARG','River Plate','Liga ARG', 7.0, 0, 0),
+    P(5, 'Lucas Martínez Quarta','DFC',30,'ARG','River Plate','Liga ARG',4.5, 0, 0),
+    P(29,'Tobías Ramírez',      'DFC',19,'ARG','River Plate','Liga ARG', 3.5, 0, 0),
+    P(4, 'Juan Carlos Portillo','DFC',26,'ARG','River Plate','Liga ARG', 3.2, 0, 0),
+    P(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 2.0, 0, 0),
+    P(3, 'Germán Pezzella',     'DFC',34,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    P(28,'Ulises Giménez',      'DFC',20,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    P(33,'Sebastián Boselli',   'DFC',22,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    // LATERALES IZQUIERDOS
+    P(6, 'Matías Viña',         'DFI',28,'URU','River Plate','Liga ARG', 2.0, 0, 0),
+    P(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(16,'Enzo Díaz',           'DFI',30,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
+    // LATERALES DERECHOS
+    P(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
+    P(21,'Fabricio Bustos',     'DFD',30,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(27,'Andrés Herrera',      'DFD',27,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    // MEDIOCAMPISTAS DEFENSIVOS
+    P(8, 'Aníbal Moreno',       'MCD',27,'ARG','River Plate','Liga ARG', 8.0, 0, 0),
+    P(15,'Kevin Castaño',       'MCD',25,'COL','River Plate','Liga ARG', 5.0, 0, 0),
+    P(30,'Fausto Vera',         'MCD',26,'ARG','River Plate','Liga ARG', 4.5, 0, 0),
+    P(35,'Elián Giménez',       'MCD',22,'ARG','River Plate','Liga ARG', 0.4, 0, 0),
+    P(36,'Lucas Silva',         'MCD',19,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    // MEDIOCAMPISTAS CENTRALES
+    P(20,'Giuliano Galoppo',    'MC', 26,'ARG','River Plate','Liga ARG', 3.5, 0, 0),
+    P(25,'Matías Galarza',      'MC', 24,'ARG','River Plate','Liga ARG', 0.4, 0, 0),
+    // MEDIOCAMPISTAS OFENSIVOS
+    P(10,'Kendry Páez',         'MCO',19,'ECU','River Plate','Liga ARG', 8.0, 0, 0),
+    P(14,'Tomás Galván',        'MCO',26,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(24,'Tomás Castro Ponce',  'MCO',25,'ARG','River Plate','Liga ARG', 0.4, 0, 0),
+    P(37,'Santiago Lencina',    'MCO',20,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    P(38,'Juan Cruz Meza',      'MCO',18,'ARG','River Plate','Liga ARG', 0.2, 0, 0),
+    P(7, 'Juan F. Quintero',    'MCO',33,'COL','River Plate','Liga ARG', 0.3, 0, 0),
+    // EXTREMOS
+    P(11,'Ian Subiabre',        'EI', 19,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(44,'Leonel Jaime',        'EI', 19,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(18,'Maximiliano Meza',    'ED', 33,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    // DELANTEROS
+    P(9, 'Maximiliano Salas',   'DC', 28,'ARG','River Plate','Liga ARG', 8.0, 0, 0),
+    P(13,'Facundo Colidio',     'DC', 26,'ARG','River Plate','Liga ARG', 2.0, 0, 0),
+    P(32,'Sebastián Driussi',   'DC', 30,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
+    P(39,'Agustín Ruberto',     'DC', 20,'ARG','River Plate','Liga ARG', 0.5, 0, 0),
+    P(40,'Joaquín Freitas',     'DC', 19,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    P(12,'Miguel Borja',        'DC', 33,'COL','River Plate','Liga ARG', 1.0, 0, 0),
+  ];
+}
+
+// =============================================
+// INDEPENDIENTE 2026 — PLANTEL OFICIAL (Transfermarkt)
+// =============================================
+function buildIndependiente(){
+  return [
+    // ARQUEROS
+    P(1, 'Rodrigo Rey',         'ARQ',35,'ARG','Independiente','Liga ARG', 1.0, 0, 0),
+    P(25,'Joaquín Blázquez',    'ARQ',25,'ARG','Independiente','Liga ARG', 0.5, 0, 0),
+    P(34,'Diego Segovia',       'ARQ',26,'ARG','Independiente','Liga ARG', 0.2, 0, 0),
+    // DEFENSORES CENTRALES
+    P(2, 'Kevin Lomónaco',      'DFC',24,'ARG','Independiente','Liga ARG', 8.0, 0, 0),
+    P(5, 'Sebastián Valdez',    'DFC',30,'ARG','Independiente','Liga ARG', 1.5, 0, 0),
+    P(4, 'Juan Manuel Fedorco', 'DFC',25,'ARG','Independiente','Liga ARG', 0.7, 0, 0),
+    P(19,'Joaquín Laso',        'DFC',35,'ARG','Independiente','Liga ARG', 0.1, 0, 0),
+    // LATERALES IZQUIERDOS
+    P(6, 'Nicolás Freire',      'DFI',32,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+    P(22,'Agustín Quiroga',     'DFI',24,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+    P(3, 'Milton Valenzuela',   'DFI',27,'ARG','Independiente','Liga ARG', 0.55,0, 0),
+    // LATERALES DERECHOS
+    P(17,'Santiago Arias',      'DFD',34,'COL','Independiente','Liga ARG', 1.2, 0, 0),
+    P(21,'Federico Vera',       'DFD',28,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+    P(16,'Santiago Salle',      'DFD',21,'ARG','Independiente','Liga ARG', 0.9, 0, 0),
+    // MEDIOCAMPISTAS DEFENSIVOS
+    P(8, 'Iván Marcone',        'MCD',36,'ARG','Independiente','Liga ARG', 0.4, 0, 0),
+    // MEDIOCAMPISTAS CENTRALES
+    P(10,'Felipe Loyola',       'MC', 25,'CHI','Independiente','Liga ARG', 8.0, 0, 0),
+    P(20,'Federico Mancuello',  'MC', 37,'ARG','Independiente','Liga ARG', 0.05,0, 0),
+    // MEDIOCAMPISTAS OFENSIVOS
+    P(14,'Luciano Cabral',      'MCO',31,'ARG','Independiente','Liga ARG', 1.0, 0, 0),
+    P(29,'Tomás Parmo',         'MCO',18,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+    // EXTREMOS IZQUIERDOS
+    P(11,'Matías Abaldo',       'EI', 22,'ARG','Independiente','Liga ARG', 5.0, 0, 0),
+    P(7, 'Diego Tarzia',        'EI', 23,'ARG','Independiente','Liga ARG', 2.0, 0, 0),
+    P(44,'Santiago López',      'EI', 20,'ARG','Independiente','Liga ARG', 2.0, 0, 0),
+    // EXTREMOS DERECHOS
+    P(23,'Lucas Román',         'ED', 22,'ARG','Independiente','Liga ARG', 0.2, 0, 0),
+    P(13,'Walter Mazzantti',    'ED', 29,'ARG','Independiente','Liga ARG', 2.2, 0, 0),
+    P(33,'Javier Ruiz',         'ED', 21,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+    // DELANTEROS
+    P(9, 'Gabriel Ávalos',      'DC', 35,'PAR','Independiente','Liga ARG', 0.75,0, 0),
+    P(12,'Ignacio Pussetto',    'DC', 30,'ARG','Independiente','Liga ARG', 1.3, 0, 0),
+    P(39,'Ignacio Maestro Puch','DC', 22,'ARG','Independiente','Liga ARG', 0.3, 0, 0),
+  ];
+}
+
+// =============================================
+// RACING CLUB 2026 — PLANTEL OFICIAL (Transfermarkt)
+// =============================================
+function buildRacing(){
+  return [
+    // ARQUEROS
+    P(1, 'Facundo Cambeses',    'ARQ',29,'ARG','Racing Club','Liga ARG', 5.0, 0, 0),
+    P(25,'Matías Tagliamonte',  'ARQ',28,'ARG','Racing Club','Liga ARG', 1.5, 0, 0),
+    P(34,'Francisco Gómez',     'ARQ',22,'ARG','Racing Club','Liga ARG', 0.2, 0, 0),
+    // DEFENSORES CENTRALES
+    P(5, 'Marco Di Césare',     'DFC',24,'ARG','Racing Club','Liga ARG', 6.0, 0, 0),
+    P(4, 'Nazareno Colombo',    'DFC',27,'ARG','Racing Club','Liga ARG', 2.8, 0, 0),
+    P(19,'Franco Pardo',        'DFC',29,'ARG','Racing Club','Liga ARG', 2.0, 0, 0),
+    P(26,'Agustín García Basso','DFC',34,'ARG','Racing Club','Liga ARG', 0.3, 0, 0),
+    P(3, 'Marcos Rojo',         'DFC',36,'ARG','Racing Club','Liga ARG', 0.125,0,0),
+    P(33,'Gonzalo Escudero',    'DFC',19,'ARG','Racing Club','Liga ARG', 0.2, 0, 0),
+    // LATERALES IZQUIERDOS
+    P(6, 'Gabriel Rojas',       'DFI',28,'ARG','Racing Club','Liga ARG', 4.0, 0, 0),
+    // LATERALES DERECHOS
+    P(22,'Gastón Martirena',    'DFD',26,'URU','Racing Club','Liga ARG', 4.0, 0, 0),
+    P(2, 'Ezequiel Cannavo',    'DFD',23,'ARG','Racing Club','Liga ARG', 3.0, 0, 0),
+    P(29,'Tobías Rubio',        'DFD',21,'ARG','Racing Club','Liga ARG', 0.3, 0, 0),
+    // MEDIOCAMPISTAS DEFENSIVOS
+    P(8, 'Santiago Sosa',       'MCD',27,'ARG','Racing Club','Liga ARG', 8.0, 0, 0),
+    P(15,'Alan Forneris',       'MCD',21,'ARG','Racing Club','Liga ARG', 0.6, 0, 0),
+    P(20,'Bruno Zuculini',      'MCD',33,'ARG','Racing Club','Liga ARG', 0.4, 0, 0),
+    // MEDIOCAMPISTAS CENTRALES
+    P(14,'Ignacio Rodríguez',   'MC', 24,'ARG','Racing Club','Liga ARG', 1.0, 0, 0),
+    P(28,'Gonzalo Sosa',        'MC', 21,'ARG','Racing Club','Liga ARG', 0.15,0, 0),
+    // MEDIOCAMPISTAS OFENSIVOS
+    P(10,'Valentín Carboni',    'MCO',21,'ARG','Racing Club','Liga ARG', 7.5, 0, 0),
+    P(16,'Matko Miljevic',      'MCO',25,'ARG','Racing Club','Liga ARG', 4.0, 0, 0),
+    P(24,'Baltasar Rodríguez',  'MCO',22,'ARG','Racing Club','Liga ARG', 4.0, 0, 0),
+    P(30,'Matías Zaracho',      'MCO',28,'ARG','Racing Club','Liga ARG', 3.5, 0, 0),
+    P(27,'Adrián Fernández',    'MCO',25,'ARG','Racing Club','Liga ARG', 0.7, 0, 0),
+    // EXTREMOS
+    P(7, 'Tomás Conechny',      'EI', 28,'ARG','Racing Club','Liga ARG', 2.5, 0, 0),
+    P(11,'Duván Vergara',       'EI', 29,'COL','Racing Club','Liga ARG', 2.3, 0, 0),
+    P(13,'Santiago Solari',     'ED', 28,'ARG','Racing Club','Liga ARG', 3.2, 0, 0),
+    // DELANTEROS
+    P(9, 'Adrián Martínez',     'DC', 33,'URU','Racing Club','Liga ARG', 2.8, 0, 0),
+    P(39,'Damián Pizarro',      'DC', 21,'CHI','Racing Club','Liga ARG', 2.0, 0, 0),
+    P(12,'Elías Torres',        'DC', 25,'ARG','Racing Club','Liga ARG', 1.0, 0, 0),
+    P(40,'Tomás Pérez',         'DC', 20,'ARG','Racing Club','Liga ARG', 0.3, 0, 0),
+  ];
+}
+
+// =============================================
+// SAN LORENZO 2026 — PLANTEL OFICIAL (Transfermarkt)
+// =============================================
+function buildSanLorenzo(){
+  return [
+    // ARQUEROS
+    P(1, 'Orlando Gill',        'ARQ',25,'PAR','San Lorenzo','Liga ARG', 6.0, 0, 0),
+    P(25,'José Devecchi',       'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.4, 0, 0),
+    P(34,'Facundo Altamirano',  'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.375,0,0),
+    P(26,'Mateo Clemente',      'ARQ',23,'ARG','San Lorenzo','Liga ARG', 0.2, 0, 0),
+    // DEFENSORES CENTRALES
+    P(5, 'Jhohan Romaña',       'DFC',27,'COL','San Lorenzo','Liga ARG', 6.0, 0, 0),
+    P(4, 'Gastón Hernández',    'DFC',28,'ARG','San Lorenzo','Liga ARG', 3.5, 0, 0),
+    P(19,'Rodrigo Auzmendi',    'DFC',25,'URU','San Lorenzo','Liga ARG', 3.0, 0, 0),
+    P(29,'Lautaro Montenegro',  'DFC',21,'ARG','San Lorenzo','Liga ARG', 1.0, 0, 0),
+    P(33,'Daniel Herrera',      'DFC',22,'ARG','San Lorenzo','Liga ARG', 0.9, 0, 0),
+    P(28,'Franco Lorenzon',     'DFC',25,'ARG','San Lorenzo','Liga ARG', 0.225,0,0),
+    P(3, 'Guzmán Corujo',       'DFC',29,'URU','San Lorenzo','Liga ARG', 0.2, 0, 0),
+    // LATERALES IZQUIERDOS
+    P(6, 'Mathías De Ritis',    'DFI',23,'ARG','San Lorenzo','Liga ARG', 1.0, 0, 0),
+    P(22,'Teo Rodríguez Pagano','DFI',20,'ARG','San Lorenzo','Liga ARG', 0.4, 0, 0),
+    // LATERALES DERECHOS
+    P(2, 'Ezequiel Herrera',    'DFD',23,'ARG','San Lorenzo','Liga ARG', 2.5, 0, 0),
+    P(17,'Fabricio López',      'DFD',23,'ARG','San Lorenzo','Liga ARG', 0.4, 0, 0),
+    P(23,'Nahuel Arias',        'DFD',21,'ARG','San Lorenzo','Liga ARG', 0.3, 0, 0),
+    // MEDIOCAMPISTAS DEFENSIVOS
+    P(8, 'Nicolás Tripichio',   'MCD',30,'ARG','San Lorenzo','Liga ARG', 2.0, 0, 0),
+    P(30,'Ignacio Perruzzi',    'MCD',21,'ARG','San Lorenzo','Liga ARG', 0.3, 0, 0),
+    // MEDIOCAMPISTAS CENTRALES
+    P(14,'Gonzalo Abrego',      'MC', 26,'ARG','San Lorenzo','Liga ARG', 1.5, 0, 0),
+    P(20,'Manuel Insaurralde',  'MC', 27,'ARG','San Lorenzo','Liga ARG', 1.0, 0, 0),
+    P(27,'Mauricio Cardillo',   'MC', 23,'ARG','San Lorenzo','Liga ARG', 0.45,0, 0),
+    P(35,'Juan Rattalino',      'MC', 21,'ARG','San Lorenzo','Liga ARG', 0.2, 0, 0),
+    P(24,'Francisco Perruzzi',  'MC', 25,'ARG','San Lorenzo','Liga ARG', 0.2, 0, 0),
+    // MEDIOCAMPISTAS OFENSIVOS
+    P(10,'Facundo Gulli',       'MCO',20,'ARG','San Lorenzo','Liga ARG', 2.5, 0, 0),
+    // EXTREMOS IZQUIERDOS
+    P(7, 'Nahuel Barrios',      'EI', 28,'ARG','San Lorenzo','Liga ARG', 0.9, 0, 0),
+    // EXTREMOS DERECHOS
+    P(13,'Matías Reali',        'ED', 28,'ARG','San Lorenzo','Liga ARG', 1.5, 0, 0),
+    P(18,'Gregorio Rodríguez',  'ED', 26,'ARG','San Lorenzo','Liga ARG', 0.7, 0, 0),
+    P(44,'Agustín Ladstatter',  'ED', 21,'ARG','San Lorenzo','Liga ARG', 0.4, 0, 0),
+    P(39,'Ezequiel Cerutti',    'ED', 34,'ARG','San Lorenzo','Liga ARG', 0.15,0, 0),
+    // DELANTEROS
+    P(9, 'Alexis Cuello',       'DC', 26,'ARG','San Lorenzo','Liga ARG', 5.0, 0, 0),
+    P(12,'Luciano Vietto',      'DC', 32,'ARG','San Lorenzo','Liga ARG', 1.2, 0, 0),
+    P(40,'Branco Salinardi',    'DC', 19,'ARG','San Lorenzo','Liga ARG', 0.3, 0, 0),
+    P(41,'Matías Hernández',    'DC', 21,'ARG','San Lorenzo','Liga ARG', 0.05,0, 0),
+  ];
+}
+
+function buildSquad(teamId){
+  if(teamId==='river')  return buildRiver();
+  if(teamId==='indep')  return buildIndependiente();
+  if(teamId==='racing') return buildRacing();
+  if(teamId==='sanlo')  return buildSanLorenzo();
+  return buildBoca();
 }
 
 function buildMkt(){
@@ -1254,58 +1457,65 @@ function buildYouth(){
   };
 }
 
-function buildCal(){
-  const lr = [
-    'Racing Club','San Lorenzo','River Plate','Independiente','Estudiantes LP',
-    'Rosario Central','Talleres','Vélez Sarsfield','Huracán','Belgrano',
-    'Lanús','Newell\'s','Defensa y Justicia','Godoy Cruz','Platense',
-    'Argentinos Jrs','Barracas Central','Gimnasia LP'
-  ];
+function buildCal(teamName){
+  teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
+  const all18 = ['Racing Club','San Lorenzo','River Plate','Independiente','Boca Juniors',
+    'Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán',
+    'Belgrano','Lanús','Newell\'s','Defensa y Justicia','Godoy Cruz',
+    'Platense','Argentinos Jrs','Barracas Central','Gimnasia LP'];
+  const lr = all18.filter(t => t !== teamName).slice(0, 18);
   // Use 4 GS rivals for more realism
   const libG = [
     ['Flamengo','BRA'],['Nacional (URU)','URU'],['LDU Quito','ECU'],['Botafogo','BRA']
   ];
-  const caOpps = ['Almagro','Tigre','Newell\'s','San Lorenzo'];
+  // Pick a Copa Argentina final opponent that isn't the selected team
+  const caFinalRivals = ['Racing Club','River Plate','Independiente','San Lorenzo','Boca Juniors'].filter(t=>t!==teamName);
+  const caFinalRival = caFinalRivals[0] || 'Racing Club';
+  const caOpps = ['Almagro','Tigre','Newell\'s',caFinalRivals[1]||'San Lorenzo'];
   const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF'];
   const sch = [];
   // Liga Profesional: home weeks 1-18, away weeks 20-37
   lr.forEach((r,i) => {
-    sch.push({week:i+1,  comp:'Liga Profesional', home:'Boca Juniors', away:r, played:false,result:null,score:null});
-    sch.push({week:i+20, comp:'Liga Profesional', home:r, away:'Boca Juniors', played:false,result:null,score:null});
+    sch.push({week:i+1,  comp:'Liga Profesional', home:teamName, away:r, played:false,result:null,score:null});
+    sch.push({week:i+20, comp:'Liga Profesional', home:r, away:teamName, played:false,result:null,score:null});
   });
   // Copa Libertadores GS: 8 matches (4 rivals, home+away), weeks 2,4,6,8,11,13,16,18
   const libWeeks = [2,4,6,8,11,13,16,18];
   libG.forEach(([r,nat],i) => {
-    sch.push({week:libWeeks[i*2],   comp:'Copa Libertadores - Grupos', home:'Boca Juniors', away:r, played:false,result:null,score:null});
-    sch.push({week:libWeeks[i*2+1], comp:'Copa Libertadores - Grupos', home:r, away:'Boca Juniors', played:false,result:null,score:null});
+    sch.push({week:libWeeks[i*2],   comp:'Copa Libertadores - Grupos', home:teamName, away:r, played:false,result:null,score:null});
+    sch.push({week:libWeeks[i*2+1], comp:'Copa Libertadores - Grupos', home:r, away:teamName, played:false,result:null,score:null});
   });
   // Copa Argentina: 4 rounds at weeks 3,10,19,28
   caOpps.forEach((r,i) => {
-    sch.push({week:3+i*9, comp:caRnds[i], home:i%2===0?'Boca Juniors':r, away:i%2===0?r:'Boca Juniors', played:false,result:null,score:null});
+    sch.push({week:3+i*9, comp:caRnds[i], home:i%2===0?teamName:r, away:i%2===0?r:teamName, played:false,result:null,score:null});
   });
   // Copa Argentina Final at week 35
-  sch.push({week:35, comp:'Copa Argentina Final', home:'Boca Juniors', away:'Racing Club', played:false,result:null,score:null});
+  sch.push({week:35, comp:'Copa Argentina Final', home:teamName, away:caFinalRival, played:false,result:null,score:null});
   return sch.sort((a,b)=>a.week-b.week);
 }
 
 function genLibKO(){
+  if(!G) return;
+  const tn = G.teamName || 'Boca Juniors';
   // Check if already added
   if(G.calendar.some(m=>m.comp.includes('Octavos'))) return;
-  // Count Boca GS results
+  // Count team GS results
   const gsMes = G.calendar.filter(m=>m.comp==='Copa Libertadores - Grupos'&&m.played);
   let gsP = 0;
   gsMes.forEach(m=>{ if(m.result==='W') gsP+=3; else if(m.result==='D') gsP+=1; });
   const qualified = gsP >= 7; // Need at least 7 pts to qualify
   if(!qualified){
-    lg('📋','Boca no clasificó a octavos de Libertadores');
+    lg('📋',tn+' no clasificó a octavos de Libertadores');
     flash('Eliminados de la Libertadores en grupos','loss');
     return;
   }
-  // Add KO matches
-  const rivals = [['Atlético MG','BRA'],['River Plate','ARG'],['Fluminense','BRA']];
+  // Add KO matches — avoid using the selected team as a rival
+  const allRivals = [['Atlético MG','BRA'],['River Plate','ARG'],['Fluminense','BRA'],['Palmeiras','BRA'],['Nacional (URU)','URU']];
+  const rivals = allRivals.filter(r=>r[0]!==tn);
   const r8 = rivals[~~(Math.random()*rivals.length)][0];
-  const r4 = rivals.filter(r=>r[0]!==r8)[~~(Math.random()*2)][0];
-  const rF = ['Palmeiras','Racing Club','Olimpia'][~~(Math.random()*3)];
+  const r4 = rivals.filter(r=>r[0]!==r8)[~~(Math.random()*Math.max(1,rivals.length-1))][0];
+  const rFOpts = ['Palmeiras','Racing Club','Olimpia'].filter(r=>r!==tn);
+  const rF = rFOpts[~~(Math.random()*rFOpts.length)];
   // Find next available weeks
   const usedWeeks = new Set(G.calendar.map(m=>m.week));
   const nextW = (from) => { let w=from; while(usedWeeks.has(w)) w++; usedWeeks.add(w); return w; };
@@ -1313,35 +1523,55 @@ function genLibKO(){
   const w3 = nextW(w2+2), w4 = nextW(w3+1);
   const w5 = nextW(w4+2);
   G.calendar.push(
-    {week:w1,comp:'Copa Libertadores - Octavos IDA',   home:'Boca Juniors',away:r8,      played:false,result:null,score:null},
-    {week:w2,comp:'Copa Libertadores - Octavos VUELTA',home:r8,            away:'Boca Juniors',played:false,result:null,score:null},
-    {week:w3,comp:'Copa Libertadores - Cuartos IDA',   home:'Boca Juniors',away:r4,      played:false,result:null,score:null},
-    {week:w4,comp:'Copa Libertadores - Cuartos VUELTA',home:r4,            away:'Boca Juniors',played:false,result:null,score:null},
-    {week:w5,comp:'Copa Libertadores - Final',         home:'Boca Juniors',away:rF,      played:false,result:null,score:null}
+    {week:w1,comp:'Copa Libertadores - Octavos IDA',   home:tn,  away:r8, played:false,result:null,score:null},
+    {week:w2,comp:'Copa Libertadores - Octavos VUELTA',home:r8,  away:tn, played:false,result:null,score:null},
+    {week:w3,comp:'Copa Libertadores - Cuartos IDA',   home:tn,  away:r4, played:false,result:null,score:null},
+    {week:w4,comp:'Copa Libertadores - Cuartos VUELTA',home:r4,  away:tn, played:false,result:null,score:null},
+    {week:w5,comp:'Copa Libertadores - Final',         home:tn,  away:rF, played:false,result:null,score:null}
   );
   G.calendar.sort((a,b)=>a.week-b.week);
-  lg('🏆','¡Boca clasificó a octavos de Libertadores! ('+gsP+' pts)');
+  lg('🏆','¡'+tn+' clasificó a octavos de Libertadores! ('+gsP+' pts)');
   flash('¡Clasificados a octavos de Copa Libertadores!','win');
   updateUI();
 }
 
 // =============================================
+// TEAMS CONFIG
+// =============================================
+const TEAMS = {
+  boca:  {name:'Boca Juniors',    abbr:'BOCA', color:'#003087', badge:'BJ',  stadName:'La Bombonera',     stadCap:54000, stadInc:1.8, initBudget:28, initRep:78, initMorale:72, dtIdx:0},
+  river: {name:'River Plate',     abbr:'RIVER',color:'#cc0000', badge:'RP',  stadName:'El Monumental',    stadCap:84000, stadInc:2.4, initBudget:32, initRep:80, initMorale:74, dtIdx:1},
+  indep: {name:'Independiente',   abbr:'INDEP',color:'#cc0000', badge:'IND', stadName:'Libertadores Amér',stadCap:38000, stadInc:1.2, initBudget:16, initRep:70, initMorale:68, dtIdx:2},
+  racing:{name:'Racing Club',     abbr:'RACIN',color:'#003399', badge:'RC',  stadName:'El Cilindro',      stadCap:52000, stadInc:1.6, initBudget:20, initRep:74, initMorale:70, dtIdx:3},
+  sanlo: {name:'San Lorenzo',     abbr:'SANLO',color:'#004c97', badge:'SL',  stadName:'Pedro Bidegain',   stadCap:32000, stadInc:1.0, initBudget:18, initRep:72, initMorale:68, dtIdx:4},
+};
+
+function selectTeam(teamId){
+  document.getElementById('teamSelect').style.display='none';
+  initGame(teamId);
+}
+
+// =============================================
 // INIT
 // =============================================
-function initGame(){
+function initGame(teamId){
+  teamId = teamId || 'boca';
+  const tc = TEAMS[teamId] || TEAMS.boca;
   G = {
-    budget:28, week:1, season:2026,
+    teamId: teamId,
+    teamName: tc.name,
+    budget: tc.initBudget, week:1, season:2026,
     wins:0, draws:0, losses:0, gf:0, ga:0,
-    rep:78, morale:72,
+    rep: tc.initRep, morale: tc.initMorale,
     formation:'4-3-3',
     style:'Posesión equilibrada',
     pressure:'Media', tempo:'Normal', width:'Normal',
-    dt: DTS[0],
+    dt: DTS[tc.dtIdx] || DTS[0],
     staff: [{role:'Preparador físico',name:'H. García',rat:70},{role:'Asistente',name:'M. Torres',rat:68}],
     staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0},
-    squad: buildBoca(),
+    squad: buildSquad(teamId),
     market: buildMkt(),
-    calendar: buildCal(),
+    calendar: buildCal(tc.name),
     log: [],
     offers: [],
     trainedWeek: 0,
@@ -1354,10 +1584,15 @@ function initGame(){
     tourney: null,
     medicalCenter: false,
   };
+  G.stadium.name = tc.stadName;
+  G.stadium.capacity = tc.stadCap;
+  G.stadium.income = tc.stadInc;
   G.tourney = buildTourney();
   G.offers = genOffers();
   autoFill();
-  lg('🏁','Temporada 2026 iniciada. ¡Arranca Boca!');
+  document.getElementById('intro').classList.remove('on');
+  document.getElementById('game').classList.add('on');
+  lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
   lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
   updateUI();
 }
