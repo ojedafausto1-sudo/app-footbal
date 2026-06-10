@@ -3279,16 +3279,48 @@ function simMatch(auto){
   if(!m){ flash('¡Temporada completada! 🏆','win'); return; }
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
   const asstBonus = (G.staffLevels.asst>=3?8:G.staffLevels.asst>=2?4:0)/100*.2;
-  const avgR = G.squad.reduce((a,p)=>a+p.rat,0)/G.squad.length;
-  const str = avgR/100*.55 + (G.dt.rat/100+asstBonus)*.2 + G.morale/100*.25;
+
+  // Use XI average from slots, fall back to top 11 sorted by rating
+  const xiIds = Object.values(G.slots).filter(Boolean);
+  const xi = xiIds.length >= 8
+    ? xiIds.map(id=>G.squad.find(p=>p.id===id)).filter(Boolean)
+    : [...G.squad].sort((a,b)=>b.rat-a.rat).slice(0,11);
+  const avgR = xi.length ? xi.reduce((a,p)=>a+p.rat,0)/xi.length : 68;
+
+  // Opponent strength based on rival name/competition
+  const myTeam = G.teamName||'Boca Juniors';
+  const oppName = m.home===myTeam ? m.away : m.home;
+  const BIG5 = ['Boca Juniors','River Plate','Racing Club','Independiente','San Lorenzo'];
+  const MID   = ['Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán','Newell\'s','Lanús'];
+  const LIB_HARD = ['Flamengo','Palmeiras','Botafogo','Atlético MG','Fluminense'];
+  let oppRat = 65;
+  if(BIG5.includes(oppName))       oppRat = 75;
+  else if(MID.includes(oppName))   oppRat = 70;
+  else if(LIB_HARD.includes(oppName)) oppRat = 77;
+  else if(m.comp.includes('Libertadores')) oppRat = 73;
+  else if(m.comp.includes('Copa Argentina')) oppRat = 62;
+
+  // Home advantage
+  const homeBonus = m.home===myTeam ? 0.04 : -0.02;
+
+  // Compute my strength and opponent strength on same scale
+  const myS  = avgR/100*.55 + (G.dt.rat/100+asstBonus)*.2 + G.morale/100*.25;
+  const oppMorale = 55+~~(Math.random()*35);
+  const oppS = oppRat/100*.75 + oppMorale/100*.25;
+
+  // Win probability: fair baseline (0.43) shifted by relative strength + home advantage
+  const diff  = myS - oppS + homeBonus;
+  const pWin  = Math.max(0.10, Math.min(0.73, 0.43 + diff*1.4));
+  const pDraw = 0.20;
+
   const psychLv = G.staffLevels.psych||0;
   const rnd = Math.random();
   let gf,ga,res;
-  if(rnd<str*.62){
+  if(rnd < pWin){
     gf=~~(Math.random()*4)+1; ga=~~(Math.random()*2); res='W';
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)); G.rep=Math.min(100,G.rep+1);
     G.budget=Math.round((G.budget+G.stadium.income)*10)/10;
-  } else if(rnd<str*.62+.22){
+  } else if(rnd < pWin+pDraw){
     const dg=~~(Math.random()*3); gf=dg; ga=dg; res='D';
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
     G.budget=Math.round((G.budget+G.stadium.income*.6)*10)/10;
