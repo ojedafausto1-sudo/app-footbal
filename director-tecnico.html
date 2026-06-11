@@ -6,7 +6,7 @@
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#F6D318;--dark:#03172e;--d2:#061830;--d3:#091f3c;--mid:#0c2850;--tx:#e8edf5;--t2:#8faed4;--t3:#5a7aaa;--green:#0fb866;--red:#e84545;--ora:#f0943a;--pur:#b06ef5;--bdr:rgba(246,211,24,.12);--card:rgba(9,31,60,.75);--r:9px;--sh:0 4px 20px rgba(0,0,0,.4)}
+:root{--gold:#F6D318;--gold-d:#e8c400;--dark:#03172e;--d2:#061830;--d3:#091f3c;--mid:#0c2850;--tx:#e8edf5;--t2:#8faed4;--t3:#5a7aaa;--green:#0fb866;--red:#e84545;--ora:#f0943a;--pur:#b06ef5;--bdr:rgba(246,211,24,.12);--card:rgba(9,31,60,.75);--r:9px;--sh:0 4px 20px rgba(0,0,0,.4)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-height:100vh;overflow-x:hidden;font-size:14px}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--d2)}::-webkit-scrollbar-thumb{background:#1a4a8a;border-radius:2px}
@@ -26,8 +26,8 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .age-vet{color:var(--t3);font-size:9px}
 /* LAYOUT */
 .scr{display:none;flex-direction:column;min-height:100vh}.scr.on{display:flex}
-.topbar{background:linear-gradient(90deg,#031529,var(--d3));border-bottom:1px solid var(--bdr);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
-.cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),#e8c400);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(246,211,24,.3)}
+.topbar{background:linear-gradient(90deg,var(--dark),var(--d3));border-bottom:1px solid var(--bdr);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(246,211,24,.3)}
 .cname{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;color:var(--gold);letter-spacing:.02em}
 .pills{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
 .pill{background:rgba(9,31,60,.9);border:1px solid var(--bdr);border-radius:20px;padding:3px 9px;font-size:11px;display:flex;align-items:center;gap:4px}
@@ -53,7 +53,7 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .tc{display:none}.tc.on{display:block}
 /* BUTTONS */
 .btn{padding:6px 13px;border-radius:6px;border:none;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;transition:all .18s}
-.bg{background:linear-gradient(135deg,var(--gold),#e8c400);color:var(--dark);box-shadow:0 2px 8px rgba(246,211,24,.2)}.bg:hover{filter:brightness(1.08);box-shadow:0 3px 12px rgba(246,211,24,.35)}
+.bg{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--dark);box-shadow:0 2px 8px rgba(0,0,0,.25)}.bg:hover{filter:brightness(1.1);box-shadow:0 3px 12px rgba(0,0,0,.35)}
 .bo{background:transparent;border:1px solid var(--bdr);color:var(--t2)}.bo:hover{border-color:var(--gold);color:var(--gold);background:rgba(246,211,24,.06)}
 .bG{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(15,184,102,.2)}.bR{background:var(--red);color:#fff}
 .bs{padding:3px 8px;font-size:11px}
@@ -188,6 +188,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €47.2M</div>
     </div>
   </div>
+  <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
+    <button onclick="loadGame()" style="cursor:pointer;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);border-radius:10px;padding:14px 28px;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:#fff;letter-spacing:.05em;transition:.2s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">▶ CONTINUAR PARTIDA</button>
+    <div id="continueSaveLbl" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;letter-spacing:.05em"></div>
+  </div>
 </div>
 
 <!-- INTRO -->
@@ -216,6 +220,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="pill">⚽ <span class="pv" id="rTop">0-0-0</span></div>
       <div class="pill">🏟️ <span class="pv" id="stadTop">Bombonera</span></div>
       <div class="pill">⭐ <span class="pv" id="repTop">78</span></div>
+      <button class="btn bo bs" onclick="newGame()" style="margin-left:4px;font-size:9px;padding:2px 7px;opacity:.55" title="Nueva partida">↩ Nueva</button>
     </div>
   </div>
   <div class="nav">
@@ -1967,6 +1972,70 @@ function genLibKO(){
 }
 
 // =============================================
+// =============================================
+// TEAM THEMES
+// =============================================
+const THEMES = {
+  boca:  { dark:'#03172e', d2:'#061830', d3:'#091f3c', mid:'#0c2850', card:'rgba(9,31,60,.75)',  gold:'#F6D318', goldD:'#e8c400', bdr:'rgba(246,211,24,.12)' },
+  river: { dark:'#160008', d2:'#210010', d3:'#2c0016', mid:'#3a021e', card:'rgba(26,0,10,.75)',  gold:'#e3051b', goldD:'#b00010', bdr:'rgba(227,5,27,.16)'   },
+  indep: { dark:'#160000', d2:'#200101', d3:'#2a0101', mid:'#390202', card:'rgba(25,0,0,.75)',   gold:'#e31e24', goldD:'#b01418', bdr:'rgba(227,30,36,.16)'   },
+  racing:{ dark:'#01061a', d2:'#020c24', d3:'#02122e', mid:'#031a3e', card:'rgba(2,6,26,.75)',   gold:'#4da6ff', goldD:'#2480d8', bdr:'rgba(77,166,255,.14)'  },
+  sanlo: { dark:'#010b18', d2:'#011220', d3:'#01182a', mid:'#022038', card:'rgba(1,11,24,.75)',  gold:'#e63946', goldD:'#c0222e', bdr:'rgba(230,57,70,.14)'   },
+};
+
+function applyTeamTheme(teamId){
+  const t = THEMES[teamId] || THEMES.boca;
+  const s = document.documentElement.style;
+  s.setProperty('--dark',   t.dark);
+  s.setProperty('--d2',     t.d2);
+  s.setProperty('--d3',     t.d3);
+  s.setProperty('--mid',    t.mid);
+  s.setProperty('--card',   t.card);
+  s.setProperty('--gold',   t.gold);
+  s.setProperty('--gold-d', t.goldD);
+  s.setProperty('--bdr',    t.bdr);
+}
+
+// =============================================
+// SAVE / LOAD / NEW GAME
+// =============================================
+const SAVE_KEY = 'dtg_v7';
+
+function saveGame(){
+  if(!G) return;
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch(e){}
+}
+
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const saved = JSON.parse(raw);
+    if(!saved || !saved.teamId || !saved.teamName) return false;
+    G = saved;
+    // Rebuild bench references from squad so mutations stay in sync
+    G.bench = G.squad.filter(p => !Object.values(G.slots).includes(p.id));
+    applyTeamTheme(G.teamId);
+    document.title = 'DIRECTOR TÉCNICO v7 — ' + G.teamName;
+    document.getElementById('teamSelect').style.display = 'none';
+    document.getElementById('game').classList.add('on');
+    updateUI();
+    flash('✅ Partida cargada — Semana ' + G.week, 'win');
+    return true;
+  } catch(e){ return false; }
+}
+
+function newGame(){
+  if(!confirm('¿Empezar nueva partida? Se perderá el progreso guardado.')) return;
+  localStorage.removeItem(SAVE_KEY);
+  G = null;
+  applyTeamTheme('boca');
+  document.title = 'DIRECTOR TÉCNICO v7 — Fútbol Argentino';
+  document.getElementById('game').classList.remove('on');
+  document.getElementById('teamSelect').style.display = 'flex';
+}
+
+// =============================================
 // TEAMS CONFIG
 // =============================================
 const TEAMS = {
@@ -1978,6 +2047,7 @@ const TEAMS = {
 };
 
 function selectTeam(teamId){
+  applyTeamTheme(teamId);
   document.getElementById('teamSelect').style.display='none';
   initGame(teamId);
 }
@@ -2022,6 +2092,7 @@ function initGame(teamId){
   G.tourney = buildTourney();
   G.offers = genOffers();
   autoFill();
+  document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
   lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
@@ -2102,6 +2173,7 @@ function updateUI(){
   if(typeof rStats === 'function') rStats();
   rDtPedidos();
   rPressDemands();
+  saveGame();
 }
 
 // =============================================
@@ -4338,6 +4410,25 @@ function startGame(teamId){
   document.getElementById('game').classList.add('on');
   initGame(teamId||'boca');
 }
+
+// =============================================
+// PAGE INIT — detect saved game
+// =============================================
+(function(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(!s || !s.teamName || !s.teamId) return;
+    const btn = document.getElementById('continueSaveBtn');
+    if(btn) btn.style.display = 'block';
+    const lbl = document.getElementById('continueSaveLbl');
+    if(lbl) lbl.textContent = s.teamName + ' · Semana ' + s.week + ' · Temporada ' + s.season;
+    // Tint the team select overlay with team color
+    const tc = TEAMS[s.teamId];
+    if(tc) document.getElementById('teamSelect').style.borderTop = '4px solid ' + tc.color;
+  } catch(e){}
+})();
 </script>
 </body>
 </html>
