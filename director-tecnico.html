@@ -478,9 +478,9 @@ function ageLabel(age) {
   return `<span class="age-vet">◆ Veterano</span>`;
 }
 
-function P(n,name,pos,age,nat,club,lg,val,_ratIgnored,wage,_potIgnored) {
-  const rat = valToRat(val, age);
-  const pot = valToPot(val, age);
+function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
+  const rat = (rat_override > 0) ? rat_override : valToRat(val, age);
+  const pot = Math.max(rat, valToPot(val, age));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
     val, rat, wage:wage||~~(rat*.4), pot,
@@ -550,7 +550,7 @@ function buildBoca(){
   return [
     // ARQUEROS
     P(1, 'Leandro Brey',        'ARQ',23,'ARG','Boca Juniors','Liga ARG', 1.5,  0, 0),
-    P(25,'Agustín Marchesín',   'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.5,  0, 0),
+    P(25,'Agustín Marchesín',   'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.5, 78, 0),
     P(34,'Javier García',       'ARQ',39,'ARG','Boca Juniors','Liga ARG', 0.025,0, 0),
     // DEFENSORES CENTRALES
     P(2, 'Lautaro Di Lollo',    'DFC',22,'ARG','Boca Juniors','Liga ARG', 7.0,  0, 0),
@@ -560,39 +560,39 @@ function buildBoca(){
     P(26,'Agustín Heredia',     'DFC',28,'ARG','Boca Juniors','Liga ARG', 0.075,0, 0),
     // LATERALES IZQUIERDOS
     P(6, 'Lautaro Blanco',      'DFI',27,'ARG','Boca Juniors','Liga ARG', 4.0,  0, 0),
-    P(33,'Malcom Braida',       'DFI',29,'URU','Boca Juniors','Liga ARG', 2.5,  0, 0),
+    P(33,'Malcom Braida',       'DFI',29,'ARG','Boca Juniors','Liga ARG', 2.5,  0, 0),
     // LATERALES DERECHOS
     P(21,'Juan Barinaga',       'DFD',25,'ARG','Boca Juniors','Liga ARG', 2.8,  0, 0),
     P(17,'Marcelo Weigandt',    'DFD',26,'ARG','Boca Juniors','Liga ARG', 1.7,  0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
     P(16,'Milton Delgado',      'MCD',20,'ARG','Boca Juniors','Liga ARG',10.0,  0, 0),
     P(15,'Santiago Ascacíbar',  'MCD',29,'ARG','Boca Juniors','Liga ARG', 5.5,  0, 0),
-    P(8, 'Leandro Paredes',     'MCD',31,'ARG','Boca Juniors','Liga ARG', 5.0,  0, 0),
+    P(8, 'Leandro Paredes',     'MCD',31,'ARG','Boca Juniors','Liga ARG', 5.0, 82, 0),
     P(30,'Tomás Belmonte',      'MCD',28,'ARG','Boca Juniors','Liga ARG', 3.0,  0, 0),
     P(20,'Rodrigo Battaglia',   'MCD',34,'ARG','Boca Juniors','Liga ARG', 0.5,  0, 0),
     P(14,'Camilo Rey Domenech', 'MCD',20,'ARG','Boca Juniors','Liga ARG', 0.4,  0, 0),
     // MEDIOCAMPISTAS CENTRALES
     P(27,'Williams Alarcón',    'MC', 25,'CHI','Boca Juniors','Liga ARG', 3.0,  0, 0),
-    P(10,'Ander Herrera',       'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.4,  0, 0),
+    P(10,'Ander Herrera',       'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.4, 76, 0),
     P(28,'Juan Ramírez',        'MC', 33,'ARG','Boca Juniors','Liga ARG', 0.15, 0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
     P(7, 'Tomás Aranda',        'MCO',19,'ARG','Boca Juniors','Liga ARG', 9.0,  0, 0),
-    P(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 3.0,  0, 0),
+    P(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 3.0, 82, 0),
     P(22,'Agustín Martegani',   'MCO',26,'ARG','Boca Juniors','Liga ARG', 0.275,0, 0),
     // EXTREMOS IZQUIERDOS
-    P(11,'Kevin Zenón',         'EI', 24,'ARG','Boca Juniors','Liga ARG', 3.5,  0, 0),
+    P(11,'Kevin Zenón',         'EI', 24,'ARG','Boca Juniors','Liga ARG', 3.5, 81, 0),
     P(44,'Alan Velasco',        'EI', 23,'CHI','Boca Juniors','Liga ARG', 2.8,  0, 0),
     P(23,'Lucas Janson',        'EI', 31,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0),
     // EXTREMOS DERECHOS
-    P(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 7.0,  0, 0),
+    P(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 7.0, 80, 0),
     P(39,'Ángel Romero',        'ED', 33,'PAR','Boca Juniors','Liga ARG', 0.6,  0, 0),
     P(43,'Gonzalo Gelini',      'ED', 19,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0),
     P(45,'Iker Zufiaurre',      'ED', 20,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0),
     // DELANTEROS
     P(12,'Miguel Merentiel',    'DC', 30,'URU','Boca Juniors','Liga ARG', 4.5,  0, 0),
-    P(40,'Adam Bareiro',        'DC', 29,'PAR','Boca Juniors','Liga ARG', 4.0,  0, 0),
+    P(40,'Adam Bareiro',        'DC', 29,'PAR','Boca Juniors','Liga ARG', 4.0, 79, 0),
     P(41,'Milton Giménez',      'DC', 29,'ARG','Boca Juniors','Liga ARG', 2.5,  0, 0),
-    P(9, 'Edinson Cavani',      'DC', 39,'URU','Boca Juniors','Liga ARG', 0.5,  0, 0),
+    P(9, 'Edinson Cavani',      'DC', 39,'URU','Boca Juniors','Liga ARG', 0.5, 77, 0),
     P(42,'Nicolás Orsini',      'DC', 31,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0),
   ];
 }
@@ -605,32 +605,32 @@ function buildRiver(){
     // ARQUEROS
     P(1, 'Santiago Beltrán',    'ARQ',21,'ARG','River Plate','Liga ARG', 9.0, 0, 0),
     P(23,'Ezequiel Centurión',  'ARQ',29,'ARG','River Plate','Liga ARG', 1.5, 0, 0),
-    P(34,'Franco Armani',       'ARQ',39,'ARG','River Plate','Liga ARG', 0.2, 0, 0),
+    P(34,'Franco Armani',       'ARQ',39,'ARG','River Plate','Liga ARG', 0.2, 79, 0),
     // DEFENSORES CENTRALES
     P(2, 'Lautaro Rivero',      'DFC',22,'ARG','River Plate','Liga ARG', 7.0, 0, 0),
-    P(5, 'Lucas Martínez Quarta','DFC',30,'ARG','River Plate','Liga ARG',4.5, 0, 0),
+    P(5, 'Lucas Martínez Quarta','DFC',30,'ARG','River Plate','Liga ARG',4.5, 82, 0),
     P(29,'Tobías Ramírez',      'DFC',19,'ARG','River Plate','Liga ARG', 3.5, 0, 0),
     P(4, 'Juan Carlos Portillo','DFC',26,'ARG','River Plate','Liga ARG', 3.2, 0, 0),
-    P(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 2.0, 0, 0),
-    P(3, 'Germán Pezzella',     'DFC',34,'ARG','River Plate','Liga ARG', 0.3, 0, 0),
+    P(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 2.0, 81, 0),
+    P(3, 'Germán Pezzella',     'DFC',34,'ARG','River Plate','Liga ARG', 0.3, 79, 0),
     P(28,'Ulises Giménez',      'DFC',20,'ARG','River Plate','Liga ARG', 0.2, 0, 0),
     // LATERALES IZQUIERDOS
-    P(6, 'Matías Viña',         'DFI',28,'URU','River Plate','Liga ARG', 2.5, 0, 0),
-    P(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 0.8, 0, 0),
+    P(6, 'Matías Viña',         'DFI',28,'URU','River Plate','Liga ARG', 2.5, 79, 0),
+    P(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 0.8, 79, 0),
     // LATERALES DERECHOS
-    P(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 1.5, 0, 0),
+    P(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 1.5, 82, 0),
     P(21,'Fabricio Bustos',     'DFD',30,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
-    P(8, 'Aníbal Moreno',       'MCD',27,'ARG','River Plate','Liga ARG', 8.0, 0, 0),
+    P(8, 'Aníbal Moreno',       'MCD',27,'ARG','River Plate','Liga ARG', 8.0, 82, 0),
     P(15,'Kevin Castaño',       'MCD',25,'COL','River Plate','Liga ARG', 5.0, 0, 0),
-    P(30,'Fausto Vera',         'MCD',26,'COL','River Plate','Liga ARG', 4.5, 0, 0),
+    P(30,'Fausto Vera',         'MCD',26,'ARG','River Plate','Liga ARG', 4.5, 0, 0),
     // MEDIOCAMPISTAS CENTRALES
     P(20,'Giuliano Galoppo',    'MC', 26,'ARG','River Plate','Liga ARG', 4.0, 0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
     P(10,'Kendry Páez',         'MCO',19,'ECU','River Plate','Liga ARG', 8.0, 0, 0),
     P(14,'Tomás Galván',        'MCO',26,'ARG','River Plate','Liga ARG', 4.0, 0, 0),
     P(37,'Santiago Lencina',    'MCO',20,'ARG','River Plate','Liga ARG', 2.0, 0, 0),
-    P(7, 'Juan Fernando Quintero','MCO',33,'COL','River Plate','Liga ARG',1.8, 0, 0),
+    P(7, 'Juan Fernando Quintero','MCO',33,'COL','River Plate','Liga ARG',1.8, 82, 0),
     P(38,'Juan Cruz Meza',      'MCO',18,'ARG','River Plate','Liga ARG', 1.8, 0, 0),
     // EXTREMOS DERECHOS
     P(11,'Ian Subiabre',        'ED', 19,'CHI','River Plate','Liga ARG', 3.5, 0, 0),
@@ -2256,6 +2256,7 @@ function openP(id, inSquad){
         <button class="btn bR bs" onclick="sellPlayer('${p.id}')">💸 Vender</button>
         <button class="btn bo bs" onclick="loanPlayer('${p.id}')">📤 Ceder</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
+        ${isForeign(p.nat) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
       ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
         <button class="btn bo bs" onclick="loanIn('${p.id}')">📥 Pedir préstamo</button>
@@ -2764,12 +2765,19 @@ function rStyle(){
   if(!el||!G) return;
   const styles = ['Posesión equilibrada','Ataque directo','Contraataque','Presión alta','Control'];
   const desc = {'Posesión equilibrada':'Construcción + transiciones','Ataque directo':'Pelota larga','Contraataque':'Defensivo + salida rápida','Presión alta':'Pressing agresivo','Control':'Paciencia, toca y espera'};
+  const isCustom = G.style === 'Personalizado';
   el.innerHTML = styles.map(s=>`
     <div class="card" style="padding:7px;cursor:pointer;margin-bottom:5px;${G.style===s?'border-color:var(--gold);background:rgba(246,211,24,.06)':''}" onclick="setStyle('${s}')">
       <div style="font-size:12px;font-weight:600">${s}</div>
       <div style="font-size:10px;color:var(--t3)">${desc[s]}</div>
     </div>
-  `).join('');
+  `).join('') + `
+    <div class="card" style="padding:7px;margin-bottom:5px;${isCustom?'border-color:var(--gold);background:rgba(246,211,24,.06)':'cursor:pointer'}" onclick="setStyle('Personalizado')">
+      <div style="font-size:12px;font-weight:600">✍️ Personalizado</div>
+      <div style="font-size:10px;color:var(--t3)">Definí tu propio estilo de juego</div>
+      ${isCustom ? `<textarea id="customStyleInput" class="sb" style="margin-top:6px;font-size:11px;height:52px;resize:none" placeholder="Ej: Presión alta con salida corta y extremos..." oninput="G.customStyleDesc=this.value">${G.customStyleDesc||''}</textarea>` : ''}
+    </div>
+  `;
 }
 function setStyle(s){ if(!G) return; G.style=s; lg('🎯','Estilo: '+s); rStyle(); }
 
@@ -2866,6 +2874,37 @@ function trAttr(id, attr){
   lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]}`);
   closeMod(); updateUI();
   flash(`✅ ${p.name}: ${attr} ${p.attrs[attr]}`,'win');
+}
+
+function naturalizePlayer(id){
+  if(!G) return;
+  const p = G.squad.find(x=>x.id===id);
+  if(!p) return;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🇦🇷 Nacionalizar jugador</div>
+    <div style="text-align:center;margin:14px 0">
+      <div style="font-size:40px;margin-bottom:8px">🇦🇷</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700">${p.name}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:4px">${p.nat} · ${p.age} años · ${p.seasonsAtClub||0} temporadas en el club</div>
+    </div>
+    <div class="note" style="margin-bottom:12px">Al nacionalizarse como argentino, este jugador dejará de ocupar un cupo de extranjero en el plantel.</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bg" style="flex:1;padding:9px" onclick="confirmNaturalize('${p.id}')">✅ Confirmar nacionalización</button>
+      <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+}
+
+function confirmNaturalize(id){
+  if(!G) return;
+  const p = G.squad.find(x=>x.id===id);
+  if(!p) return;
+  const oldNat = p.nat;
+  p.nat = 'ARG';
+  lg('🇦🇷', `${p.name} nacionalizado (${oldNat} → ARG)`);
+  closeMod(); updateUI();
+  flash(`🇦🇷 ¡${p.name} ya es argentino! Cupo de extranjero liberado.`,'win');
 }
 
 // =============================================
@@ -3113,36 +3152,40 @@ function hireDT(name){
 
 let _cdtPos = [];
 function openCustomDTModal(){
-  _cdtPos = [];
+  const editing = G && G.dt && G.dt.custom;
+  _cdtPos = editing ? [...(G.dt.wantedPos||[])] : [];
   const traits = ['Ofensivo','Defensivo','Equilibrado','Moderno','Táctico','Intenso','Formador','Copero','Maestro','Analítico','Guerrero','Líder'];
   const positions = ['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC'];
   const formations = Object.keys(FORMS);
+  const curName = editing ? (G.dt.name||'Mi Cuerpo Técnico') : 'Mi Cuerpo Técnico';
+  const curForm = editing ? (G.dt.style||G.formation) : G.formation;
+  const curTrait = editing ? (G.dt.trait||'Equilibrado') : 'Equilibrado';
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">🛠️ Crear DT Personalizado</div>
+    <div class="mtitle">${editing ? '✏️ Editar DT Personalizado' : '🛠️ Crear DT Personalizado'}</div>
     <div style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t2);margin-bottom:4px">NOMBRE</div>
-      <input id="cdtName" type="text" value="Mi Cuerpo Técnico" class="sb" style="margin-bottom:0">
+      <input id="cdtName" type="text" value="${curName}" class="sb" style="margin-bottom:0">
     </div>
     <div style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t2);margin-bottom:4px">FORMACIÓN FAVORITA</div>
       <select id="cdtForm" class="sb" style="margin-bottom:0">
-        ${formations.map(f=>`<option value="${f}"${f===G.formation?' selected':''}>${f}</option>`).join('')}
+        ${formations.map(f=>`<option value="${f}"${f===curForm?' selected':''}>${f}</option>`).join('')}
       </select>
     </div>
     <div style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t2);margin-bottom:4px">RASGO DEL DT</div>
       <select id="cdtTrait" class="sb" style="margin-bottom:0">
-        ${traits.map(t=>`<option>${t}</option>`).join('')}
+        ${traits.map(t=>`<option${t===curTrait?' selected':''}>${t}</option>`).join('')}
       </select>
     </div>
     <div style="margin-bottom:14px">
       <div style="font-size:10px;color:var(--t2);margin-bottom:4px">POSICIONES A REFORZAR (hasta 3)</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap" id="cdtPosGrid">
-        ${positions.map(p=>`<button class="btn bo bs" data-pos="${p}" onclick="toggleCdtPos(this,'${p}')">${p}</button>`).join('')}
+        ${positions.map(p=>`<button class="btn ${_cdtPos.includes(p)?'bg':'bo'} bs" data-pos="${p}" onclick="toggleCdtPos(this,'${p}')">${p}</button>`).join('')}
       </div>
     </div>
-    <button class="btn bg" style="width:100%;padding:9px" onclick="confirmCustomDT()">✅ Crear DT</button>
+    <button class="btn bg" style="width:100%;padding:9px" onclick="confirmCustomDT()">${editing ? '💾 Guardar cambios' : '✅ Crear DT'}</button>
   `);
 }
 function toggleCdtPos(btn,pos){
@@ -3156,11 +3199,12 @@ function confirmCustomDT(){
   const trait=document.getElementById('cdtTrait').value;
   const wantedPos=_cdtPos.length?[..._cdtPos]:['MCD','DC','DFC'];
   _cdtPos=[];
+  const editing = G && G.dt && G.dt.custom;
   G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true};
   if(FORMS[style]){ G.formation=style; autoFill(); }
   rStaff(); closeMod(); updateUI();
-  flash('✅ DT Personalizado: '+name,'win');
-  lg('🛠️','DT personalizado creado: '+name);
+  flash(editing ? '💾 DT actualizado: '+name : '✅ DT Personalizado: '+name,'win');
+  lg('🛠️',(editing?'DT personalizado editado: ':'DT personalizado creado: ')+name);
 }
 
 function upgradeStaff(id){
@@ -3217,7 +3261,7 @@ function rDtProfile(){
     <div class="sr"><span class="sl">Sueldo semanal</span><span class="sv" style="color:var(--red)">$${d.salary}K/sem</span></div>
     <div class="sr"><span class="sl">Rasgo</span><span class="sv"><span style="color:${tc};font-weight:600;font-size:10px">${d.trait}</span></span></div>
     <div class="sr"><span class="sl">Busca reforzar</span><span class="sv" style="display:flex;gap:3px;flex-wrap:wrap">${(d.wantedPos||[]).map(p=>`<span class="badge bau" style="font-size:8px">${p}</span>`).join('')}</span></div>
-    <button class="btn bo bs" style="margin-top:8px;width:100%" onclick="gTab('ct',document.querySelector('.nb[onclick*=ct]'))">🔄 Cambiar DT</button>
+    ${d.custom ? `<button class="btn bg bs" style="margin-top:8px;width:100%" onclick="openCustomDTModal()">✏️ Editar DT Personalizado</button>` : `<button class="btn bo bs" style="margin-top:8px;width:100%" onclick="gTab('ct',document.querySelector('.nb[onclick*=ct]'))">🔄 Cambiar DT</button>`}
   `;
 }
 
@@ -4020,6 +4064,7 @@ function nextSeason(){
   // Age all players +1 and adjust ratings for age
   G.squad.forEach(p => {
     p.age++;
+    p.seasonsAtClub = (p.seasonsAtClub || 0) + 1;
     const oldRat = p.rat;
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*3));
     else if(p.age <= 27) p.rat = Math.min(p.pot, p.rat + (Math.random() > 0.4 ? 1 : 0));
