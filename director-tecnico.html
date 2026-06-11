@@ -1862,12 +1862,12 @@ const STAD_INIT = {
     {id:'hd',name:'Pantallas HD gigantes',desc:'Mejor experiencia.',cost:6,eff:'inc+0.3',built:false},
     {id:'vip',name:'Palcos VIP Platinum',desc:'Ingresos premium.',cost:14,eff:'inc+0.8',built:false},
     {id:'ct',name:'Centro de entrenamiento',desc:'Mejora desarrollo.',cost:22,eff:'train',built:false},
-    {id:'museum',name:'Museo Boca Juniors',desc:'Ingresos + reputación.',cost:9,eff:'rep+3',built:false},
+    {id:'museum',name:'Museo del Club',desc:'Ingresos + reputación.',cost:9,eff:'rep+3',built:false},
     {id:'exp2',name:'+12.000 butacas (norte)',desc:'Gran ampliación.',cost:40,eff:'cap+12000',built:false},
     {id:'press',name:'Sala de Prensa Premium',desc:'Mejor cobertura mediática. Rep +3.',cost:5,eff:'rep+3',built:false},
     {id:'medical',name:'Clínica Médica',desc:'Reducción de lesiones 30%.',cost:12,eff:'medical',built:false},
     {id:'parking',name:'Estacionamiento Cubierto',desc:'Ingresos extra por partido.',cost:7,eff:'inc+0.2',built:false},
-    {id:'store',name:'Tienda Oficial Boca',desc:'Ingresos comerciales semanales.',cost:10,eff:'inc+0.3',built:false},
+    {id:'store',name:'Tienda Oficial del Club',desc:'Ingresos comerciales semanales.',cost:10,eff:'inc+0.3',built:false},
     {id:'restaurant',name:'Restaurante VIP',desc:'Hospitality premium.',cost:16,eff:'inc+0.4',built:false},
     {id:'academy',name:'Academia Fútbol 7',desc:'Más jugadores en inferiores.',cost:18,eff:'train',built:false},
   ]
@@ -3078,6 +3078,12 @@ function rStaff(){
     }).join('');
   }
   if(e3) e3.innerHTML = '<div class="ctitle">Contratar DT</div>' +
+    '<div class="card" style="margin-bottom:8px;background:rgba(246,211,24,.04);border-color:rgba(246,211,24,.2)">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">' +
+    '<div><div style="font-weight:700;font-family:\'Barlow Condensed\',sans-serif;font-size:13px">🛠️ DT Personalizado</div>' +
+    '<div style="font-size:9px;color:var(--t3)">Creá tu propio perfil de DT con tus preferencias</div></div>' +
+    '<button class="btn bg bs" onclick="openCustomDTModal()">Crear</button>' +
+    '</div></div>' +
     DTS.filter(d=>d.name!==G.dt.name).map(d=>`
       <div class="card" style="margin-bottom:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
@@ -3104,6 +3110,59 @@ function hireDT(name){
   rStaff(); updateUI();
   flash('✅ '+d.name+' contratado!','win');
 }
+
+let _cdtPos = [];
+function openCustomDTModal(){
+  _cdtPos = [];
+  const traits = ['Ofensivo','Defensivo','Equilibrado','Moderno','Táctico','Intenso','Formador','Copero','Maestro','Analítico','Guerrero','Líder'];
+  const positions = ['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC'];
+  const formations = Object.keys(FORMS);
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🛠️ Crear DT Personalizado</div>
+    <div style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">NOMBRE</div>
+      <input id="cdtName" type="text" value="Mi Cuerpo Técnico" class="sb" style="margin-bottom:0">
+    </div>
+    <div style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">FORMACIÓN FAVORITA</div>
+      <select id="cdtForm" class="sb" style="margin-bottom:0">
+        ${formations.map(f=>`<option value="${f}"${f===G.formation?' selected':''}>${f}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">RASGO DEL DT</div>
+      <select id="cdtTrait" class="sb" style="margin-bottom:0">
+        ${traits.map(t=>`<option>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">POSICIONES A REFORZAR (hasta 3)</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap" id="cdtPosGrid">
+        ${positions.map(p=>`<button class="btn bo bs" data-pos="${p}" onclick="toggleCdtPos(this,'${p}')">${p}</button>`).join('')}
+      </div>
+    </div>
+    <button class="btn bg" style="width:100%;padding:9px" onclick="confirmCustomDT()">✅ Crear DT</button>
+  `);
+}
+function toggleCdtPos(btn,pos){
+  if(_cdtPos.includes(pos)){ _cdtPos=_cdtPos.filter(p=>p!==pos); btn.className='btn bo bs'; }
+  else if(_cdtPos.length<3){ _cdtPos.push(pos); btn.className='btn bg bs'; }
+  else flash('Máximo 3 posiciones','draw');
+}
+function confirmCustomDT(){
+  const name=(document.getElementById('cdtName').value||'').trim()||'Mi Cuerpo Técnico';
+  const style=document.getElementById('cdtForm').value;
+  const trait=document.getElementById('cdtTrait').value;
+  const wantedPos=_cdtPos.length?[..._cdtPos]:['MCD','DC','DFC'];
+  _cdtPos=[];
+  G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true};
+  if(FORMS[style]){ G.formation=style; autoFill(); }
+  rStaff(); closeMod(); updateUI();
+  flash('✅ DT Personalizado: '+name,'win');
+  lg('🛠️','DT personalizado creado: '+name);
+}
+
 function upgradeStaff(id){
   if(!G) return;
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
@@ -3207,7 +3266,7 @@ function rPressDemands(){
   const active = G.pressDemands.filter(d=>!d.fulfilled&&!d.expired);
   el.innerHTML = `
     <div class="ctitle">📋 Exigencias del Presidente
-      <button class="btn bg bs" style="float:right;margin-top:-2px" onclick="newPressDemand()">+ Nueva</button>
+      <button class="btn bg bs" style="float:right;margin-top:-2px" onclick="openPressDemandModal()">➕ Nueva</button>
     </div>
     ${active.length ? active.map(d=>{
       const left = d.deadline - G.week;
@@ -3221,45 +3280,131 @@ function rPressDemands(){
   `;
 }
 
-function newPressDemand(){
+function openPressDemandModal(){
   if(!G) return;
   if(!G.pressDemands) G.pressDemands=[];
-  const types=['debut_youth','must_play','win_target','use_formation'];
-  const type = types[~~(Math.random()*types.length)];
-  let desc, detail={};
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📋 Nueva Exigencia del Presidente</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:12px">¿Qué objetivo le vas a fijar al cuerpo técnico?</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="dtReqRow" onclick="pressDemandStep2('debut_youth')" style="flex-direction:column;align-items:flex-start;background:rgba(176,110,245,.08);border:1px solid rgba(176,110,245,.25);border-radius:7px;padding:10px;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:4px">🌱</div>
+        <div style="font-weight:700;font-size:12px">Debutar juvenil</div>
+        <div style="font-size:10px;color:var(--t3)">Exigir debut de un juvenil</div>
+      </div>
+      <div class="dtReqRow" onclick="pressDemandStep2('must_play')" style="flex-direction:column;align-items:flex-start;background:rgba(15,184,102,.08);border:1px solid rgba(15,184,102,.25);border-radius:7px;padding:10px;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:4px">⭐</div>
+        <div style="font-weight:700;font-size:12px">Titular fijo</div>
+        <div style="font-size:10px;color:var(--t3)">Exigir que un jugador sea titular</div>
+      </div>
+      <div class="dtReqRow" onclick="pressDemandStep2('win_target')" style="flex-direction:column;align-items:flex-start;background:rgba(240,148,58,.08);border:1px solid rgba(240,148,58,.25);border-radius:7px;padding:10px;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:4px">🏆</div>
+        <div style="font-weight:700;font-size:12px">Objetivo victorias</div>
+        <div style="font-size:10px;color:var(--t3)">Fijar mínimo de victorias</div>
+      </div>
+      <div class="dtReqRow" onclick="pressDemandStep2('use_formation')" style="flex-direction:column;align-items:flex-start;background:rgba(122,179,247,.08);border:1px solid rgba(122,179,247,.25);border-radius:7px;padding:10px;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:4px">🎯</div>
+        <div style="font-weight:700;font-size:12px">Cambiar formación</div>
+        <div style="font-size:10px;color:var(--t3)">Exigir una formación específica</div>
+      </div>
+    </div>
+  `);
+}
+
+function pressDemandStep2(type){
   if(type==='debut_youth'){
-    const yp = G.youth && G.youth.players.length ? G.youth.players[~~(Math.random()*G.youth.players.length)] : null;
-    if(!yp){ flash('No hay juveniles disponibles','draw'); return; }
-    const n = 4+~~(Math.random()*5);
-    desc=`Quiero que ${yp.name} debute en el primer equipo en los próximos ${n} partidos.`;
-    detail={youthId:yp.id, youthName:yp.name};
+    const players = G.youth&&G.youth.players ? G.youth.players : [];
+    if(!players.length){ flash('No hay juveniles disponibles','draw'); closeMod(); return; }
+    showMod(`
+      <button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🌱 ¿Qué juvenil debe debutar?</div>
+      <div style="max-height:340px;overflow-y:auto">
+      ${players.map(p=>`
+        <div class="dtReqRow" onclick="pressDemandConfirm('debut_youth','${p.id}','${p.name.replace(/'/g,'')}')" style="padding:9px 5px">
+          ${rb(p.rat)}<div><div style="font-weight:600;font-size:12px">${p.name}</div><div style="font-size:10px;color:var(--t3)">${p.pos} · ${p.age}a</div></div>
+        </div>`).join('')}
+      </div>
+    `);
   } else if(type==='must_play'){
-    const top5 = G.squad.slice().sort((a,b)=>b.val-a.val).slice(0,5);
-    if(!top5.length){ flash('Sin jugadores en el plantel','draw'); return; }
-    const pick = top5[~~(Math.random()*top5.length)];
-    const n = 2+~~(Math.random()*3);
-    desc=`Necesito que ${pick.name} sea titular en los próximos ${n} partidos.`;
-    detail={playerId:pick.id, playerName:pick.name};
+    const players = G.squad.slice().sort((a,b)=>b.val-a.val).slice(0,12);
+    showMod(`
+      <button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">⭐ ¿Quién debe ser titular fijo?</div>
+      <div style="max-height:340px;overflow-y:auto">
+      ${players.map(p=>`
+        <div class="dtReqRow" onclick="pressDemandConfirm('must_play','${p.id}','${p.name.replace(/'/g,'')}')" style="padding:9px 5px">
+          ${rb(p.rat)}<div><div style="font-weight:600;font-size:12px">${p.name}</div><div style="font-size:10px;color:var(--t3)">${p.pos} · ${p.age}a</div></div>
+        </div>`).join('')}
+      </div>
+    `);
   } else if(type==='win_target'){
-    const n=2, m=4;
+    showMod(`
+      <button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🏆 Objetivo de Victorias</div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:6px">Victorias necesarias:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="pdWinsRow">
+          ${[1,2,3,4].map(n=>`<button class="btn bo" id="pdW${n}" onclick="document.querySelectorAll('#pdWinsRow .btn').forEach(b=>b.className='btn bo');this.className='btn bg';_pdW=${n}">${n}W</button>`).join('')}
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:6px">En cuántos partidos:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="pdMatchRow">
+          ${[3,4,5,6].map(m=>`<button class="btn bo" id="pdM${m}" onclick="document.querySelectorAll('#pdMatchRow .btn').forEach(b=>b.className='btn bo');this.className='btn bg';_pdM=${m}">${m} partidos</button>`).join('')}
+        </div>
+      </div>
+      <button class="btn bg" style="width:100%" onclick="pressDemandConfirm('win_target',_pdW+'_'+_pdM,'')">✓ Confirmar exigencia</button>
+    `);
+    setTimeout(()=>{ _pdW=2; _pdM=4; const b2=document.getElementById('pdW2'),b4=document.getElementById('pdM4'); if(b2)b2.className='btn bg'; if(b4)b4.className='btn bg'; },50);
+  } else if(type==='use_formation'){
+    const forms = Object.keys(FORMS).filter(f=>f!==G.formation);
+    showMod(`
+      <button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🎯 ¿Qué formación exigís?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        ${forms.map(f=>`
+          <div class="dtReqRow" onclick="pressDemandConfirm('use_formation','${f}','${f}')" style="background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:7px;padding:10px;justify-content:center;cursor:pointer">
+            <div style="font-family:'Barlow Condensed';font-size:16px;font-weight:700">${f}</div>
+          </div>`).join('')}
+      </div>
+    `);
+  }
+}
+
+let _pdW=2, _pdM=4;
+
+function pressDemandConfirm(type, id, name){
+  if(!G) return;
+  if(!G.pressDemands) G.pressDemands=[];
+  let desc, detail={}, deadline;
+  if(type==='debut_youth'){
+    const yp = G.youth&&G.youth.players ? G.youth.players.find(p=>String(p.id)===String(id)) : null;
+    if(!yp){ flash('Juvenil no encontrado','draw'); closeMod(); return; }
+    desc=`Quiero que ${yp.name} debute en el primer equipo en los próximos 8 partidos.`;
+    detail={youthId:yp.id, youthName:yp.name};
+    deadline=G.week+8;
+  } else if(type==='must_play'){
+    const p = G.squad.find(p=>String(p.id)===String(id));
+    if(!p){ flash('Jugador no encontrado','draw'); closeMod(); return; }
+    desc=`Necesito que ${p.name} sea titular en los próximos 3 partidos.`;
+    detail={playerId:p.id, playerName:p.name};
+    deadline=G.week+5;
+  } else if(type==='win_target'){
+    const parts=id.split('_'); const n=parseInt(parts[0])||2, m=parseInt(parts[1])||4;
     desc=`Necesito al menos ${n} victorias en las próximas ${m} fechas. El club lo exige.`;
     detail={targetWins:n, targetMatches:m, winsFrom:G.wins};
+    deadline=G.week+m;
   } else if(type==='use_formation'){
-    const fkeys = Object.keys(FORMS).filter(f=>f!==G.formation);
-    const form = fkeys[~~(Math.random()*fkeys.length)];
-    desc=`Quiero que el equipo juegue en ${form} de ahora en adelante.`;
-    detail={formation:form};
+    desc=`Quiero que el equipo juegue en ${id} de ahora en adelante.`;
+    detail={formation:id};
+    deadline=G.week+3;
   }
-  const demand = {
-    id:'pd'+(Date.now()+Math.random()),
-    type, desc, detail,
-    deadline: G.week + (type==='win_target'?4:type==='use_formation'?3:type==='must_play'?5:8),
-    fulfilled:false, expired:false, created:G.week
-  };
+  const demand={id:'pd'+(Date.now()+Math.random()),type,desc,detail,deadline,fulfilled:false,expired:false,created:G.week};
   G.pressDemands.push(demand);
-  lg('📋',`Nueva exigencia presidencial: ${desc}`);
-  rPressDemands();
-  flash('📋 Nueva exigencia del presidente añadida','draw');
+  lg('📋',`Nueva exigencia: ${desc}`);
+  rPressDemands(); closeMod();
+  flash('📋 Exigencia añadida','draw');
 }
 
 function checkPressDemands(){
@@ -3911,7 +4056,7 @@ function nextSeason(){
 function simMatch(auto){
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
-  if(!m){ flash('¡Temporada completada! 🏆','win'); return; }
+  if(!m){ showSeasonSummary(); return; }
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
   const asstBonus = (G.staffLevels.asst>=3?8:G.staffLevels.asst>=2?4:0)/100*.2;
 
@@ -4117,7 +4262,8 @@ function generateMatchScript(m, res, gf, ga, scorersList){
   const sorted=[...scorersList].sort((a,b)=>a.min-b.min);
   sorted.forEach(s=>{
     bocaRunning++;
-    const celebs=['¡La Bombonera explota!','¡Golazo!','¡Qué golazo!','¡Pura magia!'];
+    const stadN=(G&&G.stadium&&G.stadium.name)||'El estadio';
+    const celebs=['¡'+stadN+' explota!','¡Golazo!','¡Qué golazo!','¡Pura magia!'];
     const celeb=celebs[~~(Math.random()*celebs.length)];
     events.push({min:s.min,icon:'🚀',txt:`¡¡GOL DE ${tn.toUpperCase()}!! ${s.name.split(' ').pop().toUpperCase()} anota — ${bocaRunning}-${gf>ga?0:ga} — ${celeb}`,isGoal:true,scorerName:s.name});
   });
@@ -4190,10 +4336,10 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
     </div>
 
     ${scorers.length ? `
-    <div class="ctitle">⚽ Goles Boca</div>
+    <div class="ctitle">⚽ Goles ${G&&G.teamName||''}</div>
     <div style="margin-bottom:10px">
       ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span></div>`).join('')}
-    </div>` : `<div class="note" style="margin-bottom:10px">Boca no anotó</div>`}
+    </div>` : `<div class="note" style="margin-bottom:10px">${G&&G.teamName||'El equipo'} no anotó</div>`}
 
     <div class="ctitle">📊 Estadísticas</div>
     <div class="g2" style="gap:5px;margin-bottom:12px">
@@ -4280,11 +4426,25 @@ function loanIn(id){
   if(!G) return;
   const p = G.market.find(x=>x.id===id);
   if(!p) return;
-  const cost = Math.round(p.val*.05*10)/10;
-  if(G.budget<cost){ flash('❌ Sin presupuesto ($'+cost+'M)','loss'); return; }
+  // Realistic rejection: elite clubs never loan their stars
+  let rejectChance = 0.20;
+  if(p.rat >= 87 || p.val >= 20) rejectChance = 0.97;
+  else if(p.rat >= 83 || p.val >= 12) rejectChance = 0.80;
+  else if(p.rat >= 79 || p.val >= 6) rejectChance = 0.50;
+  if(Math.random() < rejectChance){
+    const msg = rejectChance >= 0.80
+      ? `❌ El club de ${p.name} rechazó la cesión — no ceden a sus figuras`
+      : rejectChance >= 0.50
+        ? `❌ ${p.name} no está disponible para préstamo — intentá negociar la compra`
+        : `❌ La cesión fue rechazada — el club prefiere tenerlo en su plantel`;
+    flash(msg,'loss'); return;
+  }
+  const feePct = p.rat >= 83 ? 0.12 : p.rat >= 79 ? 0.08 : 0.05;
+  const cost = Math.round(p.val*feePct*10)/10;
+  if(G.budget<cost){ flash('❌ Sin presupuesto para la cesión ($'+cost+'M)','loss'); return; }
   if(isForeign(p.nat) && foreignCount(G.squad)>=5){ flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss'); return; }
   G.budget=Math.round((G.budget-cost)*10)/10;
-  p.club=(G.teamName||'Boca Juniors')+' (prést)'; p.lg='Liga ARG';
+  p.club=(G.teamName||G.teamName)+' (prést)'; p.lg='Liga ARG';
   G.squad.push(p); G.market=G.market.filter(x=>x.id!==id); G.bench.push(p);
   lg('📥',`Préstamo: ${p.name} ($${cost}M)`);
   updateUI(); closeMod(); flash('✅ '+p.name+' en préstamo','win');
