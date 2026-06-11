@@ -4,4 +4,4 @@
 [[redirects]]
   from = "/"
   to = "/director-tecnico.html"
-  status = 200
+  status = 301
