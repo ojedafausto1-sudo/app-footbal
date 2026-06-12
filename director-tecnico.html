@@ -238,6 +238,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 Patroc.</button>
     <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
     <button class="nb" onclick="gTab('stats',this);rStats()">📊 Stats</button>
+    <button class="nb" onclick="gTab('news',this);rNewsTab()">📰 Noticias</button>
   </div>
   <div class="main">
 
@@ -413,6 +414,12 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div id="statsContent"></div>
     </div>
 
+    <!-- NOTICIAS -->
+    <div id="tab-news" class="tc">
+      <div class="stitle">📰 Noticias y Mercado</div>
+      <div id="newsTabContent"></div>
+    </div>
+
   </div>
 </div>
 
@@ -442,15 +449,15 @@ tr:hover td{background:rgba(255,255,255,.025)}
   <div id="lmGame">
     <div id="lmGameInfo" style="font-size:11px;color:#ffd;margin-bottom:6px;text-align:center;font-weight:600"></div>
     <canvas id="lmCanvas"></canvas>
-    <div id="lmCtrlHint" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center">⌨️ Flechas/WASD: mover · ESPACIO toque corto: PASE · ESPACIO mantenido: TIRO / TACKLE</div>
+    <div id="lmCtrlHint" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center">⌨️ Flechas/WASD: mover · Z: Patear/Tackle · X: Pasar/Despejar</div>
     <div id="lmPads" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:8px;user-select:none">
       <div style="display:grid;grid-template-columns:46px 46px 46px;grid-template-rows:46px 46px;gap:4px">
         <div></div><button class="lmpad" data-k="up">▲</button><div></div>
         <button class="lmpad" data-k="left">◀</button><button class="lmpad" data-k="down">▼</button><button class="lmpad" data-k="right">▶</button>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="lmpad lmact" data-k="pass">PASE</button>
-        <button class="lmpad lmact" data-k="shoot" style="background:rgba(246,211,24,.2);border-color:rgba(246,211,24,.5)">TIRO ⚽</button>
+        <button class="lmpad lmact" data-k="pass">X PASE</button>
+        <button class="lmpad lmact" data-k="shoot" style="background:rgba(246,211,24,.2);border-color:rgba(246,211,24,.5)">Z TIRO</button>
       </div>
     </div>
   </div>
@@ -2114,6 +2121,7 @@ function initGame(teamId){
     market: buildMkt(),
     calendar: buildCal(tc.name),
     log: [],
+    news: [],
     offers: [],
     trainedWeek: 0,
     slots: {},
@@ -4655,13 +4663,13 @@ function sitKeyBind(){
   const s=SIT;
   s.kd=e=>{
     const k=e.key;
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k))e.preventDefault();
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','z','Z','x','X'].includes(k))e.preventDefault();
     if(k==='ArrowUp'   ||k==='w'||k==='W')s.keys.up=true;
     if(k==='ArrowDown' ||k==='s'||k==='S')s.keys.down=true;
     if(k==='ArrowLeft' ||k==='a'||k==='A')s.keys.left=true;
     if(k==='ArrowRight'||k==='d'||k==='D')s.keys.right=true;
-    if(k===' '||k==='x'||k==='X')s.keys.shoot=true;
-    if(k==='c'||k==='C')s.keys.pass=true;
+    if(k==='z'||k==='Z')s.keys.shoot=true;
+    if(k==='x'||k==='X')s.keys.pass=true;
   };
   s.ku=e=>{
     const k=e.key;
@@ -4669,8 +4677,8 @@ function sitKeyBind(){
     if(k==='ArrowDown' ||k==='s'||k==='S')s.keys.down=false;
     if(k==='ArrowLeft' ||k==='a'||k==='A')s.keys.left=false;
     if(k==='ArrowRight'||k==='d'||k==='D')s.keys.right=false;
-    if(k===' '||k==='x'||k==='X')s.keys.shoot=false;
-    if(k==='c'||k==='C')s.keys.pass=false;
+    if(k==='z'||k==='Z')s.keys.shoot=false;
+    if(k==='x'||k==='X')s.keys.pass=false;
   };
   window.addEventListener('keydown',s.kd);
   window.addEventListener('keyup',s.ku);
