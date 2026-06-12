@@ -4018,6 +4018,77 @@ function rStand(){
   `).join('');
 }
 
+// ——— AI TRANSFERS & NEWS ———
+const AI_CLUBS=['River Plate','Racing','Independiente','San Lorenzo','Vélez','Estudiantes','Flamengo','Palmeiras','São Paulo','América','Cruz Azul','Barcelona SC','Nacional','Peñarol','Sevilla','Porto','Ajax','Lyon','Benfica'];
+
+function aiTransfers(){
+  if(!G||!G.news)G.news=[];
+  const n=1+~~(Math.random()*2);
+  for(let i=0;i<n;i++){
+    const pool=G.market.filter(p=>p.rat>=65&&p.rat<=82);
+    if(!pool.length)break;
+    const p=pool[~~(Math.random()*pool.length)];
+    const clubs=AI_CLUBS.filter(c=>c!==G.teamName);
+    const buyer=clubs[~~(Math.random()*clubs.length)];
+    const seller=clubs.filter(c=>c!==buyer)[~~(Math.random()*clubs.length)];
+    const fee=Math.round(p.val*(0.9+Math.random()*.4)*10)/10;
+    G.market=G.market.filter(x=>x.id!==p.id);
+    // Re-add with new club
+    const np={...p,club:buyer,id:p.id+'_r'+(Date.now()+i)};
+    G.market.push(np);
+    const headlines=[
+      `${buyer} se asegura los servicios de ${p.name} (${p.pos}, ${p.nat}) por €${fee}M`,
+      `Bombazo: ${p.name} deja ${seller} y firma con ${buyer}`,
+      `Oficial: ${p.name} es nuevo refuerzo de ${buyer} — llega por €${fee}M`,
+      `${buyer} cierra el fichaje de ${p.name} ante la mirada de varios clubes`
+    ];
+    G.news.unshift({w:'S'+G.week,ic:'🔄',msg:headlines[~~(Math.random()*headlines.length)],type:'transfer'});
+  }
+  // Also sometimes generate a non-transfer news item
+  if(Math.random()<0.4){
+    const miscNews=[
+      {ic:'⚽',msg:`Espectacular hat-trick en la fecha ${~~(Math.random()*20)+1} de la Liga`},
+      {ic:'🏟️',msg:`Estadio lleno en el clásico de la jornada — entrada agotada`},
+      {ic:'🏥',msg:`Importante jugador ${AI_CLUBS[~~(Math.random()*AI_CLUBS.length)]} se pierde varios partidos por lesión`},
+      {ic:'🌟',msg:`El jugador de la semana: figura en ataque deslumbró al mundo`},
+      {ic:'📊',msg:`Las estadísticas indican que la Liga ARG es una de las más competitivas de Sudamérica`},
+      {ic:'🤝',msg:`Rumores de un gran traspaso europeo sacuden el mercado`}
+    ];
+    const item=miscNews[~~(Math.random()*miscNews.length)];
+    G.news.unshift({w:'S'+G.week,ic:item.ic,msg:item.msg,type:'misc'});
+  }
+  if(G.news.length>30)G.news=G.news.slice(0,30);
+}
+
+function rNewsTab(){
+  const el=document.getElementById('newsTabContent');
+  if(!el||!G)return;
+  if(!G.news||!G.news.length){
+    el.innerHTML='<div class="note" style="color:var(--t3);padding:14px;text-align:center">No hay noticias todavía. Jugá partidos para ver el mercado en movimiento.</div>';
+    return;
+  }
+  const transfers=G.news.filter(n=>n.type==='transfer');
+  el.innerHTML=`
+    <div style="margin-bottom:10px">
+      <div class="ctitle">📰 Últimas Noticias</div>
+      ${G.news.slice(0,20).map(n=>`
+        <div class="li" style="border-bottom:1px solid rgba(255,255,255,.05);padding:7px 8px;display:flex;gap:8px;align-items:flex-start">
+          <span style="font-size:16px;flex-shrink:0">${n.ic}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;color:var(--tx);line-height:1.4">${n.msg}</div>
+            <div style="font-size:9px;color:var(--t3);margin-top:2px">${n.w}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ${transfers.length?`
+    <div class="card">
+      <div class="ctitle">🔄 Resumen de Fichajes (${transfers.length})</div>
+      <div style="font-size:11px;color:var(--t2)">Los equipos rivales también se mueven en el mercado. Seguí los movimientos para anticiparte.</div>
+    </div>`:''}
+  `;
+}
+
 function rNews(){
   const el=document.getElementById('newsLog');
   if(!el||!G) return;
@@ -4127,6 +4198,7 @@ function nextSeason(){
   G.offers = genOffers();
   G.tourney = buildTourney();
   G.trainedWeek = 0;
+  if(!G.news)G.news=[];
   autoFill();
   lg('🏁', 'Temporada '+G.season+' iniciada!');
   closeMod();
@@ -4261,6 +4333,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   G.week++;
   // DT requests every ~5 weeks
   if(G.week%5===0||(G.week===2)) genDtRequest();
+  if(G.week%3===0) aiTransfers();
   // Check president demands
   checkPressDemands();
   // Sponsor income
@@ -4919,14 +4992,13 @@ function sitMove(body,dx,dy,dt,acc){
   body.x+=body.vx*dt;body.y+=body.vy*dt;
 }
 
-// ——— ATAQUE (física estilo haxball, manejás a todo tu equipo) ———
+// ——— ATAQUE (Z=TIRO, X=PASE, sin barra de potencia) ———
 function sitSetupAttack(W,H,oR,mainP,pool){
-  const s=SIT,gh=Math.min(58,W*.16),glY=22;
+  const s=SIT,gh=Math.min(72,W*.20),glY=22;
   s.gh=gh;s.glY=glY;
   s.label=`🎮 ¡ATAQUE! <span style="color:var(--gold)">${mainP.name.split(' ').pop()}</span> — llevá la pelota y buscá el arco`;
-  s.hint='Flechas: mover · ESPACIO corto: PASE · ESPACIO mantenido: TIRO';
+  s.hint='Flechas: mover · Z: TIRO al arco · X: PASE al compañero';
   const mates=pool.filter(p=>p!==mainP).slice(0,2);
-  // Tu equipo: 3 atacantes, controlás siempre al más cercano a la pelota
   s.atk=[
     {p:mainP,x:W/2+(Math.random()*50-25),y:H-70,vx:0,vy:0,r:12,spd:1.28+(mainP.rat-68)*.016,lane:W/2},
     ...mates.map((p,i)=>({p,x:W*(.22+.56*i),y:H-95-i*12,vx:0,vy:0,r:11,spd:1.18+(p.rat-68)*.014,lane:W*(.22+.56*i)}))
@@ -4936,6 +5008,7 @@ function sitSetupAttack(W,H,oR,mainP,pool){
   s.defs=[0,1,2].map(i=>({x:W*(.20+.30*i)+(Math.random()*32-16),y:H*(.28+.13*i)+Math.random()*28,vx:0,vy:0,r:11,spd:0.92+(oR-62)*.013}));
   s.gk={x:W/2,y:glY+11,spd:1.30+(oR-62)*.022,react:0};
   s.mode='dribble';s.scorer=mainP;
+  s.shotLocked=false;
   const BR=6.5,KICK_R=12+BR+10;
   s.update=function(dt){
     const k=s.keys,b=s.ball;
@@ -4943,30 +5016,24 @@ function sitSetupAttack(W,H,oR,mainP,pool){
     b.vx*=fr;b.vy*=fr;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     if(s.mode==='dribble'){
-      // Cambio automático: controlás al atacante más cercano a la pelota
       let nd=sD(s.atk[s.ctrl],b);
       s.atk.forEach((a,i)=>{const d2=sD(a,b);if(d2<nd-26){nd=d2;s.ctrl=i;s.scorer=a.p;}});
       const p=s.atk[s.ctrl];
-      // Movés al controlado; los demás acompañan el ataque
       s.atk.forEach((a,i)=>{
         if(i===s.ctrl){
           const dx=(k.right?1:0)-(k.left?1:0),dy=(k.down?1:0)-(k.up?1:0);
           sitMove(a,dx,dy,dt,.085);
         }else{
-          // AI compañero: sube por su carril, frena cerca del área
           const tx=a.lane+(b.x-a.lane)*.25;
           sitMove(a,(tx-a.x)*.05,a.y>glY+70?-.7:0,dt,.05);
         }
         a.x=sC(a.x,10,W-10);a.y=sC(a.y,glY+34,H-10);
         sitBodyBall(a,b,BR);
       });
-      // Defensores: persiguen la pelota y la rebotan/despejan (no la roban al toque)
       s.defs.forEach(df=>{
         sitMove(df,b.x-df.x,b.y-df.y,dt,.06);
         df.x=sC(df.x,8,W-8);df.y=sC(df.y,glY+26,H-8);
-        if(sitBodyBall(df,b,BR,{x:(Math.random()-.5)*.8,y:1.1})){
-          // Despeje defensivo: la empujan hacia mitad de cancha
-        }
+        sitBodyBall(df,b,BR,{x:(Math.random()-.5)*.8,y:1.1});
       });
       const bd=sD(p,b);
       const doPass=()=>{
@@ -4977,40 +5044,35 @@ function sitSetupAttack(W,H,oR,mainP,pool){
         const ang=Math.atan2((best.y-14)-b.y,best.x-b.x);
         b.vx=Math.cos(ang)*4.2;b.vy=Math.sin(ang)*4.2;
       };
-      // ESPACIO: toque corto = pase, mantenido = tiro (con la pelota cerca)
-      if(k.shoot&&!s.shootCharging){s.shootCharging=true;s.shootCharge=0;}
-      if(s.shootCharging){
-        if(k.shoot){s.shootCharge=Math.min(1,s.shootCharge+dt/110);}
-        else{
-          const ch=s.shootCharge;s.shootCharging=false;s.shootCharge=0;
-          if(ch<0.20){doPass();}
-          else if(bd<=KICK_R){
-            const pp=p.p;
-            const aim=k.left?-gh*.7:k.right?gh*.7:(Math.random()*2-1)*gh*.35;
-            const noise=(91-pp.rat)*.4*(Math.random()*2-1);
-            const tx=W/2+aim+noise,ty=glY-4;
-            const ang=Math.atan2(ty-b.y,tx-b.x);
-            const sp=4.2+ch*2.6+(pp.rat-70)*.03;
-            b.vx=Math.cos(ang)*sp;b.vy=Math.sin(ang)*sp;
-            s.scorer=pp;s.gk.react=8+Math.round((1-ch)*16);s.mode='shot';
-          }
-          return;
+      // Z: tiro inmediato al arco (sin barra), dirección con flechas
+      if(k.shoot&&!s.shotLocked){
+        s.shotLocked=true;
+        if(bd<=KICK_R){
+          const pp=p.p;
+          const aim=k.left?-gh*.82:k.right?gh*.82:(Math.random()*2-1)*gh*.28;
+          const noise=(91-pp.rat)*.38*(Math.random()*2-1);
+          const tx=W/2+aim+noise,ty=glY-4;
+          const ang=Math.atan2(ty-b.y,tx-b.x);
+          const sp=5.0+(pp.rat-70)*.04;
+          b.vx=Math.cos(ang)*sp;b.vy=Math.sin(ang)*sp;
+          s.scorer=pp;s.gk.react=10;s.mode='shot';
         }
       }
+      if(!k.shoot)s.shotLocked=false;
+      // X: pase al mejor compañero
       if(k.pass&&!s.passLocked){s.passLocked=true;doPass();}
       if(!k.pass)s.passLocked=false;
       const tgx=sC(b.x,W/2-gh+8,W/2+gh-8);
       s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*dt,s.gk.spd*dt);
-      // La jugada solo termina si: gol, la pelota sale afuera, vuelve a mitad
-      // de cancha, o la agarra el arquero
+      s.gk.x=sC(s.gk.x,W/2-gh+4,W/2+gh-4);
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('goal');return sitEnd('miss');}
       if(b.x<-BR||b.x>W+BR)return sitEnd('out');
       if(b.y>H+BR)return sitEnd('back');
       if(sD(s.gk,b)<12+BR)return sitEnd('save');
     } else {
-      // Tiro en vuelo
       if(s.gk.react>0)s.gk.react-=dt;
       else{const tgx=sC(b.x,W/2-gh+5,W/2+gh-5);s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*1.35*dt,s.gk.spd*1.35*dt);}
+      s.gk.x=sC(s.gk.x,W/2-gh+4,W/2+gh-4);
       if(sD(s.gk,b)<16)return sitEnd('save');
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('goal');return sitEnd('miss');}
       if(b.x<-14||b.x>W+14||b.y>H+14)return sitEnd('miss');
@@ -5024,7 +5086,15 @@ function sitSetupAttack(W,H,oR,mainP,pool){
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
     s.atk.forEach((a,i)=>sitDrawPlayerK(ctx,a.x,a.y,a.r,myKit,a.p.name.split(' ').pop().slice(0,7),i===s.ctrl&&s.mode==='dribble'));
     sitDrawBall(ctx,s.ball);
-    sitDrawPowerBar(ctx,W,H,s.shootCharging,s.shootCharge,0.20);
+    // Indicador de dirección de tiro (en lugar de barra de potencia)
+    if(s.mode==='dribble'){
+      const p=s.atk[s.ctrl];
+      const aim=s.keys.left?-gh*.82:s.keys.right?gh*.82:0;
+      const tx=W/2+aim,ty=glY;
+      ctx.save();ctx.strokeStyle='rgba(246,211,24,.35)';ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(tx,ty);ctx.stroke();
+      ctx.setLineDash([]);ctx.restore();
+    }
     sitDrawHint(ctx,W,H,s.hint);
   };
 }
@@ -5037,7 +5107,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   s.label=isOpp
     ?`🟨 <span style="color:#e84545">PENAL para ${LM.rival}</span> — sos el arquero, ¡atajalo!`
     :`🎯 <span style="color:var(--gold)">¡PENAL!</span> ${mainP.name.split(' ').pop()} al punto`;
-  s.hint=isOpp?'← →: movete en la línea · ESPACIO: ¡tirate a atajar!':'Flechas: apuntá a todo el arco · ESPACIO: cargá y soltá';
+  s.hint=isOpp?'← →: movete · ↑: alto · Z: ¡tirate a atajar!':'Flechas: apuntá a todo el arco · Z: cargá y soltá';
   const cx=W/2,gy=g.groundY;
   s.ball={x:cx,y:H-58,r:7};
   s.ballStart={x:cx,y:H-58};
@@ -5053,7 +5123,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
         // Sos el arquero: movete en la línea
         if(k.left) s.gk.x=Math.max(g.x1+16,s.gk.x-1.7*dt);
         if(k.right)s.gk.x=Math.min(g.x2-16,s.gk.x+1.7*dt);
-        if(k.shoot&&!s.dove){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:0;}
+        if(k.shoot&&!s.dove){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:0;s.diveUp=k.up?-1:0;}
         s.oppKickDelay-=dt;
         if(s.oppKickDelay<=0){
           // El rival elige un palo (sesgo a las esquinas)
@@ -5105,10 +5175,11 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
         if(!s.dove){
           if(k.left) s.gk.x=Math.max(g.x1+16,s.gk.x-1.1*dt);
           if(k.right)s.gk.x=Math.min(g.x2-16,s.gk.x+1.1*dt);
-          if(k.shoot){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:(s.target.x>s.gk.x?1:-1);}
+          if(k.shoot){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:(s.target.x>s.gk.x?1:-1);s.diveUp=k.up?-1:0;}
         } else {
           s.diveT=(s.diveT||0)+dt;
           s.gk.x=sC(s.gk.x+s.diveDir*2.6*dt,g.x1+10,g.x2-10);
+          s.gk.y=sC((s.gk.y||gy-22)+(s.diveUp||0)*2.2*dt,g.barY+10,gy);
         }
       } else if(s.gkDive){
         const gf=Math.min(1,s.flightT/(s.flightDur*.92));
@@ -5122,7 +5193,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
           if(out)return sitEnd('miss');
           const high=t.y<gy-55;
           const reach=s.dove?52:26;
-          const saved=Math.abs(s.gk.x-t.x)<reach&&(s.dove||!high);
+          const saved=Math.abs(s.gk.x-t.x)<reach&&Math.abs((s.gk.y||gy-22)-t.y)<(high?reach:reach*1.5)&&(s.dove||!high);
           return sitEnd(saved?'gk_save':'def_goal');
         }
         if(out)return sitEnd('miss');
@@ -5156,7 +5227,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   const s=SIT,gh=Math.min(58,W*.16),glY=24;
   s.gh=gh;s.glY=glY;
   s.label=`⚑ <span style="color:var(--gold)">¡CÓRNER!</span> ${mainP.name.split(' ').pop()} va a cobrar`;
-  s.hint='Flechas: elegí el punto de caída ✕ · ESPACIO: cargá y tirá el centro';
+  s.hint='Flechas: elegí el punto de caída ✕ · Z: cargá y tirá el centro';
   s.ball={x:W-14,y:H-22,r:6.5};
   s.ballStart={x:W-14,y:H-22};
   s.target={x:W/2,y:glY+62};
@@ -5187,7 +5258,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
           const err=(91-mainP.rat)*.5*(0.5+pw*0.7);
           s.target.x+=(Math.random()*2-1)*err;
           s.target.y+=(Math.random()*2-1)*err*.6;
-          s.phase='flight';s.flightT=0;s.flightDur=60-pw*18;
+          s.phase='flight';s.flightT=0;s.flightDur=80-pw*22;
           s.hint='Flechas: ¡llevá a tu cabeceador al punto ✕ antes de que caiga!';
         }
       }
@@ -5261,7 +5332,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   s.g=g;
   const dist=18+~~(Math.random()*10);
   s.label=`🟡 <span style="color:var(--gold)">¡TIRO LIBRE!</span> ${mainP.name.split(' ').pop()} desde ${dist} metros`;
-  s.hint='Flechas: apuntá (esquivá la barrera) · ESPACIO: cargá y soltá';
+  s.hint='Flechas: apuntá (esquivá la barrera) · Z: cargá y soltá';
   const cx=W/2,gy=g.groundY;
   s.ball={x:cx+(Math.random()*40-20),y:H-52,r:7};
   s.ballStart={x:s.ball.x,y:s.ball.y};
@@ -5294,11 +5365,11 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
           s.kicked=true;s.flightT=0;s.flightDur=40-pw*12;
           // ¿La barrera tapa ese punto? (tiro bajo a través de la barrera)
           s.willBlock=tx>s.wallZone.x1&&tx<s.wallZone.x2&&ty>s.wallZone.topY&&Math.random()<.85;
-          const reads=Math.random()<(0.46+(oR-62)*.012+(pw<0.35?0.25:0));
-          if(reads)s.gkDive={x:tx+(Math.random()*2-1)*22,y:Math.min(gy-14,ty+(Math.random()*2-1)*18)};
+          const reads=Math.random()<(0.32+(oR-62)*.009+(pw<0.35?0.18:0));
+          if(reads)s.gkDive={x:tx+(Math.random()*2-1)*38,y:Math.min(gy-14,ty+(Math.random()*2-1)*28)};
           else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-30-Math.random()*40};
           s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=30+(oR-62)*.8-pw*7;
+          s.reach=17+(oR-62)*.5-pw*5;
         }
       }
     } else {
@@ -5334,18 +5405,22 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   };
 }
 
-// ——— DEFENSA ———
+// ——— DEFENSA (Z=TACKLE, X=DESPEJAR, 2 defensores + 2 atacantes) ———
 function sitSetupDefense(W,H,oR){
-  const s=SIT,gh=Math.min(58,W*.16),glY=24;
+  const s=SIT,gh=Math.min(72,W*.20),glY=24;
   s.gh=gh;s.glY=glY;
-  s.label=`🛡️ <span style="color:#e84545">¡PELIGRO!</span> ${LM.rival} ataca — cerrá al delantero`;
-  s.hint='← → ↑ ↓: mover · ESPACIO cerca del rival: TACKLE';
-  const defRat=68+(LM.S.avgR-65)*.5;
+  s.label=`🛡️ <span style="color:#e84545">¡PELIGRO!</span> ${LM.rival} ataca — ¡cerrá la defensa!`;
+  s.hint='Flechas: mover · Z: TACKLE · X: DESPEJAR';
+  const defRat=68+((LM&&LM.S&&LM.S.avgR?LM.S.avgR:68)-65)*.5;
+  // Defender controlado + 1 CPU compañero
   s.player={x:W/2+(Math.random()*50-25),y:H*.50,vx:0,vy:0,r:12,spd:1.30+(defRat-68)*.014};
+  s.cpuDef={x:W/2-(Math.random()*60+20),y:H*.45+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.15+(defRat-68)*.010};
+  // 2 rivales: uno con la pelota, otro hace el desborde
   s.attacker={x:W/2+(Math.random()*70-35),y:H-75,vx:0,vy:0,r:12,spd:1.06+(oR-62)*.016};
+  s.attacker2={x:W*(.25+Math.random()*.5),y:H-55+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.0+(oR-62)*.012};
   s.ball={x:s.attacker.x+(Math.random()*10-5),y:s.attacker.y-24,vx:0,vy:-.4};
-  s.gk={x:W/2,y:glY+13,spd:1.40};
-  s.stun=0;s.tackleLock=false;s.mode='dribble';
+  s.gk={x:W/2,y:glY+14,spd:1.40};
+  s.stun=0;s.tackleLock=false;s.despejeLock=false;s.mode='dribble';
   const BR=6.5;
   s.update=function(dt){
     const k=s.keys,p=s.player,a=s.attacker,b=s.ball;
@@ -5353,15 +5428,17 @@ function sitSetupDefense(W,H,oR){
     b.vx*=fr;b.vy*=fr;
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     if(s.mode==='dribble'){
-      // Vos: inercia (si erraste el tackle quedás pasado un instante)
       if(s.stun>0)s.stun-=dt;
       const dx=s.stun>0?0:(k.right?1:0)-(k.left?1:0);
       const dy=s.stun>0?0:(k.down?1:0)-(k.up?1:0);
       sitMove(p,dx,dy,dt,.085);
       p.x=sC(p.x,8,W-8);p.y=sC(p.y,glY+30,H-8);
       sitBodyBall(p,b,BR);
-      // Atacante rival: regate real — persigue la pelota y cada tanto la toca
-      // hacia adelante rumbo al arco (con gambeta lateral)
+      // CPU compañero: presiona al atacante2
+      sitMove(s.cpuDef,s.attacker2.x-s.cpuDef.x,s.attacker2.y-s.cpuDef.y,dt,.05);
+      s.cpuDef.x=sC(s.cpuDef.x,8,W-8);s.cpuDef.y=sC(s.cpuDef.y,glY+30,H-8);
+      sitBodyBall(s.cpuDef,b,BR);
+      // Atacante principal: regate con toques periódicos
       const bdA=sD(a,b);
       s.touchCd=(s.touchCd||0)-dt;
       sitMove(a,b.x-a.x,b.y-a.y,dt,.075);
@@ -5369,37 +5446,49 @@ function sitSetupDefense(W,H,oR){
       if(bdA<a.r+BR+7&&s.touchCd<=0){
         const tgx=W/2+Math.sin(s.t*.006)*W*.18;
         const ang=Math.atan2((glY+16)-b.y,tgx-b.x);
-        const tsp=a.spd*1.55;
-        b.vx=Math.cos(ang)*tsp;b.vy=Math.sin(ang)*tsp;
-        s.touchCd=30;
+        b.vx=Math.cos(ang)*a.spd*1.55;b.vy=Math.sin(ang)*a.spd*1.55;
+        s.touchCd=28;
       }
       sitBodyBall(a,b,BR);
+      // Atacante2: hace una diagonal hacia el área
+      sitMove(s.attacker2,W/2-s.attacker2.x,glY+60-s.attacker2.y,dt,.035);
+      s.attacker2.x=sC(s.attacker2.x,8,W-8);s.attacker2.y=sC(s.attacker2.y,glY+18,H-8);
+      // GK: sigue x de la pelota, clamped al arco
       s.gk.x+=sC(b.x-s.gk.x,-s.gk.spd*dt,s.gk.spd*dt);
-      // Tackle con ESPACIO
+      s.gk.x=sC(s.gk.x,W/2-gh+6,W/2+gh-6);
+      // Z: tackle
       if(k.shoot&&!s.tackleLock&&s.stun<=0){
         s.tackleLock=true;
         const dist=sD(p,a);
         if(dist<22)return sitEnd('tackle_ok');
         if(dist<36){if(Math.random()<.42)return sitEnd('tackle_foul');return sitEnd('tackle_ok');}
-        s.stun=42; // te tiraste al vacío: quedás pasado
+        s.stun=42;
       }
       if(!k.shoot)s.tackleLock=false;
-      // Si llega al borde del área con la pelota, remata
+      // X: despeje — empuja la pelota hacia afuera del área
+      if(k.pass&&!s.despejeLock&&s.stun<=0){
+        s.despejeLock=true;
+        const bDist=sD(p,b);
+        if(bDist<30){
+          const ang=Math.atan2(b.y-glY,b.x-W/2)+((Math.random()-.5)*.8);
+          b.vx=Math.cos(ang)*4.8;b.vy=Math.sin(ang)*3.6+1.2;
+        }
+      }
+      if(!k.pass)s.despejeLock=false;
+      // Remata si llega al área con la pelota
       if(a.y<=glY+H*.16&&bdA<a.r+BR+10){
         const noise=(Math.random()*2-1)*gh*.8;
         const ang=Math.atan2((glY-4)-b.y,(W/2+noise)-b.x);
-        const sp=4.6+Math.random()*1.6;
-        b.vx=Math.cos(ang)*sp;b.vy=Math.sin(ang)*sp;
+        b.vx=Math.cos(ang)*(4.6+Math.random()*1.6);b.vy=Math.sin(ang)*(4.6+Math.random()*1.6);
         s.mode='shot';
       }
-      // La jugada termina cuando la pelota sale o vuelve a mitad de cancha
       if(b.x<-BR||b.x>W+BR||b.y>H+BR)return sitEnd('def_clear');
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('def_goal');return sitEnd('def_clear');}
       if(sD(s.gk,b)<12+BR)return sitEnd('gk_save');
     } else {
-      // Remate rival en vuelo
       const tgx=sC(b.x,W/2-gh+5,W/2+gh-5);
       s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*1.3*dt,s.gk.spd*1.3*dt);
+      s.gk.x=sC(s.gk.x,W/2-gh+4,W/2+gh-4);
       if(sD(s.gk,b)<17)return sitEnd('gk_save');
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('def_goal');return sitEnd('opp_miss');}
       if(b.x<-14||b.x>W+14)return sitEnd('opp_miss');
@@ -5408,14 +5497,16 @@ function sitSetupDefense(W,H,oR){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    sitDrawPlayerK(ctx,s.attacker.x,s.attacker.y,12,kitFor(LM.rival),LM.rival.split(' ')[0].slice(0,6),false);
+    const myKit=kitFor(LM.myName),rvKit=kitFor(LM.rival);
+    sitDrawPlayerK(ctx,s.attacker.x,s.attacker.y,12,rvKit,LM.rival.split(' ')[0].slice(0,6),false);
+    sitDrawPlayerK(ctx,s.attacker2.x,s.attacker2.y,11,rvKit,null,false);
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
-    sitDrawPlayerK(ctx,s.player.x,s.player.y,12,kitFor(LM.myName),'DEF',true);
+    sitDrawPlayerK(ctx,s.cpuDef.x,s.cpuDef.y,11,myKit,null,false);
+    sitDrawPlayerK(ctx,s.player.x,s.player.y,12,myKit,'DEF',true);
     sitDrawBall(ctx,s.ball);
     const cl=Math.min(1,Math.max(0,1-sD(s.player,s.attacker)/35));
     if(cl>0.28){
-      const alpha=cl*.85;
-      ctx.fillStyle=`rgba(246,211,24,${alpha})`;ctx.font='bold 12px Barlow Condensed,sans-serif';
+      ctx.fillStyle=`rgba(246,211,24,${cl*.85})`;ctx.font='bold 12px Barlow Condensed,sans-serif';
       ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText('⚡ TACKLE!',s.player.x,s.player.y-18);
     }
