@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -26,7 +26,7 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .age-vet{color:var(--t3);font-size:9px}
 /* LAYOUT */
 .scr{display:none;flex-direction:column;min-height:100vh}.scr.on{display:flex}
-.topbar{background:linear-gradient(90deg,var(--dark),var(--d3));border-bottom:1px solid var(--bdr);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.topbar{background:linear-gradient(90deg,var(--dark),var(--d3));border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
 .cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(246,211,24,.3)}
 .cname{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;color:var(--gold);letter-spacing:.02em}
 .pills{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
@@ -430,18 +430,21 @@ tr:hover td{background:rgba(255,255,255,.025)}
 
 <!-- PARTIDO EN VIVO (MODO JUGABLE) -->
 <style>
-#lmOv{display:none;position:fixed;inset:0;background:rgba(0,5,14,.97);z-index:300;flex-direction:column;align-items:center;padding:8px;overflow:hidden;gap:0}
-#lmFeed{width:100%;max-width:436px;flex:1;overflow-y:auto;margin-top:6px;min-height:0;border-radius:10px;background:rgba(255,255,255,.02)}
+#lmOv{display:none;position:fixed;inset:0;background:rgba(0,5,14,.97);z-index:300;flex-direction:column;align-items:center;padding:max(8px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));overflow:hidden;gap:0}
+#lmFeed{width:100%;max-width:480px;flex:1;overflow-y:auto;margin-top:6px;min-height:0;border-radius:10px;background:rgba(255,255,255,.02)}
 #lmFeed .lmev{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.055);font-size:11px;line-height:1.45}
 .lmev-goal{background:rgba(246,211,24,.13)!important;border-left:3px solid #f6d318}
 .lmev-danger{background:rgba(220,50,50,.10)!important;border-left:3px solid rgba(220,50,50,.55)}
 .lmev-save{background:rgba(40,140,220,.09)!important;border-left:3px solid rgba(40,140,220,.45)}
-#lmGame{display:none;width:100%;max-width:436px;flex-direction:column;align-items:center;margin-top:6px}
-#lmCanvas{border-radius:12px;border:2px solid rgba(255,255,255,.18);touch-action:none;box-shadow:0 4px 36px rgba(0,0,0,.55)}
-#lmGameInfo{font-size:11px;color:#ffd;margin-bottom:5px;text-align:center;font-weight:600;min-height:16px}
-.lmpad{width:50px;height:50px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.09);color:#fff;font-size:18px;font-weight:700;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;transition:background .08s}
-.lmpad:active,.lmpad-on{background:rgba(255,255,255,.30)!important}
-.lmact{width:80px;height:50px;border-radius:25px;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.04em}
+#lmGame{display:none;width:100%;max-width:480px;flex-direction:column;align-items:center;margin-top:4px}
+#lmCanvas{border-radius:12px;border:2px solid rgba(255,255,255,.18);touch-action:none;box-shadow:0 4px 36px rgba(0,0,0,.55);max-width:100%}
+#lmGameInfo{font-size:11px;color:#ffd;margin-bottom:5px;text-align:center;font-weight:600;min-height:16px;padding:0 6px}
+/* Joystick */
+#lmJoyCanvas{display:block;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;flex-shrink:0}
+/* Action buttons */
+.lmact{width:72px;height:64px;border-radius:16px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.09);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1;transition:background .08s}
+.lmact:active,.lmact-on{background:rgba(255,255,255,.35)!important;transform:scale(.94)}
+.lmact-key{font-size:18px;font-weight:900}
 </style>
 <div id="lmOv">
   <div id="lmHead" style="width:100%;max-width:430px"></div>
@@ -449,15 +452,18 @@ tr:hover td{background:rgba(255,255,255,.025)}
   <div id="lmGame">
     <div id="lmGameInfo" style="font-size:11px;color:#ffd;margin-bottom:6px;text-align:center;font-weight:600"></div>
     <canvas id="lmCanvas"></canvas>
-    <div id="lmCtrlHint" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center">⌨️ Flechas/WASD: mover · Z: Patear/Tackle · X: Pasar/Despejar</div>
-    <div id="lmPads" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:8px;user-select:none">
-      <div style="display:grid;grid-template-columns:46px 46px 46px;grid-template-rows:46px 46px;gap:4px">
-        <div></div><button class="lmpad" data-k="up">▲</button><div></div>
-        <button class="lmpad" data-k="left">◀</button><button class="lmpad" data-k="down">▼</button><button class="lmpad" data-k="right">▶</button>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="lmpad lmact" data-k="pass">X PASE</button>
-        <button class="lmpad lmact" data-k="shoot" style="background:rgba(246,211,24,.2);border-color:rgba(246,211,24,.5)">Z TIRO</button>
+    <div id="lmCtrlHint" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:3px;text-align:center">📱 Joystick: mover · Z/X: patear/pasar · ⌨️ WASD también funciona</div>
+    <div id="lmPads" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:6px;user-select:none;padding:0 4px">
+      <canvas id="lmJoyCanvas" width="130" height="130"></canvas>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="lmact" data-k="pass">
+          <span class="lmact-key">X</span>
+          <span>PASE</span>
+        </button>
+        <button class="lmact" data-k="shoot" style="background:rgba(246,211,24,.18);border-color:rgba(246,211,24,.55);">
+          <span class="lmact-key" style="color:#f6d318">Z</span>
+          <span style="color:#f6d318">TIRO</span>
+        </button>
       </div>
     </div>
   </div>
@@ -4569,17 +4575,84 @@ let LM=null;  // estado del partido en vivo
 let SIT=null; // situación jugable activa (penal, córner, ataque, defensa, etc.)
 let _padsInit=false;
 
+function initJoystick(){
+  const jc=document.getElementById('lmJoyCanvas');
+  if(!jc)return;
+  const ctx=jc.getContext('2d');
+  const W=130,H=130,cx=65,cy=65,R=54,r=24;
+  let pid=null,active=false,kx=cx,ky=cy;
+  function drawJoy(){
+    ctx.clearRect(0,0,W,H);
+    // Base ring
+    ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.07)';ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.20)';ctx.lineWidth=2;ctx.stroke();
+    // Direction dots
+    const dirs=['▲','▶','▼','◀'];
+    dirs.forEach((_,i)=>{
+      const a=i*Math.PI/2-Math.PI/2;
+      const tx=cx+Math.cos(a)*(R-12),ty=cy+Math.sin(a)*(R-12);
+      ctx.beginPath();ctx.arc(tx,ty,3.5,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,.28)';ctx.fill();
+    });
+    // Cross lines
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cx,cy-R+18);ctx.lineTo(cx,cy+R-18);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx-R+18,cy);ctx.lineTo(cx+R-18,cy);ctx.stroke();
+    // Knob
+    const g=ctx.createRadialGradient(kx-5,ky-5,2,kx,ky,r);
+    g.addColorStop(0,active?'rgba(246,211,24,.95)':'rgba(220,235,255,.65)');
+    g.addColorStop(1,active?'rgba(200,160,0,.4)':'rgba(120,160,220,.2)');
+    ctx.beginPath();ctx.arc(kx,ky,r,0,Math.PI*2);
+    ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle=active?'rgba(246,211,24,.8)':'rgba(200,220,255,.4)';
+    ctx.lineWidth=2;ctx.stroke();
+  }
+  function applyKeys(nx,ny){
+    if(!SIT)return;
+    const dz=14,rdx=nx-cx,rdy=ny-cy;
+    SIT.keys.left=rdx<-dz;SIT.keys.right=rdx>dz;
+    SIT.keys.up=rdy<-dz;SIT.keys.down=rdy>dz;
+  }
+  function move(px,py){
+    const rect=jc.getBoundingClientRect();
+    const mx=(px-rect.left)*(W/rect.width),my=(py-rect.top)*(H/rect.height);
+    const dx=mx-cx,dy=my-cy,dist=Math.hypot(dx,dy),maxD=R-r;
+    kx=dist>maxD?cx+dx/dist*maxD:mx;
+    ky=dist>maxD?cy+dy/dist*maxD:my;
+    applyKeys(kx,ky);drawJoy();
+  }
+  function reset(){
+    active=false;pid=null;kx=cx;ky=cy;
+    if(SIT){SIT.keys.left=SIT.keys.right=SIT.keys.up=SIT.keys.down=false;}
+    drawJoy();
+  }
+  jc.addEventListener('pointerdown',e=>{
+    e.preventDefault();if(pid!==null)return;
+    pid=e.pointerId;active=true;
+    jc.setPointerCapture(e.pointerId);move(e.clientX,e.clientY);
+  });
+  jc.addEventListener('pointermove',e=>{
+    e.preventDefault();if(e.pointerId!==pid)return;move(e.clientX,e.clientY);
+  });
+  jc.addEventListener('pointerup',e=>{e.preventDefault();if(e.pointerId===pid)reset();});
+  jc.addEventListener('pointercancel',e=>{e.preventDefault();if(e.pointerId===pid)reset();});
+  drawJoy();
+}
+
 function initPads(){
   if(_padsInit) return; _padsInit=true;
-  document.querySelectorAll('.lmpad').forEach(b=>{
-    const k=b.dataset.k;
-    const on=e=>{ e.preventDefault(); if(SIT){SIT.keys[k]=true;b.classList.add('lmpad-on');} };
-    const off=e=>{ e.preventDefault(); if(SIT){SIT.keys[k]=false;b.classList.remove('lmpad-on');} };
+  // Action buttons (shoot/pass) — use pointer events
+  document.querySelectorAll('.lmact').forEach(b=>{
+    const k=b.dataset.k;if(!k)return;
+    const on=e=>{ e.preventDefault(); if(SIT){SIT.keys[k]=true;b.classList.add('lmact-on');} };
+    const off=e=>{ e.preventDefault(); if(SIT){SIT.keys[k]=false;b.classList.remove('lmact-on');} };
     b.addEventListener('pointerdown',on);
     b.addEventListener('pointerup',off);
     b.addEventListener('pointerleave',off);
     b.addEventListener('pointercancel',off);
   });
+  initJoystick();
 }
 
 function playMatch(){
@@ -5238,70 +5311,78 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   const s=SIT,gh=Math.min(92,W*.22),glY=24;
   s.gh=gh;s.glY=glY;
   s.label=`⚑ <span style="color:var(--gold)">¡CÓRNER!</span> ${mainP.name.split(' ').pop()} va a cobrar`;
-  s.hint='Flechas: elegí el punto de caída ✕ · Z: ¡TIRÁ EL CENTRO!';
-  s.ball={x:W-14,y:H-22,r:6.5};
-  s.ballStart={x:W-14,y:H-22};
-  s.target={x:W/2,y:glY+62};
+  s.hint='Joystick/Flechas: elegí el punto de caída ✕ · Z: ¡TIRÁ EL CENTRO!';
+  // Aleatoriamente desde la izquierda o la derecha
+  const fromRight=Math.random()>.5;
+  const bsx=fromRight?W-14:14,bsy=H-22;
+  s.ball={x:bsx,y:bsy,r:6.5};
+  s.ballStart={x:bsx,y:bsy};
+  s.target={x:W/2,y:glY+58};
   s.phase='aim';
   const jp=pool.filter(p=>p!==mainP);
   const hP=jp[0]||mainP;
-  // Tu cabeceador (lo movés vos) + un compañero AI + 2 defensores + GK
-  s.header={p:hP,x:W/2-34,y:glY+98,vx:0,vy:0,r:11,spd:1.45};
-  s.mate2=jp[1]?{p:jp[1],x:W/2+48,y:glY+112,vx:0,vy:0,r:10,spd:0.9}:null;
-  s.defs=[{x:W/2-8,y:glY+78,vx:0,vy:0,r:11,spd:0.88+(oR-62)*.012},
-          {x:W/2+28,y:glY+96,vx:0,vy:0,r:11,spd:0.84+(oR-62)*.012}];
-  s.gk={x:W/2,y:glY+13,vx:0,vy:0,r:12,spd:0.9};
+  // Cabeceador controlado + 2 compañeros AI en posición + 3 defensores + GK
+  s.header={p:hP,x:W/2+(fromRight?-40:40),y:glY+90,vx:0,vy:0,r:12,spd:1.72+(hP.rat-68)*.012};
+  s.mate2=jp[1]?{p:jp[1],x:W/2+(fromRight?34:-34),y:glY+110,vx:0,vy:0,r:11,spd:1.30}:null;
+  s.mate3=jp[2]?{p:jp[2],x:W/2+(fromRight?70:-70),y:glY+130,vx:0,vy:0,r:10,spd:1.10}:null;
+  s.defs=[
+    {x:W/2-10,y:glY+70,vx:0,vy:0,r:11,spd:0.90+(oR-62)*.012},
+    {x:W/2+26,y:glY+88,vx:0,vy:0,r:11,spd:0.86+(oR-62)*.012},
+    {x:W/2-30,y:glY+50,vx:0,vy:0,r:10,spd:0.82+(oR-62)*.010}
+  ];
+  s.gk={x:W/2,y:glY+13,vx:0,vy:0,r:12,spd:1.0};
   s.headTimer=0;
   s.update=function(dt){
     const k=s.keys;
     if(s.phase==='aim'){
-      // Elegís dónde cae el centro
-      if(k.left) s.target.x=Math.max(W/2-gh*1.8,s.target.x-2.2*dt);
-      if(k.right)s.target.x=Math.min(W/2+gh*1.8,s.target.x+2.2*dt);
-      if(k.up)   s.target.y=Math.max(glY+34,s.target.y-1.8*dt);
-      if(k.down) s.target.y=Math.min(glY+H*.30,s.target.y+1.8*dt);
+      if(k.left) s.target.x=Math.max(W/2-gh*1.8,s.target.x-2.5*dt);
+      if(k.right)s.target.x=Math.min(W/2+gh*1.8,s.target.x+2.5*dt);
+      if(k.up)   s.target.y=Math.max(glY+30,s.target.y-2.0*dt);
+      if(k.down) s.target.y=Math.min(glY+H*.32,s.target.y+2.0*dt);
       if(k.shoot&&!s.kickLocked){
         s.kickLocked=true;
-        const err=(91-mainP.rat)*.48*(Math.random()*2-1);
-        s.target.x+=(Math.random()*2-1)*err;
-        s.target.y+=(Math.random()*2-1)*err*.5;
-        s.phase='flight';s.flightT=0;s.flightDur=78;
-        s.hint='Flechas: ¡llevá a tu cabeceador al punto ✕ antes de que caiga!';
+        const err=(91-mainP.rat)*.40*(Math.random()*2-1);
+        s.target.x+=err;s.target.y+=(Math.random()*2-1)*err*.4;
+        s.phase='flight';s.flightT=0;s.flightDur=92;
+        s.hint='Joystick/Flechas: ¡posicioná al cabeceador en el punto ✕!';
       }
       if(!k.shoot)s.kickLocked=false;
     } else if(s.phase==='flight'){
       s.flightT+=dt;
       const f=Math.min(1,s.flightT/s.flightDur);
-      // Centro con comba alta
       s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
-      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.13;
-      s.ball.r=6.5+Math.sin(f*Math.PI)*3;
-      // Movés a tu cabeceador para ganar la posición
+      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.16;
+      s.ball.r=6.5+Math.sin(f*Math.PI)*4;
+      // Movés al cabeceador con joystick/flechas
       const dx=(k.right?1:0)-(k.left?1:0),dy=(k.down?1:0)-(k.up?1:0);
-      sitMove(s.header,dx,dy,dt,.085);
-      s.header.x=sC(s.header.x,12,W-12);s.header.y=sC(s.header.y,glY+26,glY+H*.40);
-      // Defensores y arquero van al punto de caída
-      s.defs.forEach(d=>{sitMove(d,s.target.x-d.x,s.target.y-d.y,dt,.05);});
-      if(s.target.y<glY+52)sitMove(s.gk,s.target.x-s.gk.x,s.target.y-s.gk.y,dt,.05);
-      if(s.mate2)sitMove(s.mate2,s.target.x+20-s.mate2.x,s.target.y+14-s.mate2.y,dt,.04);
+      sitMove(s.header,dx,dy,dt,.090);
+      s.header.x=sC(s.header.x,10,W-10);s.header.y=sC(s.header.y,glY+22,glY+H*.42);
+      // Compañeros AI: van a posiciones cerca del target
+      s.defs.forEach(d=>{sitMove(d,s.target.x-d.x,s.target.y-d.y,dt,.045);d.x=sC(d.x,8,W-8);d.y=sC(d.y,glY+20,H-8);});
+      if(s.mate2){sitMove(s.mate2,s.target.x+22-s.mate2.x,s.target.y+10-s.mate2.y,dt,.05);s.mate2.x=sC(s.mate2.x,8,W-8);}
+      if(s.mate3){sitMove(s.mate3,s.target.x-24-s.mate3.x,s.target.y+24-s.mate3.y,dt,.04);s.mate3.x=sC(s.mate3.x,8,W-8);}
+      // GK sale solo si el centro es muy cerca del arco
+      if(s.target.y<glY+48){sitMove(s.gk,s.target.x-s.gk.x,s.target.y-s.gk.y,dt,.05);}
       if(f>=1){
-        // ¿Quién gana el centro?
+        // Resolución basada en distancias
         const dh=sD(s.header,s.target);
-        const dm=s.mate2?sD(s.mate2,s.target):999;
+        const dm2=s.mate2?sD(s.mate2,s.target):999;
+        const dm3=s.mate3?sD(s.mate3,s.target):999;
         const dd=Math.min(...s.defs.map(d=>sD(d,s.target)));
         const dgk=sD(s.gk,s.target);
-        if(dgk<24)return sitEnd('save');
-        const myBest=Math.min(dh,dm);
-        if(dd<myBest-7)return sitEnd('cleared');
-        if(myBest<27){
-          const who=dh<=dm?s.header:s.mate2;
+        if(dgk<20)return sitEnd('save');
+        const myBest=Math.min(dh,dm2,dm3);
+        // Defensores ganan si son notablemente más cerca
+        if(dd<myBest-10)return sitEnd('cleared');
+        if(myBest<32){
+          const who=dh<=Math.min(dm2,dm3)?s.header:dm2<=dm3?s.mate2:s.mate3;
           s.scorer=who.p;
-          // Calidad del cabezazo: qué tan bien la ganaste + el jugador
-          const q=sC((27-myBest)/27*.6+(who.p.rat-65)/55,0,1);
-          const pGoal=sC(.22+q*.58,0,.85);
-          const r=Math.random();
-          if(r<pGoal)return sitEnd('goal');
-          return r<pGoal+.4?sitEnd('save'):sitEnd('miss');
+          const q=sC((32-myBest)/32*.65+(who.p.rat-65)/60,0,1);
+          const pGoal=sC(.18+q*.66,0,.88);
+          const rnd=Math.random();
+          if(rnd<pGoal)return sitEnd('goal');
+          if(rnd<pGoal+.36)return sitEnd('save');
+          return sitEnd('miss');
         }
         return sitEnd('cleared');
       }
@@ -5309,23 +5390,45 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    // Banderín
-    ctx.fillStyle='#f1c40f';ctx.fillRect(W-17,H-26,4,22);ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(W-17,H-28,14,3);
-    // Punto de caída ✕
+    // Banderín de córner (izquierda o derecha)
+    const bx=fromRight?W-17:13;
+    ctx.fillStyle='#f1c40f';ctx.fillRect(bx,H-26,4,22);
+    ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(bx,H-28,14,3);
+    // Punto de caída ✕ con círculo pulsante
     const t=s.target;
-    ctx.strokeStyle='rgba(246,211,24,.9)';ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.moveTo(t.x-8,t.y-8);ctx.lineTo(t.x+8,t.y+8);ctx.moveTo(t.x+8,t.y-8);ctx.lineTo(t.x-8,t.y+8);ctx.stroke();
-    ctx.beginPath();ctx.arc(t.x,t.y,14,0,7);ctx.strokeStyle='rgba(246,211,24,.4)';ctx.lineWidth=1.5;ctx.stroke();
+    const pulse=0.65+0.35*Math.sin(s.t*.08);
+    ctx.strokeStyle=`rgba(246,211,24,${pulse*.9})`;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(t.x-9,t.y-9);ctx.lineTo(t.x+9,t.y+9);ctx.moveTo(t.x+9,t.y-9);ctx.lineTo(t.x-9,t.y+9);ctx.stroke();
+    ctx.beginPath();ctx.arc(t.x,t.y,16,0,7);ctx.strokeStyle=`rgba(246,211,24,${pulse*.4})`;ctx.lineWidth=1.5;ctx.stroke();
+    // Trayectoria punteada en fase de aim
     if(s.phase==='aim'){
-      ctx.beginPath();ctx.setLineDash([4,4]);ctx.moveTo(W-14,H-22);ctx.lineTo(t.x,t.y);
+      ctx.beginPath();ctx.setLineDash([5,5]);
+      ctx.moveTo(s.ballStart.x,s.ballStart.y);ctx.lineTo(t.x,t.y);
       ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);
+    }
+    // Indicador de proximidad al target en fase de vuelo
+    if(s.phase==='flight'){
+      const dh=sD(s.header,t);
+      if(dh<40){
+        const cl=sC((40-dh)/40,0,1);
+        ctx.fillStyle=`rgba(246,211,24,${cl*.7})`;ctx.font=`bold ${10+~~(cl*6)}px Barlow Condensed,sans-serif`;
+        ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillText('⚡ POSICIÓN!',s.header.x,s.header.y-16);
+      }
+      // Barra de tiempo restante
+      const f=Math.min(1,s.flightT/s.flightDur);
+      const bw=W*.55,bh=5,bx2=W/2-bw/2,by2=glY+6;
+      ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(bx2,by2,bw,bh);
+      const col=f<0.6?'#0fb866':f<0.8?'#f6d318':'#e84545';
+      ctx.fillStyle=col;ctx.fillRect(bx2,by2,bw*(1-f),bh);
     }
     const myKit=kitFor(LM.myName),rvKit=kitFor(LM.rival);
     s.defs.forEach(d=>sitDrawPlayerK(ctx,d.x,d.y,11,rvKit,null,false));
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
-    if(s.mate2)sitDrawPlayerK(ctx,s.mate2.x,s.mate2.y,10,myKit,s.mate2.p.name.split(' ').pop().slice(0,6),false);
-    sitDrawPlayerK(ctx,s.header.x,s.header.y,11,myKit,s.header.p.name.split(' ').pop().slice(0,6),true);
-    sitDrawPlayerK(ctx,W-14,H-26,11,myKit,mainP.name.split(' ').pop().slice(0,6),s.phase==='aim');
+    if(s.mate3)sitDrawPlayerK(ctx,s.mate3.x,s.mate3.y,10,myKit,null,false);
+    if(s.mate2)sitDrawPlayerK(ctx,s.mate2.x,s.mate2.y,10,myKit,s.mate2.p.name.split(' ').pop().slice(0,5),false);
+    sitDrawPlayerK(ctx,s.header.x,s.header.y,12,myKit,s.header.p.name.split(' ').pop().slice(0,6),true);
+    sitDrawPlayerK(ctx,s.ballStart.x+(fromRight?-16:16),s.ballStart.y,11,myKit,mainP.name.split(' ').pop().slice(0,5),s.phase==='aim');
     sitDrawBall(ctx,s.ball);
     sitDrawHint(ctx,W,H,s.hint);
   };
