@@ -150,6 +150,22 @@ tr:hover td{background:rgba(255,255,255,.025)}
 /* FORM DOTS */
 .form-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .fd-w{background:var(--green)}.fd-d{background:var(--ora)}.fd-l{background:var(--red)}.fd-n{background:rgba(255,255,255,.15)}
+/* DIFFICULTY BUTTONS */
+.diff-btn{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 16px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.05em}
+.diff-sel{background:rgba(246,211,24,.15);border-color:#F6D318;color:#F6D318}
+/* SOCIAL TWEETS */
+.tweet{background:rgba(9,31,60,.7);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:8px;transition:border-color .15s}
+.tweet:hover{border-color:rgba(246,211,24,.2)}
+.tweet-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--d3));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.tweet-handle{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--gold)}
+.tweet-user{font-size:10px;color:var(--t3)}
+.tweet-text{font-size:12px;color:var(--tx);line-height:1.45;margin:5px 0}
+.tweet-stats{font-size:10px;color:var(--t3);display:flex;gap:12px;margin-top:6px}
+/* POWER BAR */
+.powerbar-wrap{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:140px;text-align:center;pointer-events:none}
+.powerbar-bg{height:10px;background:rgba(255,255,255,.15);border-radius:5px;overflow:hidden}
+.powerbar-fill{height:100%;border-radius:5px;transition:width .04s linear}
+.powerbar-lbl{font-size:9px;color:#fff;margin-top:2px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em}
 /* INTRO */
 #intro{background:radial-gradient(ellipse at 30% 40%,#0a2a5e 0%,#031020 60%,#020c1a 100%);align-items:center;justify-content:center}
 </style>
@@ -160,6 +176,14 @@ tr:hover td{background:rgba(255,255,255,.025)}
 <div id="teamSelect" style="position:fixed;inset:0;background:#0a0e14;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
   <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;color:#fff;letter-spacing:.1em;margin-bottom:6px">DIRECTOR TÉCNICO</div>
   <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:28px;letter-spacing:.15em">ELEGÍ TU EQUIPO — TEMPORADA 2026</div>
+  <div style="margin-bottom:20px;text-align:center">
+    <div style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.12em;margin-bottom:8px">DIFICULTAD</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button onclick="setDiff(0,this)" class="diff-btn diff-sel" id="diff-0">😊 FÁCIL</button>
+      <button onclick="setDiff(1,this)" class="diff-btn" id="diff-1">⚽ NORMAL</button>
+      <button onclick="setDiff(2,this)" class="diff-btn" id="diff-2">💀 DIFÍCIL</button>
+    </div>
+  </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;width:100%;max-width:780px">
     <div onclick="selectTeam('boca')" style="cursor:pointer;background:rgba(0,48,135,.25);border:2px solid #003087;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,48,135,.5)'" onmouseout="this.style.background='rgba(0,48,135,.25)'">
       <div style="font-size:36px;margin-bottom:8px">🔵🟡</div>
@@ -224,6 +248,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="pill">⚽ <span class="pv" id="rTop">0-0-0</span></div>
       <div class="pill">🏟️ <span class="pv" id="stadTop">Bombonera</span></div>
       <div class="pill">⭐ <span class="pv" id="repTop">78</span></div>
+      <div class="pill" id="diffPill" style="display:none">⚡ <span class="pv" id="diffTop">NORMAL</span></div>
       <button class="btn bo bs" onclick="newGame()" style="margin-left:4px;font-size:9px;padding:2px 7px;opacity:.55" title="Nueva partida">↩ Nueva</button>
     </div>
   </div>
@@ -238,6 +263,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 Patroc.</button>
     <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
     <button class="nb" onclick="gTab('stats',this);rStats()">📊 Stats</button>
+    <button class="nb" onclick="gTab('social',this);rSocial()">📱 Redes</button>
   </div>
   <div class="main">
 
@@ -248,12 +274,19 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="card" style="text-align:center">
           <div style="font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;margin-bottom:5px">PRÓXIMO PARTIDO</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px"><span id="nH">—</span><span style="color:var(--t3)">vs</span><span id="nA">—</span></div>
-          <div style="font-size:9px;color:var(--t3);margin:3px 0 8px" id="nMeta">—</div>
+          <div style="font-size:9px;color:var(--t3);margin:3px 0 4px" id="nMeta">—</div>
+          <div style="display:flex;gap:4px;justify-content:center;margin-bottom:6px;flex-wrap:wrap">
+            <button onclick="setTacticM('Defensivo',this)" id="tac-def" class="btn bo bs" style="font-size:9px;padding:2px 6px">🛡️ DEF</button>
+            <button onclick="setTacticM('Equilibrado',this)" id="tac-eq" class="btn bg bs" style="font-size:9px;padding:2px 6px">⚖️ EQ</button>
+            <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
+          </div>
           <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
             <button class="btn bg bs" onclick="playMatch()">🎮 JUGAR</button>
             <button class="btn bo bs" onclick="simMatch(false)">📺 RELATO</button>
             <button class="btn bo bs" onclick="simMatch(true)">⚡ AUTO</button>
+            <button class="btn bo bs" onclick="startFullMatch()" style="background:rgba(15,184,102,.15);border-color:var(--green);color:var(--green)">🏟️ 11vs11</button>
           </div>
+          <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:6px"></div>
         </div>
         <div class="card"><div class="ctitle">📊 Stats</div>
           <div class="sr"><span class="sl">PJ/G/E/P</span><span class="sv" id="sLine">0/0/0/0</span></div>
@@ -411,6 +444,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <div id="tab-stats" class="tc">
       <div class="stitle">📊 Estadísticas</div>
       <div id="statsContent"></div>
+    </div>
+
+    <!-- REDES SOCIALES -->
+    <div id="tab-social" class="tc">
+      <div class="stitle">📱 Redes Sociales</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Los hinchas, periodistas y rivales hablan de vos en redes. Se actualiza cada partido.</div>
+      <div id="socialFeed"></div>
     </div>
 
   </div>
@@ -851,7 +891,6 @@ function buildMkt(){
   a(8, 'Juan Nardoni',         'MCD',25,'ARG','Racing Club','Liga ARG',12,0,18);  // crack del Racing
   a(10,'Maxi Meza',            'MCO',33,'ARG','Racing Club','Liga ARG', 3,0,22);
   a(16,'Matías Zaracho',       'MC', 27,'ARG','Racing Club','Liga ARG', 9,0,20);
-  a(7, 'Tomás Conechny',       'ED', 26,'ARG','Racing Club','Liga ARG', 4.5,0,15);
   a(14,'Damián Pizarro',       'DC', 21,'CHI','Racing Club','Liga ARG', 9,0,17);  // joya chilena
   a(9, 'Adrián Martínez',      'DC', 28,'URU','Racing Club','Liga ARG', 8,0,22);  // goleador
 
@@ -893,7 +932,6 @@ function buildMkt(){
   a(11,'Gonzalo Tapia',        'DC', 26,'CHI','River Plate','Liga ARG', 5,0,18);
 
   // === INDEPENDIENTE 2025/26 ===
-  a(1, 'Rodrigo Rey',          'ARQ',35,'ARG','Independiente','Liga ARG', 1.5,0,15);
   a(4, 'Gastón Togni',         'DFC',27,'ARG','Independiente','Liga ARG', 3.5,0,12);
   a(3, 'Lucas Rodríguez',      'DFD',26,'ARG','Independiente','Liga ARG', 3,0,12);
   a(6, 'Iván Marcone',         'MCD',34,'ARG','Independiente','Liga ARG', 1.5,0,14);
@@ -1001,8 +1039,6 @@ function buildMkt(){
   a(5, 'Guillermo Ortiz',       'DFC',28,'ARG','Central Córdoba','Liga ARG', 2,0,12);
 
   // === BANFIELD 2025/26 ===
-  a(1, 'Facundo Altamirano',    'ARQ',28,'ARG','Banfield','Liga ARG', 2,0,13);
-  a(10,'Giuliano Galoppo',      'MCO',26,'ARG','Banfield','Liga ARG', 4,0,15);
   a(9, 'Juan Álvarez',          'DC', 23,'ARG','Banfield','Liga ARG', 6,0,16);
   a(7, 'Luciano Pons',          'EI', 29,'ARG','Banfield','Liga ARG', 3,0,14);
 
@@ -1035,8 +1071,6 @@ function buildMkt(){
   a(9,'Gabriel Barbosa','DC',28,'BRA','Cruzeiro','Brasil',12,79,50,79);
 
   // === BRASIL — CLUBES ADICIONALES ===
-  a(1,'Weverton','ARQ',38,'BRA','Palmeiras','Brasil',3,0,20);
-  a(4,'Gustavo Gómez','DFC',33,'PAR','Palmeiras','Brasil',6,0,22);
   a(23,'Richard Ríos','MC',26,'COL','Palmeiras','Brasil',22,0,28);
   a(9,'Facundo Buonanotte','MCO',21,'ARG','Palmeiras','Brasil',18,0,22);
   a(11,'Felipe Anderson','EI',32,'BRA','Palmeiras','Brasil',5,0,25);
@@ -1191,7 +1225,6 @@ function buildMkt(){
   a(10,'Sebastián Villa','EI',28,'COL','Boca Juniors','Liga ARG',4,0,16);
   a(9,'Braian Romero','DC',28,'ARG','Vélez Sarsfield','Liga ARG',3,0,14);
   a(4,'Nico Hernández','DFI',25,'COL','Talleres','Liga ARG',4,0,15);
-  a(10,'Rodrigo Bentancur','MC',28,'URU','Tottenham','Premier',30,0,30);
   a(9,'Mauro Zárate','DC',38,'ARG','Vélez Sarsfield','Liga ARG',0.5,0,14);
   a(5,'Nicolás Otamendi','DFC',38,'ARG','Benfica','Otras',3,0,22);
   a(8,'Leandro Castan','DFC',40,'BRA','Independiente','Liga ARG',0.3,0,12);
@@ -1470,162 +1503,6 @@ function buildMkt(){
   a(4,'Omar Alderete','DFC',30,'PAR','Getafe','España',5,0,18);
   a(9,'Antonio Sanabria','DC',29,'PAR','Torino','Italia',6,0,20);
   a(10,'Miguel Almirón','MCO',31,'PAR','Newcastle','Premier',8,0,22);
-
-  // === BOCA JUNIORS 2026 (PDF) ===
-  a(1, 'Leandro Brey',        'ARQ',23,'ARG','Boca Juniors','Liga ARG', 1.5,  0, 0);
-  a(25,'Agustín Marchesín',   'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.5,  0, 0);
-  a(2, 'Lautaro Di Lollo',    'DFC',22,'ARG','Boca Juniors','Liga ARG', 7.0,  0, 0);
-  a(29,'Ayrton Costa',        'DFC',26,'ARG','Boca Juniors','Liga ARG', 5.0,  0, 0);
-  a(5, 'Marco Pellegrino',    'DFC',23,'ARG','Boca Juniors','Liga ARG', 3.5,  0, 0);
-  a(19,'Nicolás Figal',       'DFC',32,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0);
-  a(6, 'Lautaro Blanco',      'DFI',27,'ARG','Boca Juniors','Liga ARG', 4.0,  0, 0);
-  a(33,'Malcom Braida',       'DFI',29,'URU','Boca Juniors','Liga ARG', 2.5,  0, 0);
-  a(21,'Juan Barinaga',       'DFD',25,'ARG','Boca Juniors','Liga ARG', 2.8,  0, 0);
-  a(17,'Marcelo Weigandt',    'DFD',26,'ARG','Boca Juniors','Liga ARG', 1.7,  0, 0);
-  a(16,'Milton Delgado',      'MCD',20,'ARG','Boca Juniors','Liga ARG',10.0,  0, 0);
-  a(15,'Santiago Ascacíbar',  'MCD',29,'ARG','Boca Juniors','Liga ARG', 5.5,  0, 0);
-  a(8, 'Leandro Paredes',     'MCD',31,'ARG','Boca Juniors','Liga ARG', 5.0,  0, 0);
-  a(30,'Tomás Belmonte',      'MCD',28,'ARG','Boca Juniors','Liga ARG', 3.0,  0, 0);
-  a(20,'Rodrigo Battaglia',   'MCD',34,'ARG','Boca Juniors','Liga ARG', 0.5,  0, 0);
-  a(14,'Camilo Rey Domenech', 'MCD',20,'ARG','Boca Juniors','Liga ARG', 0.4,  0, 0);
-  a(27,'Williams Alarcón',    'MC', 25,'CHI','Boca Juniors','Liga ARG', 3.0,  0, 0);
-  a(10,'Ander Herrera',       'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.4,  0, 0);
-  a(28,'Juan Ramírez',        'MC', 33,'ARG','Boca Juniors','Liga ARG', 0.15, 0, 0);
-  a(7, 'Tomás Aranda',        'MCO',19,'ARG','Boca Juniors','Liga ARG', 9.0,  0, 0);
-  a(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 3.0,  0, 0);
-  a(22,'Agustín Martegani',   'MCO',26,'ARG','Boca Juniors','Liga ARG', 0.275,0, 0);
-  a(11,'Kevin Zenón',         'EI', 24,'ARG','Boca Juniors','Liga ARG', 3.5,  0, 0);
-  a(44,'Alan Velasco',        'EI', 23,'CHI','Boca Juniors','Liga ARG', 2.8,  0, 0);
-  a(23,'Lucas Janson',        'EI', 31,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0);
-  a(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 7.0,  0, 0);
-  a(39,'Ángel Romero',        'ED', 33,'PAR','Boca Juniors','Liga ARG', 0.6,  0, 0);
-  a(43,'Gonzalo Gelini',      'ED', 19,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0);
-  a(45,'Iker Zufiaurre',      'ED', 20,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0);
-  a(12,'Miguel Merentiel',    'DC', 30,'URU','Boca Juniors','Liga ARG', 4.5,  0, 0);
-  a(40,'Adam Bareiro',        'DC', 29,'PAR','Boca Juniors','Liga ARG', 4.0,  0, 0);
-  a(41,'Milton Giménez',      'DC', 29,'ARG','Boca Juniors','Liga ARG', 2.5,  0, 0);
-  a(9, 'Edinson Cavani',      'DC', 39,'URU','Boca Juniors','Liga ARG', 0.5,  0, 0);
-  a(42,'Nicolás Orsini',      'DC', 31,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0);
-
-  // === RIVER PLATE 2026 (PDF) ===
-  a(1, 'Santiago Beltrán',    'ARQ',21,'ARG','River Plate','Liga ARG', 9.0,  0, 0);
-  a(23,'Ezequiel Centurión',  'ARQ',29,'ARG','River Plate','Liga ARG', 1.5,  0, 0);
-  a(34,'Franco Armani',       'ARQ',39,'ARG','River Plate','Liga ARG', 0.2,  0, 0);
-  a(2, 'Lautaro Rivero',      'DFC',22,'ARG','River Plate','Liga ARG', 7.0,  0, 0);
-  a(5, 'Lucas Martínez Quarta','DFC',30,'ARG','River Plate','Liga ARG',4.5,  0, 0);
-  a(29,'Tobías Ramírez',      'DFC',19,'ARG','River Plate','Liga ARG', 3.5,  0, 0);
-  a(4, 'Juan Carlos Portillo','DFC',26,'ARG','River Plate','Liga ARG', 3.2,  0, 0);
-  a(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 2.0,  0, 0);
-  a(3, 'Germán Pezzella',     'DFC',34,'ARG','River Plate','Liga ARG', 0.3,  0, 0);
-  a(28,'Ulises Giménez',      'DFC',20,'ARG','River Plate','Liga ARG', 0.2,  0, 0);
-  a(6, 'Matías Viña',         'DFI',28,'URU','River Plate','Liga ARG', 2.5,  0, 0);
-  a(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 0.8,  0, 0);
-  a(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 1.5,  0, 0);
-  a(21,'Fabricio Bustos',     'DFD',30,'ARG','River Plate','Liga ARG', 1.0,  0, 0);
-  a(8, 'Aníbal Moreno',       'MCD',27,'ARG','River Plate','Liga ARG', 8.0,  0, 0);
-  a(15,'Kevin Castaño',       'MCD',25,'COL','River Plate','Liga ARG', 5.0,  0, 0);
-  a(30,'Fausto Vera',         'MCD',26,'COL','River Plate','Liga ARG', 4.5,  0, 0);
-  a(20,'Giuliano Galoppo',    'MC', 26,'ARG','River Plate','Liga ARG', 4.0,  0, 0);
-  a(10,'Kendry Páez',         'MCO',19,'ECU','River Plate','Liga ARG', 8.0,  0, 0);
-  a(14,'Tomás Galván',        'MCO',26,'ARG','River Plate','Liga ARG', 4.0,  0, 0);
-  a(37,'Santiago Lencina',    'MCO',20,'ARG','River Plate','Liga ARG', 2.0,  0, 0);
-  a(7, 'Juan Fernando Quintero','MCO',33,'COL','River Plate','Liga ARG',1.8, 0, 0);
-  a(38,'Juan Cruz Meza',      'MCO',18,'ARG','River Plate','Liga ARG', 1.8,  0, 0);
-  a(11,'Ian Subiabre',        'ED', 19,'CHI','River Plate','Liga ARG', 3.5,  0, 0);
-  a(18,'Maximiliano Meza',    'ED', 33,'ARG','River Plate','Liga ARG', 0.7,  0, 0);
-  a(9, 'Facundo Colidio',     'DC', 26,'ARG','River Plate','Liga ARG', 5.0,  0, 0);
-  a(13,'Maximiliano Salas',   'DC', 28,'CHI','River Plate','Liga ARG', 4.5,  0, 0);
-  a(32,'Sebastián Driussi',   'DC', 30,'ARG','River Plate','Liga ARG', 4.5,  0, 0);
-  a(39,'Agustín Ruberto',     'DC', 20,'ARG','River Plate','Liga ARG', 1.7,  0, 0);
-  a(40,'Joaquín Freitas',     'DC', 19,'ARG','River Plate','Liga ARG', 1.0,  0, 0);
-
-  // === INDEPENDIENTE 2026 (PDF) ===
-  a(1, 'Rodrigo Rey',         'ARQ',35,'ARG','Independiente','Liga ARG', 1.0,  0, 0);
-  a(25,'Joaquín Blázquez',    'ARQ',25,'ARG','Independiente','Liga ARG', 0.3,  0, 0);
-  a(34,'Diego Segovia',       'ARQ',26,'ARG','Independiente','Liga ARG', 0.2,  0, 0);
-  a(2, 'Kevin Lomónaco',      'DFC',24,'ARG','Independiente','Liga ARG', 8.0,  0, 0);
-  a(5, 'Sebastián Valdez',    'DFC',30,'URU','Independiente','Liga ARG', 1.5,  0, 0);
-  a(4, 'Juan Manuel Fedorco', 'DFC',25,'ARG','Independiente','Liga ARG', 0.7,  0, 0);
-  a(19,'Nicolás Freire',      'DFC',32,'ARG','Independiente','Liga ARG', 0.3,  0, 0);
-  a(26,'Agustín Quiroga',     'DFC',24,'ARG','Independiente','Liga ARG', 0.3,  0, 0);
-  a(3, 'Milton Valenzuela',   'DFI',27,'ARG','Independiente','Liga ARG', 0.55, 0, 0);
-  a(17,'Santiago Arias',      'DFD',34,'COL','Independiente','Liga ARG', 1.2,  0, 0);
-  a(16,'Santiago Salle',      'DFD',21,'ARG','Independiente','Liga ARG', 0.9,  0, 0);
-  a(8, 'Iván Marcone',        'MCD',36,'ARG','Independiente','Liga ARG', 0.4,  0, 0);
-  a(20,'Federico Mancuello',  'MC', 37,'ARG','Independiente','Liga ARG', 0.1,  0, 0);
-  a(14,'Sergio Ortíz',        'MC', 25,'ARG','Independiente','Liga ARG', 0.15, 0, 0);
-  a(10,'Luciano Cabral',      'MCO',31,'ARG','Independiente','Liga ARG', 1.0,  0, 0);
-  a(11,'Matías Abaldo',       'EI', 22,'ARG','Independiente','Liga ARG', 5.0,  0, 0);
-  a(44,'Santiago López',      'EI', 20,'ARG','Independiente','Liga ARG', 2.0,  0, 0);
-  a(13,'Santiago Montiel',    'ED', 25,'ARG','Independiente','Liga ARG', 3.8,  0, 0);
-  a(23,'Lucas Román',         'ED', 22,'ARG','Independiente','Liga ARG', 0.2,  0, 0);
-  a(9, 'Gabriel Ávalos',      'DC', 35,'PAR','Independiente','Liga ARG', 0.75, 0, 0);
-  a(12,'Ignacio Pussetto',    'DC', 30,'ARG','Independiente','Liga ARG', 1.3,  0, 0);
-
-  // === SAN LORENZO 2026 (PDF) ===
-  a(1, 'Orlando Gill',        'ARQ',25,'ARG','San Lorenzo','Liga ARG', 6.0,  0, 0);
-  a(25,'José Devecchi',       'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0);
-  a(34,'Facundo Altamirano',  'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.375,0, 0);
-  a(5, 'Jhohan Romaña',       'DFC',27,'COL','San Lorenzo','Liga ARG', 6.0,  0, 0);
-  a(4, 'Gastón Hernández',    'DFC',28,'ARG','San Lorenzo','Liga ARG', 3.5,  0, 0);
-  a(29,'Lautaro Montenegro',  'DFC',21,'ARG','San Lorenzo','Liga ARG', 1.0,  0, 0);
-  a(33,'Daniel Herrera',      'DFC',22,'ARG','San Lorenzo','Liga ARG', 0.9,  0, 0);
-  a(28,'Franco Lorenzon',     'DFC',25,'ARG','San Lorenzo','Liga ARG', 0.225,0, 0);
-  a(3, 'Guzmán Corujo',       'DFC',29,'URU','San Lorenzo','Liga ARG', 0.2,  0, 0);
-  a(6, 'Mathías De Ritis',    'DFI',23,'ARG','San Lorenzo','Liga ARG', 1.0,  0, 0);
-  a(22,'Teo Rodríguez Pagano','DFI',20,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0);
-  a(2, 'Ezequiel Herrera',    'DFD',23,'ARG','San Lorenzo','Liga ARG', 2.5,  0, 0);
-  a(17,'Fabricio López',      'DFD',23,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0);
-  a(23,'Nahuel Arias',        'DFD',21,'ARG','San Lorenzo','Liga ARG', 0.3,  0, 0);
-  a(8, 'Nicolás Tripichio',   'MCD',30,'ARG','San Lorenzo','Liga ARG', 2.0,  0, 0);
-  a(30,'Ignacio Perruzzi',    'MCD',21,'ARG','San Lorenzo','Liga ARG', 2.5,  0, 0);
-  a(14,'Gonzalo Abrego',      'MC', 26,'ARG','San Lorenzo','Liga ARG', 1.5,  0, 0);
-  a(20,'Manuel Insaurralde',  'MC', 27,'ARG','San Lorenzo','Liga ARG', 1.0,  0, 0);
-  a(27,'Mauricio Cardillo',   'MC', 23,'ARG','San Lorenzo','Liga ARG', 0.45, 0, 0);
-  a(35,'Juan Rattalino',      'MC', 21,'ARG','San Lorenzo','Liga ARG', 0.2,  0, 0);
-  a(24,'Francisco Perruzzi',  'MC', 25,'ARG','San Lorenzo','Liga ARG', 0.2,  0, 0);
-  a(10,'Facundo Gulli',       'MCO',20,'ARG','San Lorenzo','Liga ARG', 2.5,  0, 0);
-  a(7, 'Nahuel Barrios',      'EI', 28,'ARG','San Lorenzo','Liga ARG', 0.9,  0, 0);
-  a(13,'Matías Reali',        'ED', 28,'ARG','San Lorenzo','Liga ARG', 1.5,  0, 0);
-  a(18,'Gregorio Rodríguez',  'ED', 26,'ARG','San Lorenzo','Liga ARG', 0.7,  0, 0);
-  a(44,'Agustín Ladstatter',  'ED', 21,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0);
-  a(39,'Ezequiel Cerutti',    'ED', 34,'ARG','San Lorenzo','Liga ARG', 0.15, 0, 0);
-  a(9, 'Alexis Cuello',       'DC', 26,'ARG','San Lorenzo','Liga ARG', 5.0,  0, 0);
-  a(32,'Rodrigo Auzmendi',    'DC', 25,'ARG','San Lorenzo','Liga ARG', 3.0,  0, 0);
-  a(12,'Luciano Vietto',      'DC', 32,'ESP','San Lorenzo','Liga ARG', 1.2,  0, 0);
-  a(99,'Diego Herazo',        'DC', 30,'COL','San Lorenzo','Liga ARG', 0.4,  0, 0);
-  a(40,'Branco Salinardi',    'DC', 19,'ARG','San Lorenzo','Liga ARG', 0.3,  0, 0);
-
-  // === RACING CLUB 2026 (PDF) ===
-  a(1, 'Facundo Cambeses',    'ARQ',29,'ARG','Racing Club','Liga ARG', 5.0,  0, 0);
-  a(25,'Matías Tagliamonte',  'ARQ',28,'ARG','Racing Club','Liga ARG', 1.5,  0, 0);
-  a(34,'Francisco Gómez',     'ARQ',22,'ARG','Racing Club','Liga ARG', 0.2,  0, 0);
-  a(5, 'Marco Di Césare',     'DFC',24,'ARG','Racing Club','Liga ARG', 6.0,  0, 0);
-  a(4, 'Nazareno Colombo',    'DFC',27,'ARG','Racing Club','Liga ARG', 2.8,  0, 0);
-  a(19,'Franco Pardo',        'DFC',29,'ARG','Racing Club','Liga ARG', 2.0,  0, 0);
-  a(26,'Agustín García Basso','DFC',34,'ARG','Racing Club','Liga ARG', 0.3,  0, 0);
-  a(3, 'Marcos Rojo',         'DFC',36,'ARG','Racing Club','Liga ARG', 0.125,0, 0);
-  a(6, 'Gabriel Rojas',       'DFI',28,'ARG','Racing Club','Liga ARG', 4.0,  0, 0);
-  a(22,'Gastón Martirena',    'DFD',26,'URU','Racing Club','Liga ARG', 4.0,  0, 0);
-  a(2, 'Ezequiel Cannavo',    'DFD',23,'ARG','Racing Club','Liga ARG', 3.0,  0, 0);
-  a(29,'Tobías Rubio',        'DFD',21,'ARG','Racing Club','Liga ARG', 0.3,  0, 0);
-  a(8, 'Santiago Sosa',       'MCD',27,'ARG','Racing Club','Liga ARG', 8.0,  0, 0);
-  a(15,'Alan Forneris',       'MCD',21,'ARG','Racing Club','Liga ARG', 0.6,  0, 0);
-  a(20,'Bruno Zuculini',      'MCD',33,'ARG','Racing Club','Liga ARG', 0.4,  0, 0);
-  a(14,'Ignacio Rodríguez',   'MC', 24,'ARG','Racing Club','Liga ARG', 1.0,  0, 0);
-  a(10,'Valentín Carboni',    'MCO',21,'ARG','Racing Club','Liga ARG', 7.5,  0, 0);
-  a(16,'Matko Miljevic',      'MCO',25,'ARG','Racing Club','Liga ARG', 4.0,  0, 0);
-  a(24,'Baltasar Rodríguez',  'MCO',22,'ARG','Racing Club','Liga ARG', 4.0,  0, 0);
-  a(30,'Matías Zaracho',      'MCO',28,'ARG','Racing Club','Liga ARG', 3.5,  0, 0);
-  a(27,'Adrián Fernández',    'MCO',25,'ARG','Racing Club','Liga ARG', 0.7,  0, 0);
-  a(28,'Gonzalo Sosa G.',     'MCO',21,'ARG','Racing Club','Liga ARG', 0.15, 0, 0);
-  a(7, 'Tomás Conechny',      'EI', 28,'ARG','Racing Club','Liga ARG', 2.5,  0, 0);
-  a(11,'Duván Vergara',       'EI', 29,'COL','Racing Club','Liga ARG', 2.3,  0, 0);
-  a(13,'Santiago Solari',     'ED', 28,'ARG','Racing Club','Liga ARG', 3.2,  0, 0);
-  a(9, 'Adrián Martínez',     'DC', 33,'URU','Racing Club','Liga ARG', 2.8,  0, 0);
-  a(39,'Damián Pizarro',      'DC', 21,'CHI','Racing Club','Liga ARG', 2.0,  0, 0);
-  a(12,'Elías Torres',        'DC', 25,'ARG','Racing Club','Liga ARG', 1.0,  0, 0);
-  a(40,'Tomás Pérez',         'DC', 20,'ARG','Racing Club','Liga ARG', 0.3,  0, 0);
 
   return m;
 }
@@ -2135,6 +2012,9 @@ function initGame(teamId){
   G.stadium.name = tc.stadName;
   G.stadium.capacity = tc.stadCap;
   G.stadium.income = tc.stadInc;
+  G.diff = (window._selectedDiff !== undefined) ? window._selectedDiff : 1;
+  G.tactic = {style:'Posesión', mentality:'Equilibrado'};
+  G.socialPosts = [];
   G.tourney = buildTourney();
   G.offers = genOffers();
   autoFill();
@@ -2216,10 +2096,21 @@ function updateUI(){
   rStad();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
+  if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
+  if(document.getElementById('tab-social')&&document.getElementById('tab-social').classList.contains('on')) rSocial();
   if(typeof rStats === 'function') rStats();
   rDtPedidos();
   rPressDemands();
+  rFormDots();
   saveGame();
+}
+
+function rFormDots(){
+  const el=document.getElementById('formDots');
+  if(!el||!G) return;
+  const res=G.calendar.filter(m=>m.played).map(m=>m.result).slice(-5);
+  el.innerHTML=res.map(r=>`<span class="form-dot fd-${(r||'n').toLowerCase()}"></span>`).join('')+
+    Array(Math.max(0,5-res.length)).fill('<span class="form-dot fd-n"></span>').join('');
 }
 
 // =============================================
@@ -2323,14 +2214,22 @@ function openNeg(id){
   const prestige = topClubs.some(c=>p.club.includes(c))?1.18:1.0;
   const demand = Math.round(base*(1.1+Math.random()*.2)*prestige*10)/10;
   const suggest = Math.round(demand*0.88*10)/10;
+  const agentFee = Math.round(demand*(0.05+Math.random()*.03)*10)/10;
+  const isTopPlayer = p.rat>=85;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🤝 Negociar: ${p.name}</div>
+    <div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">
+      <div style="text-align:center;padding:6px 14px;background:rgba(246,211,24,.15);border:1px solid var(--gold);border-radius:6px 0 0 6px;font-size:10px;color:var(--gold);font-weight:700">1 CONTACTO</div>
+      <div style="text-align:center;padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:10px;color:var(--t3)">2 OFERTA</div>
+      <div style="text-align:center;padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:0 6px 6px 0;font-size:10px;color:var(--t3)">3 ACUERDO</div>
+    </div>
     <div style="text-align:center;margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3)">Valor TM · ${p.club}</div>
       <div style="font-size:26px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed',sans-serif">${fv(base)}</div>
       <div style="font-size:10px;color:var(--t3);margin-top:2px">Demanda estimada: <span style="color:var(--red)">${fv(demand)}</span></div>
     </div>
+    ${isTopPlayer?`<div class="note R" style="margin-bottom:8px">⭐ Jugador de alto perfil — su agente exige condiciones especiales</div>`:''}
     <div class="note">Ingresá tu oferta. Presupuesto: <strong style="color:var(--gold)">$${G.budget}M</strong></div>
     <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
       <span style="font-size:22px;color:var(--gold);font-family:'Barlow Condensed';font-weight:700">$</span>
@@ -2340,7 +2239,8 @@ function openNeg(id){
       <span style="font-size:12px;color:var(--t3)">M USD</span>
     </div>
     <div class="neg-rx" id="negRx"></div>
-    <div style="font-size:9px;color:var(--t3);margin-top:5px;text-align:center">Referencia: demanda ≈ ${fv(demand)}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:5px;text-align:center">📋 Demanda ≈ ${fv(demand)} · 👨‍💼 Fee agente estimado: ~${fv(agentFee)}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:3px;text-align:center;font-style:italic">⏳ Esperando respuesta del agente...</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button class="btn bg" onclick="subNegI('${id}',${demand})">✉️ Enviar oferta</button>
       <button class="btn bo bs" onclick="loanIn('${id}')">📥 Préstamo</button>
@@ -2469,7 +2369,7 @@ function renderMkt(){
   el.innerHTML = pl.map(p=>`
     <div class="mkrow" onclick="openP('${p.id}',false)">
       <div>${rb(p.rat)}</div>
-      <div><div class="pn">${p.name}</div>${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span></div>
+      <div><div class="pn">${p.name}${p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>':p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>':p.rat>=78&&p.age<=23?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':''}</div>${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span></div>
       <div style="font-size:9px;color:var(--t2)">${p.lg.split(' ')[0]}</div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -3547,9 +3447,10 @@ function genDtRequest(){
   const targetPosOptions=wPos.filter(p=>weakPosPool.includes(p));
   const targetPos=targetPosOptions.length?targetPosOptions[~~(Math.random()*targetPosOptions.length)]:wPos[~~(Math.random()*wPos.length)];
   // Find a suitable candidate from market (not already at Boca, fits position, reasonable budget)
-  const maxBudget=Math.min(G.budget*0.6,20);
+  const maxBudget=Math.min(G.budget*0.5,25);
+  const strictBudget=Math.min(G.budget*0.5,maxBudget);
   const candidates=G.market.filter(p=>
-    p.pos===targetPos && p.val<=maxBudget+5 && p.val>=0.5 &&
+    p.pos===targetPos && p.val<=strictBudget && p.val>=0.3 &&
     p.club!==(G.teamName||'Boca Juniors') && !G.squad.find(s=>s.id===p.id)
   ).sort((a,b)=>b.rat-a.rat).slice(0,10);
   if(!candidates.length) return;
@@ -4029,41 +3930,68 @@ const AI_CLUBS=['River Plate','Racing','Independiente','San Lorenzo','Vélez','E
 
 function aiTransfers(){
   if(!G||!G.news)G.news=[];
-  const n=1+~~(Math.random()*2);
+  // Budget-tier system: big clubs spend more
+  const bigClubs=['Boca Juniors','River Plate','Flamengo','Palmeiras','Corinthians','Santos','Grêmio','Inter de Porto Alegre','Nacional','Peñarol','Universidad de Chile','Colo-Colo'];
+  const midClubs=['Racing Club','Independiente','San Lorenzo','Vélez Sarsfield','Estudiantes','Rosario Central','Newell\'s Old Boys','Talleres','Huracán'];
+  const n = 1 + ~~(Math.random()*3);
   for(let i=0;i<n;i++){
-    const pool=G.market.filter(p=>p.rat>=65&&p.rat<=82);
-    if(!pool.length)break;
-    const p=pool[~~(Math.random()*pool.length)];
-    const clubs=AI_CLUBS.filter(c=>c!==G.teamName);
-    const buyer=clubs[~~(Math.random()*clubs.length)];
-    const seller=clubs.filter(c=>c!==buyer)[~~(Math.random()*clubs.length)];
-    const fee=Math.round(p.val*(0.9+Math.random()*.4)*10)/10;
-    G.market=G.market.filter(x=>x.id!==p.id);
-    // Re-add with new club
-    const np={...p,club:buyer,id:p.id+'_r'+(Date.now()+i)};
+    const clubs = AI_CLUBS.filter(c=>c!==G.teamName);
+    const buyer = clubs[~~(Math.random()*clubs.length)];
+    // Determine buyer budget tier
+    const isBig = bigClubs.includes(buyer);
+    const isMid = midClubs.includes(buyer);
+    // Budget tier affects which players they can buy
+    let minRat, maxRat, feeMultMin, feeMultMax;
+    if(isBig){ minRat=75; maxRat=92; feeMultMin=1.0; feeMultMax=1.8; }
+    else if(isMid){ minRat=68; maxRat=80; feeMultMin=0.8; feeMultMax=1.3; }
+    else { minRat=60; maxRat=74; feeMultMin=0.6; feeMultMax=1.0; }
+
+    const pool = G.market.filter(p=>p.rat>=minRat && p.rat<=maxRat);
+    if(!pool.length) continue;
+    const p = pool[~~(Math.random()*pool.length)];
+    const seller = p.club || clubs.filter(c=>c!==buyer)[~~(Math.random()*clubs.length)];
+    const feeMultiplier = feeMultMin + Math.random()*(feeMultMax-feeMultMin);
+    const fee = Math.round(p.val * feeMultiplier * 10) / 10;
+    // Move player to new club in market
+    G.market = G.market.filter(x=>x.id!==p.id);
+    const np = {...p, club:buyer, id:p.id+'_r'+(Date.now()+i)};
     G.market.push(np);
-    const headlines=[
-      `${buyer} se asegura los servicios de ${p.name} (${p.pos}, ${p.nat}) por €${fee}M`,
-      `Bombazo: ${p.name} deja ${seller} y firma con ${buyer}`,
-      `Oficial: ${p.name} es nuevo refuerzo de ${buyer} — llega por €${fee}M`,
-      `${buyer} cierra el fichaje de ${p.name} ante la mirada de varios clubes`
-    ];
-    G.news.unshift({w:'S'+G.week,ic:'🔄',msg:headlines[~~(Math.random()*headlines.length)],type:'transfer'});
+
+    // Generate headline based on fee size
+    let headline;
+    if(fee>=20){
+      headline = `💎 MEGA FICHAJE: ${buyer} rompe el mercado y paga €${fee}M por ${p.name} (${p.pos}, ${p.nat})`;
+    } else if(fee>=10){
+      headline = `🔥 Bombazo: ${p.name} deja ${seller} y firma con ${buyer} por €${fee}M`;
+    } else if(fee>=5){
+      headline = `✅ Oficial: ${p.name} es nuevo refuerzo de ${buyer} — llega por €${fee}M`;
+    } else {
+      const opts=[
+        `${buyer} cierra la llegada de ${p.name} (${p.pos}) ante la mirada de varios clubes — €${fee}M`,
+        `${p.name} cambia de aires: de ${seller} a ${buyer} por €${fee}M`,
+        `${buyer} refuerza su ${p.pos} con la incorporación de ${p.name}`,
+      ];
+      headline = opts[~~(Math.random()*opts.length)];
+    }
+    G.news.unshift({w:'S'+G.week, ic:'🔄', msg:headline, type:'transfer'});
   }
-  // Also sometimes generate a non-transfer news item
-  if(Math.random()<0.4){
+  // Misc league news
+  if(Math.random()<0.45){
+    const randClub = AI_CLUBS[~~(Math.random()*AI_CLUBS.length)];
     const miscNews=[
       {ic:'⚽',msg:`Espectacular hat-trick en la fecha ${~~(Math.random()*20)+1} de la Liga`},
       {ic:'🏟️',msg:`Estadio lleno en el clásico de la jornada — entrada agotada`},
-      {ic:'🏥',msg:`Importante jugador ${AI_CLUBS[~~(Math.random()*AI_CLUBS.length)]} se pierde varios partidos por lesión`},
-      {ic:'🌟',msg:`El jugador de la semana: figura en ataque deslumbró al mundo`},
+      {ic:'🏥',msg:`Importante jugador de ${randClub} se pierde varios partidos por lesión muscular`},
+      {ic:'🌟',msg:`El jugador de la semana: figura del ${randClub} deslumbró en la última fecha`},
       {ic:'📊',msg:`Las estadísticas indican que la Liga ARG es una de las más competitivas de Sudamérica`},
-      {ic:'🤝',msg:`Rumores de un gran traspaso europeo sacuden el mercado`}
+      {ic:'🤝',msg:`Rumores de un gran traspaso europeo sacuden el mercado sudamericano`},
+      {ic:'💪',msg:`${randClub} recibe el apoyo de su hinchada de cara a los playoffs`},
+      {ic:'📰',msg:`La prensa argentina debate sobre el mejor técnico del torneo — ¿quién lidera?`},
     ];
-    const item=miscNews[~~(Math.random()*miscNews.length)];
-    G.news.unshift({w:'S'+G.week,ic:item.ic,msg:item.msg,type:'misc'});
+    const item = miscNews[~~(Math.random()*miscNews.length)];
+    G.news.unshift({w:'S'+G.week, ic:item.ic, msg:item.msg, type:'misc'});
   }
-  if(G.news.length>30)G.news=G.news.slice(0,30);
+  if(G.news.length>35) G.news = G.news.slice(0,35);
 }
 
 function rNewsTab(){
@@ -4249,7 +4177,21 @@ function matchStrengths(m){
   const oppMorale = 55+~~(Math.random()*35);
   const oppS = oppRat/100*.75 + oppMorale/100*.25;
 
-  return {xi, avgR, oppName, oppRat, homeBonus, myS, oppS};
+  // Difficulty modifier
+  const diffMod = G.diff===0 ? 0.12 : G.diff===2 ? -0.12 : 0;
+  // Tactic modifier
+  let tacMod = 0;
+  if(G.tactic){
+    if(G.tactic.mentality==='Ofensivo') tacMod=0.07;
+    else if(G.tactic.mentality==='Defensivo') tacMod=-0.05;
+  }
+  // DT trait modifiers
+  if(G.dt){
+    if(G.dt.trait==='Ofensivo') tacMod+=0.03;
+    if(G.dt.trait==='Defensivo') tacMod-=0.02;
+    if(G.dt.style==='5-3-2') tacMod-=0.02;
+  }
+  return {xi, avgR, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
 }
 
 // Contabilidad post-partido a partir del marcador final.
@@ -4387,7 +4329,7 @@ function simMatch(auto){
 
   // Win probability: fair baseline (0.43) shifted by relative strength + home advantage
   const diff  = S.myS - S.oppS + S.homeBonus;
-  const pWin  = Math.max(0.10, Math.min(0.73, 0.43 + diff*1.4));
+  const pWin  = Math.max(0.10, Math.min(0.80, 0.43 + diff*1.4 + (S.diffMod||0) + (S.tacMod||0)));
   const pDraw = 0.20;
 
   const rnd = Math.random();
@@ -5190,7 +5132,6 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   s.label=isOpp
     ?`🟨 <span style="color:#e84545">PENAL para ${LM.rival}</span> — sos el arquero, ¡atajalo!`
     :`🎯 <span style="color:var(--gold)">¡PENAL!</span> ${mainP.name.split(' ').pop()} al punto`;
-  s.hint=isOpp?'← →↑: movete · Z: ¡tirate a atajar!':'Flechas: apuntá · Z: ¡PATEÁ!';
   const cx=W/2,gy=g.groundY;
   s.ball={x:cx,y:H-58,r:7};
   s.ballStart={x:cx,y:H-58};
@@ -5199,6 +5140,8 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   s.taker={x:cx-34,y:H-44};
   s.kicked=false;s.dove=false;s.diveDir=0;
   s.oppKickDelay=isOpp?115:0;
+  s.power=0;s.charging=false;
+  s.hint=isOpp?'← →↑: movete · Z: ¡tirate a atajar!':'Flechas: apuntá · mantené Z para cargar potencia, soltá para patear';
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
@@ -5225,20 +5168,24 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
         if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
         s.gk.swayT+=dt;
         s.gk.x=cx+Math.sin(s.gk.swayT*.045)*(g.x2-cx)*.18;
-        if(k.shoot&&!s.kicked&&!s.shootLocked){
-          s.shootLocked=true;
-          const err=(91-mainP.rat)*.44*(Math.random()*2-1);
-          const errY=(91-mainP.rat)*.34*(Math.random()*2-1);
+        if(k.shoot&&!s.kicked){
+          if(!s.charging){s.charging=true;s.power=0;}
+          s.power=Math.min(100,s.power+dt*1.8);
+        } else if(s.charging&&!s.kicked){
+          // Released - fire!
+          const pw=s.power;s.charging=false;
+          const errBase=(91-mainP.rat)*.44*(pw<50?2.2:pw<85?1.3:1.0);
+          const err=errBase*(Math.random()*2-1);
+          const errY=(91-mainP.rat)*.34*(pw<50?2.0:pw<85?1.2:1.0)*(Math.random()*2-1);
           const tx=s.aim.x+err, ty=s.aim.y+errY;
           s.target={x:tx,y:ty};s.scorer=mainP;
-          s.kicked=true;s.flightT=0;s.flightDur=28;
-          const reads=Math.random()<(0.38+(oR-62)*.010);
+          s.kicked=true;s.flightT=0;s.flightDur=pw>=85?28:pw>=50?34:40;
+          const reads=Math.random()<(0.38+(oR-62)*.010)*(pw<50?0.5:1);
           if(reads)s.gkDive={x:tx+(Math.random()*2-1)*22,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
           else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
           s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=17+(oR-62)*.45;
+          s.reach=pw<50?8+(oR-62)*.25:pw<85?13+(oR-62)*.38:17+(oR-62)*.45;
         }
-        if(!k.shoot)s.shootLocked=false;
       }
     } else {
       s.flightT+=dt;
@@ -5288,6 +5235,17 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     sitDrawPlayerK(ctx,s.taker.x,s.taker.y,13,kitFor(s.isOpp?LM.rival:LM.myName),s.isOpp?LM.rival.split(' ')[0].slice(0,7):mainP.name.split(' ').pop().slice(0,7),!s.isOpp);
     sitDrawBall(ctx,s.ball);
     if(!s.kicked&&!s.isOpp)sitDrawAim(ctx,s.aim.x,s.aim.y);
+    if(!s.isOpp&&(s.charging||s.power>0)&&!s.kicked){
+      const pw=s.power||0;
+      const bw=120,bh=10,bx=W/2-bw/2,by=H*.62;
+      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(bx-2,by-2,bw+4,bh+4);
+      ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=pw>85?'#e84545':pw>50?'#f0943a':'#0fb866';
+      ctx.fillRect(bx,by,bw*(pw/100),bh);
+      ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+      ctx.fillStyle='#fff';ctx.font='bold 9px Barlow Condensed,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('POTENCIA '+(~~pw)+'%',W/2,by+bh+10);
+    }
     if(!s.kicked&&s.isOpp){
       const cd=Math.max(1,Math.ceil(s.oppKickDelay/35));
       ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(W/2-50,H*.72-16,100,32);
@@ -5433,7 +5391,6 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   s.g=g;
   const dist=18+~~(Math.random()*10);
   s.label=`🟡 <span style="color:var(--gold)">¡TIRO LIBRE!</span> ${mainP.name.split(' ').pop()} desde ${dist} metros`;
-  s.hint='Flechas: apuntá (esquivá la barrera) · Z: ¡PATEÁ!';
   const cx=W/2,gy=g.groundY;
   s.ball={x:cx+(Math.random()*40-20),y:H-52,r:7};
   s.ballStart={x:s.ball.x,y:s.ball.y};
@@ -5443,7 +5400,8 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   s.wallZone={x1:wallCx-62,x2:wallCx+62,topY:g.barY+(gy-g.barY)*.38};
   s.aim={x:cx,y:(g.barY+gy)/2};
   s.gk={x:cx+(Math.random()*30-15),y:gy-22,swayT:0};
-  s.kicked=false;
+  s.kicked=false;s.power=0;s.charging=false;
+  s.hint='Flechas: apuntá (esquivá la barrera) · mantené Z para cargar, soltá para patear';
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
@@ -5453,21 +5411,24 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
       s.gk.swayT+=dt;
       s.gk.x=sC(s.gk.x+Math.sin(s.gk.swayT*.04)*.3*dt,g.x1+16,g.x2-16);
-      if(k.shoot&&!s.kicked&&!s.shootLocked){
-        s.shootLocked=true;
-        const err=(91-mainP.rat)*.50*(Math.random()*2-1);
-        const errY=(91-mainP.rat)*.40*(Math.random()*2-1);
+      if(k.shoot&&!s.kicked){
+        if(!s.charging){s.charging=true;s.power=0;}
+        s.power=Math.min(100,s.power+dt*1.8);
+      } else if(s.charging&&!s.kicked){
+        const pw=s.power;s.charging=false;
+        const errBase=(91-mainP.rat)*.50*(pw<50?2.2:pw<85?1.3:1.0);
+        const err=errBase*(Math.random()*2-1);
+        const errY=(91-mainP.rat)*.40*(pw<50?2.0:pw<85?1.2:1.0)*(Math.random()*2-1);
         const tx=s.aim.x+err, ty=s.aim.y+errY;
         s.target={x:tx,y:ty};s.scorer=mainP;
-        s.kicked=true;s.flightT=0;s.flightDur=36;
-        s.willBlock=tx>s.wallZone.x1&&tx<s.wallZone.x2&&ty>s.wallZone.topY&&Math.random()<.78;
-        const reads=Math.random()<(0.28+(oR-62)*.009);
+        s.kicked=true;s.flightT=0;s.flightDur=pw>=85?36:pw>=50?44:54;
+        s.willBlock=tx>s.wallZone.x1&&tx<s.wallZone.x2&&ty>s.wallZone.topY&&Math.random()<(pw<50?.90:.78);
+        const reads=Math.random()<(0.28+(oR-62)*.009)*(pw<50?0.4:1);
         if(reads)s.gkDive={x:tx+(Math.random()*2-1)*40,y:Math.min(gy-12,ty+(Math.random()*2-1)*30)};
         else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-28-Math.random()*40};
         s.gkStart={x:s.gk.x,y:s.gk.y};
-        s.reach=15+(oR-62)*.45;
+        s.reach=pw<50?8+(oR-62)*.25:pw<85?11+(oR-62)*.38:15+(oR-62)*.45;
       }
-      if(!k.shoot)s.shootLocked=false;
     } else {
       s.flightT+=dt;
       const f=Math.min(1,s.flightT/s.flightDur);
@@ -5496,6 +5457,17 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     sitDrawPlayerK(ctx,s.ballStart.x-32,H-40,13,kitFor(LM.myName),mainP.name.split(' ').pop().slice(0,7),true);
     sitDrawBall(ctx,s.ball);
     if(!s.kicked)sitDrawAim(ctx,s.aim.x,s.aim.y);
+    if((s.charging||s.power>0)&&!s.kicked){
+      const pw=s.power||0;
+      const bw=120,bh=10,bx=W/2-bw/2,by=H*.62;
+      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(bx-2,by-2,bw+4,bh+4);
+      ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=pw>85?'#e84545':pw>50?'#f0943a':'#0fb866';
+      ctx.fillRect(bx,by,bw*(pw/100),bh);
+      ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+      ctx.fillStyle='#fff';ctx.font='bold 9px Barlow Condensed,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('POTENCIA '+(~~pw)+'%',W/2,by+bh+10);
+    }
     sitDrawHint(ctx,W,H,s.hint);
   };
 }
@@ -5785,6 +5757,183 @@ function ctrOff(i){
   lg('↔','Contraoferta: '+fv(o.amount));
   rOffs();
   flash('Contraoferta enviada','draw');
+}
+
+// =============================================
+// DIFFICULTY / TACTIC HELPERS
+// =============================================
+function setDiff(n, btn){
+  window._selectedDiff = n;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('diff-sel'));
+  btn.classList.add('diff-sel');
+}
+
+function setTacticM(mentality, btn){
+  if(!G) return;
+  G.tactic = G.tactic || {style:'Posesión', mentality:'Equilibrado'};
+  G.tactic.mentality = mentality;
+  ['def','eq','of'].forEach(k => {
+    const el = document.getElementById('tac-'+k);
+    if(el){ el.classList.remove('bg'); el.classList.add('bo'); }
+  });
+  const map = {Defensivo:'def', Equilibrado:'eq', Ofensivo:'of'};
+  const active = document.getElementById('tac-'+map[mentality]);
+  if(active){ active.classList.remove('bo'); active.classList.add('bg'); }
+  const labels = {Defensivo:'🛡️ DEF', Equilibrado:'⚖️ EQ', Ofensivo:'⚔️ OF'};
+  flash('Táctica: ' + (labels[mentality]||mentality), 'draw');
+}
+
+// =============================================
+// SOCIAL FEED
+// =============================================
+function rSocial(){
+  const el = document.getElementById('socialFeed');
+  if(!el || !G) return;
+  const tn = G.teamName || 'Boca Juniors';
+  const lastRes = G.wins > G.losses ? 'W' : G.losses > G.wins ? 'L' : 'D';
+  const fans = [
+    {av:'🔵', handle:'@hincha_xeneize', name:'Fan Azul y Oro'},
+    {av:'❤️', handle:'@loco_del_rojo', name:'Hincha Fanatizado'},
+    {av:'⭐', handle:'@periodista_ARG', name:'Periodista TyC'},
+    {av:'🎙️', handle:'@relatando_gg', name:'El Relator'},
+    {av:'😤', handle:'@rival_siempre', name:'Hincha Rival'},
+    {av:'📊', handle:'@estadistica_fx', name:'Stats Fútbol ARG'},
+    {av:'🏆', handle:'@copa_watch', name:'Copa Watch ARG'},
+    {av:'👀', handle:'@scouting_arg', name:'Scouting Argentina'},
+  ];
+  const templates = [
+    () => lastRes==='W' ? `¡¡VICTORIA!! ${tn} sigue caminando firme. El equipo de ${G.dt.name} no para. 🔥🔥🔥` : `Muy difícil lo de ${tn} hoy... esperemos que se recuperen pronto.`,
+    () => `DT ${G.dt.name} con ${G.wins} victorias en lo que va de la temporada. ${G.wins>=5?'¡Un fenómeno!':'Números para mejorar.'}`,
+    () => `El mercado de pases sigue caliente 🔥 ¿Llegará algún refuerzo a ${tn}? Presupuesto: $${G.budget}M`,
+    () => `La tabla no miente: ${G.wins}G-${G.draws}E-${G.losses}P. ${G.wins*3+G.draws} puntos para ${tn}. ${G.wins*3+G.draws>15?'¡Arriba!':'Hay que empujar más.'}`,
+    () => `${tn} tiene ${G.squad.length} jugadores en el plantel. ${G.squad.filter(p=>p.rat>=80).length} con rating 80+. El nivel está.`,
+    () => `Estadio ${G.stadium.name} — ${G.stadium.capacity.toLocaleString()} de capacidad. ${lastRes==='W'?'¡La gente se fue feliz hoy!':'Silencio en las tribunas...'}`,
+    () => `Si ${G.dt.name} sigue así, ${lastRes==='W'?'va a ser el mejor DT del torneo 🏆':'va a tener que explicar mucho en la próxima conferencia de prensa.'}`,
+    () => `Reputación de ${tn}: ${G.rep}/100. ${G.rep>=80?'Un grande del fútbol argentino 💪':'Hay que seguir construyendo.'}`,
+    () => `Moral del plantel: ${G.morale}%. ${G.morale>=75?'Se nota el buen ambiente en los entrenamientos ⚡':'El vestuario necesita un golpe de energía 😬'}`,
+    () => `¿El fixture de ${tn} es justo? ${G.losses>G.wins?'Parece que no están teniendo suerte...':'Los resultados hablan solos 🗣️'}`,
+  ];
+  const shuffled = [...templates].sort(() => Math.random()-.5).slice(0,8);
+  const shuffledFans = [...fans].sort(() => Math.random()-.5);
+  el.innerHTML = shuffled.map((t,i) => {
+    const fan = shuffledFans[i % shuffledFans.length];
+    const likes = ~~(Math.random()*500)+10;
+    const rts = ~~(Math.random()*150)+2;
+    return `<div class="tweet">
+      <div style="display:flex;gap:9px;align-items:flex-start">
+        <div class="tweet-avatar">${fan.av}</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:5px">
+            <span class="tweet-handle">${fan.handle}</span>
+            <span class="tweet-user">${fan.name}</span>
+          </div>
+          <div class="tweet-text">${t()}</div>
+          <div class="tweet-stats">
+            <span>❤️ ${likes}</span>
+            <span>🔁 ${rts}</span>
+            <span>💬 ${~~(Math.random()*50)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =============================================
+// 11vs11 FULL MATCH MODE
+// =============================================
+function startFullMatch(){
+  if(!G) return;
+  const m = G.calendar.find(x => !x.played);
+  if(!m){ flash('No hay partidos pendientes','loss'); return; }
+  const S = matchStrengths(m);
+  const isHome = m.home === G.teamName;
+  const opp = isHome ? m.away : m.home;
+
+  // Generate match events
+  const totalMins = 90;
+  const events = [];
+  const diff = S.myS - S.oppS + S.homeBonus;
+  const pWin = Math.max(0.10, Math.min(0.80, 0.43 + diff*1.4 + (S.diffMod||0) + (S.tacMod||0)));
+
+  // Pre-generate final score
+  const rnd = Math.random();
+  let finalGF, finalGA;
+  if(rnd < pWin){ finalGF=~~(Math.random()*4)+1; finalGA=~~(Math.random()*Math.min(2,finalGF)); }
+  else if(rnd < pWin+0.20){ finalGF=~~(Math.random()*2); finalGA=finalGF; }
+  else { finalGA=~~(Math.random()*4)+1; finalGF=~~(Math.random()*Math.min(2,finalGA)); }
+
+  // Generate scorer minutes for my goals
+  const myGoalMins = [];
+  for(let i=0;i<finalGF;i++) myGoalMins.push(1+~~(Math.random()*89));
+  myGoalMins.sort((a,b)=>a-b);
+  const oppGoalMins = [];
+  for(let i=0;i<finalGA;i++) oppGoalMins.push(1+~~(Math.random()*89));
+  oppGoalMins.sort((a,b)=>a-b);
+
+  // Scorers from XI
+  const fwds = S.xi.filter(p=>p.pos==='DEL'||p.pos==='MC');
+  const scorerPool = fwds.length ? fwds : S.xi;
+
+  const myEvents = myGoalMins.map(min=>{
+    const scorer = scorerPool[~~(Math.random()*scorerPool.length)];
+    return {min, type:'goal', team:'my', name: scorer ? scorer.name.split(' ').pop() : 'Jugador'};
+  });
+  const oppEvents = oppGoalMins.map(min=>({min, type:'goal', team:'opp', name:'Rival'}));
+  const allGoals = [...myEvents, ...oppEvents].sort((a,b)=>a.min-b.min);
+
+  // Build commentary by segments
+  const segs = [
+    {label:'Minuto 1-15', start:1, end:15, comment: diff>0.1?'Buen comienzo del equipo, presionando alto.':'El rival entra fuerte, cuidado atrás.'},
+    {label:'Minuto 16-30', start:16, end:30, comment: finalGF>0?'Se nota la superioridad en ataque.':'Partido muy parejo en el mediocampo.'},
+    {label:'Minuto 31-45', start:31, end:45, comment: '¡Fin del primer tiempo!'},
+    {label:'Minuto 46-60', start:46, end:60, comment: 'El equipo sale enchufado en el complemento.'},
+    {label:'Minuto 61-75', start:61, end:75, comment: diff>0?'Dominamos el juego.':'El rival presiona buscando el empate.'},
+    {label:'Minuto 76-90', start:76, end:90, comment: '¡Se acaba el tiempo! Los últimos minutos son claves.'},
+  ];
+
+  let html = `<div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;text-align:center;margin-bottom:12px;color:var(--gold)">🏟️ PARTIDO EN VIVO</div>`;
+  html += `<div style="text-align:center;font-size:14px;margin-bottom:10px;font-family:'Barlow Condensed',sans-serif">${m.home} <span style="color:var(--t3)">vs</span> ${m.away}</div>`;
+
+  let curGF=0, curGA=0;
+  segs.forEach(seg=>{
+    html += `<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:8px 10px;margin-bottom:6px">`;
+    html += `<div style="font-size:10px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;margin-bottom:4px">${seg.label}</div>`;
+
+    // Goals in this segment
+    const segGoals = allGoals.filter(g=>g.min>=seg.start && g.min<=seg.end);
+    segGoals.forEach(g=>{
+      if(g.team==='my') curGF++;
+      else curGA++;
+      const icon = g.team==='my' ? '⚽' : '❌';
+      const color = g.team==='my' ? 'var(--green)' : 'var(--red)';
+      html += `<div style="color:${color};font-size:12px;margin-bottom:2px">${icon} <strong>GOL!</strong> ${g.name} — min ${g.min} (${curGF}-${curGA})</div>`;
+    });
+
+    html += `<div style="font-size:11px;color:var(--tx)">${seg.comment}</div>`;
+    html += `</div>`;
+  });
+
+  const resColor = finalGF>finalGA?'var(--green)':finalGF===finalGA?'var(--ora)':'var(--red)';
+  const resText = finalGF>finalGA?'¡VICTORIA!':finalGF===finalGA?'EMPATE':'DERROTA';
+  html += `<div style="text-align:center;padding:14px;background:rgba(255,255,255,.06);border-radius:10px;margin-top:8px">`;
+  html += `<div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${resColor}">${finalGF} - ${finalGA}</div>`;
+  html += `<div style="font-size:13px;color:${resColor};font-weight:700">${resText}</div>`;
+  html += `<button class="btn bg bs" style="margin-top:10px" onclick="applyFullMatchResult(${finalGF},${finalGA});closeMod()">✅ CONFIRMAR RESULTADO</button>`;
+  html += `</div>`;
+
+  showMod(html);
+  // Store pending match for apply
+  window._pendingMatchResult = {m, gf: finalGF, ga: finalGA, scorers: myEvents};
+}
+
+function applyFullMatchResult(gf, ga){
+  if(!window._pendingMatchResult) return;
+  const {m, scorers} = window._pendingMatchResult;
+  window._pendingMatchResult = null;
+  applyMatchResult(m, gf, ga, scorers);
+  updateUI();
+  flash(gf>ga?'¡Victoria en el 11vs11!':gf===ga?'Empate en el 11vs11':'Derrota en el 11vs11', gf>ga?'win':gf===ga?'draw':'loss');
 }
 
 // =============================================
