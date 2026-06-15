@@ -6147,140 +6147,93 @@ function fmSwitch(){
 
 function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
-  const players=isM?f.my:f.opp;
-  const hasPoss=f.poss&&f.poss.team===team&&f.poss.idx===idx;
-  // Where each team attacks (portrait only)
-  const myGoalY=f.myAttUp?f.topGL+4:f.botGL-4;
-  const oppGoalY=f.myAttUp?f.botGL-4:f.topGL+4;
-  const tGY=isM?myGoalY:oppGoalY;   // this team shoots here
-  const ownGY=isM?oppGoalY:myGoalY; // own goal to defend
+  const attRight=isM?f.myAttRight:!f.myAttRight;
+  const tgx=attRight?f.rightGL+5:f.leftGL-5;
+  const ownGX=attRight?f.leftGL-5:f.rightGL+5;
+  const mid=f.VH/2;
+  const bd=Math.hypot(p.x-b.x,p.y-b.y);
+  const KICK_R=p.r+6.5+12;
 
-  if(hasPoss){
-    const dx=f.VW/2-p.x,dy=tGY-p.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x+(dx/d)*p.spd*1.65*dt));
-    p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y+(dy/d)*p.spd*1.65*dt));
-    b.x=p.x;b.y=p.y;b.vx=0;b.vy=0;
-    // Shoot if close to goal
-    if(Math.abs(p.y-tGY)<f.VH*0.29&&Math.random()<0.016*dt){
-      const sx=f.VW/2+(Math.random()*f.GW*1.4-f.GW*.7);
-      const ddx=sx-b.x,ddy=tGY-b.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-      b.vx=(ddx/dd)*(5+Math.random()*5);b.vy=(ddy/dd)*(5+Math.random()*5);
-      f.poss=null;f.lastTouch={team,idx};return;
-    }
-    // Random forward pass
-    if(Math.random()<0.005*dt){
-      const fwd=isM?(f.myAttUp?q=>q.y<p.y-40:q=>q.y>p.y+40):(f.myAttUp?q=>q.y>p.y+40:q=>q.y<p.y-40);
-      const fwds=players.filter((_,i)=>i!==idx&&fwd(_));
-      if(fwds.length){
-        const t=fwds[~~(Math.random()*fwds.length)];
-        const ddx=t.x-b.x,ddy=t.y-b.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        b.vx=(ddx/dd)*(3.5+Math.random()*4);b.vy=(ddy/dd)*(3.5+Math.random()*4);
-        f.poss=null;f.lastTouch={team,idx};
-      }
-    }
-    return;
-  }
-
-  // Positioning
-  const weHave=(f.poss?.team===team)||(f.lastTouch?.team===team&&!f.poss);
-  let tx,ty;
   if(p.isGK){
-    tx=Math.max(f.VW*.22,Math.min(f.VW*.78,b.x));
-    ty=ownGY;
-    const ballClose=isM?(f.myAttUp?b.y<f.VH*.28:b.y>f.VH*.72):(f.myAttUp?b.y>f.VH*.72:b.y<f.VH*.28);
-    if(ballClose)ty=Math.max(p.r+2,Math.min(f.VH-p.r-2,b.y));
-  }else if(weHave){
-    const pushFwd=isM?(f.myAttUp?-52:52):(f.myAttUp?52:-52);
-    tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx+(b.x-f.VW/2)*.18));
-    ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+pushFwd));
-  }else{
-    const pd=Math.hypot(p.x-b.x,p.y-b.y);
-    if(pd<145&&!['GK','CB','LB','RB'].includes(p.role)){tx=b.x;ty=b.y;}
-    else{
-      const pullBack=isM?(f.myAttUp?30:-30):(f.myAttUp?-30:30);
-      tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx));
-      ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+pullBack));
+    const gkX=ownGX+(attRight?22:-22);
+    const gkY=Math.max(mid-f.GH+8,Math.min(mid+f.GH-8,b.y));
+    fmMove(p,gkX-p.x,gkY-p.y,dt,.055);
+    // Clear if ball very close to own goal
+    const ballNearGoal=attRight?b.x<f.leftGL+55:b.x>f.rightGL-55;
+    if(ballNearGoal&&bd<KICK_R){
+      const ddx=tgx-b.x,ddy=mid-b.y,dd=Math.hypot(ddx,ddy)||1;
+      b.vx=(ddx/dd)*6;b.vy=(ddy/dd)*5+(Math.random()-.5)*2;
     }
+  }else if(bd<KICK_R*2.2){
+    // Near ball: move to push it toward goal
+    const dx=tgx-p.x,dy=mid-p.y,d=Math.hypot(dx,dy)||1;
+    fmMove(p,dx/d,dy/d,dt,.065);
+    // AI shoot if in good position
+    const distToGoal=attRight?f.rightGL-p.x:p.x-f.leftGL;
+    if(bd<=KICK_R&&distToGoal<f.VW*.32&&Math.random()<.022*dt){
+      const aimY=(Math.random()-.5)*f.GH*1.1;
+      const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+      b.vx=(ddx/dd)*(4.5+Math.random()*3);b.vy=(ddy/dd)*(4.5+Math.random()*3);
+    }
+  }else{
+    const ballInMyHalf=attRight?b.x<f.VW/2:b.x>f.VW/2;
+    const shift=ballInMyHalf?(attRight?-32:32):(attRight?32:-32);
+    const tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx+shift));
+    const ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+(b.y-mid)*.14));
+    fmMove(p,tx-p.x,ty-p.y,dt,.055);
   }
-  const mdx=tx-p.x,mdy=ty-p.y,md=Math.sqrt(mdx*mdx+mdy*mdy);
-  if(md>5){p.x+=mdx/md*p.spd*1.85*dt;p.y+=mdy/md*p.spd*1.85*dt;}
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-  // Tackle
-  if(f.poss&&f.poss.team!==team){
-    const car=(f.poss.team==='my'?f.my:f.opp)[f.poss.idx];
-    if(Math.hypot(p.x-car.x,p.y-car.y)<19&&Math.random()<0.024*dt){
-      f.poss=null;b.vx+=(Math.random()-.5)*3.5;b.vy+=(Math.random()-.5)*3.5;
-    }
-  }
 }
 
 function fmBall(dt){
   const f=FM,b=f.ball;
-  if(f.poss||f.phase!=='play')return;
+  if(f.phase!=='play')return;
+  b.vx*=Math.pow(.989,dt);b.vy*=Math.pow(.989,dt);
   b.x+=b.vx*dt;b.y+=b.vy*dt;
-  b.vx*=Math.pow(.955,dt);b.vy*=Math.pow(.955,dt);
-  const gx1=f.VW/2-f.GW,gx2=f.VW/2+f.GW;
-  // Side walls
-  if(b.x<7){b.x=7;b.vx=Math.abs(b.vx)*.62;}
-  if(b.x>f.VW-7){b.x=f.VW-7;b.vx=-Math.abs(b.vx)*.62;}
-  // Top — goal or wall bounce
-  if(b.y<f.topGL){
-    if(b.x>gx1&&b.x<gx2){
-      if(f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
+  // Top/bottom touchlines
+  if(b.y<8){b.y=8;b.vy=Math.abs(b.vy)*.62;}
+  if(b.y>f.VH-8){b.y=f.VH-8;b.vy=-Math.abs(b.vy)*.62;}
+  const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH;
+  // Left goal or wall
+  if(b.x<f.leftGL){
+    if(b.y>gy1&&b.y<gy2){
+      if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
-    }else{b.y=f.topGL;b.vy=Math.abs(b.vy)*.58;}
+    }else{b.x=f.leftGL;b.vx=Math.abs(b.vx)*.58;}
   }
-  // Bottom — goal or wall bounce
-  if(b.y>f.botGL){
-    if(b.x>gx1&&b.x<gx2){
-      if(!f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
+  // Right goal or wall
+  if(b.x>f.rightGL){
+    if(b.y>gy1&&b.y<gy2){
+      if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
-    }else{b.y=f.botGL;b.vy=-Math.abs(b.vy)*.58;}
+    }else{b.x=f.rightGL;b.vx=-Math.abs(b.vx)*.58;}
   }
 }
 
-function fmPickup(){
-  const f=FM,b=f.ball;
-  if(f.poss||f.phase!=='play')return;
-  if(Math.hypot(b.vx,b.vy)>2.6)return;
-  const tryT=(pl,team)=>{
-    for(let i=0;i<pl.length;i++){
-      if(Math.hypot(pl[i].x-b.x,pl[i].y-b.y)<17){
-        f.poss={team,idx:i};f.lastTouch={team,idx:i};b.vx=0;b.vy=0;
-        if(team==='my')f.ctrl=i;return true;
-      }
-    }
-    return false;
-  };
-  tryT(f.my,'my')||tryT(f.opp,'opp');
-}
 
 function fmReset(kickTeam){
   const f=FM;
-  // Reset each player to their current home position (may be flipped for half 2)
   f.my.forEach(pl=>{pl.x=pl.hx;pl.y=pl.hy;pl.vx=0;pl.vy=0;});
   f.opp.forEach(pl=>{pl.x=pl.hx;pl.y=pl.hy;pl.vx=0;pl.vy=0;});
   f.ball={x:f.VW/2,y:f.VH/2,vx:0,vy:0};
-  f.poss=null;f.charging=false;f.power=0;
+  f.charging=false;f.power=0;
   if(kickTeam==='my'){
-    f.my[10].x=f.VW/2;
-    f.my[10].y=f.VH/2+(f.myAttUp?16:-16);
-    f.poss={team:'my',idx:10};f.ctrl=10;
+    f.my[10].x=f.VW/2+(f.myAttRight?-14:14);
+    f.my[10].y=f.VH/2+8;f.ctrl=10;
   }else{
-    f.opp[10].x=f.VW/2;
-    f.opp[10].y=f.VH/2+(f.myAttUp?-16:16);
-    f.poss={team:'opp',idx:10};
+    f.opp[10].x=f.VW/2+(f.myAttRight?14:-14);
+    f.opp[10].y=f.VH/2-8;
   }
 }
 
 function fmFlip(){
   const f=FM;
-  f.my.forEach(p=>{p.hy=f.VH-p.hy;});
-  f.opp.forEach(p=>{p.hy=f.VH-p.hy;});
-  f.myAttUp=!f.myAttUp;
+  f.my.forEach(p=>{p.hx=f.VW-p.hx;});
+  f.opp.forEach(p=>{p.hx=f.VW-p.hx;});
+  f.myAttRight=!f.myAttRight;
 }
 
 function fmDraw(){
@@ -6290,131 +6243,128 @@ function fmDraw(){
   ctx.fillStyle='#071407';ctx.fillRect(0,0,W,H);
   ctx.save();
   ctx.translate(f.ox,f.oy);ctx.scale(f.sc,f.sc);
-  const{VW,VH,GW,topGL,botGL}=f;
-  const mid=(topGL+botGL)/2;
-  const gx1=VW/2-GW,gx2=VW/2+GW;
-  const netH=36;
+  const{VW,VH,GH,leftGL,rightGL}=f;
+  const mid=VH/2,cx=VW/2;
+  const netW=34;
+  const gy1=mid-GH,gy2=mid+GH;
 
-  // === GRASS — green gradient + horizontal stripes (like mini-game) ===
+  // === GRASS — gradient + horizontal stripes (same as sit mini-game) ===
   const gr=ctx.createLinearGradient(0,0,0,VH);
   gr.addColorStop(0,'#14572b');gr.addColorStop(.5,'#1d7a3e');gr.addColorStop(1,'#14572b');
   ctx.fillStyle=gr;ctx.fillRect(0,0,VW,VH);
   ctx.fillStyle='rgba(255,255,255,.022)';
-  for(let i=0;i<VH;i+=52){ctx.fillRect(0,i,VW,26);}
+  for(let i=0;i<VH;i+=34){ctx.fillRect(0,i,VW,17);}
 
   // === FIELD LINES ===
   ctx.save();
-  ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=1.8;
-  // Outer rectangle (between the two goal lines)
-  ctx.strokeRect(6,topGL,VW-12,botGL-topGL);
-  // Midfield line
-  ctx.beginPath();ctx.moveTo(6,mid);ctx.lineTo(VW-6,mid);ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=1.7;
+  // Touchlines + goal lines
+  ctx.strokeRect(leftGL,7,rightGL-leftGL,VH-14);
+  // Center line (vertical)
+  ctx.beginPath();ctx.moveTo(cx,7);ctx.lineTo(cx,VH-7);ctx.stroke();
   // Center circle
-  ctx.beginPath();ctx.arc(VW/2,mid,60,0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(VW/2,mid,4,0,Math.PI*2);ctx.fill();
-  // TOP penalty area
-  const paH=(botGL-topGL)*.19,paW=VW*.70;
-  ctx.strokeRect(VW/2-paW/2,topGL,paW,paH);
-  // TOP small area (6-yard box)
-  const saH=(botGL-topGL)*.085,saW=VW*.36;
-  ctx.strokeRect(VW/2-saW/2,topGL,saW,saH);
-  // BOTTOM penalty area
-  ctx.strokeRect(VW/2-paW/2,botGL-paH,paW,paH);
-  // BOTTOM small area
-  ctx.strokeRect(VW/2-saW/2,botGL-saH,saW,saH);
+  ctx.beginPath();ctx.arc(cx,mid,46,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(cx,mid,4,0,Math.PI*2);ctx.fill();
+  // Left penalty area
+  const paW=(rightGL-leftGL)*.175,paH=VH*.66;
+  ctx.strokeRect(leftGL,mid-paH/2,paW,paH);
+  const sbW=(rightGL-leftGL)*.08,sbH=VH*.34;
+  ctx.strokeRect(leftGL,mid-sbH/2,sbW,sbH);
+  // Right penalty area
+  ctx.strokeRect(rightGL-paW,mid-paH/2,paW,paH);
+  ctx.strokeRect(rightGL-sbW,mid-sbH/2,sbW,sbH);
   // Penalty spots
   ctx.fillStyle='rgba(255,255,255,.75)';
-  ctx.beginPath();ctx.arc(VW/2,topGL+paH*.75,3.5,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(VW/2,botGL-paH*.75,3.5,0,Math.PI*2);ctx.fill();
-  // Penalty arcs
-  ctx.beginPath();ctx.arc(VW/2,topGL+paH*.75,42,Math.PI*.18,Math.PI*.82);ctx.stroke();
-  ctx.beginPath();ctx.arc(VW/2,botGL-paH*.75,42,Math.PI*1.18,Math.PI*1.82);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,3.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,3.5,0,Math.PI*2);ctx.fill();
+  // Penalty arcs (outside penalty box)
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,36,-Math.PI*.28,Math.PI*.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,36,Math.PI*.72,Math.PI*1.28);ctx.stroke();
   // Corner arcs
-  ctx.beginPath();ctx.arc(6,topGL,13,0,Math.PI/2);ctx.stroke();
-  ctx.beginPath();ctx.arc(VW-6,topGL,13,Math.PI/2,Math.PI);ctx.stroke();
-  ctx.beginPath();ctx.arc(6,botGL,13,-Math.PI/2,0);ctx.stroke();
-  ctx.beginPath();ctx.arc(VW-6,botGL,13,Math.PI,-Math.PI/2,true);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,7,11,0,Math.PI/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,7,11,Math.PI/2,Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,VH-7,11,-Math.PI/2,0);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,VH-7,11,Math.PI,-Math.PI/2,true);ctx.stroke();
   ctx.restore();
 
-  // === TOP GOAL (opp defends in half 1) ===
-  // Net
-  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(gx1,topGL-netH,GW*2,netH);
-  ctx.strokeStyle='rgba(255,255,255,.17)';ctx.lineWidth=0.7;
-  for(let ny=topGL-netH;ny<topGL;ny+=8){ctx.beginPath();ctx.moveTo(gx1,ny);ctx.lineTo(gx2,ny);ctx.stroke();}
-  for(let nx=gx1;nx<=gx2;nx+=9){ctx.beginPath();ctx.moveTo(nx,topGL-netH);ctx.lineTo(nx,topGL);ctx.stroke();}
-  // Posts
+  // === LEFT GOAL ===
+  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(leftGL-netW,gy1,netW,GH*2);
+  ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=0.7;
+  for(let ny=gy1;ny<=gy2;ny+=8){ctx.beginPath();ctx.moveTo(leftGL-netW,ny);ctx.lineTo(leftGL,ny);ctx.stroke();}
+  for(let nx=leftGL-netW;nx<=leftGL;nx+=9){ctx.beginPath();ctx.moveTo(nx,gy1);ctx.lineTo(nx,gy2);ctx.stroke();}
   ctx.fillStyle='#fff';
-  ctx.fillRect(gx1-3,topGL-netH,4,netH+3);
-  ctx.fillRect(gx2-1,topGL-netH,4,netH+3);
-  ctx.fillRect(gx1-3,topGL-netH-1,GW*2+7,4); // crossbar top beam
-  // Crossbar line
+  ctx.fillRect(leftGL-netW-2,gy1-2,netW+2,3);
+  ctx.fillRect(leftGL-netW-2,gy2,netW+2,3);
+  ctx.fillRect(leftGL-netW-3,gy1-2,3,GH*2+4);
   ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2.5;
-  ctx.beginPath();ctx.moveTo(gx1-1,topGL);ctx.lineTo(gx2+1,topGL);ctx.stroke();
-  // Team label
-  ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText((f.myAttUp?f.opp:G.teamName).slice(0,11),VW/2,topGL-netH/2);
+  ctx.beginPath();ctx.moveTo(leftGL,gy1-1);ctx.lineTo(leftGL,gy2+1);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.38)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((f.myAttRight?f.opp:G.teamName).slice(0,10),leftGL-netW/2,mid);
 
-  // === BOTTOM GOAL (my team defends in half 1) ===
-  // Net
-  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(gx1,botGL,GW*2,netH);
-  ctx.strokeStyle='rgba(255,255,255,.17)';ctx.lineWidth=0.7;
-  for(let ny=botGL;ny<botGL+netH;ny+=8){ctx.beginPath();ctx.moveTo(gx1,ny);ctx.lineTo(gx2,ny);ctx.stroke();}
-  for(let nx=gx1;nx<=gx2;nx+=9){ctx.beginPath();ctx.moveTo(nx,botGL);ctx.lineTo(nx,botGL+netH);ctx.stroke();}
-  // Posts
+  // === RIGHT GOAL ===
+  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(rightGL,gy1,netW,GH*2);
+  ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=0.7;
+  for(let ny=gy1;ny<=gy2;ny+=8){ctx.beginPath();ctx.moveTo(rightGL,ny);ctx.lineTo(rightGL+netW,ny);ctx.stroke();}
+  for(let nx=rightGL;nx<=rightGL+netW;nx+=9){ctx.beginPath();ctx.moveTo(nx,gy1);ctx.lineTo(nx,gy2);ctx.stroke();}
   ctx.fillStyle='#fff';
-  ctx.fillRect(gx1-3,botGL-3,4,netH+5);
-  ctx.fillRect(gx2-1,botGL-3,4,netH+5);
-  ctx.fillRect(gx1-3,botGL+netH-2,GW*2+7,4); // back beam
-  // Crossbar line
+  ctx.fillRect(rightGL,gy1-2,netW+2,3);
+  ctx.fillRect(rightGL,gy2,netW+2,3);
+  ctx.fillRect(rightGL+netW,gy1-2,3,GH*2+4);
   ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2.5;
-  ctx.beginPath();ctx.moveTo(gx1-1,botGL);ctx.lineTo(gx2+1,botGL);ctx.stroke();
-  // Team label
-  ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText((f.myAttUp?G.teamName:f.opp).slice(0,11),VW/2,botGL+netH/2);
+  ctx.beginPath();ctx.moveTo(rightGL,gy1-1);ctx.lineTo(rightGL,gy2+1);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.38)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((f.myAttRight?G.teamName:f.opp).slice(0,10),rightGL+netW/2,mid);
 
-  // === DTs on sidelines ===
+  // === DTs on sideline ===
   const drawDT=(x,y,kit)=>{
-    ctx.fillStyle=kit.c1;ctx.fillRect(x-5,y,10,20);
-    ctx.fillStyle=kit.c2;ctx.fillRect(x-5,y+10,10,10);
-    ctx.fillStyle='#f5d5a0';ctx.beginPath();ctx.arc(x,y-5,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=kit.c1;ctx.fillRect(x-4,y,9,18);
+    ctx.fillStyle=kit.c2;ctx.fillRect(x-4,y+9,9,9);
+    ctx.fillStyle='#f5d5a0';ctx.beginPath();ctx.arc(x+.5,y-4,4.5,0,Math.PI*2);ctx.fill();
   };
-  drawDT(VW-13,mid+10,f.myKit);
-  drawDT(11,mid-34,f.oppKit);
+  drawDT(cx+18,VH-13,f.myKit);
+  drawDT(cx-24,3,f.oppKit);
+
+  // === AIM DASHED LINE (controlled player → goal target) ===
+  if(f.phase==='play'){
+    const cp=f.my[f.ctrl];
+    if(cp){
+      const k=f.keys;
+      const tgx=f.myAttRight?f.rightGL+4:f.leftGL-4;
+      const aimY=(k.dn?f.GH*.88:0)-(k.up?f.GH*.88:0);
+      ctx.save();ctx.strokeStyle='rgba(246,211,24,.3)';ctx.lineWidth=1.3;ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(cp.x,cp.y);ctx.lineTo(tgx,mid+aimY);ctx.stroke();
+      ctx.setLineDash([]);ctx.restore();
+    }
+  }
 
   // === PLAYERS ===
   const drawP=(p,isCtrl)=>{
-    // Shadow
     ctx.beginPath();ctx.ellipse(p.x,p.y+p.r+2,p.r*.72,2.2,0,0,Math.PI*2);
     ctx.fillStyle='rgba(0,0,0,.28)';ctx.fill();
-    // Jersey (split top/bottom — matching sitDrawPlayerK style)
     ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.clip();
     ctx.fillStyle=p.kit.c1;ctx.fillRect(p.x-p.r,p.y-p.r,p.r*2,p.r);
     ctx.fillStyle=p.kit.c2;ctx.fillRect(p.x-p.r,p.y,p.r*2,p.r);
     ctx.restore();
-    // Border ring
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
     ctx.strokeStyle=isCtrl?'#f6d318':'rgba(255,255,255,.42)';
-    ctx.lineWidth=isCtrl?2.8:1.5;ctx.stroke();
-    // Selection halo
-    if(isCtrl){ctx.beginPath();ctx.arc(p.x,p.y,p.r+5,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.42)';ctx.lineWidth=2;ctx.stroke();}
-    // Name tag
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-16,p.y+p.r+3,32,10);
-    ctx.fillStyle='#fff';ctx.font='bold 8px sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.name.slice(0,5),p.x,p.y+p.r+8);
+    ctx.lineWidth=isCtrl?2.5:1.4;ctx.stroke();
+    if(isCtrl){ctx.beginPath();ctx.arc(p.x,p.y,p.r+5,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.38)';ctx.lineWidth=2;ctx.stroke();}
+    ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(p.x-15,p.y+p.r+2,30,10);
+    ctx.fillStyle='#fff';ctx.font='bold 7px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.name.slice(0,5),p.x,p.y+p.r+7);
   };
   f.opp.forEach(p=>drawP(p,false));
   f.my.forEach((p,i)=>drawP(p,i===f.ctrl));
 
   // === BALL ===
   const b=f.ball;
-  ctx.beginPath();ctx.ellipse(b.x,b.y+8,5,1.8,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.22)';ctx.fill();
-  ctx.beginPath();ctx.arc(b.x,b.y,7,0,Math.PI*2);
-  const bg=ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,7);
+  ctx.beginPath();ctx.ellipse(b.x,b.y+6.5,4.5,1.5,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.22)';ctx.fill();
+  ctx.beginPath();ctx.arc(b.x,b.y,6.5,0,Math.PI*2);
+  const bg=ctx.createRadialGradient(b.x-1.5,b.y-1.5,1,b.x,b.y,6.5);
   bg.addColorStop(0,'#fff');bg.addColorStop(1,'#c8c8c8');
   ctx.fillStyle=bg;ctx.fill();
-  ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle='#444';ctx.lineWidth=.9;ctx.stroke();
 
-  // Dim overlay for non-play phases
   if(f.phase!=='play'){ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(0,0,VW,VH);}
   ctx.restore();
 }
