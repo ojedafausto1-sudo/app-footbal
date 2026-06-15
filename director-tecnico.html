@@ -1986,7 +1986,7 @@ function buildYouth(){
   };
 }
 
-function buildCal(teamName){
+function buildCal(teamName, teamId){
   teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
   const all18 = ['Racing Club','San Lorenzo','River Plate','Independiente','Boca Juniors',
     'Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán',
@@ -2009,8 +2009,9 @@ function buildCal(teamName){
     sch.push({week:i+20, comp:'Liga Profesional', home:r, away:teamName, played:false,result:null,score:null});
   });
   // Copa Libertadores GS: only for teams with initRep >= 72 (top clubs qualify)
-  const tc=TEAMS[G.teamId||'boca'];
-  const qualifiesLib=(tc&&tc.initRep>=72)||G.qualifiedLib;
+  const resolvedTeamId = teamId || (G&&G.teamId) || 'boca';
+  const tc=TEAMS[resolvedTeamId];
+  const qualifiesLib=(tc&&tc.initRep>=72)||!!(G&&G.qualifiedLib);
   if(qualifiesLib){
     const libWeeks = [2,4,6,8,11,13,16,18];
     libG.forEach(([r,nat],i) => {
@@ -2177,7 +2178,7 @@ function initGame(teamId){
     staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0},
     squad: buildSquad(teamId),
     market: buildMkt(),
-    calendar: buildCal(tc.name),
+    calendar: buildCal(tc.name, teamId),
     log: [],
     news: [],
     offers: [],
