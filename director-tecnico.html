@@ -5887,7 +5887,7 @@ function fmBodyBall(p,b){
   if(rvn<0){b.vx-=1.55*rvn*nx;b.vy-=1.55*rvn*ny;}
   b.vx+=p.vx*.28;b.vy+=p.vy*.28;
   const bv=Math.hypot(b.vx,b.vy);
-  if(bv>8){b.vx*=8/bv;b.vy*=8/bv;}
+  if(bv>6){b.vx*=6/bv;b.vy*=6/bv;}
   return true;
 }
 
@@ -5965,16 +5965,16 @@ function fmInit(m,W,H){
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
   // Landscape side-view — bigger field, Haxball-style
-  const VW=1300,VH=720;
+  const VW=1600,VH=900;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GH=96,leftGL=48,rightGL=1252;
+  const GH=118,leftGL=58,rightGL=1542;
   // 4-4-2 — my team LEFT half, attacks RIGHT (half 1)
   const myPos=[
-    [65,360],
-    [240,595],[265,420],[265,300],[240,125],
-    [490,615],[520,420],[520,300],[490,95],
-    [720,390],[720,330],
+    [80,450],
+    [295,740],[325,525],[325,375],[295,160],
+    [605,765],[640,525],[640,375],[605,120],
+    [885,490],[885,410],
   ];
   const oppPos=myPos.map(([x,y])=>[VW-x,y]);
   const roles=['GK','RB','CB','CB','LB','RM','CM','CM','LM','CF','CF'];
@@ -5986,7 +5986,7 @@ function fmInit(m,W,H){
     name:name.split(' ').pop().slice(0,6),
     r:13,kit,role,isGK:role==='GK',
     rat:Math.round(rat),
-    spd:role==='GK'?1.5:1.55+(rat-70)*0.015,
+    spd:role==='GK'?1.22:1.28+(rat-70)*0.011,
   });
   FM={
     m,S,opp,myKit,oppKit,
@@ -6113,7 +6113,7 @@ function fmTick(dt){
 function fmCtrl(dt){
   const f=FM,k=f.keys,p=f.my[f.ctrl];if(!p)return;
   const dx=k.rt-k.lf,dy=k.dn-k.up;
-  fmMove(p,dx,dy,dt,.088);
+  fmMove(p,dx,dy,dt,.062);
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
   const b=f.ball,bd=Math.hypot(p.x-b.x,p.y-b.y);
@@ -6127,7 +6127,7 @@ function fmCtrl(dt){
       const pvnx=(p.vx||0)/pv,pvny=(p.vy||0)/pv;
       const kx=nx*0.62+pvnx*0.38,ky=ny*0.62+pvny*0.38;
       const kd=Math.hypot(kx,ky)||1;
-      const spd=6.8+(p.spd-1.4)*1.3;
+      const spd=4.6+(p.spd-1.3)*0.9;
       b.vx=(kx/kd)*spd+(Math.random()-.5)*.12;
       b.vy=(ky/kd)*spd+(Math.random()-.5)*.12;
     }
@@ -6181,13 +6181,13 @@ function fmAI(p,team,idx,dt){
 
   // --- GK: hug goal line, track ball laterally, clear if ball close ---
   if(p.isGK){
-    const gkX=ownGX+(attRight?30:-30);
-    const gkY=Math.max(mid-f.GH+12,Math.min(mid+f.GH-12,b.y));
-    fmMove(p,gkX-p.x,gkY-p.y,dt,.06);
-    const near=attRight?b.x<f.leftGL+110:b.x>f.rightGL-110;
+    const gkX=ownGX+(attRight?36:-36);
+    const gkY=Math.max(mid-f.GH+14,Math.min(mid+f.GH-14,b.y));
+    fmMove(p,gkX-p.x,gkY-p.y,dt,.044);
+    const near=attRight?b.x<f.leftGL+135:b.x>f.rightGL-135;
     if(near&&bd<KICK_R){
       const ddx=tgx-b.x,ddy=mid-b.y,dd=Math.hypot(ddx,ddy)||1;
-      b.vx=(ddx/dd)*6.2;b.vy=(ddy/dd)*5+(Math.random()-.5)*1.5;
+      b.vx=(ddx/dd)*4.5;b.vy=(ddy/dd)*3.8+(Math.random()-.5)*1.2;
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
     p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
@@ -6207,13 +6207,13 @@ function fmAI(p,team,idx,dt){
   if(isChaser){
     // Move toward ball to push it
     const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy)||1;
-    fmMove(p,dx/d,dy/d,dt,.068);
+    fmMove(p,dx/d,dy/d,dt,.052);
     // Shoot if in range and near goal
     const distToGoal=attRight?f.rightGL-p.x:p.x-f.leftGL;
-    if(bd<=KICK_R&&distToGoal<fieldW*.42&&Math.random()<.022*dt){
-      const aimY=(Math.random()-.5)*f.GH*0.9;
+    if(bd<=KICK_R&&distToGoal<fieldW*.42&&Math.random()<.018*dt){
+      const aimY=(Math.random()-.5)*f.GH*0.85;
       const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-      b.vx=(ddx/dd)*(5+Math.random()*3.5);b.vy=(ddy/dd)*(5+Math.random()*3.5);
+      b.vx=(ddx/dd)*(3.5+Math.random()*2.2);b.vy=(ddy/dd)*(3.5+Math.random()*2.2);
     }
   }else{
     // Hold formation — shift whole shape based on ball position
@@ -6222,7 +6222,7 @@ function fmAI(p,team,idx,dt){
     const latShift=(b.y-mid)*0.12;
     const tx=Math.max(p.r+10,Math.min(f.VW-p.r-10,p.hx+(attRight?fwdShift:-fwdShift)));
     const ty=Math.max(p.r+6,Math.min(f.VH-p.r-6,p.hy+latShift));
-    fmMove(p,tx-p.x,ty-p.y,dt,.044);
+    fmMove(p,tx-p.x,ty-p.y,dt,.034);
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
@@ -6231,11 +6231,11 @@ function fmAI(p,team,idx,dt){
 function fmBall(dt){
   const f=FM,b=f.ball;
   if(f.phase!=='play')return;
-  b.vx*=Math.pow(.992,dt);b.vy*=Math.pow(.992,dt);
+  b.vx*=Math.pow(.984,dt);b.vy*=Math.pow(.984,dt);
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   // Top/bottom touchlines
-  if(b.y<8){b.y=8;b.vy=Math.abs(b.vy)*.72;}
-  if(b.y>f.VH-8){b.y=f.VH-8;b.vy=-Math.abs(b.vy)*.72;}
+  if(b.y<8){b.y=8;b.vy=Math.abs(b.vy)*.60;}
+  if(b.y>f.VH-8){b.y=f.VH-8;b.vy=-Math.abs(b.vy)*.60;}
   const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH;
   // Left goal or wall
   if(b.x<f.leftGL){
@@ -6287,7 +6287,7 @@ function fmDraw(){
   ctx.translate(f.ox,f.oy);ctx.scale(f.sc,f.sc);
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2;
-  const netW=58;
+  const netW=72;
   const gy1=mid-GH,gy2=mid+GH;
 
   // === GRASS — gradient + horizontal stripes (same as sit mini-game) ===
@@ -6305,8 +6305,8 @@ function fmDraw(){
   // Center line (vertical)
   ctx.beginPath();ctx.moveTo(cx,8);ctx.lineTo(cx,VH-8);ctx.stroke();
   // Center circle
-  ctx.beginPath();ctx.arc(cx,mid,96,0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(cx,mid,6,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx,mid,118,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(cx,mid,7,0,Math.PI*2);ctx.fill();
   // Left penalty area
   const paW=(rightGL-leftGL)*.175,paH=VH*.66;
   ctx.strokeRect(leftGL,mid-paH/2,paW,paH);
@@ -6320,13 +6320,13 @@ function fmDraw(){
   ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,6,0,Math.PI*2);ctx.fill();
   ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,6,0,Math.PI*2);ctx.fill();
   // Penalty arcs
-  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,68,-Math.PI*.28,Math.PI*.28);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,68,Math.PI*.72,Math.PI*1.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,84,-Math.PI*.28,Math.PI*.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,84,Math.PI*.72,Math.PI*1.28);ctx.stroke();
   // Corner arcs
-  ctx.beginPath();ctx.arc(leftGL,8,22,0,Math.PI/2);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL,8,22,Math.PI/2,Math.PI);ctx.stroke();
-  ctx.beginPath();ctx.arc(leftGL,VH-8,22,-Math.PI/2,0);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL,VH-8,22,Math.PI,-Math.PI/2,true);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,8,27,0,Math.PI/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,8,27,Math.PI/2,Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,VH-8,27,-Math.PI/2,0);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,VH-8,27,Math.PI,-Math.PI/2,true);ctx.stroke();
   ctx.restore();
 
   // === LEFT GOAL ===
