@@ -5877,6 +5877,30 @@ function rSocial(){
 // =============================================
 let FM=null;
 
+function fmBodyBall(p,b){
+  const R=p.r+6.5;
+  let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
+  if(d>=R)return false;
+  const nx=ddx/d,ny=ddy/d;
+  b.x=p.x+nx*(R+.5);b.y=p.y+ny*(R+.5);
+  const rvn=(b.vx-p.vx)*nx+(b.vy-p.vy)*ny;
+  if(rvn<0){b.vx-=1.55*rvn*nx;b.vy-=1.55*rvn*ny;}
+  b.vx+=p.vx*.28;b.vy+=p.vy*.28;
+  const bv=Math.hypot(b.vx,b.vy);
+  if(bv>8){b.vx*=8/bv;b.vy*=8/bv;}
+  return true;
+}
+
+function fmMove(body,dx,dy,dt,acc){
+  const mg=Math.hypot(dx,dy)||1;
+  if(dx||dy){dx/=mg;dy/=mg;}
+  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*body.spd*(acc||.085)*dt;
+  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*body.spd*(acc||.085)*dt;
+  const v=Math.hypot(body.vx,body.vy),vmax=body.spd*1.28;
+  if(v>vmax){body.vx*=vmax/v;body.vy*=vmax/v;}
+  body.x+=body.vx*dt;body.y+=body.vy*dt;
+}
+
 function startFullMatch(){
   if(!G)return;
   const m=G.calendar.find(x=>!x.played);
@@ -5936,19 +5960,19 @@ function fmInit(m,W,H){
   const S=matchStrengths(m);
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
-  // Always portrait side-view field (like attack/defense mini-game)
-  const VW=400,VH=700;
+  // Landscape side-view field — goals on LEFT and RIGHT
+  const VW=620,VH=340;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GW=55,topGL=50,botGL=650; // half goal width; top/bottom goal lines
-  // Formation 4-4-2 — my team at BOTTOM, attacks UP toward topGL
+  const GH=52,leftGL=28,rightGL=592;
+  // 4-4-2 — my team LEFT half, attacks RIGHT (half 1)
   const myPos=[
-    [200,638],
-    [72,524],[148,538],[252,538],[328,524],
-    [52,392],[148,375],[252,375],[348,392],
-    [148,248],[252,248],
+    [42,170],
+    [118,288],[136,212],[136,128],[118,52],
+    [238,305],[256,215],[256,125],[238,35],
+    [344,178],[344,162],
   ];
-  const oppPos=myPos.map(([x,y])=>[x,VH-y]); // opp mirrors vertically
+  const oppPos=myPos.map(([x,y])=>[VW-x,y]);
   const roles=['GK','RB','CB','CB','LB','RM','CM','CM','LM','CF','CF'];
   const myXI=S.xi.slice(0,11);
   while(myXI.length<11)myXI.push({name:'Suplente',rat:68});
@@ -5956,12 +5980,12 @@ function fmInit(m,W,H){
   const mkP=(pos,role,name,rat,kit)=>({
     x:pos[0],y:pos[1],vx:0,vy:0,hx:pos[0],hy:pos[1],
     name:name.split(' ').pop().slice(0,6),
-    r:13,kit,role,isGK:role==='GK',
-    spd:role==='GK'?1.25:1.15+(rat-70)*0.006,
+    r:12,kit,role,isGK:role==='GK',
+    spd:role==='GK'?1.85:1.8+(rat-70)*0.018,
   });
   FM={
     m,S,opp,myKit,oppKit,
-    VW,VH,GW,topGL,botGL,sc,ox,oy,
+    VW,VH,GH,leftGL,rightGL,sc,ox,oy,
     myG:0,oppG:0,minute:0,half:1,
     ticks:0,tpm:150,
     phase:'kickoff',phaseT:0,
@@ -5973,12 +5997,10 @@ function fmInit(m,W,H){
     charging:false,power:0,
     keys:{up:0,dn:0,lf:0,rt:0,z:0,x:0,tab:0},
     tabWas:0,xWas:0,zWas:0,
-    poss:null,lastTouch:null,
     pending:{m},_joyId:null,_joyC:null,_mt:null,
-    myAttUp:true, // half1: my team attacks toward topGL (y→0)
+    myAttRight:true, // half 1: my team attacks RIGHT (toward rightGL)
   };
-  FM.my[10].x=VW/2;FM.my[10].y=VH/2+18;
-  FM.poss={team:'my',idx:10};
+  FM.my[10].x=VW/2-14;FM.my[10].y=VH/2+8;
   fmMsg('¡INICIO!\n'+G.teamName+' vs '+opp);
 }
 
@@ -6062,69 +6084,55 @@ function fmTick(dt){
   fmCtrl(dt);
   f.my.forEach((p,i)=>{if(i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
-  fmBall(dt);fmPickup();
-  const pw=document.getElementById('fm-pw'),pf=document.getElementById('fm-pf');
-  if(f.charging&&pw&&pf){
-    f.power=Math.min(100,f.power+dt*2);pw.style.display='block';
-    pf.style.width=f.power+'%';
-    pf.style.background=f.power<45?'#2ecc71':f.power<78?'#f1c40f':'#e74c3c';
-  }else if(pw)pw.style.display='none';
+  f.my.forEach(p=>fmBodyBall(p,f.ball));
+  f.opp.forEach(p=>fmBodyBall(p,f.ball));
+  fmBall(dt);
+  document.getElementById('fm-pw')&&(document.getElementById('fm-pw').style.display='none');
 }
 
 function fmCtrl(dt){
   const f=FM,k=f.keys,p=f.my[f.ctrl];if(!p)return;
-  let dx=k.rt-k.lf,dy=k.dn-k.up;
-  if(dx&&dy){dx*=.707;dy*=.707;}
-  const myBall=f.poss&&f.poss.team==='my'&&f.poss.idx===f.ctrl;
-  const sp=p.spd*(myBall?1.95:2.85);
-  p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x+dx*sp*dt));
-  p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y+dy*sp*dt));
-  if(myBall){
-    f.ball.x=p.x+(dx?dx*12:0);
-    f.ball.y=p.y+(dy?dy*12:0);
-    f.ball.vx=0;f.ball.vy=0;
-    if(k.z&&!f.charging){f.charging=true;f.power=0;}
-    if(!k.z&&f.charging){
-      f.charging=false;
-      const pw=f.power/100;
-      const gy=f.myAttUp?f.topGL+4:f.botGL-4;
-      const gx=f.VW/2+(Math.random()*f.GW*1.3-f.GW*.65);
-      const ddx=gx-f.ball.x,ddy=gy-f.ball.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-      const spd=5+pw*9;
-      f.ball.vx=(ddx/dd)*spd+(Math.random()-0.5)*0.11*spd;
-      f.ball.vy=(ddy/dd)*spd+(Math.random()-0.5)*0.11*spd;
-      f.poss=null;f.lastTouch={team:'my',idx:f.ctrl};f.power=0;
-    }
-    if(k.x&&!f.xWas){f.xWas=1;fmPass(f.ctrl);}
-  }else{
-    if(k.z&&!f.zWas){
-      f.zWas=1;
-      if(Math.hypot(p.x-f.ball.x,p.y-f.ball.y)<22&&!f.poss){
-        const gy=f.myAttUp?f.topGL+4:f.botGL-4;
-        const ddx=f.VW/2-f.ball.x,ddy=gy-f.ball.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        f.ball.vx=(ddx/dd)*7;f.ball.vy=(ddy/dd)*7;
-        f.lastTouch={team:'my',idx:f.ctrl};
-      }
+  const dx=k.rt-k.lf,dy=k.dn-k.up;
+  fmMove(p,dx,dy,dt,.09);
+  p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+  p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+  const b=f.ball,bd=Math.hypot(p.x-b.x,p.y-b.y);
+  const KICK_R=p.r+6.5+14;
+  if(k.z&&!f.zWas){
+    f.zWas=1;
+    if(bd<=KICK_R){
+      const tgx=f.myAttRight?f.rightGL+5:f.leftGL-5;
+      const aimY=(k.dn?f.GH*.88:0)-(k.up?f.GH*.88:0);
+      const tgy=f.VH/2+aimY;
+      const ddx=tgx-b.x,ddy=tgy-b.y,dd=Math.hypot(ddx,ddy)||1;
+      const spd=5.2+(p.spd-1.5)*0.9;
+      b.vx=(ddx/dd)*spd+(Math.random()-.5)*.2;
+      b.vy=(ddy/dd)*spd+(Math.random()-.5)*.2;
     }
   }
-  if(!k.z)f.zWas=0;if(!k.x)f.xWas=0;
+  if(!k.z)f.zWas=0;
+  if(k.x&&!f.xWas){f.xWas=1;fmPass(f.ctrl);}
+  if(!k.x)f.xWas=0;
 }
 
 function fmPass(fromIdx){
-  const f=FM,b=f.ball;let best=-1,bst=Infinity;
+  const f=FM,p=f.my[fromIdx],b=f.ball;
+  const KICK_R=p.r+6.5+14;
+  if(Math.hypot(p.x-b.x,p.y-b.y)>KICK_R)return;
+  let best=-1,bst=Infinity;
   f.my.forEach((t,i)=>{
     if(i===fromIdx)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
-    const fwd=f.myAttUp?b.y-t.y:t.y-b.y; // positive = forward
-    const s=d-fwd*0.45+(i===0?500:0); // prefer forward; avoid GK
+    const fwd=f.myAttRight?t.x-b.x:b.x-t.x;
+    const s=d-fwd*.45+(i===0?500:0);
     if(s<bst){bst=s;best=i;}
   });
   if(best<0)return;
   const t=f.my[best];
-  const dx=t.x-b.x+(Math.random()*22-11),dy=t.y-b.y+(Math.random()*16-8);
-  const d=Math.sqrt(dx*dx+dy*dy)||1;
-  f.ball.vx=(dx/d)*(3.5+d*.011);f.ball.vy=(dy/d)*(3.5+d*.011);
-  f.poss=null;f.lastTouch={team:'my',idx:fromIdx};f.ctrl=best;
+  const dx=t.x-b.x+(Math.random()*20-10),dy=t.y-b.y+(Math.random()*16-8);
+  const d=Math.hypot(dx,dy)||1;
+  b.vx=(dx/d)*(3.5+d*.01);b.vy=(dy/d)*(3.5+d*.01);
+  f.ctrl=best;
 }
 
 function fmSwitch(){
