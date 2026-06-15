@@ -315,7 +315,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
           </div>
           <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
             <button class="btn bg bs" onclick="playMatch()">🎮 JUGAR</button>
-            <button class="btn bo bs" onclick="simMatch(false)">📺 RELATO</button>
+            <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">📺 RELATO</button>
             <button class="btn bo bs" onclick="simMatch(true)">⚡ AUTO</button>
             <button class="btn bo bs" onclick="startFullMatch()" style="background:rgba(15,184,102,.15);border-color:var(--green);color:var(--green)">🏟️ 11vs11</button>
           </div>
@@ -1738,8 +1738,6 @@ const DTS = [
   {name:'Sebastián Beccacece', nat:'ARG',age:44,rat:76,style:'4-3-3',  str:'Pressing alto, moderno',   salary:60, trait:'Moderno',   wantedPos:['MCD','MCO','EI'],  philosophy:'Presión sin pausa desde el minuto uno'},
   {name:'Javier Gandolfi',     nat:'ARG',age:45,rat:72,style:'4-2-3-1',str:'Fútbol dinámico',          salary:40, trait:'Moderno',   wantedPos:['EI','MC','DC'],    philosophy:'Transiciones rápidas y juego vertical'},
   {name:'Mauro Camoranesi',    nat:'ITA',age:48,rat:73,style:'4-3-3',  str:'Técnica italiana, orden',  salary:50, trait:'Táctico',   wantedPos:['MC','MCD','DFC'],  philosophy:'Disciplina táctica y calidad individual'},
-  {name:'Omar Asad',           nat:'ARG',age:52,rat:72,style:'4-2-3-1',str:'Orden y transición',       salary:40, trait:'Equilibrado',wantedPos:['MCD','MC','EI'],  philosophy:'Equilibrio entre defensa y ataque'},
-  {name:'Gustavo Costas',      nat:'ARG',age:58,rat:75,style:'4-4-2',  str:'Intensidad y carácter',    salary:50, trait:'Guerrero',  wantedPos:['DC','DFC','MCD'],  philosophy:'Entrega total, nunca bajar los brazos'},
   {name:'Carlos Tevez',        nat:'ARG',age:42,rat:71,style:'4-3-3',  str:'Garra y trabajo',          salary:35, trait:'Guerrero',  wantedPos:['DC','EI','MC'],    philosophy:'El sacrificio diferencia a los ganadores'},
   {name:'Adrián Bastía',       nat:'ARG',age:46,rat:70,style:'4-4-2',  str:'Orden táctico',            salary:30, trait:'Defensivo', wantedPos:['DFC','MCD','DC'],  philosophy:'Solidez primero, el gol vendrá solo'},
   {name:'Lucas Bernardi',      nat:'ARG',age:48,rat:71,style:'4-2-3-1',str:'Formación, cantera',       salary:30, trait:'Formador',  wantedPos:['MC','DFD','EI'],   philosophy:'Potenciar al jugador joven es la clave'},
@@ -4821,12 +4819,9 @@ function simMatch(auto){
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
   const S = matchStrengths(m);
-
-  // Win probability: fair baseline (0.43) shifted by relative strength + home advantage
   const diff  = S.myS - S.oppS + S.homeBonus;
   const pWin  = Math.max(0.10, Math.min(0.80, 0.43 + diff*1.4 + (S.diffMod||0) + (S.tacMod||0)));
   const pDraw = 0.20;
-
   const rnd = Math.random();
   let gf,ga;
   if(rnd < pWin){
@@ -4843,6 +4838,75 @@ function simMatch(auto){
   } else {
     if(R.isLastMatch) checkSeasonEnd();
   }
+}
+
+function showPreMatch(m){
+  if(!G) return;
+  const S = matchStrengths(m);
+  const tn = G.teamName||'Boca Juniors';
+  const isHome = m.home===tn;
+  const rival = isHome?m.away:m.home;
+  const pWin = Math.max(0.10,Math.min(0.80,0.43+(S.myS-S.oppS+S.homeBonus)*1.4+(S.diffMod||0)+(S.tacMod||0)));
+  const oppForm=['4-4-2','4-3-3','4-2-3-1','3-5-2','5-3-2'][~~(Math.random()*5)];
+  const oppTrait=['Defensivo','Ofensivo','Intenso','Equilibrado','Táctico'][~~(Math.random()*5)];
+  const myRatColor=S.avgR>=80?'var(--green)':S.avgR>=74?'var(--gold)':S.avgR>=68?'var(--ora)':'var(--red)';
+  const oppRatColor=S.oppRat>=80?'var(--green)':S.oppRat>=74?'var(--gold)':S.oppRat>=68?'var(--ora)':'var(--red)';
+  const winPct=Math.round(pWin*100);
+  const drawPct=20;
+  const losePct=100-winPct-drawPct;
+  const tc=TEAMS[G.teamId||'boca'];
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em">${m.comp} · Semana ${m.week}</div>
+      <div style="font-size:9px;color:var(--t3)">${isHome?'🏠 Local':'✈️ Visitante'} · ${m.home} vs ${m.away}</div>
+    </div>
+    <!-- Teams comparison -->
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:12px">
+      <div style="text-align:center">
+        <div style="font-size:13px;font-weight:700;font-family:'Barlow Condensed';color:var(--gold)">${tn.split(' ').slice(0,2).join(' ')}</div>
+        <div style="font-size:22px;font-weight:900;font-family:'Barlow Condensed';color:${myRatColor}">${Math.round(S.avgR)}</div>
+        <div style="font-size:9px;color:var(--t3)">⭐ Rating promedio</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px">${G.formation||'4-3-3'} · ${G.dt.trait||'—'}</div>
+        ${isHome?'<div style="font-size:9px;color:var(--green);font-weight:700;margin-top:2px">🏠 Local</div>':''}
+      </div>
+      <div style="text-align:center;font-family:\'Barlow Condensed\';font-size:18px;font-weight:700;color:var(--t3)">VS</div>
+      <div style="text-align:center">
+        <div style="font-size:13px;font-weight:700;font-family:'Barlow Condensed';color:var(--t2)">${rival.split(' ').slice(0,2).join(' ')}</div>
+        <div style="font-size:22px;font-weight:900;font-family:'Barlow Condensed';color:${oppRatColor}">${S.oppRat}</div>
+        <div style="font-size:9px;color:var(--t3)">⭐ Rating estimado</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px">${oppForm} · ${oppTrait}</div>
+        ${!isHome?'<div style="font-size:9px;color:var(--green);font-weight:700;margin-top:2px">🏠 Local</div>':''}
+      </div>
+    </div>
+    <!-- Win probability bar -->
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:4px">
+        <span>Victoria ${winPct}%</span><span>Empate ${drawPct}%</span><span>Derrota ${losePct}%</span>
+      </div>
+      <div style="display:flex;height:7px;border-radius:4px;overflow:hidden">
+        <div style="width:${winPct}%;background:var(--green)"></div>
+        <div style="width:${drawPct}%;background:var(--gold)"></div>
+        <div style="width:${losePct}%;background:var(--red)"></div>
+      </div>
+      <div style="font-size:8px;color:var(--t3);text-align:center;margin-top:3px">
+        ${winPct>=50?'🟢 Favoritos':winPct>=35?'🟡 Partido parejo':'🔴 Difícil — hay que ir con todo'}
+      </div>
+    </div>
+    <!-- XI summary -->
+    <div class="card" style="margin-bottom:10px;padding:8px">
+      <div class="ctitle" style="margin-bottom:6px">📋 Tu XI (${G.formation||'4-3-3'})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${Object.values(G.slots).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean).map(p=>`
+          <span style="font-size:9px;background:rgba(246,211,24,.08);border:1px solid rgba(246,211,24,.2);padding:2px 5px;border-radius:3px;white-space:nowrap">${p.name.split(' ').pop()} <span style="color:${p.rat>=80?'var(--green)':'var(--gold)'}">${p.rat}</span></span>
+        `).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn bg" style="flex:1" onclick="closeMod();simMatch(false)">📺 Jugar con relato</button>
+      <button class="btn bo" style="flex:1" onclick="closeMod();simMatch(true)">⚡ Resultado directo</button>
+    </div>
+  `);
 }
 
 // =============================================
