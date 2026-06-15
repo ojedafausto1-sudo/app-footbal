@@ -326,7 +326,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <div class="sr"><span class="sl">Goles F/C</span><span class="sv" id="sGfc">0/0</span></div>
           <div class="sr"><span class="sl">Puntos</span><span class="sv" id="sPts">0</span></div>
         </div>
-        <div class="card"><div class="ctitle">🏆 Posiciones</div><div id="standPrev"></div></div>
+        <div class="card"><div class="ctitle">🏆 Posiciones Liga</div><div id="standPrev"></div></div>
+        <div class="card" id="standCopaCard" style="display:none"><div class="ctitle" id="standCopaTitle">🏆 Grupo Copa</div><div id="standCopa"></div></div>
       </div>
       <div class="tc2">
         <div>
@@ -1669,6 +1670,12 @@ function buildMkt(){
   a(9,'Lautaro Martínez','DC',27,'ARG','Inter','Italia',110,0,91);
   a(10,'Lionel Messi','MCO',37,'ARG','Inter Miami','MLS',20,0,94);
 
+  // Deduplicate by name, keeping highest-rated version
+  const seen={};
+  m=m.filter(p=>{
+    if(!seen[p.name]||p.rat>seen[p.name]){seen[p.name]=p.rat;return true;}
+    return false;
+  });
   return m;
 }
 
@@ -4114,13 +4121,9 @@ function rStand(){
 
   const zc=i=>i<4?'#0fb866':i<8?'#f0943a':'transparent';
   const sn=c=>c.replace('Boca Juniors','Boca').replace(' Sarsfield','').replace('Defensa y Justicia','Def.J').replace('Argentinos Jrs','Arg.Jrs').replace('Barracas Central','Barracas').replace('Gimnasia LP','Gimnasia');
-  el.innerHTML=`
-    <div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;padding:2px 4px;font-size:8px;color:var(--t3);font-family:'Barlow Condensed';text-transform:uppercase;margin-bottom:2px">
-      <span></span><span>#</span><span>Club</span><span>PJ</span><span style="color:var(--green)">G</span><span style="color:var(--gold)">E</span><span style="color:var(--red)">P</span><span>DIF</span><span>PTS</span>
-    </div>
-  `+tbl.slice(0,12).map((t,i)=>`
+  const rowHtml=(t,i,hi)=>`
     <div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;align-items:center;padding:3px 4px;border-radius:3px;${t.c===tn?'background:rgba(246,211,24,.08)':''}">
-      <div style="width:3px;height:14px;border-radius:2px;background:${zc(i)};margin:auto"></div>
+      <div style="width:3px;height:14px;border-radius:2px;background:${hi(i)};margin:auto"></div>
       <span style="text-align:center;font-size:9px;color:var(--t3)">${i+1}</span>
       <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.c===tn?'color:var(--gold);font-weight:700':''}">${sn(t.c)}</span>
       <span style="text-align:center;font-size:9px;color:var(--t3)">${t.pj}</span>
@@ -4129,8 +4132,51 @@ function rStand(){
       <span style="text-align:center;font-size:9px;color:var(--red)">${t.l}</span>
       <span style="text-align:center;font-size:9px;color:${t.dif>=0?'var(--green)':'var(--red)'}">${t.dif>0?'+':''}${t.dif}</span>
       <span style="text-align:center;font-weight:700;font-size:11px">${t.pts}</span>
-    </div>
-  `).join('');
+    </div>`;
+  const hdrHtml=`<div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;padding:2px 4px;font-size:8px;color:var(--t3);font-family:'Barlow Condensed';text-transform:uppercase;margin-bottom:2px"><span></span><span>#</span><span>Club</span><span>PJ</span><span style="color:var(--green)">G</span><span style="color:var(--gold)">E</span><span style="color:var(--red)">P</span><span>DIF</span><span>PTS</span></div>`;
+  el.innerHTML=hdrHtml+tbl.slice(0,16).map((t,i)=>rowHtml(t,i,zc)).join('');
+
+  // Copa Libertadores / Sudamericana group standings
+  const copaCard=document.getElementById('standCopaCard');
+  const copaEl=document.getElementById('standCopa');
+  const copaTitleEl=document.getElementById('standCopaTitle');
+  if(copaCard&&copaEl){
+    const copaComp=G.calendar.find(m=>m.comp&&(m.comp.includes('Libertadores - Grupos')||m.comp.includes('Sudamericana - Grupos')));
+    if(copaComp){
+      const isLib=copaComp.comp.includes('Libertadores');
+      const copaLabel=isLib?'🏆 Grupo Copa Libertadores':'🥈 Grupo Copa Sudamericana';
+      if(copaTitleEl) copaTitleEl.textContent=copaLabel;
+      copaCard.style.display='';
+      // Get all copa group matches involving my team to find opponents
+      const myCopaMs=G.calendar.filter(m=>m.comp===copaComp.comp&&(m.home===tn||m.away===tn));
+      const copaOpps=[...new Set(myCopaMs.flatMap(m=>[m.home,m.away]).filter(c=>c!==tn))];
+      const groupClubs=[tn,...copaOpps.slice(0,3)];
+      // Build standings from played matches
+      const cTbl=groupClubs.map(c=>{
+        let pts=0,pj=0,w=0,d=0,l=0,gf=0,ga=0;
+        const cMs=G.calendar.filter(m=>m.comp===copaComp.comp&&m.played&&(m.home===c||m.away===c));
+        cMs.forEach(m=>{
+          const iH=m.home===c;
+          const [mH,mA]=m.score.split('-').map(Number);
+          const cg=iH?mH:mA,cga=iH?mA:mH;
+          gf+=cg;ga+=cga;pj++;
+          const res=cg>cga?'W':cg===cga?'D':'L';
+          if(res==='W'){w++;pts+=3;}else if(res==='D'){d++;pts+=1;}else l++;
+        });
+        if(c!==tn && pj===0){
+          // Simulate partial standings for AI clubs
+          const s2=seed+c.charCodeAt(0);
+          pj=myCopaMs.filter(m=>m.played).length;
+          if(pj>0){w=Math.floor(pj*(0.4+((s2%10)/50)));d=Math.floor(pj*0.2);l=Math.max(0,pj-w-d);gf=w*2+d;ga=l*2+d;pts=w*3+d;}
+        }
+        return {c,pts,pj,w,d,l,gf,ga,dif:gf-ga};
+      }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
+      const czc=i=>i<2?'#0fb866':'transparent';
+      copaEl.innerHTML=hdrHtml+cTbl.map((t,i)=>rowHtml(t,i,czc)).join('');
+    } else {
+      copaCard.style.display='none';
+    }
+  }
 }
 
 // ——— AI TRANSFERS & NEWS ———
@@ -4242,22 +4288,44 @@ function rNews(){
 function rCal(){
   const el=document.getElementById('calView');
   if(!el||!G) return;
+  const tn=G.teamName||'Boca Juniors';
+  const nextM=G.calendar.find(m=>!m.played);
   const byC={};
   G.calendar.forEach(m=>{if(!byC[m.comp])byC[m.comp]=[];byC[m.comp].push(m);});
-  el.innerHTML=Object.entries(byC).map(([c,ms])=>`
+  // Summary banner
+  const played=G.calendar.filter(m=>m.played).length;
+  const total=G.calendar.length;
+  const pts=G.wins*3+G.draws;
+  const banner=`<div style="background:rgba(9,31,60,.7);border:1px solid rgba(246,211,24,.18);border-radius:8px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--t3);text-transform:uppercase">Temporada ${G.season||1}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--gold)">${G.wins}V · ${G.draws}E · ${G.losses}P · <span style="color:#fff">${pts} pts</span></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:9px;color:var(--t3)">Jugados</div>
+      <div style="font-size:13px;font-weight:700">${played}/${total}</div>
+    </div>
+  </div>`;
+  el.innerHTML=banner+Object.entries(byC).map(([c,ms])=>`
     <div class="card" style="margin-bottom:9px">
       <div class="ctitle">${c}</div>
-      <div class="twrap">
-        <table><thead><tr><th>S</th><th>Local</th><th>Visitante</th><th>Resultado</th></tr></thead>
-        <tbody>${ms.map(m=>`
-          <tr>
-            <td style="color:var(--t3)">${m.week}</td>
-            <td style="${m.home===(G&&G.teamName||'Boca Juniors')?'font-weight:600;color:var(--gold)':''}">${m.home}</td>
-            <td style="${m.away===(G&&G.teamName||'Boca Juniors')?'font-weight:600;color:var(--gold)':''}">${m.away}</td>
-            <td>${m.played?`<span class="badge ba${m.result==='W'?'G':m.result==='D'?'u':'R'}">${m.score}</span>`:'—'}</td>
-          </tr>
-        `).join('')}</tbody></table>
-      </div>
+      ${ms.map(m=>{
+        const isMine=m.home===tn||m.away===tn;
+        const isNext=m===nextM;
+        const rival=m.home===tn?m.away:m.home;
+        const isHome=m.home===tn;
+        const badgeCls=m.played?(m.result==='W'?'baG':m.result==='D'?'bau':'baR'):'';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:4px;margin-bottom:2px;${isNext?'background:rgba(246,211,24,.12);border-left:3px solid var(--gold);padding-left:7px':m.played?'':'border-left:3px solid transparent;padding-left:7px'}">
+          <span style="font-size:9px;color:var(--t3);min-width:18px">S${m.week}</span>
+          <span style="font-size:8px;color:var(--t3);min-width:26px">${isHome?'🏠 LOC':'✈️ VIS'}</span>
+          <span style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isMine&&m.home===tn?'color:var(--gold);font-weight:600':''}">${m.home}</span>
+          <span style="font-size:9px;color:var(--t3)">vs</span>
+          <span style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isMine&&m.away===tn?'color:var(--gold);font-weight:600':''}">${m.away}</span>
+          ${m.played?`<span class="badge ${badgeCls}" style="font-size:9px;min-width:28px;text-align:center">${m.score}</span>`
+            :isNext?`<span style="font-size:9px;color:var(--gold);font-weight:700">PRÓXIMO</span>`
+            :`<span style="font-size:9px;color:var(--t3)">—</span>`}
+        </div>`;
+      }).join('')}
     </div>
   `).join('');
 }
@@ -4461,11 +4529,23 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   scorersList.sort((a,b)=>a.min-b.min);
   // Match stats
+  const goalsAdv = gf - ga;
+  const possPct = Math.max(30, Math.min(70, Math.round(50 + goalsAdv*4 + (Math.random()*12-6))));
   const stats = {
-    poss: 35 + ~~(Math.random()*30),
-    shots: gf*3 + ~~(Math.random()*8),
-    onTarget: gf + ~~(Math.random()*4),
-    passes: 280 + ~~(Math.random()*320)
+    poss: possPct,
+    possCpu: 100 - possPct,
+    shots: gf*3 + ~~(Math.random()*7) + 2,
+    shotsCpu: ga*3 + ~~(Math.random()*7) + 2,
+    onTarget: gf + ~~(Math.random()*3) + 1,
+    onTargetCpu: ga + ~~(Math.random()*3) + 1,
+    passes: Math.round(possPct * 5.8 + Math.random()*40),
+    passesCpu: Math.round((100-possPct) * 5.8 + Math.random()*40),
+    corners: ~~(Math.random()*6) + (gf>0?1:0),
+    cornersCpu: ~~(Math.random()*6) + (ga>0?1:0),
+    fouls: 8 + ~~(Math.random()*8),
+    foulsCpu: 8 + ~~(Math.random()*8),
+    yellows: ~~(Math.random()*3),
+    yellowsCpu: ~~(Math.random()*3),
   };
 
   // === TOURNEY TRACKING ===
@@ -4710,12 +4790,36 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span></div>`).join('')}
     </div>` : `<div class="note" style="margin-bottom:10px">${G&&G.teamName||'El equipo'} no anotó</div>`}
 
-    <div class="ctitle">📊 Estadísticas</div>
-    <div class="g2" style="gap:5px;margin-bottom:12px">
-      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed'">${stats.poss}%</div><div style="font-size:9px;color:var(--t3)">Posesión</div></div>
-      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Barlow Condensed'">${stats.shots}</div><div style="font-size:9px;color:var(--t3)">Tiros</div></div>
-      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--ora);font-family:'Barlow Condensed'">${stats.onTarget}</div><div style="font-size:9px;color:var(--t3)">Al arco</div></div>
-      <div class="card" style="text-align:center;padding:8px"><div style="font-size:18px;font-weight:700;font-family:'Barlow Condensed'">${stats.passes}</div><div style="font-size:9px;color:var(--t3)">Pases</div></div>
+    <div class="ctitle">📊 Estadísticas del partido</div>
+    <div class="card" style="padding:8px 10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);font-family:'Barlow Condensed';font-weight:700;margin-bottom:6px">
+        <span style="color:#fff">${(G&&G.teamName||'Nosotros').split(' ')[0].toUpperCase()}</span>
+        <span></span>
+        <span>${(m.home===G.teamName?m.away:m.home).split(' ')[0].toUpperCase()}</span>
+      </div>
+      ${[
+        ['Posesión', stats.poss+'%', (100-stats.poss)+'%', stats.poss, 100-stats.poss, '#0fb866'],
+        ['Tiros', stats.shots, stats.shotsCpu||Math.round(stats.shots*0.7), stats.shots, stats.shotsCpu||Math.round(stats.shots*0.7), '#f0943a'],
+        ['Al arco', stats.onTarget, stats.onTargetCpu||ga+1, stats.onTarget, stats.onTargetCpu||ga+1, '#f6d318'],
+        ['Pases', stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), '#3b8beb'],
+        ['Córners', stats.corners||0, stats.cornersCpu||0, (stats.corners||0)+1, (stats.cornersCpu||0)+1, '#9b6bff'],
+        ['Faltas', stats.fouls||10, stats.foulsCpu||10, 20, 20, '#e84545'],
+      ].map(([label,vL,vR,bL,bR,col])=>{
+        const tot=bL+bR||1;
+        const pL=Math.round(bL/tot*100);
+        const pR=100-pL;
+        return `<div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-bottom:2px">
+            <span style="font-weight:700;min-width:22px">${vL}</span>
+            <span style="font-size:8px;color:var(--t3);text-align:center;flex:1">${label}</span>
+            <span style="font-weight:700;min-width:22px;text-align:right">${vR}</span>
+          </div>
+          <div style="display:flex;height:4px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.08)">
+            <div style="width:${pL}%;background:${col};opacity:.9"></div>
+            <div style="width:${pR}%;background:rgba(255,255,255,.25)"></div>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
 
     ${motm ? `
@@ -5836,28 +5940,60 @@ function rStats(){
   const apps = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps).slice(0,10);
 
   const t = G.tourney;
+  // Detect Copa type
+  const copaMatch=G.calendar.find(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
+  const copaLabel=copaMatch&&copaMatch.comp.includes('Sudamericana')?'🥈 Copa Sudamericana':'🏆 Copa Libertadores';
+  const copaT=copaMatch&&copaMatch.comp.includes('Sudamericana')?t.copa:t.lib;
+  // Best scorer across all comps
+  const allScorers=Object.entries({...(t.liga.scorers||{}),...(t.lib.scorers||{}),...(t.copa.scorers||{})})
+    .reduce((acc,[name,g])=>{const ex=acc.find(x=>x.name===name);ex?ex.goals+=g:acc.push({name,goals:g});return acc;},[])
+    .sort((a,b)=>b.goals-a.goals);
+  const played=G.calendar.filter(m=>m.played);
+  const form5=played.slice(-5).map(m=>m.result).reverse();
+  const formDots=form5.map(r=>r==='W'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin:0 1px"></span>':r==='D'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);margin:0 1px"></span>':'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin:0 1px"></span>').join('');
   el.innerHTML = `
+    <div class="card" style="margin-bottom:10px">
+      <div class="ctitle">📈 Forma Reciente</div>
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <div>${formDots||'<span style="font-size:9px;color:var(--t3)">Sin partidos</span>'}</div>
+        <div style="font-size:10px;color:var(--t3)">${form5.join('-')||'—'}</div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:11px;margin-top:6px">
+        <div><span style="color:var(--green);font-weight:700">${G.wins}V</span></div>
+        <div><span style="color:var(--gold);font-weight:700">${G.draws}E</span></div>
+        <div><span style="color:var(--red);font-weight:700">${G.losses}P</span></div>
+        <div><span style="color:#fff;font-weight:700">${G.wins*3+G.draws} pts</span></div>
+        <div style="margin-left:auto;color:var(--t3)">GF ${G.gf} / GC ${G.ga}</div>
+      </div>
+    </div>
     <div class="g2" style="margin-bottom:10px">
       <div class="card">
         <div class="ctitle">🇦🇷 Liga Profesional</div>
         <div class="sr"><span class="sl">Partidos</span><span class="sv">${t.liga.pj}</span></div>
         <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${t.liga.pts||0}</span></div>
         <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${t.liga.gf}/${t.liga.ga}</span></div>
+        <div class="sr"><span class="sl">Diferencia</span><span class="sv" style="color:${t.liga.gf-t.liga.ga>=0?'var(--green)':'var(--red)'}">${t.liga.gf-t.liga.ga>=0?'+':''}${t.liga.gf-t.liga.ga}</span></div>
       </div>
       <div class="card">
-        <div class="ctitle">🏆 Copa Libertadores</div>
-        <div class="sr"><span class="sl">Partidos</span><span class="sv">${t.lib.pj}</span></div>
-        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${t.lib.pts||0}</span></div>
-        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${t.lib.gf}/${t.lib.ga}</span></div>
+        <div class="ctitle">${copaLabel}</div>
+        <div class="sr"><span class="sl">Partidos</span><span class="sv">${(copaT||{}).pj||0}</span></div>
+        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${(copaT||{}).pts||0}</span></div>
+        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${(copaT||{}).gf||0}/${(copaT||{}).ga||0}</span></div>
+        <div class="sr"><span class="sl">Diferencia</span><span class="sv" style="color:${((copaT||{}).gf||0)-((copaT||{}).ga||0)>=0?'var(--green)':'var(--red)'}">${((copaT||{}).gf||0)-((copaT||{}).ga||0)>=0?'+':''}${((copaT||{}).gf||0)-((copaT||{}).ga||0)}</span></div>
       </div>
     </div>
 
     <div class="g2">
       <div class="card">
-        <div class="ctitle">⚽ Goleadores</div>
+        <div class="ctitle">⚽ Goleadores Temporada</div>
         ${scorers.length ? scorers.map((p,i)=>`
           <div class="sr">
-            <span class="sl">${i+1}. ${p.name.split(' ').pop()}</span>
+            <span class="sl" style="display:flex;align-items:center;gap:4px"><span style="color:var(--t3);min-width:14px">${i+1}.</span>${p.name}</span>
+            <span class="sv" style="color:var(--gold)">${p.goals}⚽</span>
+          </div>
+        `).join('') : allScorers.length ? allScorers.slice(0,8).map((p,i)=>`
+          <div class="sr">
+            <span class="sl" style="display:flex;align-items:center;gap:4px"><span style="color:var(--t3);min-width:14px">${i+1}.</span>${p.name}</span>
             <span class="sv" style="color:var(--gold)">${p.goals}⚽</span>
           </div>
         `).join('') : '<div class="note">Sin goles aún.</div>'}
@@ -5866,8 +6002,8 @@ function rStats(){
         <div class="ctitle">📋 Más convocados</div>
         ${apps.length ? apps.map((p,i)=>`
           <div class="sr">
-            <span class="sl">${i+1}. ${p.name.split(' ').pop()}</span>
-            <span class="sv">${p.apps}</span>
+            <span class="sl" style="display:flex;align-items:center;gap:4px"><span style="color:var(--t3);min-width:14px">${i+1}.</span>${p.name.split(' ').pop()}</span>
+            <span class="sv">${p.apps} PJ</span>
           </div>
         `).join('') : '<div class="note">Sin partidos aún.</div>'}
       </div>
@@ -6033,17 +6169,20 @@ function rSocial(){
   const lastRes=G.wins>G.losses?'W':G.losses>G.wins?'L':'D';
   const topP=G.squad.length?[...G.squad].sort((a,b)=>b.rat-a.rat)[0]:null;
   const rumMkt=G.squad.length?[...G.squad].sort(()=>Math.random()-.5).slice(0,2):[];
+  const tnHandle='@'+tn.replace(/\s+/g,'').toLowerCase().slice(0,10);
   const fans=[
-    {av:'🔵',handle:'@hincha_xeneize',name:'Fan Azul y Oro',v:true},
-    {av:'❤️',handle:'@loco_del_rojo',name:'Hincha Fanatizado',v:false},
-    {av:'⭐',handle:'@periodista_ARG',name:'Periodista TyC Sports',v:true},
-    {av:'🎙️',handle:'@relatando_gg',name:'El Relator Oficial',v:false},
-    {av:'😤',handle:'@rival_siempre',name:'Hincha Rival',v:false},
-    {av:'📊',handle:'@estadistica_fx',name:'Stats Fútbol ARG',v:true},
-    {av:'🏆',handle:'@copa_watch',name:'Copa Watch ARG',v:true},
-    {av:'👀',handle:'@scouting_arg',name:'Scouting Argentina',v:false},
-    {av:'📰',handle:'@infofutbol_ar',name:'InfoFútbol ARG',v:true},
-    {av:'🎯',handle:'@tactica_total',name:'Táctica Total',v:false},
+    {av:'🔵',handle:tnHandle+'_fan1',name:'Hincha Fanático #1',v:false},
+    {av:'❤️',handle:'@loco_del_futbol',name:'Hincha Fanático',v:false},
+    {av:'⭐',handle:'@TyCSports',name:'TyC Sports',v:true},
+    {av:'🎙️',handle:'@espnfutbolarg',name:'ESPN Fútbol ARG',v:true},
+    {av:'😤',handle:'@rival_eterno',name:'Hincha Rival',v:false},
+    {av:'📊',handle:'@futbolstats_arg',name:'FútbolStats ARG',v:true},
+    {av:'🏆',handle:'@copalibertadores',name:'Copa Watch ARG',v:true},
+    {av:'👀',handle:'@scouting_latam',name:'Scouting Latinoamérica',v:false},
+    {av:'📰',handle:'@olé',name:'Diario Olé',v:true},
+    {av:'🎯',handle:'@tactica_pro',name:'Táctica PRO',v:false},
+    {av:'💬',handle:tnHandle+'_oficial',name:tn+' Oficial',v:true},
+    {av:'🌟',handle:'@transfermarkt_ar',name:'Transfermarkt ARG',v:true},
   ];
   const trending=[
     `#${tn.replace(/\s/g,'')}`,
@@ -6052,19 +6191,29 @@ function rSocial(){
     topP?`#${topP.name.split(' ').pop()}`:'#Fichajes',
     '#TorneoArgentino',
   ];
+  const topScorer=G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
+  const injured=G.squad.filter(p=>p.injured);
+  const copaMs=G.calendar.filter(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
+  const copaLabel=copaMs.length&&copaMs[0].comp.includes('Sudamericana')?'Sudamericana':'Libertadores';
+  const winStreak=((arr,r)=>{let s=0;for(let i=arr.length-1;i>=0;i--){if(arr[i]===r)s++;else break;}return s;})(G.calendar.filter(m=>m.played).map(m=>m.result),'W');
   const templates=[
-    ()=>lastRes==='W'?`🔥 TREMENDO ${tn}!!! Le ganamos y el equipo muestra carácter. ${G.dt.name} tiene revancha guardada. Esta noche se festeja 🏆`:`Muy triste la derrota de ${tn}. El equipo tuvo chances pero no las aprovechó. Hay que levantar cabeza 💪`,
-    ()=>`📊 Tabla actualizada: ${tn} suma ${pts} pts (${G.wins}V-${G.draws}E-${G.losses}D). ${pts>=20?'Top del torneo, una locura 🔝':'Hay que sumar de a tres urgente ⚡'}`,
-    ()=>topP?`🌟 ${topP.name} sigue siendo EL jugador de ${tn}. Rating ${topP.rat}/100. Si hay alguna oferta europea... yo lo vendo ya mismo 😂`:`El nivel del plantel de ${tn} es el que es. Hay que reforzar urgente 🙏`,
-    ()=>`💸 Mercado caliente: se dice que ${rumMkt[0]?.name||'un jugador'} del plantel de ${tn} tiene ofertas del exterior. El DT ${G.dt.name} preferiría no venderlo. Seguimos...`,
-    ()=>`📺 Rueda de prensa — DT ${G.dt.name}: "El equipo trabaja muy bien. Necesitamos la concentración los 90 minutos." El técnico habló claro. 🎙️`,
-    ()=>`😡 Yo a ${tn} no los entiendo. Cuando tienen que ganar empatan, cuando tienen que empatar... bueno. ${G.losses>3?'Demasiadas derrotas 😤':'Algo están haciendo bien igual.'}`,
-    ()=>`🔍 Vimos a ${rumMkt[1]?.name||'varios jugadores'} y la verdad que para el nivel de ${tn} ${(rumMkt[1]?.rat||70)>=76?'está muy bien, buen fichaje potencial 💪':'necesitan algo mejor en ese puesto 🤔'}`,
-    ()=>`🏟️ ${G.stadium.name} se llena cuando ${tn} juega bien. ${G.stadium.capacity.toLocaleString()} fanáticos. ${lastRes==='W'?'¡Llenamos hoy y lo disfrutamos! 🙌':'Esperemos que vuelvan las alegrías pronto.'}`,
-    ()=>`⚡ Moral del plantel: ${G.morale}%. ${G.morale>=80?'El vestuario está que arde — de buena manera! 🔥':G.morale>=60?'Ambiente tranquilo, trabajando fuerte.':'Se nota la tensión... el DT tiene que dar un discurso.'}`,
-    ()=>`📈 Reputación de ${tn}: ${G.rep}/100. ${G.rep>=85?'Son un grande de verdad 🏆':G.rep>=65?'Club en crecimiento, vamos bien.':'Queda mucho camino por recorrer pero vamos.'}`,
-    ()=>`🗣️ ${G.dt.name} a los jugadores en el entrenamiento: "Cada partido es una final." ${G.wins>=G.losses?'Y se nota en los resultados ✅':'Aunque los números aún no acompañan.'}`,
-    ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos. Presupuesto disponible: $${G.budget}M. ¿Llegará alguien de nivel? Las próximas horas serán clave 👀`,
+    ()=>lastRes==='W'?`🔥 TREMENDO ${tn}!!! Que triunfo señores, el equipo mostró carácter. ${G.dt.name} tiene revancha guardada. ${winStreak>1?`Ya van ${winStreak} victorias seguidas 🔥`:''} Esta noche se festeja 🏆`:`Muy triste la derrota de ${tn}. El equipo tuvo chances pero no las aprovechó. ${G.losses>4?'La situación se complica... 😟':'Hay que levantar cabeza 💪'}`,
+    ()=>`📊 Tabla actualizada: ${tn} suma ${pts} pts (${G.wins}V-${G.draws}E-${G.losses}D) GF:${G.gf} GC:${G.ga}. ${pts>=24?'Top del torneo, una locura 🔝':pts>=12?'Partidos importantes por delante ⚡':'Hay que sumar de a tres urgente 🚨'}`,
+    ()=>topP?`🏆 El goleador de ${tn}: ${topP.name} con ${topP.goals} gol${topP.goals!==1?'es':''}. El 9 que necesitábamos. ¿Interés europeo? 👀`:`Falta un delantero de calidad en ${tn}. El DT ${G.dt.name} lo sabe. Sin goleador claro, difícil ganar cosas importantes 🤔`,
+    ()=>topP?`🌟 ${topP.name} sigue siendo EL jugador de ${tn}. ${topP.rat}/100 de rating. El mercado lo mira. ${G.budget<8?'Espero que no lo vendan... 🙏':'Ojalá lo puedan renovar.'}`:
+      `El nivel del plantel de ${tn} es el que es. ${G.budget>=15?'Tienen presupuesto, que fichen ya! 💰':'Hay que reforzar urgente pero sin dinero complica.'}`,
+    ()=>`💸 Mercado caliente: se dice que ${rumMkt[0]?.name||'un jugador importante'} (${rumMkt[0]?.pos||'MC'}, ${rumMkt[0]?.rat||76}★) del plantel de ${tn} tiene ofertas del exterior. El DT ${G.dt.name} preferiría no venderlo. Seguimos...`,
+    ()=>`📺 Conferencia de prensa — DT ${G.dt.name}: "${lastRes==='W'?'El equipo supo sufrir y aguantar, fuimos superiores.':lastRes==='D'?'El empate fue justo, ambos equipos mostraron cosas buenas.':'Duele la derrota, pero tenemos que seguir trabajando.'}" 🎙️`,
+    ()=>`😡 Yo a ${tn} no los entiendo. Cuando tienen que ganar ${lastRes==='D'?'empatan':'pierden'}, cuando tienen que empatar... bueno. ${G.losses>4?'Demasiadas derrotas, el DT tiene que dar explicaciones 😤':'Confío que van a dar vuelta la situación.'}`,
+    ()=>`🔍 SCOUTING: ${rumMkt[1]?.name||'Jugador del mercado'} (${rumMkt[1]?.pos||'DEF'}, ${rumMkt[1]?.nat||'ARG'}, ${rumMkt[1]?.rat||72}★) estaría en el radar de ${tn}. Para el nivel del club ${(rumMkt[1]?.rat||72)>=78?'sería una incorporación de jerarquía 💪':'es una opción viable, aunque no espectacular.'}`,
+    ()=>`🏟️ ${G.stadium.name} se llena cuando ${tn} juega bien. ${G.stadium.capacity.toLocaleString()} fanáticos. Capacidad al ${lastRes==='W'?Math.min(100,Math.round(G.morale*1.1))+'%':Math.round(G.morale*0.7)+'%'}. ${lastRes==='W'?'¡Fiesta en las tribunas! 🙌':'El público, paciente pero expectante.'}`,
+    ()=>`⚡ Estado del vestuario de ${tn}: moral ${G.morale}%. ${G.morale>=80?'El equipo está en llamas — de buena manera! 🔥 La energía se contagia.':G.morale>=55?'Ambiente estable, con foco en la semana de trabajo.':'Tensión palpable... el DT necesita un discurso motivacional.'}`,
+    ()=>`📈 Reputación de ${tn} en el fútbol sudamericano: ${G.rep}/100. ${G.rep>=88?'Son un GRANDE con mayúsculas 🏆':G.rep>=72?'Club respetado y en crecimiento continuo.':'Queda camino por recorrer pero los resultados hablarán.'}`,
+    ()=>`🗣️ ${G.dt.name} en el entrenamiento: "Cada partido es una final, hay que salir al 100%." ${G.wins>=G.losses?'Y los números respaldan su discurso ✅':'Los jugadores escuchan, pero los resultados aún no llegan.'}`,
+    ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos en el mercado. Presupuesto estimado: $${G.budget}M. ${G.budget>=20?'Tienen poder de fuego para ir por figuras 💎':G.budget>=10?'Algo podrán hacer en el mercado.':'El bolsillo apretado limita las opciones 😅'}`,
+    ()=>copaMs.length?`🌍 ${tn} en la ${copaLabel}: ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pj||0} partidos jugados. ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pts||0} puntos. El torneo continental es otro nivel de presión 🏆`:`📰 El fixture de ${tn} es exigente esta semana. El DT tiene que decidir la rotación para no fundir el plantel.`,
+    ()=>injured.length?`🏥 ${tn} sufre por las lesiones: ${injured.map(p=>p.name.split(' ').pop()).join(', ')} fuera del equipo. El médico trabaja para que vuelvan pronto. El DT tiene que improvisar.`:`💪 Buenas noticias para ${tn}: plantel completo, sin lesiones. El DT ${G.dt.name} puede elegir con libertad para el próximo partido 🙌`,
+    ()=>`⚽ Dato estadístico: ${tn} promedia ${G.wins+G.draws+G.losses>0?(G.gf/(G.wins+G.draws+G.losses)).toFixed(1):'-'} goles/partido. ${G.gf/(G.wins+G.draws+G.losses||1)>=1.8?'Ataque potente, de los mejores del torneo 🔥':G.gf/(G.wins+G.draws+G.losses||1)>=1.2?'Producción ofensiva aceptable.':'Hay que mejorar la efectividad adelante 😬'}`,
   ];
   const shuffled=[...templates].sort(()=>Math.random()-.5).slice(0,9);
   const shuffledFans=[...fans].sort(()=>Math.random()-.5);
