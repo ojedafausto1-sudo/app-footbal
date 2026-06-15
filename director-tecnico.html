@@ -3087,35 +3087,50 @@ function rStad(){
   const mX=svgW/2,mY=svgH/2;
   const rX=Math.round(80+capPct*30),rY=Math.round(52+capPct*18);
   const fX=Math.round(rX-22),fY=Math.round(rY-15);
-  const stadSvg=`<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="border-radius:6px;display:block;margin:0 auto">
+  const stadSvg=`<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="border-radius:8px;display:block;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,.6)">
     <defs>
-      <radialGradient id="ng"><stop offset="0%" stop-color="#2d8a3e"/><stop offset="100%" stop-color="#1e6b2e"/></radialGradient>
-      ${hasLed?`<filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`:''}
+      <radialGradient id="ng" cx="50%" cy="50%"><stop offset="0%" stop-color="#2d9a44"/><stop offset="60%" stop-color="#1e7a2e"/><stop offset="100%" stop-color="#155a22"/></radialGradient>
+      <radialGradient id="skyg" cx="50%" cy="0%"><stop offset="0%" stop-color="#0d2a52"/><stop offset="100%" stop-color="#060f1e"/></radialGradient>
+      <radialGradient id="crowdg" cx="50%" cy="50%"><stop offset="0%" stop-color="${clr}" stop-opacity=".9"/><stop offset="100%" stop-color="${clr}" stop-opacity=".5"/></radialGradient>
+      ${hasLed?`<filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`:''}
     </defs>
-    <!-- Sky background -->
-    <rect width="${svgW}" height="${svgH}" fill="#091f3c"/>
-    <!-- Stadium exterior -->
-    <ellipse cx="${mX}" cy="${mY}" rx="${rX+14}" ry="${rY+10}" fill="${clr}" opacity=".9"/>
-    <!-- Stadium stands -->
-    <ellipse cx="${mX}" cy="${mY}" rx="${rX+5}" ry="${rY+2}" fill="${hasVip?'#8B6914':'#1a3a6e'}"/>
-    <!-- VIP level glow -->
-    ${hasVip?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+5}" ry="${rY+2}" fill="none" stroke="#f6d318" stroke-width="2" opacity=".5"/>`:''}
-    <!-- Pitch -->
+    <!-- Night sky -->
+    <rect width="${svgW}" height="${svgH}" fill="url(#skyg)"/>
+    <!-- Stars in sky -->
+    ${Array.from({length:18},(_,i)=>`<circle cx="${8+i*13}" cy="${3+((i*7)%10)}" r="${Math.random()<.5?.8:1.2}" fill="rgba(255,255,255,${.3+((i*3)%4)*.15})"/>`).join('')}
+    <!-- Stadium exterior shell -->
+    <ellipse cx="${mX}" cy="${mY+4}" rx="${rX+18}" ry="${rY+14}" fill="rgba(0,0,0,.5)"/>
+    <ellipse cx="${mX}" cy="${mY}" rx="${rX+16}" ry="${rY+12}" fill="${clr}" opacity=".85"/>
+    <!-- Upper rim / roof highlight -->
+    <ellipse cx="${mX}" cy="${mY}" rx="${rX+16}" ry="${rY+12}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"/>
+    <!-- Stands (crowd) -->
+    <ellipse cx="${mX}" cy="${mY}" rx="${rX+6}" ry="${rY+3}" fill="${hasVip?'#7a5c00':'#1a3a6e'}"/>
+    ${hasVip?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+6}" ry="${rY+3}" fill="none" stroke="#f6d318" stroke-width="2.5" opacity=".7"/>`:'' }
+    <!-- LED ring -->
+    ${hasLed?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+10}" ry="${rY+7}" fill="none" stroke="#ffffaa" stroke-width="1.5" opacity=".5" filter="url(#glow)"/>`:''}
+    <!-- Crowd dots (simulate people in stands) -->
+    ${Array.from({length:32},(_,i)=>{const ang=i/32*Math.PI*2;const rx2=rX+1,ry2=rY-2;return `<circle cx="${mX+Math.cos(ang)*rx2}" cy="${mY+Math.sin(ang)*ry2*.7}" r="2.5" fill="${['#e8f0ff','#c0d4f0','#ffffff','#aac4e8'][i%4]}" opacity="${.5+((i*7)%3)*.15}"/>`;}).join('')}
+    <!-- Pitch surface -->
     <ellipse cx="${mX}" cy="${mY}" rx="${fX}" ry="${fY}" fill="url(#ng)" ${hasLed?'filter="url(#glow)"':''}/>
+    <!-- Pitch stripes -->
+    ${Array.from({length:7},(_,i)=>`<ellipse cx="${mX}" cy="${mY}" rx="${fX*(0.15+i*.13)}" ry="${fY*(0.15+i*.13)}" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="6"/>`).join('')}
     <!-- Pitch markings -->
-    <ellipse cx="${mX}" cy="${mY}" rx="${fX}" ry="${fY}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>
-    <line x1="${mX}" y1="${mY-fY}" x2="${mX}" y2="${mY+fY}" stroke="rgba(255,255,255,.25)" stroke-width=".8"/>
-    <ellipse cx="${mX}" cy="${mY}" rx="${Math.round(fX*.18)}" ry="${Math.round(fY*.28)}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width=".8"/>
-    <!-- Goal boxes -->
-    <rect x="${mX-Math.round(fX*.22)}" y="${mY-fY}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.26)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
-    <rect x="${mX-Math.round(fX*.22)}" y="${mY+fY-Math.round(fY*.26)}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.26)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
-    <!-- LED lights if built -->
-    ${hasLed?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+8}" ry="${rY+5}" fill="none" stroke="#ffffaa" stroke-width="1" opacity=".35"/>`:''}
-    <!-- Stars for level -->
-    ${Array.from({length:st.level},(_,i)=>`<text x="${mX-st.level*7+i*14}" y="${svgH-8}" text-anchor="middle" font-size="10" fill="#f6d318">★</text>`).join('')}
-    ${Array.from({length:5-st.level},(_,i)=>`<text x="${mX+(st.level-2)*7+i*14}" y="${svgH-8}" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.2)">☆</text>`).join('')}
+    <ellipse cx="${mX}" cy="${mY}" rx="${fX}" ry="${fY}" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1"/>
+    <line x1="${mX}" y1="${mY-fY}" x2="${mX}" y2="${mY+fY}" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>
+    <circle cx="${mX}" cy="${mY}" r="${Math.round(fX*.22)}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width=".8"/>
+    <circle cx="${mX}" cy="${mY}" r="3" fill="rgba(255,255,255,.6)"/>
+    <!-- Goal areas -->
+    <rect x="${mX-Math.round(fX*.22)}" y="${mY-fY+1}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.28)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
+    <rect x="${mX-Math.round(fX*.22)}" y="${mY+fY-Math.round(fY*.29)}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.28)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
+    <!-- Scoreboard -->
+    ${hasCt?`<rect x="${mX-22}" y="${mY-fY-14}" width="44" height="11" rx="3" fill="rgba(0,0,0,.8)" stroke="rgba(246,211,24,.4)" stroke-width=".8"/>
+    <text x="${mX}" y="${mY-fY-6}" text-anchor="middle" font-size="5.5" fill="#f6d318" font-family="Barlow Condensed">MARCADOR</text>`:'' }
+    <!-- Level stars -->
+    ${Array.from({length:st.level},(_,i)=>`<text x="${mX-st.level*7+i*14}" y="${svgH-6}" text-anchor="middle" font-size="11" fill="#f6d318" style="text-shadow:0 0 4px #f6d31888">★</text>`).join('')}
+    ${Array.from({length:5-st.level},(_,i)=>`<text x="${mX+(st.level-2)*7+i*14}" y="${svgH-6}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.18)">☆</text>`).join('')}
     <!-- Capacity label -->
-    <text x="${mX}" y="14" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.6)" font-family="Barlow Condensed">${st.capacity.toLocaleString()} esp.</text>
+    <text x="${mX}" y="13" text-anchor="middle" font-size="8.5" fill="rgba(255,255,255,.7)" font-family="Barlow Condensed" font-weight="700">${st.name.toUpperCase()}</text>
+    <text x="${mX}" y="23" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.45)" font-family="Barlow Condensed">${st.capacity.toLocaleString()} espectadores</text>
   </svg>`;
   e1.innerHTML = `
     <div class="card" style="margin-bottom:8px">
@@ -3516,57 +3531,108 @@ function rDtXI(){
 }
 
 function rDtReport(){
-  const el=document.getElementById('dtReport');
-  if(!el||!G) return;
-  const avgRat=Math.round(G.squad.reduce((a,p)=>a+p.rat,0)/Math.max(1,G.squad.length));
-  const byGrp={ARQ:[],DEF:[],MED:[],DEL:[]};
-  G.squad.forEach(p=>{ const g=pgr(p.pos); if(byGrp[g]) byGrp[g].push(p.rat); });
-  const grpAvg=g=>byGrp[g].length?Math.round(byGrp[g].reduce((a,b)=>a+b,0)/byGrp[g].length):0;
-  const grps=['ARQ','DEF','MED','DEL'];
-  const weakGrp=grps.sort((a,b)=>grpAvg(a)-grpAvg(b))[0];
-  const strongGrp=grps.sort((a,b)=>grpAvg(b)-grpAvg(a))[0];
-  const grpName={ARQ:'Portería',DEF:'Defensa',MED:'Mediocampo',DEL:'Ataque'};
-  const d=G.dt;
-  // Style analysis based on DT style and trait
+  const e=document.getElementById('dtReport');
+  if(!e||!G||!G.dt)return;
+  const dt=G.dt;
+  const sq=G.squad;
+  const avg=sq.length?Math.round(sq.reduce((a,p)=>a+p.rat,0)/sq.length):0;
+  const byG=(f)=>sq.filter(p=>pgr(p.pos)===f);
+  const gAvg=(f)=>{const g=byG(f);return g.length?Math.round(g.reduce((a,p)=>a+p.rat,0)/g.length):0;};
+  const arq=gAvg('ARQ'),def=gAvg('DEF'),med=gAvg('MED'),del=gAvg('DEL');
+  const groups=[['🥅 ARQ',arq],['🛡️ DEF',def],['⚙️ MED',med],['⚔️ DEL',del]];
+  const strongest=groups.reduce((a,b)=>b[1]>a[1]?b:a);
+  const weakest=groups.reduce((a,b)=>b[1]<a[1]?b:a);
+  const pj=G.wins+G.draws+G.losses;
+  const eff=pj>0?Math.round((G.wins*3+G.draws)/(pj*3)*100):0;
+  const gpj=pj>0?(G.gf/pj).toFixed(1):'–';
+  const gcpj=pj>0?(G.ga/pj).toFixed(1):'–';
+  const winRate=pj>0?Math.round(G.wins/pj*100):0;
+  // Style descriptions
   const styleMsgs={
-    'Tiki-Taka':'Alta posesión, pases cortos y presión tras pérdida. Efectivo pero requiere mediocampistas técnicos.',
-    'Contragolpe':'Compacto y vertical. Transiciones rápidas con delanteros veloces. Peligroso en espacios.',
-    'Presión alta':'Pressing agresivo desde arriba. Genera robos en campo rival pero desgasta físicamente.',
-    'Juego directo':'Balones largos y segundas pelotas. Necesita delanteros físicos. Sencillo pero efectivo.',
-    '4-3-3':'Formación versátil con tres mediocampistas. Equilibrio entre ataque y defensa.',
-    '4-4-2':'Clásico: dos puntas y mediocampo amplio. Control de bandas y desdoblamientos.',
-    '3-5-2':'Superioridad numérica en el medio. Carrileros clave. Defensivo o ofensivo según contexto.',
-    '5-3-2':'Ultra-defensivo. Cinco en el fondo para aguantar el resultado.',
-    '4-2-3-1':'Doble pivote + tres mediapuntas + un 9. Alta creatividad en ataque.',
-    '4-1-4-1':'Un solo pivote libera a cuatro centrocampistas ofensivos.'
+    'Tiki-Taka':'Alta posesión con pases cortos y presión inmediata al perder. Exige calidad técnica en todo el campo.',
+    'Contragolpe':'Bloque bajo, salida rápida en transición. Letal con jugadores veloces en ataque.',
+    'Presión alta':'Pressing agresivo en campo rival. Física, intensidad y recuperación rápida como pilares.',
+    'Posesión':'Dominio del balón con paciencia. Construye desde atrás buscando espacios.',
+    '4-3-3':'Formación versátil con amplitud en ataque y solidez en mediocampo triple.',
+    '4-4-2':'Clásico y equilibrado. Doble pivote y dos delanteros para presión constante.',
+    '4-2-3-1':'Doble pivote protector y mediapunta creativo. Orden y creatividad combinados.',
+    '3-5-2':'Defensa de tres con carrileros que suben. Dominio numérico en el mediocampo.',
+    '5-3-2':'Cinco atrás para solidez extrema. Contraataque directo con dos puntas.',
   };
-  const styleDesc=styleMsgs[d.style]||styleMsgs[d.trait]||'Estilo equilibrado que se adapta según el rival.';
-  el.innerHTML=`
-    <div class="sr" style="margin-bottom:4px"><span class="sl">Promedio plantel</span><span class="sv">${rb(avgRat)}</span></div>
-    ${grps.map(g=>{
-      const v=grpAvg(g);
-      const pct=Math.max(1,Math.min(100,v-50));
-      const col=v>=80?'var(--pur)':v>=76?'var(--green)':v>=72?'var(--gold)':v>=68?'var(--ora)':'var(--red)';
-      return `<div class="sr"><span class="sl" style="min-width:32px">${grpName[g]}</span><div class="sbar" style="flex:1"><div class="sbf" style="width:${pct}%;background:${col}"></div></div><span class="sv" style="color:${col};min-width:24px">${v||'—'}</span></div>`;
-    }).join('')}
-    <div style="display:flex;gap:6px;margin:8px 0 6px;font-size:9px">
-      <div style="background:rgba(15,184,102,.1);border:1px solid rgba(15,184,102,.3);padding:3px 7px;border-radius:4px;flex:1;text-align:center">
-        <div style="color:var(--t3)">Fortaleza</div>
-        <div style="color:var(--green);font-weight:700">${grpName[strongGrp]}</div>
+  const philoMsg=dt.philosophy||'Metodología de trabajo definida por la experiencia del cuerpo técnico.';
+  const styleKey=dt.style||'4-3-3';
+  const styleDesc=styleMsgs[dt.trait]||styleMsgs[styleKey]||'Estilo de juego adaptado al plantel disponible.';
+  // Form analysis
+  const last5=G.calendar.filter(m=>m.played).slice(-5);
+  const formStr=last5.map(m=>m.result==='W'?'✅':m.result==='D'?'🟡':'❌').join(' ')||'Sin partidos';
+  // Pressure style
+  const pressLabels={Defensivo:'Bloque bajo, difícil de vulnerar',Equilibrado:'Línea media, equilibrio defensivo-ofensivo',Ofensivo:'Línea alta, riesgo controlado',Copero:'Gestión táctica según rival',Intenso:'Pressing sin pausa, físico extremo',Moderno:'Estructura flexible y posición alta',Analítico:'Decisiones basadas en datos y análisis'};
+  const pressDesc=pressLabels[dt.trait]||'Estilo propio del cuerpo técnico';
+  // DT demands
+  const wantedNames=(dt.wantedPos||[]).join(' · ');
+  e.innerHTML=`
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🎯</div>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--gold)">${dt.name}</div>
+          <div style="font-size:9px;color:var(--t3)">${dt.nat} · ${dt.age} años · 💰 $${dt.salary}K/sem · ⭐ ${dt.rat}/100</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:2px">🎭 <em>${dt.trait||'Equilibrado'}</em> · ${dt.style||'4-3-3'}</div>
+        </div>
       </div>
-      <div style="background:rgba(232,69,69,.1);border:1px solid rgba(232,69,69,.3);padding:3px 7px;border-radius:4px;flex:1;text-align:center">
-        <div style="color:var(--t3)">Debilidad</div>
-        <div style="color:var(--red);font-weight:700">${grpName[weakGrp]}</div>
+      <div style="background:rgba(246,211,24,.06);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--gold)">
+        <div style="font-size:9px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif">Filosofía</div>
+        <div style="font-size:11px;color:var(--tx);line-height:1.5">"${philoMsg}"</div>
+      </div>
+      <div style="font-size:10px;color:var(--t2);line-height:1.5;margin-bottom:6px">${styleDesc}</div>
+      <div class="sr"><span class="sl">Posiciones deseadas</span><span class="sv" style="color:var(--gold)">${wantedNames||'–'}</span></div>
+      <div class="sr"><span class="sl">Presión táctica</span><span class="sv">${pressDesc}</span></div>
+    </div>
+    <div class="g2" style="margin-bottom:8px">
+      <div class="card">
+        <div class="ctitle">📊 Análisis del plantel</div>
+        ${groups.map(([lbl,v])=>`
+          <div style="margin-bottom:5px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px">
+              <span style="color:${v===strongest[1]?'var(--green)':v===weakest[1]?'var(--red)':'var(--t2)'}">${lbl}</span>
+              <span style="font-weight:700;color:${v>=80?'var(--green)':v>=70?'var(--gold)':'var(--red)'}">${v}</span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px">
+              <div style="width:${v}%;height:100%;background:${v>=80?'var(--green)':v>=70?'var(--gold)':'var(--red)'};border-radius:2px;transition:width .3s"></div>
+            </div>
+          </div>`).join('')}
+        <div style="display:flex;gap:6px;margin-top:6px;font-size:9px">
+          <span style="color:var(--green)">✅ Fortaleza: ${strongest[0]}</span>
+          <span style="color:var(--red)">⚠️ Mejorar: ${weakest[0]}</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ctitle">📈 Rendimiento</div>
+        <div class="sr"><span class="sl">Efectividad</span><span class="sv" style="color:${eff>=55?'var(--green)':eff>=35?'var(--gold)':'var(--red)'}">${eff}%</span></div>
+        <div class="sr"><span class="sl">Victorias</span><span class="sv" style="color:var(--green)">${G.wins} (${winRate}%)</span></div>
+        <div class="sr"><span class="sl">Goles/PJ</span><span class="sv">${gpj}</span></div>
+        <div class="sr"><span class="sl">GC/PJ</span><span class="sv" style="color:${parseFloat(gcpj)<1.2?'var(--green)':parseFloat(gcpj)<1.8?'var(--gold)':'var(--red)'}">${gcpj}</span></div>
+        <div class="sr"><span class="sl">Rating plantel</span><span class="sv" style="color:var(--gold)">${avg}/100</span></div>
+        <div style="margin-top:6px">
+          <div style="font-size:9px;color:var(--t3);margin-bottom:3px">Últimos 5 partidos</div>
+          <div style="font-size:14px;letter-spacing:2px">${formStr}</div>
+        </div>
       </div>
     </div>
-    <div class="ctitle" style="margin-top:6px">🎯 Filosofía táctica</div>
-    <div style="font-size:10px;color:var(--t2);line-height:1.5;padding:6px;background:rgba(9,31,60,.4);border-radius:5px;border:1px solid var(--bdr)">${styleDesc}</div>
-    ${G.wins+G.draws+G.losses>0?`
-    <div class="ctitle" style="margin-top:8px">📈 Rendimiento bajo ${d.name}</div>
-    <div class="sr"><span class="sl">Efectividad</span><span class="sv" style="color:${(G.wins*3+G.draws)/((G.wins+G.draws+G.losses)*3)*100>=55?'var(--green)':'var(--red)'};">${Math.round((G.wins*3+G.draws)/((G.wins+G.draws+G.losses)*3)*100)}%</span></div>
-    <div class="sr"><span class="sl">Goles/partido</span><span class="sv">${((G.gf||0)/(G.wins+G.draws+G.losses||1)).toFixed(2)}</span></div>
-    <div class="sr"><span class="sl">GC/partido</span><span class="sv">${((G.ga||0)/(G.wins+G.draws+G.losses||1)).toFixed(2)}</span></div>
-    `:''}
+    <div class="card" style="margin-bottom:8px">
+      <div class="ctitle">🎮 Mentalidad táctica del DT</div>
+      ${[
+        ['Pressing',dt.trait==='Intenso'||dt.trait==='Moderno'?'Alto — presión constante en campo rival':dt.trait==='Defensivo'?'Bajo — bloque compacto':'Medio — selectivo por zonas'],
+        ['Línea defensiva',dt.trait==='Ofensivo'||dt.trait==='Moderno'?'Alta — apuesta al fuera de juego':dt.trait==='Defensivo'?'Baja — protege el arco':'Media — equilibrio'],
+        ['Ritmo de juego',dt.trait==='Copero'?'Variable según partido':dt.trait==='Técnico'||dt.trait==='Moderno'?'Pausado y controlado':'Directo y vertical'],
+        ['Salida de balón',dt.style==='4-3-3'||dt.trait==='Moderno'?'Jugando desde el arco':dt.trait==='Pragmático'?'Pelotazo largo directo':'Combinaciones cortas'],
+        ['Rotaciones',dt.trait==='Analítico'||dt.trait==='Formador'?'Frecuentes — cuida físico del plantel':'Mínimas — once fijo ideal'],
+      ].map(([k,v])=>`<div class="sr"><span class="sl" style="min-width:110px">${k}</span><span class="sv" style="font-size:10px;color:var(--t2)">${v}</span></div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="ctitle">🔍 Pedido técnico</div>
+      <div style="font-size:10px;color:var(--t2);line-height:1.6">El DT ${dt.name} prioriza incorporar jugadores de <strong style="color:var(--gold)">${wantedNames||'cualquier posición'}</strong>. Busca perfiles que se adapten a su esquema <strong style="color:var(--gold)">${dt.style||'4-3-3'}</strong> y refuercen ${weakest[0]}.</div>
+    </div>
   `;
 }
 
@@ -6501,10 +6567,11 @@ function rSocial(){
 // =============================================
 let FM=null;
 
-function fmBodyBall(p,b){
+function fmBodyBall(p,b,team){
   const R=p.r+6.5;
   let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
   if(d>=R)return false;
+  if(team&&FM)FM._lastTouch=team;
   const nx=ddx/d,ny=ddy/d;
   b.x=p.x+nx*(R+.5);b.y=p.y+ny*(R+.5);
   const rvn=(b.vx-p.vx)*nx+(b.vy-p.vy)*ny;
@@ -6724,21 +6791,36 @@ function fmTick(dt){
     f.phaseT+=dt;
     const b=f.ball;
     if(f.setPiece){b.x=f.setPiece.x;b.y=f.setPiece.y;b.vx=0;b.vy=0;}
-    if(f.phaseT>80){
+    // Let all players drift toward their home positions during set piece
+    const spTeam=f.setPiece?f.setPiece.team:null;
+    [...f.my,...f.opp].forEach((p,globalI)=>{
+      const isKicker=globalI===(spTeam==='my'?f._spKicker:f._spKicker+11);
+      if(isKicker)return;
+      fmMove(p,p.hx-p.x,p.hy-p.y,dt,0.028);
+      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+    });
+    if(f.phaseT>38){
       if(f.setPiece&&f.setPiece.team==='my'){
         let best=-1,bd=Infinity;
-        f.my.forEach((p,i)=>{const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
-        if(best>=0){f.ctrl=best;}
+        f.my.forEach((p,i)=>{if(p.isGK)return;const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
+        if(best>=0){
+          // Teleport kicker right next to ball so player can kick immediately
+          f.my[best].x=b.x+(f.myAttRight?-18:18);
+          f.my[best].y=b.y;
+          f.ctrl=best;
+        }
         f.phase='play';f.phaseT=0;f.setPiece=null;
       } else if(f.setPiece&&f.setPiece.team==='opp'){
         let best=-1,bd=Infinity;
-        f.opp.forEach((p,i)=>{const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
+        f.opp.forEach((p,i)=>{if(p.isGK)return;const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
         if(best>=0){
-          const q=f.opp[best];
-          const tx=f.VW/2+(Math.random()*200-100);
-          const ty=f.VH/2+(Math.random()*200-100);
-          const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1;
-          b.vx=(dx/dd)*(4+Math.random()*2);b.vy=(dy/dd)*(4+Math.random()*2);
+          // Kick toward our goal / penalty area
+          const tgx=f.myAttRight?f.leftGL+f.VW*.15:f.rightGL-f.VW*.15;
+          const tgy=f.VH/2+(Math.random()*f.GH*1.4-(f.GH*.7));
+          const dx=tgx-b.x,dy=tgy-b.y,dd=Math.hypot(dx,dy)||1;
+          b.vx=(dx/dd)*(5+Math.random()*2.5);b.vy=(dy/dd)*(5+Math.random()*2.5);
+          f._lastTouch='opp';
         }
         f.phase='play';f.phaseT=0;f.setPiece=null;
       }
@@ -6770,8 +6852,8 @@ function fmTick(dt){
   fmCtrl(dt);
   f.my.forEach((p,i)=>{if(i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
-  f.my.forEach(p=>fmBodyBall(p,f.ball));
-  f.opp.forEach(p=>fmBodyBall(p,f.ball));
+  f.my.forEach(p=>fmBodyBall(p,f.ball,'my'));
+  f.opp.forEach(p=>fmBodyBall(p,f.ball,'opp'));
   fmBall(dt);
   document.getElementById('fm-pw')&&(document.getElementById('fm-pw').style.display='none');
 }
@@ -6787,6 +6869,7 @@ function fmCtrl(dt){
   if(k.z&&!f.zWas){
     f.zWas=1;
     if(bd<=KICK_R){
+      f._lastTouch='my';
       // Haxball-style: kick direction = ball-relative-to-player + player velocity
       const nx=(b.x-p.x)/(bd||1),ny=(b.y-p.y)/(bd||1);
       const pv=Math.hypot(p.vx||0,p.vy||0)||0.001;
@@ -6906,14 +6989,14 @@ function fmBall(dt){
   if(b.y<8){
     const lastTeam=f._lastTouch||'opp';
     b.y=10;b.vx=0;b.vy=0;
-    f.phase='throwin';f.phaseT=0;
+    f._spKicker=0;f.phase='throwin';f.phaseT=0;
     f.setPiece={team:lastTeam==='my'?'opp':'my',x:Math.max(f.leftGL+10,Math.min(f.rightGL-10,b.x)),y:12};
     fmMsg('SAQUE\nDE BANDA');return;
   }
   if(b.y>f.VH-8){
     const lastTeam=f._lastTouch||'opp';
     b.y=f.VH-10;b.vx=0;b.vy=0;
-    f.phase='throwin';f.phaseT=0;
+    f._spKicker=0;f.phase='throwin';f.phaseT=0;
     f.setPiece={team:lastTeam==='my'?'opp':'my',x:Math.max(f.leftGL+10,Math.min(f.rightGL-10,b.x)),y:f.VH-12};
     fmMsg('SAQUE\nDE BANDA');return;
   }
@@ -6928,7 +7011,7 @@ function fmBall(dt){
       const cornerY=b.y<f.VH/2?10:f.VH-10;
       const isMyCorner=(lastTeam!=='my'&&!f.myAttRight)||(lastTeam==='opp'&&f.myAttRight);
       b.x=f.leftGL+2;b.y=cornerY;b.vx=0;b.vy=0;
-      f.phase='corner';f.phaseT=0;
+      f._spKicker=0;f.phase='corner';f.phaseT=0;
       f.setPiece={team:isMyCorner?'my':'opp',x:f.leftGL+2,y:cornerY};
       fmMsg('CORNER\n⚽');
     }
@@ -6945,7 +7028,7 @@ function fmBall(dt){
       const cornerY=b.y<f.VH/2?10:f.VH-10;
       const isMyCorner=(lastTeam!=='my'&&f.myAttRight)||(lastTeam==='opp'&&!f.myAttRight);
       b.x=f.rightGL-2;b.y=cornerY;b.vx=0;b.vy=0;
-      f.phase='corner';f.phaseT=0;
+      f._spKicker=0;f.phase='corner';f.phaseT=0;
       f.setPiece={team:isMyCorner?'my':'opp',x:f.rightGL-2,y:cornerY};
       fmMsg('CORNER\n⚽');
     }
