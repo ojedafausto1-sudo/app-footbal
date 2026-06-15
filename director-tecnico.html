@@ -456,7 +456,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <!-- REDES SOCIALES -->
     <div id="tab-social" class="tc">
       <div class="stitle">📱 Redes Sociales</div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Los hinchas, periodistas y rivales hablan de vos en redes. Se actualiza cada partido.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">
+        <div style="font-size:10px;color:var(--t3);line-height:1.4">Hinchas, periodistas y rivales hablan de vos. Se actualiza tras cada partido.</div>
+        <button onclick="rSocial()" style="flex-shrink:0;background:rgba(246,211,24,.12);border:1px solid rgba(246,211,24,.3);color:var(--gold);font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer">🔄 Actualizar</button>
+      </div>
       <div id="socialFeed"></div>
     </div>
 
@@ -5795,51 +5798,73 @@ function setTacticM(mentality, btn){
 // SOCIAL FEED
 // =============================================
 function rSocial(){
-  const el = document.getElementById('socialFeed');
-  if(!el || !G) return;
-  const tn = G.teamName || 'Boca Juniors';
-  const lastRes = G.wins > G.losses ? 'W' : G.losses > G.wins ? 'L' : 'D';
-  const fans = [
-    {av:'🔵', handle:'@hincha_xeneize', name:'Fan Azul y Oro'},
-    {av:'❤️', handle:'@loco_del_rojo', name:'Hincha Fanatizado'},
-    {av:'⭐', handle:'@periodista_ARG', name:'Periodista TyC'},
-    {av:'🎙️', handle:'@relatando_gg', name:'El Relator'},
-    {av:'😤', handle:'@rival_siempre', name:'Hincha Rival'},
-    {av:'📊', handle:'@estadistica_fx', name:'Stats Fútbol ARG'},
-    {av:'🏆', handle:'@copa_watch', name:'Copa Watch ARG'},
-    {av:'👀', handle:'@scouting_arg', name:'Scouting Argentina'},
+  const el=document.getElementById('socialFeed');
+  if(!el||!G)return;
+  const tn=G.teamName||'Boca Juniors';
+  const pts=G.wins*3+G.draws;
+  const lastRes=G.wins>G.losses?'W':G.losses>G.wins?'L':'D';
+  const topP=G.squad.length?[...G.squad].sort((a,b)=>b.rat-a.rat)[0]:null;
+  const rumMkt=G.squad.length?[...G.squad].sort(()=>Math.random()-.5).slice(0,2):[];
+  const fans=[
+    {av:'🔵',handle:'@hincha_xeneize',name:'Fan Azul y Oro',v:true},
+    {av:'❤️',handle:'@loco_del_rojo',name:'Hincha Fanatizado',v:false},
+    {av:'⭐',handle:'@periodista_ARG',name:'Periodista TyC Sports',v:true},
+    {av:'🎙️',handle:'@relatando_gg',name:'El Relator Oficial',v:false},
+    {av:'😤',handle:'@rival_siempre',name:'Hincha Rival',v:false},
+    {av:'📊',handle:'@estadistica_fx',name:'Stats Fútbol ARG',v:true},
+    {av:'🏆',handle:'@copa_watch',name:'Copa Watch ARG',v:true},
+    {av:'👀',handle:'@scouting_arg',name:'Scouting Argentina',v:false},
+    {av:'📰',handle:'@infofutbol_ar',name:'InfoFútbol ARG',v:true},
+    {av:'🎯',handle:'@tactica_total',name:'Táctica Total',v:false},
   ];
-  const templates = [
-    () => lastRes==='W' ? `¡¡VICTORIA!! ${tn} sigue caminando firme. El equipo de ${G.dt.name} no para. 🔥🔥🔥` : `Muy difícil lo de ${tn} hoy... esperemos que se recuperen pronto.`,
-    () => `DT ${G.dt.name} con ${G.wins} victorias en lo que va de la temporada. ${G.wins>=5?'¡Un fenómeno!':'Números para mejorar.'}`,
-    () => `El mercado de pases sigue caliente 🔥 ¿Llegará algún refuerzo a ${tn}? Presupuesto: $${G.budget}M`,
-    () => `La tabla no miente: ${G.wins}G-${G.draws}E-${G.losses}P. ${G.wins*3+G.draws} puntos para ${tn}. ${G.wins*3+G.draws>15?'¡Arriba!':'Hay que empujar más.'}`,
-    () => `${tn} tiene ${G.squad.length} jugadores en el plantel. ${G.squad.filter(p=>p.rat>=80).length} con rating 80+. El nivel está.`,
-    () => `Estadio ${G.stadium.name} — ${G.stadium.capacity.toLocaleString()} de capacidad. ${lastRes==='W'?'¡La gente se fue feliz hoy!':'Silencio en las tribunas...'}`,
-    () => `Si ${G.dt.name} sigue así, ${lastRes==='W'?'va a ser el mejor DT del torneo 🏆':'va a tener que explicar mucho en la próxima conferencia de prensa.'}`,
-    () => `Reputación de ${tn}: ${G.rep}/100. ${G.rep>=80?'Un grande del fútbol argentino 💪':'Hay que seguir construyendo.'}`,
-    () => `Moral del plantel: ${G.morale}%. ${G.morale>=75?'Se nota el buen ambiente en los entrenamientos ⚡':'El vestuario necesita un golpe de energía 😬'}`,
-    () => `¿El fixture de ${tn} es justo? ${G.losses>G.wins?'Parece que no están teniendo suerte...':'Los resultados hablan solos 🗣️'}`,
+  const trending=[
+    `#${tn.replace(/\s/g,'')}`,
+    lastRes==='W'?'#Victoria':'#Derrota',
+    `#${(G.dt.name||'DT').split(' ').pop()}DT`,
+    topP?`#${topP.name.split(' ').pop()}`:'#Fichajes',
+    '#TorneoArgentino',
   ];
-  const shuffled = [...templates].sort(() => Math.random()-.5).slice(0,8);
-  const shuffledFans = [...fans].sort(() => Math.random()-.5);
-  el.innerHTML = shuffled.map((t,i) => {
-    const fan = shuffledFans[i % shuffledFans.length];
-    const likes = ~~(Math.random()*500)+10;
-    const rts = ~~(Math.random()*150)+2;
+  const templates=[
+    ()=>lastRes==='W'?`🔥 TREMENDO ${tn}!!! Le ganamos y el equipo muestra carácter. ${G.dt.name} tiene revancha guardada. Esta noche se festeja 🏆`:`Muy triste la derrota de ${tn}. El equipo tuvo chances pero no las aprovechó. Hay que levantar cabeza 💪`,
+    ()=>`📊 Tabla actualizada: ${tn} suma ${pts} pts (${G.wins}V-${G.draws}E-${G.losses}D). ${pts>=20?'Top del torneo, una locura 🔝':'Hay que sumar de a tres urgente ⚡'}`,
+    ()=>topP?`🌟 ${topP.name} sigue siendo EL jugador de ${tn}. Rating ${topP.rat}/100. Si hay alguna oferta europea... yo lo vendo ya mismo 😂`:`El nivel del plantel de ${tn} es el que es. Hay que reforzar urgente 🙏`,
+    ()=>`💸 Mercado caliente: se dice que ${rumMkt[0]?.name||'un jugador'} del plantel de ${tn} tiene ofertas del exterior. El DT ${G.dt.name} preferiría no venderlo. Seguimos...`,
+    ()=>`📺 Rueda de prensa — DT ${G.dt.name}: "El equipo trabaja muy bien. Necesitamos la concentración los 90 minutos." El técnico habló claro. 🎙️`,
+    ()=>`😡 Yo a ${tn} no los entiendo. Cuando tienen que ganar empatan, cuando tienen que empatar... bueno. ${G.losses>3?'Demasiadas derrotas 😤':'Algo están haciendo bien igual.'}`,
+    ()=>`🔍 Vimos a ${rumMkt[1]?.name||'varios jugadores'} y la verdad que para el nivel de ${tn} ${(rumMkt[1]?.rat||70)>=76?'está muy bien, buen fichaje potencial 💪':'necesitan algo mejor en ese puesto 🤔'}`,
+    ()=>`🏟️ ${G.stadium.name} se llena cuando ${tn} juega bien. ${G.stadium.capacity.toLocaleString()} fanáticos. ${lastRes==='W'?'¡Llenamos hoy y lo disfrutamos! 🙌':'Esperemos que vuelvan las alegrías pronto.'}`,
+    ()=>`⚡ Moral del plantel: ${G.morale}%. ${G.morale>=80?'El vestuario está que arde — de buena manera! 🔥':G.morale>=60?'Ambiente tranquilo, trabajando fuerte.':'Se nota la tensión... el DT tiene que dar un discurso.'}`,
+    ()=>`📈 Reputación de ${tn}: ${G.rep}/100. ${G.rep>=85?'Son un grande de verdad 🏆':G.rep>=65?'Club en crecimiento, vamos bien.':'Queda mucho camino por recorrer pero vamos.'}`,
+    ()=>`🗣️ ${G.dt.name} a los jugadores en el entrenamiento: "Cada partido es una final." ${G.wins>=G.losses?'Y se nota en los resultados ✅':'Aunque los números aún no acompañan.'}`,
+    ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos. Presupuesto disponible: $${G.budget}M. ¿Llegará alguien de nivel? Las próximas horas serán clave 👀`,
+  ];
+  const shuffled=[...templates].sort(()=>Math.random()-.5).slice(0,9);
+  const shuffledFans=[...fans].sort(()=>Math.random()-.5);
+  const trendHtml=`<div style="background:rgba(9,31,60,.85);border:1px solid rgba(246,211,24,.22);border-radius:10px;padding:11px 13px;margin-bottom:12px">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.06em">🔥 TENDENCIAS EN ARGENTINA</div>
+    ${trending.map((t,i)=>`<div style="margin-bottom:5px;display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--gold);font-weight:700">${t}</span><span style="font-size:9px;color:var(--t3)">${['En tendencia','Fútbol ARG','Deportes','Viral','Nacional'][i]}</span></div>`).join('')}
+  </div>`;
+  el.innerHTML=trendHtml+shuffled.map((t,i)=>{
+    const fan=shuffledFans[i%shuffledFans.length];
+    const likes=~~(Math.random()*800)+20;
+    const rts=~~(Math.random()*220)+3;
+    const time=`${~~(Math.random()*59)+1}m`;
     return `<div class="tweet">
       <div style="display:flex;gap:9px;align-items:flex-start">
         <div class="tweet-avatar">${fan.av}</div>
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:5px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
             <span class="tweet-handle">${fan.handle}</span>
+            ${fan.v?'<span style="color:#1d9bf0;font-size:9px;line-height:1">✓</span>':''}
             <span class="tweet-user">${fan.name}</span>
+            <span style="font-size:9px;color:var(--t3);margin-left:auto">${time}</span>
           </div>
           <div class="tweet-text">${t()}</div>
           <div class="tweet-stats">
-            <span>❤️ ${likes}</span>
+            <span>❤️ ${likes.toLocaleString()}</span>
             <span>🔁 ${rts}</span>
-            <span>💬 ${~~(Math.random()*50)}</span>
+            <span>💬 ${~~(Math.random()*80)+1}</span>
+            <span style="margin-left:auto">👁️ ${(likes*(~~(Math.random()*6)+3)).toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -5911,43 +5936,34 @@ function fmInit(m,W,H){
   const S=matchStrengths(m);
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
-  const portrait=H>W;
-  // Virtual field: 680×1080 portrait or 1080×680 landscape
-  const VW=portrait?680:1080,VH=portrait?1080:680,GW=82;
-  // Uniform scale with letterbox (no distortion)
+  // Always portrait side-view field (like attack/defense mini-game)
+  const VW=400,VH=700;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  // Formation 4-4-2
-  // Portrait: my team at BOTTOM, attacks UP (toward y=0)
-  const myPos=portrait?[
-    [340,1010],
-    [110,880],[260,900],[420,900],[570,880],
-    [90,710],[250,730],[430,730],[590,710],
-    [270,555],[410,555],
-  ]:[
-    [42,VH/2],
-    [148,VH*.12],[148,VH*.37],[148,VH*.63],[148,VH*.88],
-    [338,VH*.1],[338,VH*.37],[338,VH*.63],[338,VH*.9],
-    [522,VH*.35],[522,VH*.65],
+  const GW=55,topGL=50,botGL=650; // half goal width; top/bottom goal lines
+  // Formation 4-4-2 — my team at BOTTOM, attacks UP toward topGL
+  const myPos=[
+    [200,638],
+    [72,524],[148,538],[252,538],[328,524],
+    [52,392],[148,375],[252,375],[348,392],
+    [148,248],[252,248],
   ];
-  const oppPos=portrait
-    ?myPos.map(([x,y])=>[VW-x,VH-y])
-    :myPos.map(([x,y])=>[VW-x,y]);
+  const oppPos=myPos.map(([x,y])=>[x,VH-y]); // opp mirrors vertically
   const roles=['GK','RB','CB','CB','LB','RM','CM','CM','LM','CF','CF'];
   const myXI=S.xi.slice(0,11);
   while(myXI.length<11)myXI.push({name:'Suplente',rat:68});
   const oNms=['Ramírez','García','López','Flores','Gómez','Peña','Castro','Ortiz','Ramos','Cruz','Torres'];
   const mkP=(pos,role,name,rat,kit)=>({
     x:pos[0],y:pos[1],vx:0,vy:0,hx:pos[0],hy:pos[1],
-    name:name.split(' ').pop().slice(0,7),
-    r:portrait?13:11,kit,role,isGK:role==='GK',
-    spd:role==='GK'?2.4:2.7+(rat-70)*0.014,
+    name:name.split(' ').pop().slice(0,6),
+    r:13,kit,role,isGK:role==='GK',
+    spd:role==='GK'?1.25:1.15+(rat-70)*0.006,
   });
   FM={
     m,S,opp,myKit,oppKit,
-    portrait,VW,VH,GW,sc,ox,oy,
+    VW,VH,GW,topGL,botGL,sc,ox,oy,
     myG:0,oppG:0,minute:0,half:1,
-    ticks:0,tpm:120,
+    ticks:0,tpm:150,
     phase:'kickoff',phaseT:0,
     raf:0,lastTs:0,
     ball:{x:VW/2,y:VH/2,vx:0,vy:0},
@@ -5959,12 +5975,9 @@ function fmInit(m,W,H){
     tabWas:0,xWas:0,zWas:0,
     poss:null,lastTouch:null,
     pending:{m},_joyId:null,_joyC:null,_mt:null,
-    // Attack direction (portrait: myAttUp=true=my team attacks toward y=0)
-    myAttUp:portrait,myAttRight:!portrait,
+    myAttUp:true, // half1: my team attacks toward topGL (y→0)
   };
-  // Kickoff to striker
-  if(portrait){FM.my[10].x=VW/2;FM.my[10].y=VH/2+20;}
-  else{FM.my[10].x=VW/2+20;FM.my[10].y=VH/2;}
+  FM.my[10].x=VW/2;FM.my[10].y=VH/2+18;
   FM.poss={team:'my',idx:10};
   fmMsg('¡INICIO!\n'+G.teamName+' vs '+opp);
 }
@@ -6036,7 +6049,7 @@ function fmTick(dt){
   }
   if(f.phase==='half'){
     f.phaseT+=dt;
-    if(f.phaseT>200){f.half=2;fmReset('my');fmFlip();f.phase='kickoff';f.phaseT=0;}
+    if(f.phaseT>200){f.half=2;fmFlip();fmReset('my');f.phase='kickoff';f.phaseT=0;}
     return;
   }
   f.ticks+=dt;
@@ -6063,35 +6076,33 @@ function fmCtrl(dt){
   let dx=k.rt-k.lf,dy=k.dn-k.up;
   if(dx&&dy){dx*=.707;dy*=.707;}
   const myBall=f.poss&&f.poss.team==='my'&&f.poss.idx===f.ctrl;
-  const sp=p.spd*(myBall?1.9:2.9);
+  const sp=p.spd*(myBall?1.95:2.85);
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x+dx*sp*dt));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y+dy*sp*dt));
   if(myBall){
-    f.ball.x=p.x+(dx?dx*13:0);f.ball.y=p.y+(dy?dy*13:0);
+    f.ball.x=p.x+(dx?dx*12:0);
+    f.ball.y=p.y+(dy?dy*12:0);
     f.ball.vx=0;f.ball.vy=0;
     if(k.z&&!f.charging){f.charging=true;f.power=0;}
     if(!k.z&&f.charging){
       f.charging=false;
       const pw=f.power/100;
-      // Shoot toward our attacking goal
-      const gx=f.portrait?f.VW/2:(f.myAttRight?f.VW-18:18);
-      const gy=f.portrait?(f.myAttUp?18:f.VH-18):f.VH/2;
+      const gy=f.myAttUp?f.topGL+4:f.botGL-4;
+      const gx=f.VW/2+(Math.random()*f.GW*1.3-f.GW*.65);
       const ddx=gx-f.ball.x,ddy=gy-f.ball.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-      const spd=8+pw*18,sp2=(1-pw)*0.14;
-      f.ball.vx=(ddx/dd)*spd+(Math.random()-0.5)*sp2*spd;
-      f.ball.vy=(ddy/dd)*spd+(Math.random()-0.5)*sp2*spd;
+      const spd=5+pw*9;
+      f.ball.vx=(ddx/dd)*spd+(Math.random()-0.5)*0.11*spd;
+      f.ball.vy=(ddy/dd)*spd+(Math.random()-0.5)*0.11*spd;
       f.poss=null;f.lastTouch={team:'my',idx:f.ctrl};f.power=0;
     }
     if(k.x&&!f.xWas){f.xWas=1;fmPass(f.ctrl);}
   }else{
-    // Quick kick when near loose ball
     if(k.z&&!f.zWas){
       f.zWas=1;
       if(Math.hypot(p.x-f.ball.x,p.y-f.ball.y)<22&&!f.poss){
-        const gx=f.portrait?f.VW/2:(f.myAttRight?f.VW-18:18);
-        const gy=f.portrait?(f.myAttUp?18:f.VH-18):f.VH/2;
-        const ddx=gx-f.ball.x,ddy=gy-f.ball.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        f.ball.vx=(ddx/dd)*13;f.ball.vy=(ddy/dd)*13;
+        const gy=f.myAttUp?f.topGL+4:f.botGL-4;
+        const ddx=f.VW/2-f.ball.x,ddy=gy-f.ball.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+        f.ball.vx=(ddx/dd)*7;f.ball.vy=(ddy/dd)*7;
         f.lastTouch={team:'my',idx:f.ctrl};
       }
     }
@@ -6104,15 +6115,15 @@ function fmPass(fromIdx){
   f.my.forEach((t,i)=>{
     if(i===fromIdx)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
-    const fwd=f.portrait?(f.myAttUp?b.y-t.y:t.y-b.y):(f.myAttRight?t.x-b.x:b.x-t.x);
-    const s=d-fwd*0.45+(i===0?500:0);
+    const fwd=f.myAttUp?b.y-t.y:t.y-b.y; // positive = forward
+    const s=d-fwd*0.45+(i===0?500:0); // prefer forward; avoid GK
     if(s<bst){bst=s;best=i;}
   });
   if(best<0)return;
   const t=f.my[best];
-  const dx=t.x-b.x+(Math.random()*26-13),dy=t.y-b.y+(Math.random()*18-9);
+  const dx=t.x-b.x+(Math.random()*22-11),dy=t.y-b.y+(Math.random()*16-8);
   const d=Math.sqrt(dx*dx+dy*dy)||1;
-  f.ball.vx=(dx/d)*(4.5+d*.013);f.ball.vy=(dy/d)*(4.5+d*.013);
+  f.ball.vx=(dx/d)*(3.5+d*.011);f.ball.vy=(dy/d)*(3.5+d*.011);
   f.poss=null;f.lastTouch={team:'my',idx:fromIdx};f.ctrl=best;
 }
 
@@ -6130,73 +6141,68 @@ function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
   const players=isM?f.my:f.opp;
   const hasPoss=f.poss&&f.poss.team===team&&f.poss.idx===idx;
-  // My/opp attack goals
-  const mGX=f.portrait?f.VW/2:(f.myAttRight?f.VW-40:40);
-  const mGY=f.portrait?(f.myAttUp?30:f.VH-30):f.VH/2;
-  const oGX=f.portrait?f.VW/2:(f.myAttRight?40:f.VW-40);
-  const oGY=f.portrait?(f.myAttUp?f.VH-30:30):f.VH/2;
-  const tGX=isM?mGX:oGX,tGY=isM?mGY:oGY; // this team's goal target
-  const oGoalX=isM?oGX:mGX,oGoalY=isM?oGY:mGY; // own goal (to defend)
-  
+  // Where each team attacks (portrait only)
+  const myGoalY=f.myAttUp?f.topGL+4:f.botGL-4;
+  const oppGoalY=f.myAttUp?f.botGL-4:f.topGL+4;
+  const tGY=isM?myGoalY:oppGoalY;   // this team shoots here
+  const ownGY=isM?oppGoalY:myGoalY; // own goal to defend
+
   if(hasPoss){
-    const dx=tGX-p.x,dy=tGY-p.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x+(dx/d)*p.spd*1.7*dt));
-    p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y+(dy/d)*p.spd*1.7*dt));
+    const dx=f.VW/2-p.x,dy=tGY-p.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x+(dx/d)*p.spd*1.65*dt));
+    p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y+(dy/d)*p.spd*1.65*dt));
     b.x=p.x;b.y=p.y;b.vx=0;b.vy=0;
-    // Shoot if close enough
-    if(Math.hypot(p.x-tGX,p.y-tGY)<f.VW*0.28&&Math.random()<0.018*dt){
-      const sx=f.portrait?tGX+(Math.random()*f.GW*1.5-f.GW*.75):tGX;
-      const sy=f.portrait?tGY:tGY+(Math.random()*f.GW*1.5-f.GW*.75);
-      const ddx=sx-b.x,ddy=sy-b.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-      b.vx=(ddx/dd)*(10+Math.random()*8);b.vy=(ddy/dd)*(10+Math.random()*8);
+    // Shoot if close to goal
+    if(Math.abs(p.y-tGY)<f.VH*0.29&&Math.random()<0.016*dt){
+      const sx=f.VW/2+(Math.random()*f.GW*1.4-f.GW*.7);
+      const ddx=sx-b.x,ddy=tGY-b.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+      b.vx=(ddx/dd)*(5+Math.random()*5);b.vy=(ddy/dd)*(5+Math.random()*5);
       f.poss=null;f.lastTouch={team,idx};return;
     }
-    // Random fwd pass
+    // Random forward pass
     if(Math.random()<0.005*dt){
-      const isForward=q=>f.portrait?(isM?q.y<p.y-40:q.y>p.y+40):(isM?q.x>p.x+40:q.x<p.x-40);
-      const fwds=players.filter((_,i)=>i!==idx&&isForward(_));
+      const fwd=isM?(f.myAttUp?q=>q.y<p.y-40:q=>q.y>p.y+40):(f.myAttUp?q=>q.y>p.y+40:q=>q.y<p.y-40);
+      const fwds=players.filter((_,i)=>i!==idx&&fwd(_));
       if(fwds.length){
         const t=fwds[~~(Math.random()*fwds.length)];
         const ddx=t.x-b.x,ddy=t.y-b.y,dd=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-        b.vx=(ddx/dd)*(5+Math.random()*5);b.vy=(ddy/dd)*(5+Math.random()*5);
+        b.vx=(ddx/dd)*(3.5+Math.random()*4);b.vy=(ddy/dd)*(3.5+Math.random()*4);
         f.poss=null;f.lastTouch={team,idx};
       }
     }
     return;
   }
-  
+
   // Positioning
   const weHave=(f.poss?.team===team)||(f.lastTouch?.team===team&&!f.poss);
   let tx,ty;
   if(p.isGK){
-    // GK: stay near own goal, track ball on lateral axis
-    tx=oGoalX;ty=oGoalY;
-    if(f.portrait)tx=Math.max(f.VW*.22,Math.min(f.VW*.78,b.x));
-    else ty=Math.max(f.VH*.22,Math.min(f.VH*.78,b.y));
-    const close=f.portrait?(isM?b.y>f.VH*.8:b.y<f.VH*.2):(isM?b.x<f.VW*.2:b.x>f.VW*.8);
-    if(close){if(f.portrait)ty=b.y;else tx=b.x;}
+    tx=Math.max(f.VW*.22,Math.min(f.VW*.78,b.x));
+    ty=ownGY;
+    const ballClose=isM?(f.myAttUp?b.y<f.VH*.28:b.y>f.VH*.72):(f.myAttUp?b.y>f.VH*.72:b.y<f.VH*.28);
+    if(ballClose)ty=Math.max(p.r+2,Math.min(f.VH-p.r-2,b.y));
   }else if(weHave){
-    const ox2=f.portrait?0:(isM?65:-65),oy2=f.portrait?(isM?-58:58):0;
-    tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx+ox2+(f.portrait?(b.x-f.VW/2)*.22:0)));
-    ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+oy2+(f.portrait?0:(b.y-f.VH/2)*.22)));
+    const pushFwd=isM?(f.myAttUp?-52:52):(f.myAttUp?52:-52);
+    tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx+(b.x-f.VW/2)*.18));
+    ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+pushFwd));
   }else{
     const pd=Math.hypot(p.x-b.x,p.y-b.y);
-    if(pd<168&&!['GK','CB','LB','RB'].includes(p.role)){tx=b.x;ty=b.y;}
+    if(pd<145&&!['GK','CB','LB','RB'].includes(p.role)){tx=b.x;ty=b.y;}
     else{
-      const ox2=f.portrait?0:(isM?-36:36),oy2=f.portrait?(isM?38:-38):0;
-      tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx+ox2));
-      ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+oy2));
+      const pullBack=isM?(f.myAttUp?30:-30):(f.myAttUp?-30:30);
+      tx=Math.max(p.r,Math.min(f.VW-p.r,p.hx));
+      ty=Math.max(p.r,Math.min(f.VH-p.r,p.hy+pullBack));
     }
   }
   const mdx=tx-p.x,mdy=ty-p.y,md=Math.sqrt(mdx*mdx+mdy*mdy);
-  if(md>5){p.x+=mdx/md*p.spd*2.3*dt;p.y+=mdy/md*p.spd*2.3*dt;}
+  if(md>5){p.x+=mdx/md*p.spd*1.85*dt;p.y+=mdy/md*p.spd*1.85*dt;}
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
   // Tackle
   if(f.poss&&f.poss.team!==team){
     const car=(f.poss.team==='my'?f.my:f.opp)[f.poss.idx];
-    if(Math.hypot(p.x-car.x,p.y-car.y)<22&&Math.random()<0.028*dt){
-      f.poss=null;b.vx+=(Math.random()-.5)*6;b.vy+=(Math.random()-.5)*6;
+    if(Math.hypot(p.x-car.x,p.y-car.y)<19&&Math.random()<0.024*dt){
+      f.poss=null;b.vx+=(Math.random()-.5)*3.5;b.vy+=(Math.random()-.5)*3.5;
     }
   }
 }
@@ -6205,55 +6211,33 @@ function fmBall(dt){
   const f=FM,b=f.ball;
   if(f.poss||f.phase!=='play')return;
   b.x+=b.vx*dt;b.y+=b.vy*dt;
-  b.vx*=Math.pow(.969,dt);b.vy*=Math.pow(.969,dt);
-  const gw=f.GW;
-  if(f.portrait){
-    const gx1=f.VW/2-gw,gx2=f.VW/2+gw;
-    if(b.x<6){b.x=6;b.vx=Math.abs(b.vx)*.65;}
-    if(b.x>f.VW-6){b.x=f.VW-6;b.vx=-Math.abs(b.vx)*.65;}
-    // Top boundary
-    if(b.y<5){
-      if(b.x>gx1&&b.x<gx2){
-        if(f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!');}
-        else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
-        fmHUD();
-      }else{b.y=5;b.vy=Math.abs(b.vy)*.65;}
-    }
-    // Bottom boundary
-    if(b.y>f.VH-5){
-      if(b.x>gx1&&b.x<gx2){
-        if(!f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!');}
-        else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
-        fmHUD();
-      }else{b.y=f.VH-5;b.vy=-Math.abs(b.vy)*.65;}
-    }
-  }else{
-    const gy1=f.VH/2-gw,gy2=f.VH/2+gw;
-    if(b.y<6){b.y=6;b.vy=Math.abs(b.vy)*.65;}
-    if(b.y>f.VH-6){b.y=f.VH-6;b.vy=-Math.abs(b.vy)*.65;}
-    // Left boundary
-    if(b.x<5){
-      if(b.y>gy1&&b.y<gy2){
-        if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!');}
-        else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
-        fmHUD();
-      }else{b.x=6;b.vx=Math.abs(b.vx)*.65;}
-    }
-    // Right boundary
-    if(b.x>f.VW-5){
-      if(b.y>gy1&&b.y<gy2){
-        if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!');}
-        else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
-        fmHUD();
-      }else{b.x=f.VW-6;b.vx=-Math.abs(b.vx)*.65;}
-    }
+  b.vx*=Math.pow(.955,dt);b.vy*=Math.pow(.955,dt);
+  const gx1=f.VW/2-f.GW,gx2=f.VW/2+f.GW;
+  // Side walls
+  if(b.x<7){b.x=7;b.vx=Math.abs(b.vx)*.62;}
+  if(b.x>f.VW-7){b.x=f.VW-7;b.vx=-Math.abs(b.vx)*.62;}
+  // Top — goal or wall bounce
+  if(b.y<f.topGL){
+    if(b.x>gx1&&b.x<gx2){
+      if(f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
+      else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
+      fmHUD();
+    }else{b.y=f.topGL;b.vy=Math.abs(b.vy)*.58;}
+  }
+  // Bottom — goal or wall bounce
+  if(b.y>f.botGL){
+    if(b.x>gx1&&b.x<gx2){
+      if(!f.myAttUp){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
+      else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
+      fmHUD();
+    }else{b.y=f.botGL;b.vy=-Math.abs(b.vy)*.58;}
   }
 }
 
 function fmPickup(){
   const f=FM,b=f.ball;
   if(f.poss||f.phase!=='play')return;
-  if(Math.hypot(b.vx,b.vy)>3.8)return;
+  if(Math.hypot(b.vx,b.vy)>2.6)return;
   const tryT=(pl,team)=>{
     for(let i=0;i<pl.length;i++){
       if(Math.hypot(pl[i].x-b.x,pl[i].y-b.y)<17){
@@ -6268,34 +6252,27 @@ function fmPickup(){
 
 function fmReset(kickTeam){
   const f=FM;
-  const p=f.portrait?[
-    [340,1010],[110,880],[260,900],[420,900],[570,880],
-    [90,710],[250,730],[430,730],[590,710],[270,555],[410,555],
-  ]:[
-    [42,f.VH/2],[148,f.VH*.12],[148,f.VH*.37],[148,f.VH*.63],[148,f.VH*.88],
-    [338,f.VH*.1],[338,f.VH*.37],[338,f.VH*.63],[338,f.VH*.9],[522,f.VH*.35],[522,f.VH*.65],
-  ];
-  f.my.forEach((pl,i)=>{pl.x=p[i][0];pl.y=p[i][1];pl.vx=0;pl.vy=0;});
-  f.opp.forEach((pl,i)=>{
-    pl.x=f.portrait?f.VW-p[i][0]:f.VW-p[i][0];
-    pl.y=f.portrait?f.VH-p[i][1]:p[i][1];
-    pl.vx=0;pl.vy=0;
-  });
+  // Reset each player to their current home position (may be flipped for half 2)
+  f.my.forEach(pl=>{pl.x=pl.hx;pl.y=pl.hy;pl.vx=0;pl.vy=0;});
+  f.opp.forEach(pl=>{pl.x=pl.hx;pl.y=pl.hy;pl.vx=0;pl.vy=0;});
   f.ball={x:f.VW/2,y:f.VH/2,vx:0,vy:0};
   f.poss=null;f.charging=false;f.power=0;
   if(kickTeam==='my'){
-    const kx=f.VW/2+(f.portrait?0:20),ky=f.VH/2+(f.portrait?20:0);
-    f.my[10].x=kx;f.my[10].y=ky;f.poss={team:'my',idx:10};f.ctrl=10;
+    f.my[10].x=f.VW/2;
+    f.my[10].y=f.VH/2+(f.myAttUp?16:-16);
+    f.poss={team:'my',idx:10};f.ctrl=10;
   }else{
-    const kx=f.VW/2+(f.portrait?0:-20),ky=f.VH/2+(f.portrait?-20:0);
-    f.opp[10].x=kx;f.opp[10].y=ky;f.poss={team:'opp',idx:10};
+    f.opp[10].x=f.VW/2;
+    f.opp[10].y=f.VH/2+(f.myAttUp?-16:16);
+    f.poss={team:'opp',idx:10};
   }
 }
 
 function fmFlip(){
   const f=FM;
-  if(f.portrait){f.my.forEach(p=>{p.hy=f.VH-p.hy;});f.opp.forEach(p=>{p.hy=f.VH-p.hy;});f.myAttUp=!f.myAttUp;}
-  else{f.my.forEach(p=>{p.hx=f.VW-p.hx;});f.opp.forEach(p=>{p.hx=f.VW-p.hx;});f.myAttRight=!f.myAttRight;}
+  f.my.forEach(p=>{p.hy=f.VH-p.hy;});
+  f.opp.forEach(p=>{p.hy=f.VH-p.hy;});
+  f.myAttUp=!f.myAttUp;
 }
 
 function fmDraw(){
@@ -6305,113 +6282,132 @@ function fmDraw(){
   ctx.fillStyle='#071407';ctx.fillRect(0,0,W,H);
   ctx.save();
   ctx.translate(f.ox,f.oy);ctx.scale(f.sc,f.sc);
-  const{VW,VH,GW,portrait}=f;
-  
-  // Grass stripes
-  const NS=portrait?14:16;
-  for(let i=0;i<NS;i++){
-    ctx.fillStyle=i%2?'#1d7a3f':'#1a6d38';
-    if(portrait)ctx.fillRect(0,i*VH/NS,VW,VH/NS);
-    else ctx.fillRect(i*VW/NS,0,VW/NS,VH);
-  }
-  
-  // Field markings
-  ctx.save();ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=2;
-  ctx.strokeRect(6,6,VW-12,VH-12);
-  if(portrait){ctx.beginPath();ctx.moveTo(6,VH/2);ctx.lineTo(VW-6,VH/2);ctx.stroke();}
-  else{ctx.beginPath();ctx.moveTo(VW/2,6);ctx.lineTo(VW/2,VH-6);ctx.stroke();}
-  ctx.beginPath();ctx.arc(VW/2,VH/2,portrait?68:80,0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.75)';ctx.beginPath();ctx.arc(VW/2,VH/2,4,0,Math.PI*2);ctx.fill();
-  // Penalty areas
-  if(portrait){
-    ctx.strokeRect(VW/2-142,6,284,128);ctx.strokeRect(VW/2-142,VH-134,284,128);
-    ctx.strokeRect(VW/2-72,6,144,55);ctx.strokeRect(VW/2-72,VH-61,144,55);
-    ctx.fillStyle='rgba(255,255,255,.75)';
-    ctx.beginPath();ctx.arc(VW/2,112,4,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(VW/2,VH-112,4,0,Math.PI*2);ctx.fill();
-  }else{
-    ctx.strokeRect(6,VH/2-142,128,284);ctx.strokeRect(VW-134,VH/2-142,128,284);
-    ctx.strokeRect(6,VH/2-72,55,144);ctx.strokeRect(VW-61,VH/2-72,55,144);
-    ctx.fillStyle='rgba(255,255,255,.75)';
-    ctx.beginPath();ctx.arc(112,VH/2,4,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(VW-112,VH/2,4,0,Math.PI*2);ctx.fill();
-  }
+  const{VW,VH,GW,topGL,botGL}=f;
+  const mid=(topGL+botGL)/2;
+  const gx1=VW/2-GW,gx2=VW/2+GW;
+  const netH=36;
+
+  // === GRASS — green gradient + horizontal stripes (like mini-game) ===
+  const gr=ctx.createLinearGradient(0,0,0,VH);
+  gr.addColorStop(0,'#14572b');gr.addColorStop(.5,'#1d7a3e');gr.addColorStop(1,'#14572b');
+  ctx.fillStyle=gr;ctx.fillRect(0,0,VW,VH);
+  ctx.fillStyle='rgba(255,255,255,.022)';
+  for(let i=0;i<VH;i+=52){ctx.fillRect(0,i,VW,26);}
+
+  // === FIELD LINES ===
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=1.8;
+  // Outer rectangle (between the two goal lines)
+  ctx.strokeRect(6,topGL,VW-12,botGL-topGL);
+  // Midfield line
+  ctx.beginPath();ctx.moveTo(6,mid);ctx.lineTo(VW-6,mid);ctx.stroke();
+  // Center circle
+  ctx.beginPath();ctx.arc(VW/2,mid,60,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(VW/2,mid,4,0,Math.PI*2);ctx.fill();
+  // TOP penalty area
+  const paH=(botGL-topGL)*.19,paW=VW*.70;
+  ctx.strokeRect(VW/2-paW/2,topGL,paW,paH);
+  // TOP small area (6-yard box)
+  const saH=(botGL-topGL)*.085,saW=VW*.36;
+  ctx.strokeRect(VW/2-saW/2,topGL,saW,saH);
+  // BOTTOM penalty area
+  ctx.strokeRect(VW/2-paW/2,botGL-paH,paW,paH);
+  // BOTTOM small area
+  ctx.strokeRect(VW/2-saW/2,botGL-saH,saW,saH);
+  // Penalty spots
+  ctx.fillStyle='rgba(255,255,255,.75)';
+  ctx.beginPath();ctx.arc(VW/2,topGL+paH*.75,3.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(VW/2,botGL-paH*.75,3.5,0,Math.PI*2);ctx.fill();
+  // Penalty arcs
+  ctx.beginPath();ctx.arc(VW/2,topGL+paH*.75,42,Math.PI*.18,Math.PI*.82);ctx.stroke();
+  ctx.beginPath();ctx.arc(VW/2,botGL-paH*.75,42,Math.PI*1.18,Math.PI*1.82);ctx.stroke();
+  // Corner arcs
+  ctx.beginPath();ctx.arc(6,topGL,13,0,Math.PI/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(VW-6,topGL,13,Math.PI/2,Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(6,botGL,13,-Math.PI/2,0);ctx.stroke();
+  ctx.beginPath();ctx.arc(VW-6,botGL,13,Math.PI,-Math.PI/2,true);ctx.stroke();
   ctx.restore();
-  
-  // Goals
-  const gd=28;
-  if(portrait){
-    const gx1=VW/2-GW,gx2=VW/2+GW;
-    // Top goal
-    ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(gx1,-gd,GW*2,gd);
-    ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=2.2;
-    ctx.strokeRect(gx1,-gd,GW*2,gd);
-    ctx.fillStyle='#eee';ctx.fillRect(gx1-4,-gd-3,6,gd+6);ctx.fillRect(gx2-2,-gd-3,6,gd+6);
-    // Bottom goal
-    ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(gx1,VH,GW*2,gd);
-    ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=2.2;
-    ctx.strokeRect(gx1,VH,GW*2,gd);
-    ctx.fillStyle='#eee';ctx.fillRect(gx1-4,VH-3,6,gd+6);ctx.fillRect(gx2-2,VH-3,6,gd+6);
-    // Goal labels
-    ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    const topTeam=f.myAttUp?f.opp:G.teamName,botTeam=f.myAttUp?G.teamName:f.opp;
-    ctx.fillText((f.myAttUp?'⬆ ':'⬇ ')+topTeam.slice(0,9),VW/2,-gd/2);
-    ctx.fillText((f.myAttUp?'⬇ ':'⬆ ')+botTeam.slice(0,9),VW/2,VH+gd/2);
-  }else{
-    const gy1=VH/2-GW,gy2=VH/2+GW;
-    ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(-gd,gy1,gd,GW*2);ctx.fillRect(VW,gy1,gd,GW*2);
-    ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=2.2;
-    ctx.strokeRect(-gd,gy1,gd,GW*2);ctx.strokeRect(VW,gy1,gd,GW*2);
-    ctx.fillStyle='#eee';
-    ctx.fillRect(-gd-3,gy1-3,gd+3,6);ctx.fillRect(-gd-3,gy2-3,gd+3,6);
-    ctx.fillRect(VW,gy1-3,gd+3,6);ctx.fillRect(VW,gy2-3,gd+3,6);
-    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='bold 24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(G.teamName.slice(0,7).toUpperCase(),VW*.2,VH/2);
-    ctx.fillText(f.opp.slice(0,7).toUpperCase(),VW*.8,VH/2);
-  }
-  
-  // DTs on sideline
+
+  // === TOP GOAL (opp defends in half 1) ===
+  // Net
+  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(gx1,topGL-netH,GW*2,netH);
+  ctx.strokeStyle='rgba(255,255,255,.17)';ctx.lineWidth=0.7;
+  for(let ny=topGL-netH;ny<topGL;ny+=8){ctx.beginPath();ctx.moveTo(gx1,ny);ctx.lineTo(gx2,ny);ctx.stroke();}
+  for(let nx=gx1;nx<=gx2;nx+=9){ctx.beginPath();ctx.moveTo(nx,topGL-netH);ctx.lineTo(nx,topGL);ctx.stroke();}
+  // Posts
+  ctx.fillStyle='#fff';
+  ctx.fillRect(gx1-3,topGL-netH,4,netH+3);
+  ctx.fillRect(gx2-1,topGL-netH,4,netH+3);
+  ctx.fillRect(gx1-3,topGL-netH-1,GW*2+7,4); // crossbar top beam
+  // Crossbar line
+  ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(gx1-1,topGL);ctx.lineTo(gx2+1,topGL);ctx.stroke();
+  // Team label
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((f.myAttUp?f.opp:G.teamName).slice(0,11),VW/2,topGL-netH/2);
+
+  // === BOTTOM GOAL (my team defends in half 1) ===
+  // Net
+  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(gx1,botGL,GW*2,netH);
+  ctx.strokeStyle='rgba(255,255,255,.17)';ctx.lineWidth=0.7;
+  for(let ny=botGL;ny<botGL+netH;ny+=8){ctx.beginPath();ctx.moveTo(gx1,ny);ctx.lineTo(gx2,ny);ctx.stroke();}
+  for(let nx=gx1;nx<=gx2;nx+=9){ctx.beginPath();ctx.moveTo(nx,botGL);ctx.lineTo(nx,botGL+netH);ctx.stroke();}
+  // Posts
+  ctx.fillStyle='#fff';
+  ctx.fillRect(gx1-3,botGL-3,4,netH+5);
+  ctx.fillRect(gx2-1,botGL-3,4,netH+5);
+  ctx.fillRect(gx1-3,botGL+netH-2,GW*2+7,4); // back beam
+  // Crossbar line
+  ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(gx1-1,botGL);ctx.lineTo(gx2+1,botGL);ctx.stroke();
+  // Team label
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((f.myAttUp?G.teamName:f.opp).slice(0,11),VW/2,botGL+netH/2);
+
+  // === DTs on sidelines ===
   const drawDT=(x,y,kit)=>{
-    ctx.fillStyle=kit.c1;ctx.fillRect(x-6,y,12,26);
-    ctx.fillStyle=kit.c2;ctx.fillRect(x-6,y+13,12,13);
-    ctx.fillStyle='#f5d5a0';ctx.beginPath();ctx.arc(x,y-2,6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=kit.c1;ctx.fillRect(x-5,y,10,20);
+    ctx.fillStyle=kit.c2;ctx.fillRect(x-5,y+10,10,10);
+    ctx.fillStyle='#f5d5a0';ctx.beginPath();ctx.arc(x,y-5,5,0,Math.PI*2);ctx.fill();
   };
-  if(portrait){
-    drawDT(VW-16,VH/2+8,f.myKit);drawDT(14,VH/2-36,f.oppKit);
-  }else{
-    drawDT(28,VH-42,f.myKit);drawDT(VW-28,VH-42,f.oppKit);
-  }
-  
-  // Players
+  drawDT(VW-13,mid+10,f.myKit);
+  drawDT(11,mid-34,f.oppKit);
+
+  // === PLAYERS ===
   const drawP=(p,isCtrl)=>{
     // Shadow
-    ctx.beginPath();ctx.ellipse(p.x,p.y+p.r+3,p.r*.8,3,0,0,Math.PI*2);
+    ctx.beginPath();ctx.ellipse(p.x,p.y+p.r+2,p.r*.72,2.2,0,0,Math.PI*2);
     ctx.fillStyle='rgba(0,0,0,.28)';ctx.fill();
-    // Jersey
+    // Jersey (split top/bottom — matching sitDrawPlayerK style)
     ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.clip();
     ctx.fillStyle=p.kit.c1;ctx.fillRect(p.x-p.r,p.y-p.r,p.r*2,p.r);
-    ctx.fillStyle=p.kit.c2;ctx.fillRect(p.x-p.r,p.y,p.r*2,p.r);ctx.restore();
-    // Border
+    ctx.fillStyle=p.kit.c2;ctx.fillRect(p.x-p.r,p.y,p.r*2,p.r);
+    ctx.restore();
+    // Border ring
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.strokeStyle=isCtrl?'#f6d318':'rgba(255,255,255,.38)';
-    ctx.lineWidth=isCtrl?2.8:1.4;ctx.stroke();
-    if(isCtrl){ctx.beginPath();ctx.arc(p.x,p.y,p.r+5,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.5)';ctx.lineWidth=2;ctx.stroke();}
-    // Name
-    ctx.fillStyle='rgba(255,255,255,.9)';ctx.font=`bold ${p.r-2}px sans-serif`;
-    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(p.name,p.x,p.y+p.r+4);
+    ctx.strokeStyle=isCtrl?'#f6d318':'rgba(255,255,255,.42)';
+    ctx.lineWidth=isCtrl?2.8:1.5;ctx.stroke();
+    // Selection halo
+    if(isCtrl){ctx.beginPath();ctx.arc(p.x,p.y,p.r+5,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.42)';ctx.lineWidth=2;ctx.stroke();}
+    // Name tag
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-16,p.y+p.r+3,32,10);
+    ctx.fillStyle='#fff';ctx.font='bold 8px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.name.slice(0,5),p.x,p.y+p.r+8);
   };
   f.opp.forEach(p=>drawP(p,false));
   f.my.forEach((p,i)=>drawP(p,i===f.ctrl));
-  
-  // Ball
+
+  // === BALL ===
   const b=f.ball;
-  ctx.beginPath();ctx.ellipse(b.x,b.y+10,6,2.5,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.22)';ctx.fill();
-  ctx.beginPath();ctx.arc(b.x,b.y,7.5,0,Math.PI*2);
-  const bg=ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,7.5);
-  bg.addColorStop(0,'#fff');bg.addColorStop(1,'#bbb');
-  ctx.fillStyle=bg;ctx.fill();ctx.strokeStyle='#555';ctx.lineWidth=1;ctx.stroke();
-  
-  if(f.phase!=='play'){ctx.fillStyle='rgba(0,0,0,.44)';ctx.fillRect(0,0,VW,VH);}
+  ctx.beginPath();ctx.ellipse(b.x,b.y+8,5,1.8,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.22)';ctx.fill();
+  ctx.beginPath();ctx.arc(b.x,b.y,7,0,Math.PI*2);
+  const bg=ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,7);
+  bg.addColorStop(0,'#fff');bg.addColorStop(1,'#c8c8c8');
+  ctx.fillStyle=bg;ctx.fill();
+  ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.stroke();
+
+  // Dim overlay for non-play phases
+  if(f.phase!=='play'){ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(0,0,VW,VH);}
   ctx.restore();
 }
 
