@@ -5907,19 +5907,29 @@ function startFullMatch(){
   if(!m){flash('No hay partidos pendientes','loss');return;}
   document.getElementById('fm-ov')?.remove();
   const opp=m.home===G.teamName?m.away:m.home;
+  const S=matchStrengths(m);
+  const myRat=Math.round(S.myRat),oppRat=Math.round(S.oppRat);
+  const myTac=G.tactics?.formation||'4-4-2';
   const ov=document.createElement('div');
   ov.id='fm-ov';
   ov.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#0a1628;overflow:hidden;touch-action:none';
   ov.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(0,0,0,.88);flex-shrink:0;gap:6px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:rgba(255,255,255,.38);line-height:1.45">${G.teamName}<br>vs ${opp}</div>
-      <div style="text-align:center">
-        <div id="fm-sc" style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:#fff;line-height:1">0 – 0</div>
-        <div id="fm-tm" style="font-size:11px;color:rgba(255,255,255,.45);font-family:'Barlow Condensed',sans-serif">0' · 1T</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.9);flex-shrink:0;gap:6px">
+      <div style="font-family:'Barlow Condensed',sans-serif;line-height:1.3;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:#F6D318;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${G.teamName}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${myRat} · ${myTac}</div>
       </div>
-      <div style="display:flex;gap:5px">
-        <button onclick="fmEnd()" style="background:rgba(246,211,24,.15);border:1px solid #F6D318;color:#F6D318;font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:5px 9px;border-radius:5px;cursor:pointer">✅ FIN</button>
-        <button onclick="fmQuit()" style="background:rgba(228,60,60,.12);border:1px solid #e43c3c;color:#e43c3c;font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:5px 8px;border-radius:5px;cursor:pointer">✕</button>
+      <div style="text-align:center;flex-shrink:0">
+        <div id="fm-sc" style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:#fff;line-height:1">0 – 0</div>
+        <div id="fm-tm" style="font-size:10px;color:rgba(255,255,255,.45);font-family:'Barlow Condensed',sans-serif">0' · 1T</div>
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;line-height:1.3;text-align:right;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:rgba(180,210,255,1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${opp}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${oppRat} · 4-4-2</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        <button onclick="fmEnd()" style="background:rgba(246,211,24,.15);border:1px solid #F6D318;color:#F6D318;font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
+        <button onclick="fmQuit()" style="background:rgba(228,60,60,.12);border:1px solid #e43c3c;color:#e43c3c;font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">✕</button>
       </div>
     </div>
     <div id="fm-game" style="position:relative;flex:1;overflow:hidden;background:#071407">
@@ -5930,19 +5940,13 @@ function startFullMatch(){
       </div>
       <!-- Buttons (right) -->
       <div style="position:absolute;bottom:18px;right:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;z-index:10">
-        <div ontouchstart="fmTB('tab',1,event)" ontouchend="fmTB('tab',0,event)" style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.28);color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'Barlow Condensed';font-size:9px;font-weight:700;touch-action:none;user-select:none;line-height:1.1">🔄<br>TAB</div>
+        <div ontouchstart="fmTB('tab',1,event)" ontouchend="fmTB('tab',0,event)" style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.28);color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'Barlow Condensed';font-size:9px;font-weight:700;touch-action:none;user-select:none;line-height:1.1">🔄<br>SHIFT</div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div ontouchstart="fmTB('x',1,event)" ontouchend="fmTB('x',0,event)" style="width:60px;height:60px;border-radius:50%;background:rgba(15,184,102,.2);border:2px solid #0fb866;color:#0fb866;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'Barlow Condensed';font-size:10px;font-weight:700;touch-action:none;user-select:none;line-height:1.1">↗️<br>PASAR</div>
           <div ontouchstart="fmTB('z',1,event)" ontouchend="fmTB('z',0,event)" style="width:72px;height:72px;border-radius:50%;background:rgba(246,211,24,.18);border:2px solid #F6D318;color:#F6D318;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'Barlow Condensed';font-size:12px;font-weight:700;touch-action:none;user-select:none;line-height:1.1">⚽<br>TIRAR</div>
         </div>
       </div>
       <div id="fm-msg" style="position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);font-family:'Barlow Condensed',sans-serif;font-size:40px;font-weight:900;color:#fff;text-shadow:0 0 24px rgba(0,0,0,.95);pointer-events:none;display:none;text-align:center;white-space:nowrap;line-height:1.25;z-index:20"></div>
-      <div id="fm-pw" style="position:absolute;top:55%;left:50%;transform:translateX(-50%);width:130px;display:none;text-align:center;z-index:20">
-        <div style="font-size:9px;color:#fff;font-family:'Barlow Condensed';letter-spacing:.08em;margin-bottom:2px;background:rgba(0,0,0,.6);padding:2px 8px;border-radius:3px">POTENCIA</div>
-        <div style="height:10px;background:rgba(0,0,0,.5);border-radius:5px;overflow:hidden;border:1px solid rgba(255,255,255,.25)">
-          <div id="fm-pf" style="height:100%;width:0%;border-radius:5px;background:#2ecc71"></div>
-        </div>
-      </div>
     </div>`;
   document.body.appendChild(ov);
   requestAnimationFrame(()=>{
@@ -5961,16 +5965,16 @@ function fmInit(m,W,H){
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
   // Landscape side-view — bigger field, Haxball-style
-  const VW=900,VH=480;
+  const VW=1100,VH=600;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GH=62,leftGL=32,rightGL=868;
+  const GH=80,leftGL=40,rightGL=1060;
   // 4-4-2 — my team LEFT half, attacks RIGHT (half 1)
   const myPos=[
-    [46,240],
-    [162,400],[185,278],[185,202],[162,80],
-    [338,420],[358,280],[358,200],[338,60],
-    [498,248],[498,232],
+    [55,300],
+    [200,500],[225,350],[225,250],[200,100],
+    [415,520],[440,350],[440,250],[415,80],
+    [610,320],[610,280],
   ];
   const oppPos=myPos.map(([x,y])=>[VW-x,y]);
   const roles=['GK','RB','CB','CB','LB','RM','CM','CM','LM','CF','CF'];
@@ -5981,6 +5985,7 @@ function fmInit(m,W,H){
     x:pos[0],y:pos[1],vx:0,vy:0,hx:pos[0],hy:pos[1],
     name:name.split(' ').pop().slice(0,6),
     r:13,kit,role,isGK:role==='GK',
+    rat:Math.round(rat),
     spd:role==='GK'?1.5:1.55+(rat-70)*0.015,
   });
   FM={
@@ -6009,7 +6014,7 @@ function fmBind(){
   if(FM._ku)document.removeEventListener('keyup',FM._ku);
   const mp={ArrowUp:'up',ArrowDown:'dn',ArrowLeft:'lf',ArrowRight:'rt',
             KeyW:'up',KeyS:'dn',KeyA:'lf',KeyD:'rt',
-            KeyZ:'z',KeyX:'x',Tab:'tab',Escape:'esc'};
+            KeyZ:'z',KeyX:'x',Tab:'tab',ShiftLeft:'tab',ShiftRight:'tab',Escape:'esc'};
   FM._kd=e=>{if(!FM)return;const k=mp[e.code];if(k){e.preventDefault();FM.keys[k]=1;}if(k==='esc')fmQuit();};
   FM._ku=e=>{if(!FM)return;const k=mp[e.code];if(k)FM.keys[k]=0;};
   document.addEventListener('keydown',FM._kd);
@@ -6161,7 +6166,7 @@ function fmAI(p,team,idx,dt){
     const gkX=ownGX+(attRight?28:-28);
     const gkY=Math.max(mid-f.GH+10,Math.min(mid+f.GH-10,b.y));
     fmMove(p,gkX-p.x,gkY-p.y,dt,.06);
-    const near=attRight?b.x<f.leftGL+70:b.x>f.rightGL-70;
+    const near=attRight?b.x<f.leftGL+90:b.x>f.rightGL-90;
     if(near&&bd<KICK_R){
       const ddx=tgx-b.x,ddy=mid-b.y,dd=Math.hypot(ddx,ddy)||1;
       b.vx=(ddx/dd)*5.5;b.vy=(ddy/dd)*4.5+(Math.random()-.5)*1.5;
@@ -6264,7 +6269,7 @@ function fmDraw(){
   ctx.translate(f.ox,f.oy);ctx.scale(f.sc,f.sc);
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2;
-  const netW=44;
+  const netW=52;
   const gy1=mid-GH,gy2=mid+GH;
 
   // === GRASS — gradient + horizontal stripes (same as sit mini-game) ===
@@ -6282,7 +6287,7 @@ function fmDraw(){
   // Center line (vertical)
   ctx.beginPath();ctx.moveTo(cx,8);ctx.lineTo(cx,VH-8);ctx.stroke();
   // Center circle
-  ctx.beginPath();ctx.arc(cx,mid,64,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,mid,80,0,Math.PI*2);ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(cx,mid,5,0,Math.PI*2);ctx.fill();
   // Left penalty area
   const paW=(rightGL-leftGL)*.175,paH=VH*.66;
@@ -6294,16 +6299,16 @@ function fmDraw(){
   ctx.strokeRect(rightGL-sbW,mid-sbH/2,sbW,sbH);
   // Penalty spots
   ctx.fillStyle='rgba(255,255,255,.75)';
-  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,5,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,6,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,6,0,Math.PI*2);ctx.fill();
   // Penalty arcs
-  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,48,-Math.PI*.28,Math.PI*.28);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,48,Math.PI*.72,Math.PI*1.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,58,-Math.PI*.28,Math.PI*.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,58,Math.PI*.72,Math.PI*1.28);ctx.stroke();
   // Corner arcs
-  ctx.beginPath();ctx.arc(leftGL,8,15,0,Math.PI/2);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL,8,15,Math.PI/2,Math.PI);ctx.stroke();
-  ctx.beginPath();ctx.arc(leftGL,VH-8,15,-Math.PI/2,0);ctx.stroke();
-  ctx.beginPath();ctx.arc(rightGL,VH-8,15,Math.PI,-Math.PI/2,true);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,8,18,0,Math.PI/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,8,18,Math.PI/2,Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(leftGL,VH-8,18,-Math.PI/2,0);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL,VH-8,18,Math.PI,-Math.PI/2,true);ctx.stroke();
   ctx.restore();
 
   // === LEFT GOAL ===
@@ -6356,8 +6361,12 @@ function fmDraw(){
     }
   }
 
+  // Find next switch target (closest to ball, not current)
+  let nextCtrl=-1,nbd=Infinity;
+  f.my.forEach((p,i)=>{if(i===f.ctrl)return;const d=Math.hypot(p.x-f.ball.x,p.y-f.ball.y);if(d<nbd){nbd=d;nextCtrl=i;}});
+
   // === PLAYERS ===
-  const drawP=(p,isCtrl)=>{
+  const drawP=(p,isCtrl,isNext)=>{
     ctx.beginPath();ctx.ellipse(p.x,p.y+p.r+2,p.r*.72,2.2,0,0,Math.PI*2);
     ctx.fillStyle='rgba(0,0,0,.28)';ctx.fill();
     ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.clip();
@@ -6365,15 +6374,17 @@ function fmDraw(){
     ctx.fillStyle=p.kit.c2;ctx.fillRect(p.x-p.r,p.y,p.r*2,p.r);
     ctx.restore();
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    ctx.strokeStyle=isCtrl?'#f6d318':'rgba(255,255,255,.42)';
-    ctx.lineWidth=isCtrl?2.5:1.4;ctx.stroke();
+    ctx.strokeStyle=isCtrl?'#f6d318':isNext?'#4df':'rgba(255,255,255,.42)';
+    ctx.lineWidth=isCtrl?2.5:isNext?2:1.4;ctx.stroke();
     if(isCtrl){ctx.beginPath();ctx.arc(p.x,p.y,p.r+5,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.38)';ctx.lineWidth=2;ctx.stroke();}
-    ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(p.x-15,p.y+p.r+2,30,10);
-    ctx.fillStyle='#fff';ctx.font='bold 7px sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.name.slice(0,5),p.x,p.y+p.r+7);
+    if(isNext){ctx.beginPath();ctx.arc(p.x,p.y,p.r+4,0,Math.PI*2);ctx.strokeStyle='rgba(68,221,255,.25)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle='rgba(0,0,0,.62)';ctx.fillRect(p.x-16,p.y+p.r+2,32,11);
+    ctx.fillStyle=isCtrl?'#f6d318':isNext?'#4df':'#fff';
+    ctx.font='bold 8px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.name.slice(0,6),p.x,p.y+p.r+7);
   };
-  f.opp.forEach(p=>drawP(p,false));
-  f.my.forEach((p,i)=>drawP(p,i===f.ctrl));
+  f.opp.forEach(p=>drawP(p,false,false));
+  f.my.forEach((p,i)=>drawP(p,i===f.ctrl,i===nextCtrl));
 
   // === BALL ===
   const b=f.ball;
@@ -6385,6 +6396,23 @@ function fmDraw(){
   ctx.strokeStyle='#444';ctx.lineWidth=.9;ctx.stroke();
 
   if(f.phase!=='play'){ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(0,0,VW,VH);}
+
+  // === CONTROLLED PLAYER INFO PANEL ===
+  if(f.phase==='play'){
+    const cp=f.my[f.ctrl];
+    if(cp){
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,.62)';ctx.fillRect(8,VH-52,148,44);
+      ctx.fillStyle='#f6d318';ctx.font='bold 11px sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+      ctx.fillText(cp.name+(cp.rat?' ⭐'+cp.rat:''),14,VH-48);
+      ctx.fillStyle='rgba(255,255,255,.8)';ctx.font='9.5px sans-serif';
+      ctx.fillText(cp.role+' · VEL '+(cp.spd*10).toFixed(0),14,VH-34);
+      ctx.fillStyle='rgba(68,221,255,.7)';ctx.font='8.5px sans-serif';
+      ctx.fillText('SHIFT → cambiar jugador',14,VH-20);
+      ctx.restore();
+    }
+  }
+
   ctx.restore();
 }
 
