@@ -4366,25 +4366,45 @@ function rNewsTab(){
     return;
   }
   const transfers=G.news.filter(n=>n.type==='transfer');
-  el.innerHTML=`
-    <div style="margin-bottom:10px">
-      <div class="ctitle">📰 Últimas Noticias</div>
-      ${G.news.slice(0,20).map(n=>`
-        <div class="li" style="border-bottom:1px solid rgba(255,255,255,.05);padding:7px 8px;display:flex;gap:8px;align-items:flex-start">
-          <span style="font-size:16px;flex-shrink:0">${n.ic}</span>
-          <div style="flex:1">
-            <div style="font-size:12px;color:var(--tx);line-height:1.4">${n.msg}</div>
-            <div style="font-size:9px;color:var(--t3);margin-top:2px">${n.w}</div>
+  const misc=G.news.filter(n=>n.type==='misc');
+  const winOpen=isTransferWindowOpen();
+  const winBanner=`<div style="background:${winOpen?'rgba(15,184,102,.1)':'rgba(232,69,69,.08)'};border:1px solid ${winOpen?'rgba(15,184,102,.3)':'rgba(232,69,69,.25)'};border-radius:7px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:6px">
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:${winOpen?'var(--green)':'var(--red)'}">${winOpen?'🟢 MERCADO ABIERTO':'🔴 MERCADO CERRADO'}</div>
+      <div style="font-size:9px;color:var(--t3)">${getWindowStatus().replace(/[☀️❄️🔒]/g,'')}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:9px;color:var(--t3)">Transferencias</div>
+      <div style="font-size:13px;font-weight:700;color:var(--gold)">${transfers.length}</div>
+    </div>
+  </div>`;
+  const typeStyle={transfer:'border-left:3px solid var(--gold)',misc:'border-left:3px solid rgba(122,179,247,.5)',default:''};
+  el.innerHTML=winBanner+`
+    <div class="tabs" style="margin-bottom:8px">
+      <button class="tab on" onclick="newsFilter('all',this)">Todo (${G.news.length})</button>
+      <button class="tab" onclick="newsFilter('transfer',this)">Fichajes (${transfers.length})</button>
+      <button class="tab" onclick="newsFilter('misc',this)">Noticias (${misc.length})</button>
+    </div>
+    <div id="newsItemsList">
+      ${G.news.slice(0,25).map(n=>`
+        <div class="li nws-item" data-type="${n.type||'misc'}" style="border-bottom:1px solid rgba(255,255,255,.05);padding:8px 10px;display:flex;gap:8px;align-items:flex-start;${typeStyle[n.type]||typeStyle.default}">
+          <span style="font-size:16px;flex-shrink:0;margin-top:1px">${n.ic}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:var(--tx);line-height:1.5">${n.msg}</div>
+            <div style="font-size:9px;color:var(--t3);margin-top:3px">${n.w} ${n.type==='transfer'?'<span style="color:var(--gold);margin-left:6px">🔄 Fichaje</span>':''}</div>
           </div>
         </div>
       `).join('')}
     </div>
-    ${transfers.length?`
-    <div class="card">
-      <div class="ctitle">🔄 Resumen de Fichajes (${transfers.length})</div>
-      <div style="font-size:11px;color:var(--t2)">Los equipos rivales también se mueven en el mercado. Seguí los movimientos para anticiparte.</div>
-    </div>`:''}
   `;
+}
+function newsFilter(type,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  const items=document.querySelectorAll('.nws-item');
+  items.forEach(el=>{
+    el.style.display=(type==='all'||el.dataset.type===type)?'flex':'none';
+  });
 }
 
 function rNews(){
@@ -4459,31 +4479,81 @@ function checkSeasonEnd(){
 
 function showSeasonSummary(){
   const pts = G.wins*3+G.draws;
+  const pj = G.wins+G.draws+G.losses;
+  const eff = pj>0?Math.round((G.wins*3+G.draws)/(pj*3)*100):0;
   const topScorer = G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
+  const topApp = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps)[0];
   const wageM = (G.squad.reduce((a,p)=>a+p.wage,0)/1000).toFixed(1);
+  const t=G.tourney||{liga:{pts:0,gf:0,ga:0,pj:0},lib:{pts:0,gf:0,ga:0,pj:0},copa:{pts:0,gf:0,ga:0,pj:0}};
+  const ligaRank=Math.max(1,Math.min(20,Math.round(20-pts/3)));
+  const resultLabel=pts>=54?'🏆 CAMPEÓN':pts>=45?'🥇 Top 3 — ¡Temporada excelente!':pts>=36?'✅ Top 8 — Buena temporada':pts>=24?'⚽ Temporada regular':pts>=15?'😤 Zona de riesgo':'💔 Temporada difícil';
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div style="text-align:center;margin-bottom:14px">
-      <div style="font-size:10px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Fin de Temporada</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--gold);letter-spacing:.05em">${G.season}</div>
+    <div style="text-align:center;margin-bottom:12px;padding:10px;background:linear-gradient(135deg,rgba(9,31,60,.8),rgba(246,211,24,.05));border-radius:8px">
+      <div style="font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px">Fin de Temporada</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:var(--gold);letter-spacing:.05em">${G.season}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:4px">${resultLabel}</div>
     </div>
-    <div class="ctitle">📊 Récord de la temporada</div>
+
+    <div class="g2" style="gap:6px;margin-bottom:10px">
+      <div class="card" style="text-align:center;padding:10px">
+        <div style="font-size:28px;font-weight:900;color:var(--gold);font-family:'Barlow Condensed'">${pts}</div>
+        <div style="font-size:8px;color:var(--t3)">PUNTOS LIGA</div>
+      </div>
+      <div class="card" style="text-align:center;padding:10px">
+        <div style="font-size:28px;font-weight:900;color:${eff>=60?'var(--green)':'var(--ora)'};font-family:'Barlow Condensed'">${eff}%</div>
+        <div style="font-size:8px;color:var(--t3)">EFECTIVIDAD</div>
+      </div>
+    </div>
+
     <div class="card" style="margin-bottom:10px">
-      <div class="sr"><span class="sl">Partidos jugados</span><span class="sv">${G.wins+G.draws+G.losses}</span></div>
-      <div class="sr"><span class="sl">Victorias / Empates / Derrotas</span><span class="sv" style="color:var(--green)">${G.wins} — ${G.draws} — ${G.losses}</span></div>
-      <div class="sr"><span class="sl">Goles a favor / en contra</span><span class="sv">${G.gf} / ${G.ga}</span></div>
-      <div class="sr"><span class="sl">Puntos (Liga)</span><span class="sv" style="color:var(--gold);font-weight:700">${pts}</span></div>
+      <div class="ctitle">📊 Récord total</div>
+      <div style="display:flex;justify-content:space-around;padding:6px 0">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--green)">${G.wins}</div><div style="font-size:8px;color:var(--t3)">VIC</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--gold)">${G.draws}</div><div style="font-size:8px;color:var(--t3)">EMP</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--red)">${G.losses}</div><div style="font-size:8px;color:var(--t3)">DER</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${G.gf}</div><div style="font-size:8px;color:var(--t3)">GF</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--red)">${G.ga}</div><div style="font-size:8px;color:var(--t3)">GC</div></div>
+      </div>
+      <div class="sr"><span class="sl">Diferencia de goles</span><span class="sv" style="color:${G.gf-G.ga>=0?'var(--green)':'var(--red)'}">${G.gf-G.ga>=0?'+':''}${G.gf-G.ga}</span></div>
+      <div class="sr"><span class="sl">Promedio goles/partido</span><span class="sv">${pj>0?(G.gf/pj).toFixed(2):'-'}</span></div>
     </div>
-    ${topScorer ? `
-    <div class="ctitle">🏆 Goleador de la temporada</div>
-    <div class="note G" style="margin-bottom:10px">⚽ <strong>${topScorer.name}</strong> — ${topScorer.goals} goles</div>
-    ` : ''}
-    <div class="ctitle">💰 Presupuesto final</div>
+
+    <div class="g2" style="gap:6px;margin-bottom:10px">
+      <div class="card">
+        <div class="ctitle" style="font-size:9px">🇦🇷 Liga</div>
+        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.liga.pts||pts}</span></div>
+        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.liga.pj||pj}</span></div>
+        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.liga.gf||G.gf}/${t.liga.ga||G.ga}</span></div>
+      </div>
+      ${(t.lib.pj>0)?`<div class="card">
+        <div class="ctitle" style="font-size:9px">🏆 Copa</div>
+        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.lib.pts}</span></div>
+        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.lib.pj}</span></div>
+        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.lib.gf}/${t.lib.ga}</span></div>
+      </div>`:`<div class="card">
+        <div class="ctitle" style="font-size:9px">🥈 Sud.</div>
+        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.copa.pts||0}</span></div>
+        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.copa.pj||0}</span></div>
+        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.copa.gf||0}/${t.copa.ga||0}</span></div>
+      </div>`}
+    </div>
+
+    ${topScorer||topApp?`
+    <div class="ctitle">⭐ Premios individuales</div>
+    <div class="card" style="margin-bottom:10px">
+      ${topScorer?`<div class="sr"><span class="sl">🥇 Goleador</span><span class="sv"><strong>${topScorer.name.split(' ').pop()}</strong> · ${topScorer.goals} goles</span></div>`:''}
+      ${topApp?`<div class="sr"><span class="sl">📋 Más partidos</span><span class="sv"><strong>${topApp.name.split(' ').pop()}</strong> · ${topApp.apps} PJ</span></div>`:''}
+    </div>`:''}
+
     <div class="card" style="margin-bottom:12px">
-      <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:var(--gold)">$${G.budget}M</span></div>
-      <div class="sr"><span class="sl">Salarios/año</span><span class="sv" style="color:var(--red)">$${wageM}M</span></div>
+      <div class="ctitle">💰 Balance económico</div>
+      <div class="sr"><span class="sl">Presupuesto final</span><span class="sv" style="color:var(--gold)">$${G.budget}M</span></div>
+      <div class="sr"><span class="sl">Salarios año</span><span class="sv" style="color:var(--red)">$${wageM}M</span></div>
+      <div class="sr"><span class="sl">Reputación</span><span class="sv">${G.rep}/100</span></div>
+      <div class="sr"><span class="sl">Moral</span><span class="sv">${G.morale}/100</span></div>
     </div>
-    <button class="btn bg" style="width:100%;font-size:14px;padding:10px" onclick="nextSeason()">🏁 Iniciar Temporada ${G.season+1} →</button>
+    <button class="btn bg" style="width:100%;font-size:14px;padding:11px;letter-spacing:.05em" onclick="nextSeason()">🏁 INICIAR TEMPORADA ${G.season+1} →</button>
   `);
 }
 
