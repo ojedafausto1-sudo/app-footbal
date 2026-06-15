@@ -470,7 +470,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 
     <!-- TEMPORADA -->
     <div id="tab-cal" class="tc">
-      <div class="stitle">📅 Temporada 2026</div>
+      <div class="stitle">📅 Temporada <span id="calSeasonTitle">2026</span></div>
       <div id="calView"></div>
     </div>
 
@@ -4416,6 +4416,8 @@ function rNews(){
 function rCal(){
   const el=document.getElementById('calView');
   if(!el||!G) return;
+  const cst=document.getElementById('calSeasonTitle');
+  if(cst) cst.textContent=G.season||2026;
   const tn=G.teamName||'Boca Juniors';
   const nextM=G.calendar.find(m=>!m.played);
   const byC={};
