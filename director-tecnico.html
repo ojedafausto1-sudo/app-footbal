@@ -6921,6 +6921,22 @@ function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
   const players=isM?f.my:f.opp;
   const attRight=isM?f.myAttRight:!f.myAttRight;
+  // If my team and the controlled player already has possession, hold formation/spread for pass
+  if(isM){
+    const ctrl=f.my[f.ctrl];
+    const ctrlBD=ctrl?Math.hypot(ctrl.x-b.x,ctrl.y-b.y):9999;
+    if(ctrlBD<ctrl?.r+28){
+      const fieldW=f.rightGL-f.leftGL;
+      const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
+      const fwdShift=(ballPct-0.4)*fieldW*0.18;
+      const tx=Math.max(p.r+10,Math.min(f.VW-p.r-10,p.hx+(attRight?fwdShift:-fwdShift)));
+      const ty=Math.max(p.r+6,Math.min(f.VH-p.r-6,p.hy+(b.y-f.VH/2)*0.08));
+      fmMove(p,tx-p.x,ty-p.y,dt,.036);
+      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+      return;
+    }
+  }
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
   const mid=f.VH/2;
