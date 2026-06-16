@@ -198,6 +198,30 @@ tr:hover td{background:rgba(255,255,255,.025)}
 /* Board confidence bar */
 .confbar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-top:3px}
 .conffill{height:100%;border-radius:4px;transition:width .5s,background .5s}
+/* ── PHONE WIDGET ─────────────────────────────────────────── */
+#phoneBtn{position:fixed;bottom:22px;right:16px;width:54px;height:54px;background:linear-gradient(135deg,var(--mid),var(--d3));border:2px solid var(--gold);border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:900;box-shadow:0 4px 20px rgba(246,211,24,.35),0 2px 8px rgba(0,0,0,.6);font-size:22px;transition:transform .2s,box-shadow .2s;flex-shrink:0}
+#phoneBtn:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(246,211,24,.5)}
+#phoneBadge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:50%;width:20px;height:20px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--dark);font-family:'Barlow Condensed',sans-serif;line-height:1}
+#phoneOverlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:950;display:none;align-items:flex-end;justify-content:flex-end;padding:16px 14px}
+#phoneOverlay.on{display:flex}
+#phoneDevice{width:min(360px,calc(100vw - 24px));height:min(660px,calc(100vh - 32px));background:#080818;border-radius:34px;border:3px solid #1e1e3a;box-shadow:0 24px 80px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;position:relative}
+#phoneDevice::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:30px;background:#080818;border-radius:0 0 22px 22px;z-index:12;pointer-events:none}
+.ph-status{height:30px;display:flex;align-items:flex-end;justify-content:space-between;padding:5px 22px 3px;font-size:8.5px;color:rgba(255,255,255,.4);flex-shrink:0;z-index:11;position:relative}
+.ph-header{background:linear-gradient(180deg,#0d1430,var(--d2));padding:11px 16px 9px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.ph-appname{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--gold);letter-spacing:1.5px;text-shadow:0 0 12px rgba(246,211,24,.4)}
+.ph-tabs{display:flex;background:rgba(0,0,0,.35);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.ph-tab{flex:1;padding:9px 3px;font-size:8.5px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .18s}
+.ph-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.ph-screen{flex:1;overflow-y:auto;padding:10px 10px 8px}
+.ph-msg{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:7px;background:rgba(9,31,60,.55);border:1px solid var(--bdr);border-radius:12px;position:relative;transition:background .15s}
+.ph-msg.unread{border-left:3px solid var(--gold);background:rgba(246,211,24,.07)}
+.ph-msg.unread .ph-dot{display:flex}
+.ph-dot{position:absolute;top:11px;right:11px;width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);display:none;align-items:center;justify-content:center}
+.ph-from{font-size:11.5px;font-weight:700;color:#e8f0ff;display:flex;align-items:center;gap:5px}
+.ph-body{font-size:10px;color:var(--t2);line-height:1.45}
+.ph-time{font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif}
+.ph-acts{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+.ph-empty{text-align:center;color:var(--t3);font-size:11px;padding:35px 16px;line-height:2}
 </style>
 </head>
 <body>
@@ -2244,6 +2268,7 @@ function initGame(teamId){
     pressDemands: [],
     tourney: null,
     medicalCenter: false,
+    phoneMsgs: [],
   };
   G.stadium.name = tc.stadName;
   G.stadium.capacity = tc.stadCap;
@@ -2260,6 +2285,7 @@ function initGame(teamId){
   lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
   lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
   updateUI();
+  addPhoneMsg('board', 'Junta Directiva', `📋 Bienvenido a tu primera semana como Director Técnico de ${G.teamName}. Desde aquí recibirás todas las comunicaciones importantes: pedidos del DT, ofertas de agentes y mensajes de jugadores.`, '🏛️');
 }
 
 const BUYER_CLUBS=['River Plate','Racing','Flamengo','Palmeiras','São Paulo','Benfica','Porto','Sevilla','Ajax','Bologna','Lyon','Villarreal','Galatasaray','Bayer Leverkusen','Sporting CP','Monaco','Al-Nassr','Al-Hilal','Atalanta','Real Betis','Wolves','Marseille'];
@@ -2315,18 +2341,22 @@ function weeklyOffers(){
         const o=buildBuyOffer(p,true); G.offers.push(o); pending.add(p.id);
         lg('📨',`${o.from} ofertó ${fv(o.amount)} por ${p.name}`);
         flash('📨 Oferta por '+p.name+': '+fv(o.amount),'draw');
+        addPhoneMsg('agent', o.from, `📋 Oferta de <b>${o.from}</b> por <b>${p.name}</b>: <b style="color:var(--gold)">${fv(o.amount)}</b> (Valor TM: ${fv(p.val)}). El jugador está en tu lista de ventas.`, '💼', {gotoTab:'mkt', tabIdx:3});
       }
     } else if(p.listed==='loan'){
       if(Math.random()<(windowOpen?0.6:0.28)){
         const o=buildLoanOffer(p); G.offers.push(o); pending.add(p.id);
         lg('📨',`${o.from} quiere a ${p.name} a préstamo`);
+        addPhoneMsg('agent', o.from, `📤 ${o.from} quiere a <b>${p.name}</b> en préstamo por ${fv(o.amount)}. Podés revisar la oferta en Mercado → Ofertas.`, '🤝', {gotoTab:'mkt', tabIdx:3});
       }
     }
   });
   // Occasional unsolicited star bid
   if(Math.random()<(windowOpen?0.25:0.10)){
     const stars=G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)).sort((a,b)=>b.rat-a.rat);
-    if(stars.length){ const o=buildBuyOffer(stars[0],false); G.offers.push(o); lg('📨',`${o.from} pretende a ${stars[0].name} (${fv(o.amount)})`); }
+    if(stars.length){ const o=buildBuyOffer(stars[0],false); G.offers.push(o); lg('📨',`${o.from} pretende a ${stars[0].name} (${fv(o.amount)})`);
+      addPhoneMsg('agent', o.from, `⭐ ${o.from} hizo una oferta no solicitada por <b>${stars[0].name}</b>: <b style="color:var(--gold)">${fv(o.amount)}</b>. Revisá las ofertas en el Mercado.`, '💎', {gotoTab:'mkt', tabIdx:3});
+    }
   }
 }
 
@@ -2422,6 +2452,7 @@ function updateUI(){
   rDtPedidos();
   rPressDemands();
   rFormDots();
+  updatePhoneBadge();
   saveGame();
 }
 
@@ -3998,6 +4029,7 @@ function genDtRequest(){
     rejected:false
   });
   lg('📬',`${d.name} pide: ${pick.name} (${pick.pos}, ${fv(pick.val)})`);
+  addPhoneMsg('dt', d.name, `🤝 El DT pide fichar a <b>${pick.name}</b> (${pick.pos}, ${pick.age}a) de ${pick.club} por <b style="color:var(--gold)">${fv(pick.val)}</b>.<br><i>"${reason}"</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
   // Also maybe generate sell recommendation or other request types
   const rndType = Math.random();
   if(rndType < 0.35) genDtSellReq();
@@ -4026,17 +4058,19 @@ function genDtSellReq(){
     `Con ${pick.name} podemos conseguir dinero para reforzar el plantel`,
     `${pick.name} rinde por debajo de lo esperado, conviene venderlo`
   ];
+  const sellReason = reasons[~~(Math.random()*reasons.length)];
   G.dtRequests.push({
     id:'req'+(Date.now()+Math.random()),
     week:G.week,
     type:'sell',
     pos:pick.pos,
     player:pick,
-    reason:reasons[~~(Math.random()*reasons.length)],
+    reason:sellReason,
     approved:false,
     rejected:false
   });
   lg('📤',`${G.dt.name} sugiere vender a ${pick.name}`);
+  addPhoneMsg('dt', G.dt.name, `💸 El DT sugiere vender a <b>${pick.name}</b> (${pick.age}a). "${sellReason}"`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function genDtStadReq(){
@@ -4057,6 +4091,7 @@ function genDtStadReq(){
     approved:false, rejected:false
   });
   lg('🏟️',`${G.dt.name} pide mejora: ${pick.name}`);
+  addPhoneMsg('dt', G.dt.name, `🏟️ El DT solicita la mejora de estadio: <b>${pick.name}</b> (costo: $${pick.cost}M).<br><i>"Para seguir creciendo necesito mejores instalaciones."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function genDtYouthReq(){
@@ -4077,6 +4112,7 @@ function genDtYouthReq(){
     approved:false, rejected:false
   });
   lg('🌱',`${G.dt.name} pide invertir en juveniles: ${pick.name}`);
+  addPhoneMsg('dt', G.dt.name, `🌱 El DT pide inversión en juveniles: <b>${pick.name}</b> (costo: $${pick.cost}M).<br><i>"Las inferiores son el futuro del club."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function genDtFireReq(){
@@ -4095,6 +4131,7 @@ function genDtFireReq(){
     approved:false, rejected:false
   });
   lg('🚪',`${G.dt.name} quiere rescindir a ${pick.name}`);
+  addPhoneMsg('dt', G.dt.name, `🚪 El DT quiere rescindir el contrato de <b>${pick.name}</b> (${pick.age}a).<br><i>"Ya no está al nivel."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function rDtPedidos(){
@@ -4111,6 +4148,7 @@ function rDtPedidos(){
   if(ovCard){ ovCard.style.display=pending.length?'block':'none'; }
   if(ovBadge&&pending.length) ovBadge.textContent=pending.length+' nuevo'+(pending.length>1?'s':'');
   if(ovEl) ovEl.innerHTML=renderDtReqs(pending.slice(0,2),'ov');
+  updatePhoneBadge();
 }
 
 function renderDtReqs(reqs, ctx){
@@ -5010,6 +5048,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     ip.injured=true;
     ip.injuredWeeks = Math.max(1,Math.round((1+~~(Math.random()*4))*durMult));
     lg('🏥',`${ip.name} lesionado (${ip.injuredWeeks} sem)`);
+    addPhoneMsg('player', ip.name, `🏥 Me lesioné durante el entrenamiento. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.`, '🏥');
   }
   // Heal injured players
   G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
@@ -7725,6 +7764,126 @@ function startGame(teamId){
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
   initGame(teamId||'boca');
+}
+
+// =============================================
+// PHONE WIDGET — DT COMMUNICATIONS HUB
+// =============================================
+let _phTab = 'all';
+
+function addPhoneMsg(type, from, body, icon, data){
+  if(!G) return;
+  if(!G.phoneMsgs) G.phoneMsgs = [];
+  G.phoneMsgs.unshift({
+    id: 'pm'+(Date.now()+Math.random()),
+    type,
+    from,
+    icon: icon || '📱',
+    body,
+    week: G.week || 1,
+    data: data || null,
+    read: false
+  });
+  if(G.phoneMsgs.length > 80) G.phoneMsgs.pop();
+  updatePhoneBadge();
+}
+
+function updatePhoneBadge(){
+  const btn = document.getElementById('phoneBtn');
+  const badge = document.getElementById('phoneBadge');
+  if(!btn) return;
+  const active = G && G.week;
+  btn.style.display = active ? 'flex' : 'none';
+  if(!badge) return;
+  const unread = (G && G.phoneMsgs) ? G.phoneMsgs.filter(m=>!m.read).length : 0;
+  if(unread > 0){
+    badge.textContent = unread > 9 ? '9+' : unread;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openPhone(){
+  const ov = document.getElementById('phoneOverlay');
+  if(ov) ov.classList.add('on');
+  const btn = document.getElementById('phoneBtn');
+  if(btn) btn.style.display = 'none';
+  if(G && G.phoneMsgs) G.phoneMsgs.forEach(m=>m.read=true);
+  const sub = document.getElementById('phSubtitle');
+  if(sub && G) sub.textContent = 'Semana '+G.week+' · Temporada '+(G.season||2026);
+  const phT = document.getElementById('phTime');
+  if(phT){ const n=new Date(); phT.textContent=n.getHours()+':'+(n.getMinutes()<10?'0':'')+n.getMinutes(); }
+  rPhone();
+}
+
+function closePhone(){
+  const ov = document.getElementById('phoneOverlay');
+  if(ov) ov.classList.remove('on');
+  updatePhoneBadge();
+}
+
+function phTab(tab, el){
+  _phTab = tab;
+  document.querySelectorAll('.ph-tab').forEach(b=>b.classList.remove('on'));
+  if(el) el.classList.add('on');
+  rPhone();
+}
+
+function rPhone(){
+  const scr = document.getElementById('phScreen');
+  if(!scr||!G) return;
+  const msgs = (G.phoneMsgs||[]).filter(m=>_phTab==='all'||m.type===_phTab);
+  if(!msgs.length){
+    const labels={all:'📭',dt:'🎯',agent:'🤝',player:'👤'};
+    scr.innerHTML=`<div class="ph-empty">${labels[_phTab]||'📭'}<br>No hay mensajes en esta bandeja.<br><span style="font-size:9px;color:var(--t3)">Los mensajes llegarán a medida<br>que avance la temporada.</span></div>`;
+    return;
+  }
+  scr.innerHTML = msgs.map(m=>{
+    let actHtml = '';
+    if(m.data){
+      const d = m.data;
+      if(d.reqId){
+        const req = G.dtRequests && G.dtRequests.find(r=>r.id===d.reqId);
+        if(req && !req.approved && !req.rejected){
+          actHtml=`<div class="ph-acts">
+            <button class="btn bG bs" onclick="approveDtReqPhone('${d.reqId}')" style="font-size:9px;padding:3px 9px">✓ Aprobar</button>
+            <button class="btn bR bs" onclick="rejectDtReqPhone('${d.reqId}')" style="font-size:9px;padding:3px 9px">✗ Rechazar</button>
+          </div>`;
+        } else if(req){
+          actHtml=`<div style="font-size:9px;color:${req.approved?'var(--green)':'var(--red)'};margin-top:4px">${req.approved?'✓ Aprobado':'✗ Rechazado'}</div>`;
+        }
+      } else if(d.gotoTab){
+        actHtml=`<div class="ph-acts"><button class="btn bo bs" onclick="closePhone();gTab('${d.gotoTab}',document.querySelectorAll('.nb')[${d.tabIdx||0}])" style="font-size:9px;padding:3px 9px">Ver detalles →</button></div>`;
+      }
+    }
+    return `<div class="ph-msg${m.read?'':' unread'}">
+      <div class="ph-dot"></div>
+      <div class="ph-from">${m.icon} ${m.from}</div>
+      <div class="ph-body">${m.body}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+        <div class="ph-time">Sem. ${m.week}</div>
+      </div>
+      ${actHtml}
+    </div>`;
+  }).join('');
+}
+
+function approveDtReqPhone(id){
+  const req = G && G.dtRequests && G.dtRequests.find(r=>r.id===id);
+  if(!req) return;
+  const type = req.type || 'buy';
+  if(type==='sell') approveDtSell(id);
+  else if(type==='fire_player') approveDtFire(id);
+  else if(type==='stad_upgrade') approveDtStad(id);
+  else if(type==='youth_invest') approveDtYouth(id);
+  else approveDtReq(id);
+  rPhone();
+}
+
+function rejectDtReqPhone(id){
+  rejectDtReq(id);
+  rPhone();
 }
 
 // =============================================
