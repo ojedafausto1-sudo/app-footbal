@@ -7905,5 +7905,35 @@ function rejectDtReqPhone(id){
   } catch(e){}
 })();
 </script>
+
+<!-- ── FLOATING PHONE WIDGET ── -->
+<button id="phoneBtn" onclick="openPhone()">
+  📱
+  <span id="phoneBadge"></span>
+</button>
+
+<div id="phoneOverlay" onclick="if(event.target===this)closePhone()">
+  <div id="phoneDevice">
+    <div class="ph-status">
+      <span id="phTime">12:00</span>
+      <span>●●●● 🔋</span>
+    </div>
+    <div class="ph-header">
+      <div>
+        <div class="ph-appname">📲 DT COMUNICACIONES</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:1px" id="phSubtitle">Semana 1</div>
+      </div>
+      <button onclick="closePhone()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2);font-size:14px;cursor:pointer;padding:5px 11px;border-radius:20px;line-height:1">✕</button>
+    </div>
+    <div class="ph-tabs">
+      <button class="ph-tab on" onclick="phTab('all',this)">📬 Todos</button>
+      <button class="ph-tab" onclick="phTab('dt',this)">🎯 DT</button>
+      <button class="ph-tab" onclick="phTab('agent',this)">🤝 Agentes</button>
+      <button class="ph-tab" onclick="phTab('player',this)">👤 Jugadores</button>
+    </div>
+    <div class="ph-screen" id="phScreen"></div>
+  </div>
+</div>
+
 </body>
 </html>
