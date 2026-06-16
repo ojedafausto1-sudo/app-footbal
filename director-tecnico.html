@@ -1695,12 +1695,10 @@ function buildMkt(){
   a(9,'Lautaro Martínez','DC',27,'ARG','Inter','Italia',110,0,91);
   a(10,'Lionel Messi','MCO',37,'ARG','Inter Miami','MLS',20,0,94);
 
-  // Deduplicate by name, keeping highest-rated version
-  const seen={};
-  m=m.filter(p=>{
-    if(!seen[p.name]||p.rat>seen[p.name]){seen[p.name]=p.rat;return true;}
-    return false;
-  });
+  // Deduplicate by name — keep ONLY the single highest-rated version
+  const best={};
+  m.forEach(p=>{ if(!best[p.name]||p.rat>best[p.name].rat) best[p.name]=p; });
+  m=Object.values(best);
   return m;
 }
 
@@ -1988,6 +1986,16 @@ const STAD_INIT = {
     {id:'store',name:'Tienda Oficial del Club',desc:'Ingresos comerciales semanales.',cost:10,eff:'inc+0.3',built:false},
     {id:'restaurant',name:'Restaurante VIP',desc:'Hospitality premium.',cost:16,eff:'inc+0.4',built:false},
     {id:'academy',name:'Academia Fútbol 7',desc:'Más jugadores en inferiores.',cost:18,eff:'train',built:false},
+    {id:'wifi',name:'Wi-Fi 5G en el estadio',desc:'Experiencia del hincha. Ingresos.',cost:6,eff:'inc+0.2',built:false},
+    {id:'solar',name:'Paneles Solares',desc:'Energía propia, menos gastos.',cost:14,eff:'inc+0.3',built:false},
+    {id:'security',name:'Seguridad y Accesos Digitales',desc:'Molinetes biométricos. Rep +2.',cost:8,eff:'rep+2',built:false},
+    {id:'fanzone',name:'Fan Zone & Peñas',desc:'Acerca al hincha. Rep +4.',cost:11,eff:'rep+4',built:false},
+    {id:'megastore',name:'Megatienda + E-commerce',desc:'Venta global de camisetas.',cost:20,eff:'inc+0.6',built:false},
+    {id:'exp3',name:'+20.000 butacas (sur)',desc:'Ampliación mayor del estadio.',cost:75,eff:'cap+20000',built:false},
+    {id:'roof',name:'Techo Retráctil',desc:'Partidos sin lluvia. TV premium.',cost:55,eff:'inc+1.0',built:false},
+    {id:'hotel',name:'Hotel del Club',desc:'Ingresos turísticos todo el año.',cost:35,eff:'inc+0.9',built:false},
+    {id:'highperf',name:'Centro de Alto Rendimiento',desc:'Desarrollo de élite de la cantera.',cost:30,eff:'train',built:false},
+    {id:'exp4',name:'Segunda Bandeja Completa +25.000',desc:'Tu estadio entre los grandes del continente.',cost:120,eff:'cap+25000',built:false},
   ]
 };
 
@@ -2235,24 +2243,72 @@ function initGame(teamId){
   updateUI();
 }
 
+const BUYER_CLUBS=['River Plate','Racing','Flamengo','Palmeiras','São Paulo','Benfica','Porto','Sevilla','Ajax','Bologna','Lyon','Villarreal','Galatasaray','Bayer Leverkusen','Sporting CP','Monaco','Al-Nassr','Al-Hilal','Atalanta','Real Betis','Wolves','Marseille'];
+const LOAN_CLUBS=['Talleres','Platense','Banfield','Gimnasia LP','Patronato','Aldosivi','San Martín','Colón','Defensores','Atlético Tucumán','Instituto','Central Córdoba'];
+function pickBuyer(){ const opts=BUYER_CLUBS.filter(b=>b!==(G.teamName||'')); return opts[~~(Math.random()*opts.length)]; }
+// Build a purchase offer. listed=true means the player is transfer-listed (bid around the asking price).
+function buildBuyOffer(p, listed){
+  const ask=listed?(p.askPrice||p.val):p.val;
+  let mult;
+  if(listed){ mult=0.82+Math.random()*0.30; }
+  else { mult=(p.rat>=85?1.7:p.rat>=80?1.45:p.rat>=75?1.25:1.1)+Math.random()*0.4; }
+  const amount=Math.round(ask*mult*10)/10;
+  return {player:p, from:pickBuyer(), amount, type:'compra', listed:!!listed};
+}
+function buildLoanOffer(p){
+  const fee=Math.round(p.val*(0.03+Math.random()*0.05)*10)/10;
+  return {player:p, from:LOAN_CLUBS[~~(Math.random()*LOAN_CLUBS.length)], amount:fee, type:'préstamo', listed:true};
+}
+// Probability that a sale-listed player attracts a bid (cheaper ask → more attractive)
+function listAttract(p){
+  const ask=p.askPrice||p.val;
+  return Math.min(0.9, 0.4 + Math.max(0,(p.val*1.25-ask)/Math.max(1,p.val))*0.6);
+}
 function genOffers(){
   if(!G) return [];
-  const buyers=['River Plate','Racing','Flamengo','Palmeiras','São Paulo','Benfica','Porto','Sevilla','Ajax','Bologna','Lyon','Villarreal','Galatasaray','Bayer Leverkusen','Sporting CP','Monaco'];
+  const offers=[];
   const windowOpen=isTransferWindowOpen();
-  // More offers during transfer window
-  const threshold=windowOpen?0.40:0.70;
-  const maxOffers=windowOpen?5:2;
-  return G.squad
-    .filter(p=>!p.injured&&p.rat>=70&&Math.random()>threshold)
-    .sort((a,b)=>b.rat-a.rat)
-    .slice(0,maxOffers)
-    .map(p=>{
-      const buyer=buyers.filter(b=>b!==G.teamName)[~~(Math.random()*(buyers.length-1))];
-      // Offer amount scales with rating and randomness
-      const mult=p.rat>=85?1.8:p.rat>=80?1.5:p.rat>=75?1.25:1.1;
-      const amount=Math.round(p.val*(mult+Math.random()*.4)*10)/10;
-      return{player:p,from:buyer,amount,type:Math.random()>.3?'compra':'préstamo'};
-    });
+  G.squad.forEach(p=>{
+    if(p.injured) return;
+    if(p.listed==='sale'){
+      if(Math.random()<(windowOpen?listAttract(p):listAttract(p)*0.4)) offers.push(buildBuyOffer(p,true));
+    } else if(p.listed==='loan'){
+      if(Math.random()<(windowOpen?0.7:0.3)) offers.push(buildLoanOffer(p));
+    }
+  });
+  // Unsolicited interest in unlisted stars
+  const threshold=windowOpen?0.6:0.85, maxU=windowOpen?2:1;
+  G.squad.filter(p=>!p.injured&&p.rat>=78&&!p.listed&&Math.random()>threshold)
+    .sort((a,b)=>b.rat-a.rat).slice(0,maxU)
+    .forEach(p=>offers.push(buildBuyOffer(p,false)));
+  return offers;
+}
+// Weekly: append fresh offers for listed players (and the odd star bid), skipping players who already have a pending offer.
+function weeklyOffers(){
+  if(!G) return;
+  if(!G.offers) G.offers=[];
+  const pending=new Set(G.offers.map(o=>o.player.id));
+  const windowOpen=isTransferWindowOpen();
+  G.squad.forEach(p=>{
+    if(p.injured||pending.has(p.id)) return;
+    if(p.listed==='sale'){
+      if(Math.random()<(windowOpen?listAttract(p):listAttract(p)*0.45)){
+        const o=buildBuyOffer(p,true); G.offers.push(o); pending.add(p.id);
+        lg('📨',`${o.from} ofertó ${fv(o.amount)} por ${p.name}`);
+        flash('📨 Oferta por '+p.name+': '+fv(o.amount),'draw');
+      }
+    } else if(p.listed==='loan'){
+      if(Math.random()<(windowOpen?0.6:0.28)){
+        const o=buildLoanOffer(p); G.offers.push(o); pending.add(p.id);
+        lg('📨',`${o.from} quiere a ${p.name} a préstamo`);
+      }
+    }
+  });
+  // Occasional unsolicited star bid
+  if(Math.random()<(windowOpen?0.25:0.10)){
+    const stars=G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)).sort((a,b)=>b.rat-a.rat);
+    if(stars.length){ const o=buildBuyOffer(stars[0],false); G.offers.push(o); lg('📨',`${o.from} pretende a ${stars[0].name} (${fv(o.amount)})`); }
+  }
 }
 
 function autoFill(){
@@ -2632,33 +2688,43 @@ function mkTab(t,b){
 function rSell(){
   const el = document.getElementById('sellList');
   if(!el||!G) return;
-  el.innerHTML = G.squad.map(p=>`
-    <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 65px 90px">
+  const listed=G.squad.filter(p=>p.listed).length;
+  const header=`<div class="note" style="margin-bottom:8px">📋 Poné jugadores <b>en venta</b> o <b>en cesión</b>: no se van al instante, los clubes te van mandando ofertas semana a semana. ${listed?`<b style="color:var(--gold)">${listed} en lista</b>`:''}</div>`;
+  el.innerHTML = header + G.squad.map(p=>{
+    const tag = p.listed==='sale'?`<span class="badge baR" style="margin-left:4px">EN VENTA · ${fv(p.askPrice||p.val)}</span>`
+              : p.listed==='loan'?`<span class="badge baB" style="margin-left:4px">EN CESIÓN</span>`:'';
+    const sellBtn = p.listed==='sale'
+        ? `<button class="btn bo bs" onclick="event.stopPropagation();unlistPlayer('${p.id}')">↩ Quitar</button>`
+        : `<button class="btn bR bs" onclick="event.stopPropagation();sellPlayer('${p.id}')">Vender</button>`;
+    const loanBtn = p.listed==='loan'
+        ? `<button class="btn bo bs" onclick="event.stopPropagation();unlistPlayer('${p.id}')">↩ Quitar</button>`
+        : `<button class="btn bo bs" onclick="event.stopPropagation();loanPlayer('${p.id}')">Ceder</button>`;
+    return `<div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 65px 110px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--t3);font-size:11px">${p.num}</div>
-      <div><div class="pn">${p.name}</div>${ptag(p.pos)}</div>
+      <div><div class="pn">${p.name}${tag}</div>${ptag(p.pos)}</div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
       <div>${rb(p.rat)}</div>
-      <div style="display:flex;gap:2px">
-        <button class="btn bR bs" onclick="event.stopPropagation();sellPlayer('${p.id}')">Vender</button>
-        <button class="btn bo bs" onclick="event.stopPropagation();loanPlayer('${p.id}')">Ceder</button>
-      </div>
-    </div>
-  `).join('');
+      <div style="display:flex;gap:2px">${sellBtn}${loanBtn}</div>
+    </div>`;
+  }).join('');
 }
 
 function rOffs(){
   const el = document.getElementById('offsList');
   if(!el||!G) return;
-  if(!G.offers.length){ el.innerHTML='<div class="note">Sin ofertas activas.</div>'; return; }
-  el.innerHTML = G.offers.map((o,i)=>`
+  if(!G.offers.length){ el.innerHTML='<div class="note">Sin ofertas activas. Poné jugadores en venta o cesión para empezar a recibir ofertas semana a semana.</div>'; return; }
+  el.innerHTML = G.offers.map((o,i)=>{
+    const src = o.listed?'<span class="badge bau" style="margin-left:5px">📋 EN LISTA</span>':'<span class="badge baB" style="margin-left:5px">💬 INTERÉS</span>';
+    const typeIco = o.type==='préstamo'?'📤 Cesión':'💰 Compra';
+    return `
     <div class="card" style="margin-bottom:7px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <div>${rb(o.player.rat)}</div>
         <div style="flex:1">
-          <div style="font-weight:600;font-size:12px">${o.from} quiere a <span style="color:var(--gold)">${o.player.name}</span></div>
-          <div style="font-size:10px;color:var(--t3)">${o.type} · <span style="color:var(--green)">${fv(o.amount)}</span> (TM: ${fv(o.player.val)})</div>
+          <div style="font-weight:600;font-size:12px">${o.from} quiere a <span style="color:var(--gold)">${o.player.name}</span>${src}</div>
+          <div style="font-size:10px;color:var(--t3)">${typeIco} · <span style="color:var(--green)">${fv(o.amount)}</span> (TM: ${fv(o.player.val)})</div>
         </div>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -2668,7 +2734,8 @@ function rOffs(){
         <button class="btn bo bs" onclick="openNegSell(${i})">🎚️ Negociar precio</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function openNegSell(i){
@@ -4716,6 +4783,8 @@ function matchStrengths(m){
   else if(LIB_HARD.includes(oppName)) oppRat = 77;
   else if(m.comp.includes('Libertadores')) oppRat = 73;
   else if(m.comp.includes('Copa Argentina')) oppRat = 62;
+  // Difficulty raises/lowers rival quality (affects sim AND live 11v11)
+  oppRat += G.diff===2 ? 7 : G.diff===0 ? -7 : 0;
 
   // Home advantage
   const homeBonus = m.home===myTeam ? 0.04 : -0.02;
@@ -4725,8 +4794,8 @@ function matchStrengths(m){
   const oppMorale = 55+~~(Math.random()*35);
   const oppS = oppRat/100*.75 + oppMorale/100*.25;
 
-  // Difficulty modifier
-  const diffMod = G.diff===0 ? 0.12 : G.diff===2 ? -0.12 : 0;
+  // Difficulty modifier (more pronounced)
+  const diffMod = G.diff===0 ? 0.16 : G.diff===2 ? -0.16 : 0;
   // Tactic modifier
   let tacMod = 0;
   if(G.tactic){
@@ -4901,7 +4970,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   // Heal injured players
   G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
-  if(Math.random()<.18){ const no=genOffers().slice(0,1); G.offers=G.offers.concat(no); }
+  weeklyOffers();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -6472,78 +6541,165 @@ function loanIn(id){
   updateUI(); closeMod(); flash('✅ '+p.name+' en préstamo','win');
 }
 
+// ——— Transfer listing (poner en venta) ———
 function sellPlayer(id){
   if(!G) return;
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
-  const sv = Math.round(p.val*(0.88+Math.random()*.28)*10)/10;
+  if(p.listed==='sale'){ unlistPlayer(id); return; }
+  const rec=Math.round(p.val*1.1*10)/10;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">Vender: ${p.name}</div>
-    <div class="note">Oferta estimada: <strong style="color:var(--gold)">${fv(sv)}</strong></div>
-    <div class="sr"><span class="sl">Interesado</span><span class="sv">${['Racing','Flamengo','Benfica','Porto','Sevilla','Ajax'][~~(Math.random()*6)]}</span></div>
-    <div style="display:flex;gap:6px;margin-top:10px">
-      <button class="btn bg" onclick="confSell('${id}',${sv})">✓ Confirmar</button>
+    <div class="mtitle">📋 Poner en venta: ${p.name}</div>
+    <div class="note">Definí el precio. Cuanto más bajo, más rápido y más ofertas de clubes recibirás. No se vende al instante: las ofertas llegan con el correr de las semanas.</div>
+    <div class="sr"><span class="sl">Valor de mercado</span><span class="sv" style="color:var(--green)">${fv(p.val)}</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+      <span style="font-size:22px;color:var(--gold);font-family:'Barlow Condensed';font-weight:700">$</span>
+      <input type="number" id="askInp" step="0.1" min="0.1" value="${rec}"
+        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Barlow Condensed';font-size:24px;font-weight:700;text-align:center;outline:none"
+        oninput="updAsk(${p.val})">
+      <span style="font-size:12px;color:var(--t3)">M USD</span>
+    </div>
+    <div class="neg-rx" id="askRx"></div>
+    <div style="display:flex;gap:6px;margin-top:12px">
+      <button class="btn bg" onclick="confirmList('${id}')">📋 Poner en lista</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
     </div>
   `);
+  updAsk(p.val);
 }
-
-function confSell(id, val){
-  if(!G) return;
-  const p = G.squad.find(x=>x.id===id);
-  if(!p) return;
-  G.budget=Math.round((G.budget+val)*10)/10;
-  G.squad=G.squad.filter(x=>x.id!==id);
-  G.bench=G.bench.filter(x=>x.id!==id);
-  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===id) G.slots[k]=null; });
-  G.market.push(p);
-  lg('💸',`${p.name} vendido (${fv(val)})`);
-  updateUI(); closeMod(); flash('✅ Vendido '+fv(val),'win');
+function updAsk(val){
+  const inp=document.getElementById('askInp'), rx=document.getElementById('askRx'); if(!inp||!rx) return;
+  const ask=parseFloat(inp.value)||0, ratio=ask/val;
+  let t,c,b;
+  if(ratio<=0.85){t='🟢 Venta rápida — varios clubes interesados';c='var(--green)';b='rgba(26,170,107,.1)';}
+  else if(ratio<=1.1){t='🟡 Precio justo — llegarán ofertas pronto';c='var(--gold)';b='rgba(246,211,24,.08)';}
+  else if(ratio<=1.5){t='🟠 Caro — pocas ofertas, tardarán';c='var(--ora)';b='rgba(240,148,58,.1)';}
+  else {t='🔴 Sobrevalorado — difícil que oferten';c='var(--red)';b='rgba(232,69,69,.1)';}
+  rx.textContent=t;rx.style.color=c;rx.style.background=b;rx.style.padding='7px';rx.style.borderRadius='6px';
 }
-
+function confirmList(id){
+  const p=G.squad.find(x=>x.id===id); if(!p) return;
+  const inp=document.getElementById('askInp');
+  const ask=Math.round((parseFloat(inp&&inp.value)||p.val)*10)/10;
+  p.listed='sale'; p.askPrice=ask; p.listedWeek=G.week;
+  if(!G.offers) G.offers=[];
+  lg('📋',`${p.name} en lista de transferibles (${fv(ask)})`);
+  if(isTransferWindowOpen()&&Math.random()<0.45) G.offers.push(buildBuyOffer(p,true));
+  updateUI(); closeMod(); flash('📋 '+p.name+' en venta por '+fv(ask),'draw');
+}
 function loanPlayer(id){
   if(!G) return;
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
-  const loanClubs=['Talleres','Platense','Banfield','Gimnasia LP','Patronato','Aldosivi','San Martín','Colón','Defensores','Atlético Tucumán'];
-  const destClub=loanClubs[~~(Math.random()*loanClubs.length)];
-  const inc = Math.round(p.val*.04*10)/10;
-  G.budget=Math.round((G.budget+inc)*10)/10;
-  G.squad=G.squad.filter(x=>x.id!==id);
-  G.bench=G.bench.filter(x=>x.id!==id);
-  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===id) G.slots[k]=null; });
-  p.loanedFrom=G.teamName; p.club=destClub; p.onLoan=true;
-  if(!G.loaned) G.loaned=[];
-  G.loaned.push({player:p, returnWeek:G.week+26, destClub});
-  lg('📤',`${p.name} cedido a ${destClub} hasta sem ${G.week+26} (+${fv(inc)})`);
-  updateUI(); closeMod(); flash(p.name+' cedido a '+destClub+' (vuelve en 26 sem)','draw');
+  if(p.listed==='loan'){ unlistPlayer(id); return; }
+  p.listed='loan'; p.askPrice=null; p.listedWeek=G.week;
+  if(!G.offers) G.offers=[];
+  lg('📋',`${p.name} disponible para cesión`);
+  if(isTransferWindowOpen()&&Math.random()<0.5) G.offers.push(buildLoanOffer(p));
+  updateUI(); closeMod(); flash('📋 '+p.name+' en lista de cesión','draw');
+}
+function unlistPlayer(id){
+  if(!G) return;
+  const p=G.squad.find(x=>x.id===id); if(!p) return;
+  p.listed=null; p.askPrice=null;
+  G.offers=(G.offers||[]).filter(o=>!(o.player.id===id&&o.listed));
+  lg('↩️',`${p.name} retirado de la lista`);
+  updateUI(); closeMod(); flash(p.name+' fuera de la lista','draw');
 }
 
-function renew(id){
-  if(!G) return;
-  const p = G.squad.find(x=>x.id===id);
-  if(!p) return;
-  const cost = Math.round(p.wage*26/1000*10)/10;
-  if(G.budget<cost){ flash('❌ Sin presupuesto','loss'); return; }
+// ——— Contract negotiation (FIFA-style: salario + duración) ———
+function renew(id){ openContract(id); }
+function openContract(id){
+  const p=G.squad.find(x=>x.id===id); if(!p) return;
+  const expected=Math.max(5,Math.round(p.rat*0.55));
+  const recWage=Math.round(expected*1.05);
+  window._cYears=3;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📝 Negociar contrato: ${p.name}</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:10px;flex-wrap:wrap;gap:4px">
+      <span>Rating <b style="color:var(--gold)">${p.rat}</b></span>
+      <span>Edad ${p.age}</span>
+      <span>Salario <b>${p.wage}k</b></span>
+      <span>Hasta ${p.contract}</span>
+    </div>
+    <div class="note">Pretensión del jugador: <b style="color:var(--gold)">~${expected}k</b>/semana. Ofrecé salario y duración.</div>
+    <div style="margin:12px 0">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Salario semanal</span><span id="cWageL" style="color:var(--gold);font-weight:700">${recWage}k</span></div>
+      <input type="range" id="cWage" class="neg-slider" min="${Math.round(expected*0.5)}" max="${Math.round(expected*1.8)}" value="${recWage}" oninput="updContract(${expected})">
+    </div>
+    <div style="margin:12px 0">
+      <div style="font-size:11px;margin-bottom:5px">Duración del contrato</div>
+      <div style="display:flex;gap:5px" id="cYears">
+        ${[1,2,3,4,5].map(y=>`<button class="btn ${y===3?'bg':'bo'} bs cYearBtn" data-y="${y}" onclick="selYears(${y},${expected})" style="flex:1">${y} año${y>1?'s':''}</button>`).join('')}
+      </div>
+    </div>
+    <div class="neg-rx" id="cRx"></div>
+    <div style="display:flex;gap:6px;margin-top:12px">
+      <button class="btn bg" onclick="submitContract('${id}',${expected})">✓ Ofrecer contrato</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+  updContract(expected);
+}
+function selYears(y,expected){
+  window._cYears=y;
+  document.querySelectorAll('.cYearBtn').forEach(b=>{ const on=(+b.dataset.y===y); b.classList.toggle('bg',on); b.classList.toggle('bo',!on); });
+  updContract(expected);
+}
+function updContract(expected){
+  const w=document.getElementById('cWage'), rx=document.getElementById('cRx'), wl=document.getElementById('cWageL'); if(!w||!rx) return;
+  const wage=+w.value; if(wl) wl.textContent=wage+'k';
+  const years=window._cYears||3, ratio=wage/expected;
+  let t,c,b;
+  if(ratio>=1.0){t='✅ Aceptará con gusto';c='var(--green)';b='rgba(26,170,107,.1)';}
+  else if(ratio>=0.85){t='🟢 Probablemente acepte';c='var(--green)';b='rgba(26,170,107,.07)';}
+  else if(ratio>=0.7){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(246,211,24,.08)';}
+  else {t='🔴 Rechazará — salario muy bajo';c='var(--red)';b='rgba(232,69,69,.1)';}
+  const cost=Math.round(wage*years*4/1000*10)/10;
+  rx.innerHTML=t+`<div style="font-size:10px;color:var(--t3);margin-top:3px">Costo de firma: ${fv(cost)} · ${years} año(s) · hasta ${G.season+years}</div>`;
+  rx.style.color=c;rx.style.background=b;rx.style.padding='7px';rx.style.borderRadius='6px';
+}
+function submitContract(id,expected){
+  const p=G.squad.find(x=>x.id===id); if(!p) return;
+  const wage=+document.getElementById('cWage').value, years=window._cYears||3;
+  const ratio=wage/expected, cost=Math.round(wage*years*4/1000*10)/10;
+  if(G.budget<cost){ flash('❌ Sin presupuesto para la firma ('+fv(cost)+')','loss'); return; }
+  const accept = ratio>=0.85 || (ratio>=0.7&&Math.random()>0.5);
+  if(!accept){ flash('❌ '+p.name+' rechazó — ofrecé más salario o menos años','loss'); lg('📝',`${p.name} rechazó la renovación`); return; }
   G.budget=Math.round((G.budget-cost)*10)/10;
-  p.contract=2028+~~(Math.random()*2); p.morale=Math.min(100,p.morale+10);
-  lg('📋',`${p.name} renovó hasta ${p.contract}`);
-  updateUI(); closeMod(); flash('✅ '+p.name+' renovó','win');
+  p.wage=wage; p.contract=G.season+years; p.morale=Math.min(100,p.morale+8);
+  lg('📝',`${p.name} renovó hasta ${p.contract} (${wage}k/sem)`);
+  updateUI(); closeMod(); flash('✅ '+p.name+' renovó hasta '+p.contract,'win');
 }
 
 function accOff(i){ if(!G) return; accOffAt(i,G.offers[i].amount); }
 function accOffAt(i, val){
   if(!G||!G.offers[i]) return;
   const o = G.offers[i];
+  const p = o.player;
+  // Remove from active squad either way
   G.budget=Math.round((G.budget+val)*10)/10;
-  G.squad=G.squad.filter(p=>p.id!==o.player.id);
-  G.bench=G.bench.filter(p=>p.id!==o.player.id);
-  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===o.player.id) G.slots[k]=null; });
-  G.market.push(o.player);
-  lg('💰',`${o.player.name} → ${o.from} (${fv(val)})`);
-  G.offers.splice(i,1);
-  closeMod(); updateUI(); flash('✅ Vendido '+fv(val),'win');
+  G.squad=G.squad.filter(x=>x.id!==p.id);
+  G.bench=G.bench.filter(x=>x.id!==p.id);
+  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+  p.listed=null; p.askPrice=null;
+  if(o.type==='préstamo'){
+    // Loan OUT: returns in 26 weeks
+    p.loanedFrom=G.teamName; p.club=o.from; p.onLoan=true;
+    if(!G.loaned) G.loaned=[];
+    G.loaned.push({player:p, returnWeek:G.week+26, destClub:o.from});
+    lg('📤',`${p.name} cedido a ${o.from} (+${fv(val)}, vuelve en 26 sem)`);
+    flash('✅ '+p.name+' cedido a '+o.from,'win');
+  } else {
+    G.market.push(p);
+    lg('💰',`${p.name} → ${o.from} (${fv(val)})`);
+    flash('✅ Vendido a '+o.from+' '+fv(val),'win');
+  }
+  // Drop any other pending offers for the same player
+  G.offers=G.offers.filter((x,idx)=>idx!==i&&x.player.id!==p.id);
+  closeMod(); updateUI();
 }
 function rejOff(i){ if(!G) return; lg('❌',`Oferta de ${G.offers[i].from} rechazada`); G.offers.splice(i,1); rOffs(); flash('Rechazada','draw'); }
 function ctrOff(i){
