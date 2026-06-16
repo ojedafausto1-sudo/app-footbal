@@ -7035,17 +7035,35 @@ function fmAI(p,team,idx,dt){
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
 
-  // === GK: patrol goal, track ball height, kick clear when ball enters box ===
+  // === GK: sweeper-keeper — comes off line, narrows angle, rushes in box ===
   if(p.isGK){
-    const gkX=ownGX+(attRight?26:-26);
-    const gkRange=Math.max(f.GH-12,Math.min(f.GH-12,0));
-    const gkY=Math.max(mid-f.GH+10,Math.min(mid+f.GH-10,b.y));
-    fmMove(p,gkX-p.x,gkY-p.y,dt,0.065);
-    const near=attRight?b.x<f.leftGL+220:b.x>f.rightGL-220;
+    const paW=fieldW*0.175;   // penalty area depth
+    const paHH=f.VH*0.33;    // penalty area half-height
     const bd=Math.hypot(p.x-b.x,p.y-b.y);
-    if(near&&bd<p.r+32){
+
+    // How far ball is from our goal line
+    const ballGoalDist=attRight?b.x-f.leftGL:f.rightGL-b.x;
+    const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
+
+    // Forward fraction 0=on line, 0.82=near penalty spot
+    const inHalfT=Math.max(0,1-ballGoalDist/(fieldW*0.5));
+    const fwdFrac=Math.min(0.82, inHalfT*0.5+(ballInBox?(1-Math.max(0,ballGoalDist)/paW)*0.33:0));
+
+    // X: step off goal line proportionally
+    const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
+
+    // Y: angle-narrow toward ball, range widens as GK steps out
+    const yRange=f.GH*(1+fwdFrac*0.85);
+    const trackStr=Math.min(0.82,0.28+fwdFrac*0.68);
+    const gkTargY=Math.max(mid-yRange,Math.min(mid+yRange,mid+(b.y-mid)*trackStr));
+
+    fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,ballInBox&&bd<320?0.088:0.065);
+
+    // Kick clear when ball is within reach
+    if(bd<p.r+40){
       const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
-      b.vx=(dx/dd)*6.5+(Math.random()-.5)*0.8;b.vy=(dy/dd)*5.2+(Math.random()-.5)*2;
+      b.vx=(dx/dd)*6.8+(Math.random()-.5)*0.9;
+      b.vy=(dy/dd)*5.5+(Math.random()-.5)*2.2;
       f._lastTouch=isM?'my':'opp';
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
