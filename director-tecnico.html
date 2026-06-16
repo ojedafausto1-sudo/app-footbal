@@ -6728,7 +6728,7 @@ function fmInit(m,W,H){
     keys:{up:0,dn:0,lf:0,rt:0,z:0,x:0,tab:0},
     tabWas:0,xWas:0,zWas:0,
     pending:{m},_joyId:null,_joyC:null,_mt:null,
-    myAttRight:true,
+    myAttRight:true,_ballRot:0,
   };
   // Striker kicks off
   const strikerIdx=form.findIndex(s=>['DC','EI','CF'].includes(s.pos));
@@ -6852,29 +6852,31 @@ function fmTick(dt){
 function fmCtrl(dt){
   const f=FM,k=f.keys,p=f.my[f.ctrl];if(!p)return;
   const dx=k.rt-k.lf,dy=k.dn-k.up;
-  fmMove(p,dx,dy,dt,.075);
-  p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-  p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
   const b=f.ball,bd=Math.hypot(p.x-b.x,p.y-b.y);
   const KICK_R=p.r+7+20;
+  // Sprint: hold X when far from ball (contextual — near ball = pass, far = sprint)
+  const sprinting=k.x&&bd>KICK_R+35;
+  fmMove(p,dx,dy,dt,sprinting?0.115:0.080);
+  p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+  p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+  // KICK
   if(k.z&&!f.zWas){
     f.zWas=1;
     if(bd<=KICK_R){
       f._lastTouch='my';
-      // Haxball-style: kick direction = ball-relative-to-player + player velocity
       const nx=(b.x-p.x)/(bd||1),ny=(b.y-p.y)/(bd||1);
       const pv=Math.hypot(p.vx||0,p.vy||0)||0.001;
       const pvnx=(p.vx||0)/pv,pvny=(p.vy||0)/pv;
-      const kx=nx*0.62+pvnx*0.38,ky=ny*0.62+pvny*0.38;
+      const kx=nx*0.58+pvnx*0.42,ky=ny*0.58+pvny*0.42;
       const kd=Math.hypot(kx,ky)||1;
-      const spd=(5.2+(p.spd-1.3)*1.0)*(0.6+p.attrs.sho/120);
-      b.vx=(kx/kd)*spd+(Math.random()-.5)*.12;
-      b.vy=(ky/kd)*spd+(Math.random()-.5)*.12;
+      const spd=(5.8+(p.spd-1.3)*1.2)*(0.62+p.attrs.sho/115);
+      b.vx=(kx/kd)*spd+(Math.random()-.5)*.15;
+      b.vy=(ky/kd)*spd+(Math.random()-.5)*.15;
     }
   }
   if(!k.z)f.zWas=0;
-  // X = pase corto dirigido (alternativa)
-  if(k.x&&!f.xWas){f.xWas=1;fmPass(f.ctrl);}
+  // X near ball = pass; X far from ball = sprint (handled above)
+  if(k.x&&!f.xWas){f.xWas=1;if(bd<=KICK_R+35)fmPass(f.ctrl);}
   if(!k.x)f.xWas=0;
 }
 
@@ -6916,16 +6918,17 @@ function fmAI(p,team,idx,dt){
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
 
-  // === GK: patrol goal, track ball height, kick clear when ball in box ===
+  // === GK: patrol goal, track ball height, kick clear when ball enters box ===
   if(p.isGK){
-    const gkX=ownGX+(attRight?28:-28);
+    const gkX=ownGX+(attRight?26:-26);
+    const gkRange=Math.max(f.GH-12,Math.min(f.GH-12,0));
     const gkY=Math.max(mid-f.GH+10,Math.min(mid+f.GH-10,b.y));
-    fmMove(p,gkX-p.x,gkY-p.y,dt,0.060);
-    const near=attRight?b.x<f.leftGL+200:b.x>f.rightGL-200;
+    fmMove(p,gkX-p.x,gkY-p.y,dt,0.065);
+    const near=attRight?b.x<f.leftGL+220:b.x>f.rightGL-220;
     const bd=Math.hypot(p.x-b.x,p.y-b.y);
-    if(near&&bd<p.r+28){
-      const ddx=tgx-b.x,ddy=mid-b.y,dd=Math.hypot(ddx,ddy)||1;
-      b.vx=(ddx/dd)*6.2;b.vy=(ddy/dd)*5.0+(Math.random()-.5)*1.6;
+    if(near&&bd<p.r+32){
+      const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
+      b.vx=(dx/dd)*6.5+(Math.random()-.5)*0.8;b.vy=(dy/dd)*5.2+(Math.random()-.5)*2;
       f._lastTouch=isM?'my':'opp';
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
@@ -6937,25 +6940,18 @@ function fmAI(p,team,idx,dt){
   const KICK_R=p.r+7+18;
 
   if(isM){
-    // === MY TEAM: hold formation, push forward, NEVER chase ball ===
+    // === MY TEAM: hold shape, push up, no chasing ===
     const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-    // Shift forward when ball advances, but don't pull back too aggressively
-    const fwdShift=Math.max(-fieldW*0.06,(ballPct-0.38)*fieldW*0.22);
+    const fwdShift=Math.max(-fieldW*0.07,(ballPct-0.36)*fieldW*0.24);
     let tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
     const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.06));
-
-    // OFFSIDE: my players can't be ahead of the last outfield opponent
-    // "Last defender" = opp player CLOSEST TO THEIR OWN GOAL (highest x when I attack right)
+    // Offside: can't go past last outfield opp (closest to OPP goal)
     let offX=attRight?f.leftGL:f.rightGL;
-    f.opp.forEach(q=>{
-      if(q.isGK)return;
-      offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);
-    });
+    f.opp.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
     tx=attRight?Math.min(tx,offX+2):Math.max(tx,offX-2);
-
-    fmMove(p,tx-p.x,ty-p.y,dt,0.036);
+    fmMove(p,tx-p.x,ty-p.y,dt,0.038);
   }else{
-    // === OPPONENT: top 2 press; when in possession dribble toward goal ===
+    // === OPPONENT: top 2 press; smart shoot/pass/dribble ===
     let d1=Infinity,d2=Infinity,i1=-1,i2=-1;
     players.forEach((q,i)=>{
       if(q.isGK)return;
@@ -6963,59 +6959,96 @@ function fmAI(p,team,idx,dt){
       if(d<d1){d2=d1;i2=i1;d1=d;i1=i;}
       else if(d<d2){d2=d;i2=i;}
     });
-    const isChaser=idx===i1||(idx===i2&&d2<580);
+    const isChaser=idx===i1||(idx===i2&&d2<600);
     if(isChaser){
       if(bd<KICK_R){
-        // Has ball → dribble toward goal
-        const dribX=b.x+(tgx-b.x)*0.12;
-        const dribY=b.y+(mid-b.y)*0.04;
-        fmMove(p,dribX-p.x,dribY-p.y,dt,0.058);
-        // Shoot when close enough to goal
         const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
-        if(distGoal<fieldW*0.72&&Math.random()<0.030*dt){
-          const aimY=(Math.random()-.5)*f.GH*0.80;
+        const inBox=distGoal<fieldW*.28;
+        const canShoot=distGoal<fieldW*.60;
+        // Decision: shoot if in box or lucky, pass if not in shooting position, else dribble
+        if(inBox&&Math.random()<0.040*dt){
+          // SHOOT with aim
+          const aimY=(Math.random()-.5)*f.GH*.76;
           const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-          const pwr=5.5+Math.random()*2.8;
-          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;
-          f._lastTouch='opp';
+          const pwr=6.0+Math.random()*3.0;
+          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';
+        } else if(!canShoot&&Math.random()<0.024*dt){
+          // PASS to better-positioned teammate
+          fmOppPass(idx);
+        } else {
+          // DRIBBLE toward goal with lateral variation
+          const latWobble=(Math.sin(f.ticks*.08))*40;
+          const dribX=b.x+(tgx-b.x)*.10;
+          const dribY=b.y+(mid+latWobble-b.y)*.04;
+          fmMove(p,dribX-p.x,dribY-p.y,dt,0.060);
         }
       }else{
-        // Chase ball
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.054);
+        // Chase ball (sprint speed)
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.056);
       }
     }else{
-      // Hold mid-block, shift toward ball
+      // Hold mid-block with intelligent shifting
       const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-      const fwdShift=Math.max(-fieldW*0.05,(ballPct-0.45)*fieldW*0.16);
+      const fwdShift=Math.max(-fieldW*.05,(ballPct-0.45)*fieldW*0.18);
       const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
       const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.10));
-      fmMove(p,tx-p.x,ty-p.y,dt,0.042);
+      // Wingers/attackers make support runs
+      const isAttacker=['DC','EI','ED','CF'].includes(p.role);
+      if(isAttacker&&ballPct>0.5){
+        const runX=attRight?Math.min(tx+60,f.rightGL-p.r):Math.max(tx-60,f.leftGL+p.r);
+        fmMove(p,runX-p.x,ty-p.y,dt,0.046);
+      }else{
+        fmMove(p,tx-p.x,ty-p.y,dt,0.042);
+      }
     }
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
 }
 
+function fmOppPass(fromIdx){
+  const f=FM,b=f.ball;
+  const attRight=!f.myAttRight;
+  let bestI=-1,bestScore=-Infinity;
+  f.opp.forEach((t,i)=>{
+    if(i===fromIdx||t.isGK)return;
+    const d=Math.hypot(t.x-b.x,t.y-b.y);
+    if(d<90)return;
+    // Prefer forward teammates; penalize distance (accuracy drops)
+    const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
+    const score=fwdScore*.7-d*.12+(Math.random()*20);
+    if(score>bestScore){bestScore=score;bestI=i;}
+  });
+  if(bestI>=0){
+    const t=f.opp[bestI];
+    const dx=t.x-b.x,dy=t.y-b.y,dd=Math.hypot(dx,dy)||1;
+    const pwr=3.8+Math.random()*2.2;
+    b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.5;
+    f._lastTouch='opp';
+  }
+}
+
 function fmBall(dt){
   const f=FM,b=f.ball;
   if(f.phase!=='play')return;
-  b.vx*=Math.pow(.988,dt);b.vy*=Math.pow(.988,dt);
+  // Ball spin rotation (visual)
+  f._ballRot=(f._ballRot||0)+Math.hypot(b.vx,b.vy)*0.09*dt;
+  // Friction — slower decay (more realistic roll)
+  const spd=Math.hypot(b.vx,b.vy);
+  const fr=spd>0.3?Math.pow(.992,dt):Math.pow(.97,dt);
+  b.vx*=fr;b.vy*=fr;
   b.x+=b.vx*dt;b.y+=b.vy*dt;
-  const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH;
-  const bR=7;
-  // Top/bottom walls — bounce (Haxball style, no throw-ins)
-  if(b.y<bR){b.y=bR;if(b.vy<0)b.vy*=-0.6;}
-  if(b.y>f.VH-bR){b.y=f.VH-bR;if(b.vy>0)b.vy*=-0.6;}
+  const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH,bR=7;
+  // Top/bottom walls — bounce
+  if(b.y<bR){b.y=bR;if(b.vy<0)b.vy*=-0.62;}
+  if(b.y>f.VH-bR){b.y=f.VH-bR;if(b.vy>0)b.vy*=-0.62;}
   // Left goal line
   if(b.x<f.leftGL){
     if(b.y>gy1&&b.y<gy2){
       if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
-    }else{
-      // Behind goal line outside posts — bounce back
-      b.x=f.leftGL;if(b.vx<0)b.vx*=-0.6;
-    }
+    }else{b.x=f.leftGL;if(b.vx<0)b.vx*=-0.62;}
     return;
   }
   // Right goal line
@@ -7024,9 +7057,7 @@ function fmBall(dt){
       if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
-    }else{
-      b.x=f.rightGL;if(b.vx>0)b.vx*=-0.6;
-    }
+    }else{b.x=f.rightGL;if(b.vx>0)b.vx*=-0.62;}
     return;
   }
 }
