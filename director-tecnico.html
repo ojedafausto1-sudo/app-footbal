@@ -182,6 +182,22 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .ts-card-sub{font-size:10px;opacity:.55;letter-spacing:.05em}
 .ts-card-val{font-size:11px;opacity:.5;margin-top:8px;font-family:'Barlow Condensed',sans-serif}
 .ts-card-rat{display:flex;gap:2px;justify-content:center;margin-top:6px}
+/* ===== PRO POLISH ===== */
+.main{background:radial-gradient(ellipse at 50% -10%,rgba(26,74,138,.10),transparent 60%)}
+.stitle{position:relative;padding-bottom:8px;border-bottom:1px solid var(--bdr)}
+.stitle::after{content:'';position:absolute;left:0;bottom:-1px;width:54px;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
+.card{background:linear-gradient(160deg,rgba(12,40,80,.55),rgba(6,24,48,.8))}
+.pill{background:linear-gradient(160deg,rgba(12,40,80,.85),rgba(6,24,48,.95))}
+.topbar{backdrop-filter:blur(6px)}
+.btn.bg{position:relative;overflow:hidden}
+.btn.bg::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-18deg);transition:left .5s}
+.btn.bg:hover::after{left:130%}
+.mkrow,.pr{position:relative}
+.mkrow:hover,.pr:hover{box-shadow:inset 2px 0 0 var(--gold)}
+.badge{box-shadow:0 1px 3px rgba(0,0,0,.25)}
+/* Board confidence bar */
+.confbar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-top:3px}
+.conffill{height:100%;border-radius:4px;transition:width .5s,background .5s}
 </style>
 </head>
 <body>
@@ -373,6 +389,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="prog"><div class="pf" id="repBar" style="width:78%;background:var(--gold)"></div></div>
             <div class="sr" style="margin-top:7px"><span class="sl">Moral</span><span class="sv" id="morV">72</span></div>
             <div class="prog"><div class="pf" id="morBar" style="width:72%;background:var(--green)"></div></div>
+            <div class="sr" style="margin-top:7px"><span class="sl">🏛️ Confianza de la Junta</span><span class="sv" id="confV">—</span></div>
+            <div class="confbar"><div class="conffill" id="confBar" style="width:70%"></div></div>
+            <div id="objText" style="font-size:10px;color:var(--t2);margin-top:6px;line-height:1.4"></div>
           </div>
         </div>
       </div>
@@ -2324,6 +2343,29 @@ function autoFill(){
 }
 
 // =============================================
+// BOARD CONFIDENCE & OBJECTIVES (immersion)
+// =============================================
+function updateBoard($){
+  if(!G) return;
+  const pj=G.wins+G.draws+G.losses;
+  const ppg=pj?(G.wins*3+G.draws)/pj:1.4;
+  const expPpg=G.rep>=80?1.95:G.rep>=70?1.6:1.3;
+  const perf=Math.max(15,Math.min(100,(ppg/expPpg)*72));
+  let conf=Math.round(perf*0.6 + G.morale*0.25 + Math.min(100,G.rep)*0.15);
+  conf=Math.max(5,Math.min(100,conf));
+  G.boardConf=conf;
+  const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
+  const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Crítica';
+  if($('confV')){ $('confV').textContent=conf+' · '+lbl; $('confV').style.color=col; }
+  if($('confBar')){ $('confBar').style.width=conf+'%'; $('confBar').style.background=col; }
+  const obj=G.rep>=80?'Salir campeón y llegar a semis de Libertadores'
+          :G.rep>=70?'Clasificar a la Copa Libertadores (top 4)'
+          :G.rep>=58?'Pelear arriba y clasificar a un torneo continental'
+          :'Mantener la categoría y sanear las finanzas';
+  if($('objText'))$('objText').innerHTML=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
+}
+
+// =============================================
 // UPDATE UI
 // =============================================
 function updateUI(){
@@ -2351,6 +2393,7 @@ function updateUI(){
   if($('repBar'))$('repBar').style.width=G.rep+'%';
   if($('morV'))$('morV').textContent=G.morale;
   if($('morBar'))$('morBar').style.width=G.morale+'%';
+  updateBoard($);
   const nm = G.calendar.find(m=>!m.played);
   if(nm){ if($('nH'))$('nH').textContent=nm.home; if($('nA'))$('nA').textContent=nm.away; if($('nMeta'))$('nMeta').textContent='S'+nm.week+' · '+nm.comp; }
   if($('sqCount'))$('sqCount').textContent='('+G.squad.length+' jugadores)';
