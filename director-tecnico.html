@@ -6819,8 +6819,7 @@ function fmInit(m,W,H){
     const attrs=mkAttrs(rat,role);
     const isGK=['ARQ','GK'].includes(role);
     // My team gets speed boost so they feel responsive vs AI
-    const spdBoost=isMy?1.18:1.0;
-    const basePac=isGK?1.40:(1.30+(attrs.pac/100)*0.65)*spdBoost;
+    const basePac=isGK?1.40:(1.30+(attrs.pac/100)*0.65);
     return{
       x:initPos[0],y:initPos[1],vx:0,vy:0,
       hx:homePos[0],hy:homePos[1],  // full-field formation position (AI drifts here)
@@ -7035,41 +7034,37 @@ function fmAI(p,team,idx,dt){
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
 
-  // === GK: realistic sweeper positioning ===
+  // === GK: sweeper-keeper ===
   if(p.isGK){
-    const paW=fieldW*0.175;  // penalty area depth
+    const paW=fieldW*0.175;
     const paHH=f.VH*0.33;
     const bd=Math.hypot(p.x-b.x,p.y-b.y);
     const ballGoalDist=attRight?b.x-f.leftGL:f.rightGL-b.x;
     const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
+    // Ball moving toward our goal?
+    const ballThreat=attRight?(b.vx<-0.5):(b.vx>0.5);
 
-    // fwdFrac: how far off goal line as fraction of paW
-    // Ball in opp half  → ~7% (barely off line)
-    // Ball approaches   → creeps to ~21% at box edge
-    // Ball in box       → peaks ~48% at mid-box depth, less when very close to line
-    let fwdFrac=0.07;
-    if(ballGoalDist<fieldW*0.5){
-      fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
+    if(bd<380||(ballInBox&&ballThreat)){
+      // CHASE: go directly at the ball to intercept
+      fmMove(p,b.x-p.x,b.y-p.y,dt,0.095);
+    } else {
+      // POSITION: hold between ball and goal, step off line moderately
+      let fwdFrac=0.07;
+      if(ballGoalDist<fieldW*0.5)
+        fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
+      if(ballInBox){
+        const depth=1-Math.max(0,ballGoalDist)/paW;
+        fwdFrac+=Math.min(0.27,depth*(1-depth*0.45)*0.60);
+      }
+      fwdFrac=Math.min(0.50,fwdFrac);
+      const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
+      // Y: fully track ball within post height (no partial tracking — avoids dodging)
+      const gkTargY=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
+      fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,0.065);
     }
-    if(ballInBox){
-      // depth 0=box edge, 1=goal line; curve peaks around 0.6 depth then holds steady
-      const depth=1-Math.max(0,ballGoalDist)/paW;
-      fwdFrac+=Math.min(0.27, depth*(1-depth*0.45)*0.60);
-    }
-    fwdFrac=Math.min(0.52,fwdFrac);
 
-    // X target
-    const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
-
-    // Y: tracks ball angle, range widens as GK steps forward
-    const yRange=f.GH*(1+fwdFrac*0.7);
-    const trackStr=Math.min(0.75,0.22+fwdFrac*0.70);
-    const gkTargY=Math.max(mid-yRange,Math.min(mid+yRange,mid+(b.y-mid)*trackStr));
-
-    fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,ballInBox&&bd<280?0.085:0.062);
-
-    // Kick clear
-    if(bd<p.r+40){
+    // Kick clear (larger radius so GK doesn't miss the ball)
+    if(bd<p.r+72){
       const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
       b.vx=(dx/dd)*6.8+(Math.random()-.5)*0.9;
       b.vy=(dy/dd)*5.5+(Math.random()-.5)*2.2;
