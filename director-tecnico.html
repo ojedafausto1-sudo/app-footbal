@@ -6831,7 +6831,7 @@ function fmInit(m,W,H){
     };
   };
   FM={
-    m,S,opp,myKit,oppKit,
+    m,S,oppName:opp,myKit,oppKit,
     VW,VH,GH,leftGL,rightGL,sc,ox,oy,
     myG:0,oppG:0,minute:0,half:1,
     ticks:0,tpm:150,
@@ -7278,7 +7278,7 @@ function fmDraw(){
     ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=4;
     ctx.beginPath();ctx.moveTo(gx,gy1-3);ctx.lineTo(gx,gy2+3);ctx.stroke();
     ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    const nm=isLeft?(f.myAttRight?f.opp:G.teamName):(f.myAttRight?G.teamName:f.opp);
+    const nm=isLeft?(f.myAttRight?(f.oppName||'Rival'):G.teamName):(f.myAttRight?G.teamName:(f.oppName||'Rival'));
     ctx.fillText(nm.slice(0,12),gx+dir*(netW/2),mid);
   };
   drawGoal(true);drawGoal(false);
@@ -7385,7 +7385,7 @@ function fmDraw(){
   ctx.fillStyle='rgba(255,255,255,.92)';ctx.textAlign='right';
   ctx.fillText(G.teamName.toUpperCase().slice(0,14),cx-32,shY+shH/2);
   // Team name right
-  ctx.textAlign='left';ctx.fillText(f.opp.toUpperCase().slice(0,14),cx+32,shY+shH/2);
+  ctx.textAlign='left';ctx.fillText((f.oppName||'Rival').toUpperCase().slice(0,14),cx+32,shY+shH/2);
   // Score (gold center)
   ctx.font='bold 20px "Barlow Condensed",sans-serif';ctx.fillStyle='#f6d318';ctx.textAlign='center';
   ctx.fillText(`${f.myG}–${f.oppG}`,cx,shY+shH/2-1);
