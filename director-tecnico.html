@@ -6656,10 +6656,10 @@ function fmInit(m,W,H){
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
   // Larger virtual field — players feel smaller, more room to move
-  const VW=2000,VH=1100;
+  const VW=2600,VH=1400;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GH=138,leftGL=70,rightGL=1930;
+  const GH=158,leftGL=80,rightGL=2520;
   const fw=rightGL-leftGL;
 
   // Use actual formation from G.formation — convert FORMS % positions to canvas coords
@@ -6667,11 +6667,14 @@ function fmInit(m,W,H){
   // Canvas: x=left→right (depth), y=top→bottom (width)
   const form=(FORMS[G.formation]||FORMS['4-3-3']).slice(0,11);
   while(form.length<11)form.push({x:50,y:50,pos:'MC',lbl:'MC'});
-  // My team attacks RIGHT in first half: own goal = left (leftGL), opp goal = right (rightGL)
-  // Formation y=100 → own goal (leftGL side), y=0 → opp goal (rightGL side)
+  // Full-field home positions (for AI drift-back target)
   const toMyXY=s=>[leftGL+((100-s.y)/100)*fw, (s.x/100)*VH];
-  const myPos=form.map(toMyXY);
-  const oppPos=myPos.map(([x,y])=>[VW-x,VH-y]);
+  const fullMyPos=form.map(toMyXY);
+  const fullOppPos=fullMyPos.map(([x,y])=>[VW-x,VH-y]);
+  // Kickoff positions: clamp each team to their own half so players don't start mixed
+  const halfBuf=30;
+  const myPos=fullMyPos.map(([x,y])=>[Math.min(x,VW/2-halfBuf),y]);
+  const oppPos=fullOppPos.map(([x,y])=>[Math.max(x,VW/2+halfBuf),y]);
 
   const myXI=S.xi.slice(0,11);
   while(myXI.length<11)myXI.push({name:'Suplente',rat:68,pos:'MC'});
@@ -6694,14 +6697,15 @@ function fmInit(m,W,H){
       dri:r(rat+(isAtt?8:isMid?4:isDef?-4:isGK?-14:0)),
     };
   };
-  const mkP=(pos,role,name,rat,kit,isMy)=>{
+  const mkP=(initPos,homePos,role,name,rat,kit,isMy)=>{
     const attrs=mkAttrs(rat,role);
     const isGK=['ARQ','GK'].includes(role);
     // My team gets speed boost so they feel responsive vs AI
     const spdBoost=isMy?1.18:1.0;
     const basePac=isGK?1.40:(1.30+(attrs.pac/100)*0.65)*spdBoost;
     return{
-      x:pos[0],y:pos[1],vx:0,vy:0,hx:pos[0],hy:pos[1],
+      x:initPos[0],y:initPos[1],vx:0,vy:0,
+      hx:homePos[0],hy:homePos[1],  // full-field formation position (AI drifts here)
       name:name.split(' ').pop().slice(0,7),
       r:10,kit,role,isGK,
       rat:Math.round(rat),attrs,
@@ -6716,8 +6720,8 @@ function fmInit(m,W,H){
     phase:'kickoff',phaseT:0,
     raf:0,lastTs:0,
     ball:{x:VW/2,y:VH/2,vx:0,vy:0},
-    my:myXI.map((p,i)=>mkP(myPos[i],form[i].pos,p.name,p.rat||72,myKit,true)),
-    opp:oNms.map((n,i)=>mkP(oppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false)),
+    my:myXI.map((p,i)=>mkP(myPos[i],fullMyPos[i],form[i].pos,p.name,p.rat||72,myKit,true)),
+    opp:oNms.map((n,i)=>mkP(oppPos[i],fullOppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false)),
     ctrl:10,
     charging:false,power:0,
     keys:{up:0,dn:0,lf:0,rt:0,z:0,x:0,tab:0},
@@ -6800,46 +6804,6 @@ function fmTick(dt){
   if(f.phase==='half'){
     f.phaseT+=dt;
     if(f.phaseT>200){f.half=2;fmFlip();fmReset('my');f.phase='kickoff';f.phaseT=0;}
-    return;
-  }
-  if(f.phase==='throwin'||f.phase==='corner'){
-    f.phaseT+=dt;
-    const b=f.ball;
-    if(f.setPiece){b.x=f.setPiece.x;b.y=f.setPiece.y;b.vx=0;b.vy=0;}
-    // Let all players drift toward their home positions during set piece
-    const spTeam=f.setPiece?f.setPiece.team:null;
-    [...f.my,...f.opp].forEach((p,globalI)=>{
-      const isKicker=globalI===(spTeam==='my'?f._spKicker:f._spKicker+11);
-      if(isKicker)return;
-      fmMove(p,p.hx-p.x,p.hy-p.y,dt,0.028);
-      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-    });
-    if(f.phaseT>38){
-      if(f.setPiece&&f.setPiece.team==='my'){
-        let best=-1,bd=Infinity;
-        f.my.forEach((p,i)=>{if(p.isGK)return;const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
-        if(best>=0){
-          // Teleport kicker right next to ball so player can kick immediately
-          f.my[best].x=b.x+(f.myAttRight?-18:18);
-          f.my[best].y=b.y;
-          f.ctrl=best;
-        }
-        f.phase='play';f.phaseT=0;f.setPiece=null;
-      } else if(f.setPiece&&f.setPiece.team==='opp'){
-        let best=-1,bd=Infinity;
-        f.opp.forEach((p,i)=>{if(p.isGK)return;const d=Math.hypot(p.x-b.x,p.y-b.y);if(d<bd){bd=d;best=i;}});
-        if(best>=0){
-          // Kick toward our goal / penalty area
-          const tgx=f.myAttRight?f.leftGL+f.VW*.15:f.rightGL-f.VW*.15;
-          const tgy=f.VH/2+(Math.random()*f.GH*1.4-(f.GH*.7));
-          const dx=tgx-b.x,dy=tgy-b.y,dd=Math.hypot(dx,dy)||1;
-          b.vx=(dx/dd)*(5+Math.random()*2.5);b.vy=(dy/dd)*(5+Math.random()*2.5);
-          f._lastTouch='opp';
-        }
-        f.phase='play';f.phaseT=0;f.setPiece=null;
-      }
-    }
     return;
   }
   f.ticks+=dt;
@@ -7016,21 +6980,10 @@ function fmBall(dt){
   b.vx*=Math.pow(.988,dt);b.vy*=Math.pow(.988,dt);
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH;
-  // Top touchline → throw-in
-  if(b.y<8){
-    const lastTeam=f._lastTouch||'opp';
-    b.y=10;b.vx=0;b.vy=0;
-    f._spKicker=0;f.phase='throwin';f.phaseT=0;
-    f.setPiece={team:lastTeam==='my'?'opp':'my',x:Math.max(f.leftGL+10,Math.min(f.rightGL-10,b.x)),y:12};
-    fmMsg('SAQUE\nDE BANDA');return;
-  }
-  if(b.y>f.VH-8){
-    const lastTeam=f._lastTouch||'opp';
-    b.y=f.VH-10;b.vx=0;b.vy=0;
-    f._spKicker=0;f.phase='throwin';f.phaseT=0;
-    f.setPiece={team:lastTeam==='my'?'opp':'my',x:Math.max(f.leftGL+10,Math.min(f.rightGL-10,b.x)),y:f.VH-12};
-    fmMsg('SAQUE\nDE BANDA');return;
-  }
+  const bR=7;
+  // Top/bottom walls — bounce (Haxball style, no throw-ins)
+  if(b.y<bR){b.y=bR;if(b.vy<0)b.vy*=-0.6;}
+  if(b.y>f.VH-bR){b.y=f.VH-bR;if(b.vy>0)b.vy*=-0.6;}
   // Left goal line
   if(b.x<f.leftGL){
     if(b.y>gy1&&b.y<gy2){
@@ -7038,13 +6991,8 @@ function fmBall(dt){
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
     }else{
-      const lastTeam=f._lastTouch||'opp';
-      const cornerY=b.y<f.VH/2?10:f.VH-10;
-      const isMyCorner=(lastTeam!=='my'&&!f.myAttRight)||(lastTeam==='opp'&&f.myAttRight);
-      b.x=f.leftGL+2;b.y=cornerY;b.vx=0;b.vy=0;
-      f._spKicker=0;f.phase='corner';f.phaseT=0;
-      f.setPiece={team:isMyCorner?'my':'opp',x:f.leftGL+2,y:cornerY};
-      fmMsg('CORNER\n⚽');
+      // Behind goal line outside posts — bounce back
+      b.x=f.leftGL;if(b.vx<0)b.vx*=-0.6;
     }
     return;
   }
@@ -7055,13 +7003,7 @@ function fmBall(dt){
       else{f.oppG++;f.phase='goal_opp';fmMsg('⚽ GOL\nde '+f.opp+'!');}
       fmHUD();
     }else{
-      const lastTeam=f._lastTouch||'opp';
-      const cornerY=b.y<f.VH/2?10:f.VH-10;
-      const isMyCorner=(lastTeam!=='my'&&f.myAttRight)||(lastTeam==='opp'&&!f.myAttRight);
-      b.x=f.rightGL-2;b.y=cornerY;b.vx=0;b.vy=0;
-      f._spKicker=0;f.phase='corner';f.phaseT=0;
-      f.setPiece={team:isMyCorner?'my':'opp',x:f.rightGL-2,y:cornerY};
-      fmMsg('CORNER\n⚽');
+      b.x=f.rightGL;if(b.vx>0)b.vx*=-0.6;
     }
     return;
   }
@@ -7074,12 +7016,17 @@ function fmReset(kickTeam){
   f.opp.forEach(pl=>{pl.x=pl.hx;pl.y=pl.hy;pl.vx=0;pl.vy=0;});
   f.ball={x:f.VW/2,y:f.VH/2,vx:0,vy:0};
   f.charging=false;f.power=0;
+  const fwdRoles=['DC','EI','ED','CF'];
   if(kickTeam==='my'){
-    f.my[10].x=f.VW/2+(f.myAttRight?-18:18);
-    f.my[10].y=f.VH/2+10;f.ctrl=10;
+    let ki=f.my.findIndex(p=>fwdRoles.includes(p.role));
+    if(ki<0)ki=f.my.length-1;
+    f.my[ki].x=f.VW/2+(f.myAttRight?-22:22);
+    f.my[ki].y=f.VH/2;f.ctrl=ki;
   }else{
-    f.opp[10].x=f.VW/2+(f.myAttRight?18:-18);
-    f.opp[10].y=f.VH/2-10;
+    let ki=f.opp.findIndex(p=>fwdRoles.includes(p.role));
+    if(ki<0)ki=f.opp.length-1;
+    f.opp[ki].x=f.VW/2+(f.myAttRight?22:-22);
+    f.opp[ki].y=f.VH/2;
   }
 }
 
@@ -7117,7 +7064,7 @@ function fmDraw(){
   // Center line (vertical)
   ctx.beginPath();ctx.moveTo(cx,8);ctx.lineTo(cx,VH-8);ctx.stroke();
   // Center circle
-  ctx.beginPath();ctx.arc(cx,mid,118,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,mid,148,0,Math.PI*2);ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.arc(cx,mid,7,0,Math.PI*2);ctx.fill();
   // Left penalty area
   const paW=(rightGL-leftGL)*.175,paH=VH*.66;
