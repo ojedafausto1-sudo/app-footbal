@@ -6655,29 +6655,38 @@ function fmInit(m,W,H){
   const S=matchStrengths(m);
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
-  // Landscape side-view — bigger field, Haxball-style
-  const VW=1600,VH=900;
+  // Larger virtual field — players feel smaller, more room to move
+  const VW=2000,VH=1100;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GH=118,leftGL=58,rightGL=1542;
-  // 4-4-2 — my team LEFT half, attacks RIGHT (half 1)
-  const myPos=[
-    [80,450],
-    [295,740],[325,525],[325,375],[295,160],
-    [605,765],[640,525],[640,375],[605,120],
-    [885,490],[885,410],
-  ];
-  const oppPos=myPos.map(([x,y])=>[VW-x,y]);
-  const roles=['GK','RB','CB','CB','LB','RM','CM','CM','LM','CF','CF'];
+  const GH=138,leftGL=70,rightGL=1930;
+  const fw=rightGL-leftGL;
+
+  // Use actual formation from G.formation — convert FORMS % positions to canvas coords
+  // FORMS: x=width%, y=depth% (y=100 = own goal, y=0 = opponent goal)
+  // Canvas: x=left→right (depth), y=top→bottom (width)
+  const form=(FORMS[G.formation]||FORMS['4-3-3']).slice(0,11);
+  while(form.length<11)form.push({x:50,y:50,pos:'MC',lbl:'MC'});
+  // My team attacks RIGHT in first half: own goal = left (leftGL), opp goal = right (rightGL)
+  // Formation y=100 → own goal (leftGL side), y=0 → opp goal (rightGL side)
+  const toMyXY=s=>[leftGL+((100-s.y)/100)*fw, (s.x/100)*VH];
+  const myPos=form.map(toMyXY);
+  const oppPos=myPos.map(([x,y])=>[VW-x,VH-y]);
+
   const myXI=S.xi.slice(0,11);
-  while(myXI.length<11)myXI.push({name:'Suplente',rat:68});
-  const oNms=['Ramírez','García','López','Flores','Gómez','Peña','Castro','Ortiz','Ramos','Cruz','Torres'];
+  while(myXI.length<11)myXI.push({name:'Suplente',rat:68,pos:'MC'});
+
+  // Better opponent names (Argentine/South American style)
+  const oNms=['Ruiz','Herrera','Méndez','Vargas','Solís','Benítez','Suárez','Morales','Delgado','Ibarra','Núñez'];
+
   const mkAttrs=(rat,role)=>{
-    const isGK=role==='GK',isDef=['RB','CB','LB'].includes(role),
-          isMid=['CM','RM','LM'].includes(role),isAtt=['CF'].includes(role);
-    const r=v=>Math.max(30,Math.min(99,Math.round(v+(Math.random()*14-7))));
+    const isGK=['ARQ','GK'].includes(role);
+    const isDef=['DFC','DFD','DFI','LD','LI','CB','RB','LB'].includes(role);
+    const isMid=['MCD','MCO','MC','MD','MI','CM','RM','LM'].includes(role);
+    const isAtt=['DC','EI','ED','CF','SS'].includes(role);
+    const r=v=>Math.max(30,Math.min(99,Math.round(v+(Math.random()*10-5))));
     return{
-      pac:r(rat+(isAtt?6:isMid?2:isDef?-1:isGK?-8:0)),
+      pac:r(rat+(isAtt?6:isMid?2:isDef?-1:isGK?-10:0)),
       sho:r(rat+(isAtt?12:isMid?3:isDef?-10:isGK?-22:0)),
       pas:r(rat+(isMid?8:isAtt?3:isDef?4:isGK?6:0)),
       phy:r(rat+(isDef?6:isAtt?-2:isGK?3:1)),
@@ -6685,13 +6694,16 @@ function fmInit(m,W,H){
       dri:r(rat+(isAtt?8:isMid?4:isDef?-4:isGK?-14:0)),
     };
   };
-  const mkP=(pos,role,name,rat,kit)=>{
+  const mkP=(pos,role,name,rat,kit,isMy)=>{
     const attrs=mkAttrs(rat,role);
-    const basePac=role==='GK'?1.30:1.20+(attrs.pac/100)*0.75;
+    const isGK=['ARQ','GK'].includes(role);
+    // My team gets speed boost so they feel responsive vs AI
+    const spdBoost=isMy?1.18:1.0;
+    const basePac=isGK?1.40:(1.30+(attrs.pac/100)*0.65)*spdBoost;
     return{
       x:pos[0],y:pos[1],vx:0,vy:0,hx:pos[0],hy:pos[1],
-      name:name.split(' ').pop().slice(0,6),
-      r:13,kit,role,isGK:role==='GK',
+      name:name.split(' ').pop().slice(0,7),
+      r:10,kit,role,isGK,
       rat:Math.round(rat),attrs,
       spd:basePac,
     };
@@ -6704,8 +6716,8 @@ function fmInit(m,W,H){
     phase:'kickoff',phaseT:0,
     raf:0,lastTs:0,
     ball:{x:VW/2,y:VH/2,vx:0,vy:0},
-    my:myXI.map((p,i)=>mkP(myPos[i],roles[i],p.name,p.rat||72,myKit)),
-    opp:oNms.map((n,i)=>mkP(oppPos[i],roles[i],n,S.oppRat+(Math.random()*14-7),oppKit)),
+    my:myXI.map((p,i)=>mkP(myPos[i],form[i].pos,p.name,p.rat||72,myKit,true)),
+    opp:oNms.map((n,i)=>mkP(oppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false)),
     ctrl:10,
     charging:false,power:0,
     keys:{up:0,dn:0,lf:0,rt:0,z:0,x:0,tab:0},
@@ -6713,7 +6725,10 @@ function fmInit(m,W,H){
     pending:{m},_joyId:null,_joyC:null,_mt:null,
     myAttRight:true,
   };
-  FM.my[10].x=VW/2-18;FM.my[10].y=VH/2+10;
+  // Striker kicks off
+  const strikerIdx=form.findIndex(s=>['DC','EI','CF'].includes(s.pos));
+  FM.ctrl=strikerIdx>=0?strikerIdx:myXI.length-1;
+  FM.my[FM.ctrl].x=VW/2-20;FM.my[FM.ctrl].y=VH/2+10;
   fmMsg('¡INICIO!\n'+G.teamName+' vs '+opp);
 }
 
