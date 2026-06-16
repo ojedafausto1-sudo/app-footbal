@@ -6667,14 +6667,15 @@ function fmInit(m,W,H){
   // Canvas: x=left→right (depth), y=top→bottom (width)
   const form=(FORMS[G.formation]||FORMS['4-3-3']).slice(0,11);
   while(form.length<11)form.push({x:50,y:50,pos:'MC',lbl:'MC'});
-  // Full-field home positions (for AI drift-back target)
+  // Full-field home positions (for AI drift-back target during play)
   const toMyXY=s=>[leftGL+((100-s.y)/100)*fw, (s.x/100)*VH];
   const fullMyPos=form.map(toMyXY);
   const fullOppPos=fullMyPos.map(([x,y])=>[VW-x,VH-y]);
-  // Kickoff positions: clamp each team to their own half so players don't start mixed
-  const halfBuf=30;
-  const myPos=fullMyPos.map(([x,y])=>[Math.min(x,VW/2-halfBuf),y]);
-  const oppPos=fullOppPos.map(([x,y])=>[Math.max(x,VW/2+halfBuf),y]);
+  // Kickoff: scale formation into OWN HALF so teams don't start mixed
+  const halfFW=VW/2-leftGL-45;
+  const toKickXY=s=>[leftGL+((100-s.y)/100)*halfFW, (s.x/100)*VH];
+  const myPos=form.map(toKickXY);
+  const oppPos=myPos.map(([x,y])=>[VW-x,VH-y]);
 
   const myXI=S.xi.slice(0,11);
   while(myXI.length<11)myXI.push({name:'Suplente',rat:68,pos:'MC'});
@@ -6831,6 +6832,17 @@ function fmTick(dt){
   fmCtrl(dt);
   f.my.forEach((p,i)=>{if(i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
+  // Player-player collision: push apart any overlapping players
+  const allP=[...f.my,...f.opp];
+  for(let i=0;i<allP.length;i++){
+    for(let j=i+1;j<allP.length;j++){
+      const a=allP[i],c=allP[j];
+      const dx=a.x-c.x,dy=a.y-c.y,dd=Math.hypot(dx,dy)||0.1;
+      const minD=a.r+c.r+1;
+      if(dd<minD){const push=(minD-dd)*0.45,px=dx/dd*push,py=dy/dd*push;a.x+=px;a.y+=py;c.x-=px;c.y-=py;}
+    }
+  }
+  allP.forEach(p=>{p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));});
   f.my.forEach(p=>fmBodyBall(p,f.ball,'my'));
   f.opp.forEach(p=>fmBodyBall(p,f.ball,'opp'));
   fmBall(dt);
@@ -6900,75 +6912,67 @@ function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
   const players=isM?f.my:f.opp;
   const attRight=isM?f.myAttRight:!f.myAttRight;
-  // If my team and the controlled player already has possession, hold formation/spread for pass
-  if(isM){
-    const ctrl=f.my[f.ctrl];
-    const ctrlBD=ctrl?Math.hypot(ctrl.x-b.x,ctrl.y-b.y):9999;
-    if(ctrlBD<ctrl?.r+28){
-      const fieldW=f.rightGL-f.leftGL;
-      const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-      const fwdShift=(ballPct-0.4)*fieldW*0.18;
-      const tx=Math.max(p.r+10,Math.min(f.VW-p.r-10,p.hx+(attRight?fwdShift:-fwdShift)));
-      const ty=Math.max(p.r+6,Math.min(f.VH-p.r-6,p.hy+(b.y-f.VH/2)*0.08));
-      fmMove(p,tx-p.x,ty-p.y,dt,.036);
-      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-      return;
-    }
-  }
+  const fieldW=f.rightGL-f.leftGL,mid=f.VH/2;
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
-  const mid=f.VH/2;
-  const bd=Math.hypot(p.x-b.x,p.y-b.y);
-  const KICK_R=p.r+7+18;
-  const fieldW=f.rightGL-f.leftGL;
 
-  // --- GK: hug goal line, track ball laterally, clear if ball close ---
+  // === GK: hug goal line, track ball height, clear if ball enters box ===
   if(p.isGK){
-    const gkX=ownGX+(attRight?36:-36);
-    const gkY=Math.max(mid-f.GH+14,Math.min(mid+f.GH-14,b.y));
-    fmMove(p,gkX-p.x,gkY-p.y,dt,.052);
-    const near=attRight?b.x<f.leftGL+135:b.x>f.rightGL-135;
-    if(near&&bd<KICK_R){
+    const gkX=ownGX+(attRight?34:-34);
+    const gkY=Math.max(mid-f.GH+12,Math.min(mid+f.GH-12,b.y));
+    fmMove(p,gkX-p.x,gkY-p.y,dt,0.055);
+    const near=attRight?b.x<f.leftGL+160:b.x>f.rightGL-160;
+    const bd=Math.hypot(p.x-b.x,p.y-b.y);
+    if(near&&bd<p.r+10){
       const ddx=tgx-b.x,ddy=mid-b.y,dd=Math.hypot(ddx,ddy)||1;
-      b.vx=(ddx/dd)*4.5;b.vy=(ddy/dd)*3.8+(Math.random()-.5)*1.2;
+      b.vx=(ddx/dd)*5.2;b.vy=(ddy/dd)*4.5+(Math.random()-.5)*1.4;
+      f._lastTouch=isM?'my':'opp';
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
     p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
     return;
   }
 
-  // --- Find chasers: 2 for my team, 3 for opponent ---
-  let d1=Infinity,d2=Infinity,d3=Infinity,i1=-1,i2=-1,i3=-1;
-  players.forEach((q,i)=>{
-    if(q.isGK)return;
-    const d=Math.hypot(q.x-b.x,q.y-b.y);
-    if(d<d1){d3=d2;i3=i2;d2=d1;i2=i1;d1=d;i1=i;}
-    else if(d<d2){d3=d2;i3=i2;d2=d;i2=i;}
-    else if(d<d3){d3=d;i3=i;}
-  });
-  const numChasers=isM?2:3;
-  const isChaser=idx===i1||idx===i2||(numChasers===3&&idx===i3);
+  const bd=Math.hypot(p.x-b.x,p.y-b.y);
 
-  if(isChaser){
-    // Move toward ball to push it
-    const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy)||1;
-    fmMove(p,dx/d,dy/d,dt,0.052+(p.attrs&&p.attrs.def?p.attrs.def/2000:0.035));
-    // Shoot if in range and near goal
-    const distToGoal=attRight?f.rightGL-p.x:p.x-f.leftGL;
-    if(bd<=KICK_R&&distToGoal<fieldW*.65&&Math.random()<.030*dt){
-      const aimY=(Math.random()-.5)*f.GH*0.85;
-      const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-      b.vx=(ddx/dd)*(4.2+Math.random()*2.8)*(0.6+p.attrs.sho/120);b.vy=(ddy/dd)*(4.2+Math.random()*2.8)*(0.6+p.attrs.sho/120);
-    }
-  }else{
-    // Hold formation — shift whole shape based on ball position
+  if(isM){
+    // === MY TEAM: never chase ball — drift to formation + track ball laterally ===
     const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-    const fwdShift=(ballPct-0.45)*fieldW*0.20; // push forward when ball in opp half
-    const latShift=(b.y-mid)*0.12;
-    const tx=Math.max(p.r+10,Math.min(f.VW-p.r-10,p.hx+(attRight?fwdShift:-fwdShift)));
-    const ty=Math.max(p.r+6,Math.min(f.VH-p.r-6,p.hy+latShift));
-    fmMove(p,tx-p.x,ty-p.y,dt,.040);
+    const fwdShift=(ballPct-0.38)*fieldW*0.13;
+    const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
+    const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.06));
+    fmMove(p,tx-p.x,ty-p.y,dt,0.032);
+  }else{
+    // === OPPONENT: 1 nearest presses, 1 secondary if close, rest hold shape ===
+    let d1=Infinity,d2=Infinity,i1=-1,i2=-1;
+    players.forEach((q,i)=>{
+      if(q.isGK)return;
+      const d=Math.hypot(q.x-b.x,q.y-b.y);
+      if(d<d1){d2=d1;i2=i1;d1=d;i1=i;}
+      else if(d<d2){d2=d;i2=i;}
+    });
+    const isChaser=idx===i1||(d2<420&&idx===i2);
+    if(isChaser){
+      fmMove(p,b.x-p.x,b.y-p.y,dt,0.050);
+      // Shoot when next to ball and in shooting range
+      if(bd<p.r+9){
+        const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
+        if(distGoal<fieldW*0.72&&Math.random()<0.032*dt){
+          const aimY=(Math.random()-.5)*f.GH*0.82;
+          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+          const pwr=(4.8+Math.random()*2.8)*(0.65+(p.attrs&&p.attrs.sho?p.attrs.sho/130:0.5));
+          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;
+          f._lastTouch='opp';
+        }
+      }
+    }else{
+      // Hold mid-block — entire shape shifts toward ball
+      const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
+      const fwdShift=(ballPct-0.45)*fieldW*0.16;
+      const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
+      const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.09));
+      fmMove(p,tx-p.x,ty-p.y,dt,0.038);
+    }
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
