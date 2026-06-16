@@ -45,7 +45,7 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 @media(max-width:680px){.g2,.g3,.g4,.tc2{grid-template-columns:1fr!important}}
 .card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;box-shadow:var(--sh);transition:transform .15s,border-color .15s,box-shadow .15s}
 .card:hover{border-color:rgba(246,211,24,.28);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.4)}
-.ctitle{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase}
+.ctitle{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 /* TABS */
 .tabs{display:flex;gap:2px;margin-bottom:10px;background:var(--d3);border-radius:7px;padding:3px}
 .tab{flex:1;padding:5px;text-align:center;border-radius:5px;border:none;background:transparent;color:var(--t2);font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;transition:all .18s}
@@ -168,57 +168,82 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .powerbar-lbl{font-size:9px;color:#fff;margin-top:2px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em}
 /* INTRO */
 #intro{background:radial-gradient(ellipse at 30% 40%,#0a2a5e 0%,#031020 60%,#020c1a 100%);align-items:center;justify-content:center}
+/* CARD TITLE gradient accent */
+.ctitle{background:linear-gradient(90deg,rgba(246,211,24,.08),transparent);border-left:2px solid var(--gold);padding-left:8px!important;border-radius:2px}
+/* NAV active glow */
+.nb.on{text-shadow:0 0 12px rgba(246,211,24,.35)}
+/* CARD hover glow */
+.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.45),0 0 0 1px rgba(246,211,24,.12)}
+/* TEAM SELECT CARD */
+.ts-card{cursor:pointer;border-radius:14px;padding:22px 18px;text-align:center;transition:.2s;border:2px solid;position:relative;overflow:hidden}
+.ts-card:hover{transform:translateY(-4px) scale(1.03)}
+.ts-card::before{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.07),transparent 60%);pointer-events:none}
+.ts-card-name{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:.04em;margin-bottom:2px}
+.ts-card-sub{font-size:10px;opacity:.55;letter-spacing:.05em}
+.ts-card-val{font-size:11px;opacity:.5;margin-top:8px;font-family:'Barlow Condensed',sans-serif}
+.ts-card-rat{display:flex;gap:2px;justify-content:center;margin-top:6px}
 </style>
 </head>
 <body>
 
 <!-- TEAM SELECTION OVERLAY -->
-<div id="teamSelect" style="position:fixed;inset:0;background:#0a0e14;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
-  <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;color:#fff;letter-spacing:.1em;margin-bottom:6px">DIRECTOR TÉCNICO</div>
-  <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:28px;letter-spacing:.15em">ELEGÍ TU EQUIPO — TEMPORADA 2026</div>
-  <div style="margin-bottom:20px;text-align:center">
-    <div style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.12em;margin-bottom:8px">DIFICULTAD</div>
+<div id="teamSelect" style="position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#091d45 0%,#030d1f 55%,#010810 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:22px">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:rgba(246,211,24,.6);letter-spacing:.3em;text-transform:uppercase;margin-bottom:4px">⚽ TEMPORADA 2026</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;color:#fff;letter-spacing:.06em;line-height:.9;text-shadow:0 0 60px rgba(246,211,24,.2)">DIRECTOR<br><span style="color:#F6D318">TÉCNICO</span></div>
+    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:6px;letter-spacing:.12em">ELEGÍ TU EQUIPO Y LLEVALO A LO MÁS ALTO</div>
+  </div>
+  <!-- Difficulty -->
+  <div style="margin-bottom:22px;text-align:center">
+    <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px">DIFICULTAD</div>
     <div style="display:flex;gap:8px;justify-content:center">
       <button onclick="setDiff(0,this)" class="diff-btn diff-sel" id="diff-0">😊 FÁCIL</button>
       <button onclick="setDiff(1,this)" class="diff-btn" id="diff-1">⚽ NORMAL</button>
       <button onclick="setDiff(2,this)" class="diff-btn" id="diff-2">💀 DIFÍCIL</button>
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;width:100%;max-width:780px">
-    <div onclick="selectTeam('boca')" style="cursor:pointer;background:rgba(0,48,135,.25);border:2px solid #003087;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,48,135,.5)'" onmouseout="this.style.background='rgba(0,48,135,.25)'">
-      <div style="font-size:36px;margin-bottom:8px">🔵🟡</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFD700">BOCA</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Juniors</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €95.4M</div>
+  <!-- Team Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px;width:100%;max-width:820px">
+    <div onclick="selectTeam('boca')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,30,100,.8),rgba(0,48,135,.35));border-color:#2244aa">
+      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🟡</div>
+      <div class="ts-card-name" style="color:#FFD700">BOCA</div>
+      <div class="ts-card-sub">JUNIORS</div>
+      <div class="ts-card-val">Val: €95.4M</div>
+      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
     </div>
-    <div onclick="selectTeam('river')" style="cursor:pointer;background:rgba(204,0,0,.2);border:2px solid #cc0000;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(204,0,0,.4)'" onmouseout="this.style.background='rgba(204,0,0,.2)'">
-      <div style="font-size:36px;margin-bottom:8px">🔴⚪</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">RIVER</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Plate</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €102.8M</div>
+    <div onclick="selectTeam('river')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(204,0,0,.35));border-color:#cc3333">
+      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚪</div>
+      <div class="ts-card-name" style="color:#fff">RIVER</div>
+      <div class="ts-card-sub">PLATE</div>
+      <div class="ts-card-val">Val: €102.8M</div>
+      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
     </div>
-    <div onclick="selectTeam('indep')" style="cursor:pointer;background:rgba(204,0,0,.2);border:2px solid #cc0000;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(204,0,0,.4)'" onmouseout="this.style.background='rgba(204,0,0,.2)'">
-      <div style="font-size:36px;margin-bottom:8px">🔴</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">INDEP.</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Independiente</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €36.4M</div>
+    <div onclick="selectTeam('indep')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(200,0,0,.35));border-color:#aa2222">
+      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚫</div>
+      <div class="ts-card-name" style="color:#ff5555">INDEPENDIENTE</div>
+      <div class="ts-card-sub">EL ROJO</div>
+      <div class="ts-card-val">Val: €36.4M</div>
+      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★☆☆</span></div>
     </div>
-    <div onclick="selectTeam('racing')" style="cursor:pointer;background:rgba(0,51,153,.2);border:2px solid #003399;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,51,153,.4)'" onmouseout="this.style.background='rgba(0,51,153,.2)'">
-      <div style="font-size:36px;margin-bottom:8px">🔵⚪</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">RACING</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">Club</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €62.6M</div>
+    <div onclick="selectTeam('racing')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,80,.8),rgba(0,51,153,.35));border-color:#2255bb">
+      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵⚪</div>
+      <div class="ts-card-name" style="color:#aaccff">RACING</div>
+      <div class="ts-card-sub">CLUB</div>
+      <div class="ts-card-val">Val: €62.6M</div>
+      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
     </div>
-    <div onclick="selectTeam('sanlo')" style="cursor:pointer;background:rgba(0,76,151,.2);border:2px solid #004c97;border-radius:12px;padding:20px;text-align:center;transition:.2s" onmouseover="this.style.background='rgba(0,76,151,.4)'" onmouseout="this.style.background='rgba(0,76,151,.2)'">
-      <div style="font-size:36px;margin-bottom:8px">🔵🔴</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#FFFFFF">SAN LORENZO</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px">de Almagro</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:6px">Val: €47.2M</div>
+    <div onclick="selectTeam('sanlo')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,70,.8),rgba(0,76,151,.35));border-color:#1155aa">
+      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🔴</div>
+      <div class="ts-card-name" style="color:#88aaff">SAN LORENZO</div>
+      <div class="ts-card-sub">DE ALMAGRO</div>
+      <div class="ts-card-val">Val: €47.2M</div>
+      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
     </div>
   </div>
   <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
-    <button onclick="loadGame()" style="cursor:pointer;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);border-radius:10px;padding:14px 28px;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:#fff;letter-spacing:.05em;transition:.2s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">▶ CONTINUAR PARTIDA</button>
-    <div id="continueSaveLbl" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;letter-spacing:.05em"></div>
+    <button onclick="loadGame()" style="cursor:pointer;background:linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06));border:2px solid rgba(246,211,24,.5);border-radius:12px;padding:14px 32px;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:#F6D318;letter-spacing:.08em;transition:.2s;text-shadow:0 0 20px rgba(246,211,24,.3)" onmouseover="this.style.background='linear-gradient(135deg,rgba(246,211,24,.25),rgba(246,211,24,.1))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06))'">▶ CONTINUAR PARTIDA</button>
+    <div id="continueSaveLbl" style="font-size:11px;color:rgba(255,255,255,.35);margin-top:6px;letter-spacing:.05em"></div>
   </div>
 </div>
 
@@ -285,18 +310,18 @@ tr:hover td{background:rgba(255,255,255,.025)}
     </div>
   </div>
   <div class="nav">
-    <button class="nb on" onclick="gTab('ov',this)">📋 Resumen</button>
-    <button class="nb" onclick="gTab('sq',this)">👥 Plantel</button>
-    <button class="nb" onclick="gTab('dt',this);rDtTab()">🎯 Mi DT</button>
-    <button class="nb" onclick="gTab('mkt',this)">💰 Mercado</button>
-    <button class="nb" onclick="gTab('stad',this)">🏟️ Estadio</button>
-    <button class="nb" onclick="gTab('juv',this)">🌱 Juveniles</button>
+    <button class="nb on" onclick="gTab('ov',this)">📋 RESUMEN</button>
+    <button class="nb" onclick="gTab('sq',this)">👥 PLANTEL</button>
+    <button class="nb" onclick="gTab('dt',this);rDtTab()">🎯 MI DT</button>
+    <button class="nb" onclick="gTab('mkt',this)">💰 MERCADO</button>
+    <button class="nb" onclick="gTab('stad',this)">🏟️ ESTADIO</button>
+    <button class="nb" onclick="gTab('juv',this)">🌱 JUVENILES</button>
     <button class="nb" onclick="gTab('ct',this)">🤝 CT</button>
-    <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 Patroc.</button>
-    <button class="nb" onclick="gTab('cal',this)">📅 Temp.</button>
-    <button class="nb" onclick="gTab('stats',this);rStats()">📊 Stats</button>
-    <button class="nb" onclick="gTab('news',this);rNewsTab()">📰 Noticias</button>
-    <button class="nb" onclick="gTab('social',this);rSocial()">📱 Redes</button>
+    <button class="nb" onclick="gTab('pat',this);rSponsors()">📋 PATROC.</button>
+    <button class="nb" onclick="gTab('cal',this)">📅 TEMPORADA</button>
+    <button class="nb" onclick="gTab('stats',this);rStats()">📊 STATS</button>
+    <button class="nb" onclick="gTab('news',this);rNewsTab()">📰 NOTICIAS</button>
+    <button class="nb" onclick="gTab('social',this);rSocial()">📱 REDES</button>
   </div>
   <div class="main">
 
@@ -5496,46 +5521,94 @@ function sitLoop(ts){
 
 // ——— Utilidades de dibujo ———
 function sitDrawField(ctx,W,H,glY,gh){
-  const gr=ctx.createLinearGradient(0,0,0,H);
-  gr.addColorStop(0,'#14572b');gr.addColorStop(.5,'#1d7a3e');gr.addColorStop(1,'#14572b');
-  ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(255,255,255,.025)';
-  for(let i=0;i<H;i+=52){ctx.fillRect(0,i,W,26);}
-  ctx.strokeStyle='rgba(255,255,255,.65)';ctx.lineWidth=1.5;
+  // Alternating horizontal mow stripes
+  const sh=Math.max(20,Math.floor(H/14));
+  for(let i=0;i<Math.ceil(H/sh);i++){
+    ctx.fillStyle=i%2===0?'#13522a':'#176030';
+    ctx.fillRect(0,i*sh,W,sh);
+  }
+  // Radial vignette
+  const vig=ctx.createRadialGradient(W/2,H*.55,H*.08,W/2,H*.55,H*.85);
+  vig.addColorStop(0,'transparent');vig.addColorStop(1,'rgba(0,0,0,.38)');
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  // Field lines
+  ctx.strokeStyle='rgba(255,255,255,.70)';ctx.lineWidth=1.5;
   const paw=gh*3.2,pah=H*0.23;
   ctx.strokeRect(W/2-paw/2,glY,paw,pah);
-  const saw=gh*1.6,sah=H*0.10;
-  ctx.strokeRect(W/2-saw/2,glY,saw,sah);
-  ctx.beginPath();ctx.arc(W/2,glY+H*0.18,3.5,0,7);ctx.fillStyle='rgba(255,255,255,.75)';ctx.fill();
+  const saw=gh*1.6;
+  ctx.strokeRect(W/2-saw/2,glY,saw,H*0.10);
+  // Penalty spot
+  ctx.beginPath();ctx.arc(W/2,glY+H*0.18,3.5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,.82)';ctx.fill();
+  // Penalty arc
   ctx.beginPath();ctx.arc(W/2,glY+H*0.18,H*0.11,0,Math.PI);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.22)';ctx.fillRect(W/2-gh,glY-13,gh*2,13);
-  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.strokeRect(W/2-gh,glY-13,gh*2,13);
-  // Postes
+  // Goal net area (fill + grid)
+  ctx.fillStyle='rgba(200,230,200,.07)';ctx.fillRect(W/2-gh,glY-16,gh*2,16);
+  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=0.8;
+  for(let nx=W/2-gh;nx<=W/2+gh;nx+=10){ctx.beginPath();ctx.moveTo(nx,glY-16);ctx.lineTo(nx,glY);ctx.stroke();}
+  for(let ny=glY-16;ny<=glY;ny+=8){ctx.beginPath();ctx.moveTo(W/2-gh,ny);ctx.lineTo(W/2+gh,ny);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,.60)';ctx.lineWidth=1.5;ctx.strokeRect(W/2-gh,glY-16,gh*2,16);
+  // Goal posts with 3D shadow
+  ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=4;ctx.shadowOffsetX=2;ctx.shadowOffsetY=2;
   ctx.fillStyle='#fff';
-  ctx.fillRect(W/2-gh-3,glY-15,5,15);
-  ctx.fillRect(W/2+gh-2,glY-15,5,15);
-  ctx.fillRect(W/2-gh-3,glY-15,gh*2+6,4);
+  ctx.fillRect(W/2-gh-4,glY-20,5,20);
+  ctx.fillRect(W/2+gh-1,glY-20,5,20);
+  ctx.fillRect(W/2-gh-4,glY-22,gh*2+9,5);
+  ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+  // Post highlights
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  ctx.fillRect(W/2-gh-3,glY-20,2,20);
+  ctx.fillRect(W/2+gh,glY-20,2,20);
   // Corner arcs
+  ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;
   ctx.beginPath();ctx.arc(0,H,18,0,-Math.PI/2);ctx.stroke();
   ctx.beginPath();ctx.arc(W,H,18,Math.PI,-Math.PI/2,true);ctx.stroke();
 }
 
 function sitDrawBall(ctx,b){
-  ctx.beginPath();ctx.arc(b.x,b.y,6.5,0,7);
-  const g=ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,6.5);
-  g.addColorStop(0,'#fff');g.addColorStop(1,'#ccc');
+  const r=6.5;
+  b._rot=(b._rot||0)+Math.hypot(b.vx||0,b.vy||0)*0.038;
+  // Ground shadow
+  ctx.beginPath();ctx.ellipse(b.x+2,b.y+r+3,r*.9,r*.32,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fill();
+  // Sphere base
+  ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);
+  const g=ctx.createRadialGradient(b.x-r*.35,b.y-r*.38,r*.07,b.x,b.y,r);
+  g.addColorStop(0,'#fff');g.addColorStop(.55,'#e4e4e4');g.addColorStop(1,'#aaa');
   ctx.fillStyle=g;ctx.fill();
-  ctx.strokeStyle='#444';ctx.lineWidth=1;ctx.stroke();
-  // Shadow
-  ctx.beginPath();ctx.ellipse(b.x,b.y+8,5,2,0,0,7);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();
+  // Pentagon patches (rotate with ball)
+  ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b._rot);
+  ctx.fillStyle='rgba(28,28,28,.72)';
+  for(let i=0;i<5;i++){
+    const a=i/5*Math.PI*2,px=Math.cos(a)*r*.43,py=Math.sin(a)*r*.43;
+    ctx.beginPath();
+    for(let j=0;j<5;j++){const ja=j/5*Math.PI*2+a;ctx.lineTo(px+Math.cos(ja)*r*.26,py+Math.sin(ja)*r*.26);}
+    ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
+  // Outline
+  ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.9;ctx.stroke();
+  // Specular highlight
+  ctx.beginPath();ctx.arc(b.x-r*.28,b.y-r*.3,r*.22,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,.52)';ctx.fill();
 }
 
 function sitDrawPlayer(ctx,x,y,r,col,label,isCtrl){
-  ctx.beginPath();ctx.ellipse(x,y+r+4,r*0.9,3.5,0,0,7);ctx.fillStyle='rgba(0,0,0,.3)';ctx.fill();
-  ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=col;ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
-  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+5,0,7);ctx.strokeStyle='#f6d318';ctx.lineWidth=2.5;ctx.stroke();}
-  if(label){ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+7);}
+  // Drop shadow
+  ctx.beginPath();ctx.ellipse(x+2,y+r+3,r*.88,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.32)';ctx.fill();
+  // Jersey oval body
+  ctx.save();ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);ctx.clip();
+  ctx.fillStyle=col;ctx.fillRect(x-r,y-r,r*2,r*2);
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x-r,y-r,r*2,r*.8);
+  ctx.restore();
+  ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);
+  ctx.strokeStyle=isCtrl?'rgba(246,211,24,.9)':'rgba(255,255,255,.5)';ctx.lineWidth=isCtrl?2.5:1.5;ctx.stroke();
+  // Head
+  ctx.beginPath();ctx.arc(x,y-r*.72,r*.44,0,Math.PI*2);
+  ctx.fillStyle='#e8c49a';ctx.fill();ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=.7;ctx.stroke();
+  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=2.2;ctx.stroke();}
+  if(label){ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+5);}
 }
 
 // ——— Camisetas de los equipos ———
@@ -5558,16 +5631,23 @@ const KITS={
 };
 function kitFor(name){return KITS[name]||{c1:'#c0392b',c2:'#fff'};}
 function sitDrawPlayerK(ctx,x,y,r,kit,label,isCtrl){
-  ctx.beginPath();ctx.ellipse(x,y+r+4,r*0.9,3.5,0,0,7);ctx.fillStyle='rgba(0,0,0,.3)';ctx.fill();
-  ctx.save();
-  ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.clip();
+  // Drop shadow
+  ctx.beginPath();ctx.ellipse(x+2,y+r+3,r*.88,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.32)';ctx.fill();
+  // Jersey oval body (clipped) — top half c1, bottom band c2
+  ctx.save();ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);ctx.clip();
   ctx.fillStyle=kit.c1;ctx.fillRect(x-r,y-r,r*2,r*2);
-  ctx.fillStyle=kit.c2;ctx.fillRect(x-r*.36,y-r,r*.72,r*2);
+  ctx.fillStyle=kit.c2;ctx.fillRect(x-r,y+r*.22,r*2,r*.82);
+  ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(x-r,y-r,r*2,r*.75);
   ctx.restore();
-  ctx.beginPath();ctx.arc(x,y,r,0,7);
-  ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;ctx.stroke();
-  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+5,0,7);ctx.strokeStyle='#f6d318';ctx.lineWidth=2.5;ctx.stroke();}
-  if(label){ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+7);}
+  // Jersey outline
+  ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);
+  ctx.strokeStyle=isCtrl?'rgba(246,211,24,.92)':'rgba(255,255,255,.52)';ctx.lineWidth=isCtrl?2.8:1.5;ctx.stroke();
+  // Head
+  ctx.beginPath();ctx.arc(x,y-r*.72,r*.44,0,Math.PI*2);
+  ctx.fillStyle='#e8c49a';ctx.fill();ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=.7;ctx.stroke();
+  // Control ring
+  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.42)';ctx.lineWidth=2.2;ctx.stroke();}
+  if(label){ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+5);}
 }
 
 function sitDrawPowerBar(ctx,W,H,charging,charge,passMark){
@@ -5587,27 +5667,64 @@ function sitDrawPowerBar(ctx,W,H,charging,charge,passMark){
 
 // ——— Vista de arco (penales y tiros libres, estilo FIFA) ———
 function sitDrawGoalView(ctx,W,H,g){
-  // Tribuna de fondo
-  const sk=ctx.createLinearGradient(0,0,0,g.groundY);
-  sk.addColorStop(0,'#0a1228');sk.addColorStop(1,'#1d2c52');
-  ctx.fillStyle=sk;ctx.fillRect(0,0,W,g.groundY);
-  ctx.fillStyle='rgba(255,255,255,.07)';
-  for(let i=0;i<160;i++){ctx.fillRect((i*37+13)%W,(i*53+7)%(g.groundY-14),2,2);}
-  // Césped
-  const gr=ctx.createLinearGradient(0,g.groundY,0,H);
-  gr.addColorStop(0,'#1f8242');gr.addColorStop(1,'#135028');
-  ctx.fillStyle=gr;ctx.fillRect(0,g.groundY,W,H-g.groundY);
-  ctx.fillStyle='rgba(255,255,255,.035)';
-  for(let y=g.groundY;y<H;y+=32)ctx.fillRect(0,y,W,16);
-  // Línea de gol y área
-  ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(0,g.groundY+2);ctx.lineTo(W,g.groundY+2);ctx.stroke();
-  // Red
-  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;
-  for(let x=g.x1;x<=g.x2;x+=13){ctx.beginPath();ctx.moveTo(x,g.barY);ctx.lineTo(x,g.groundY);ctx.stroke();}
-  for(let y=g.barY;y<=g.groundY;y+=13){ctx.beginPath();ctx.moveTo(g.x1,y);ctx.lineTo(g.x2,y);ctx.stroke();}
-  // Palos y travesaño
-  ctx.strokeStyle='#fff';ctx.lineWidth=5;ctx.lineCap='round';
+  // Sky gradient
+  const sky=ctx.createLinearGradient(0,0,0,g.groundY);
+  sky.addColorStop(0,'#06091c');sky.addColorStop(.55,'#0d1840');sky.addColorStop(1,'#1a2a5a');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,g.groundY);
+  // Stadium tiers (rows of crowd)
+  const rowH=Math.max(6,g.groundY/10);
+  const rowCols=['#1a2a50','#1e3060','#162245','#0f1a38','#243468'];
+  for(let row=0;row<Math.ceil(g.groundY/rowH);row++){
+    ctx.fillStyle=rowCols[row%rowCols.length];
+    ctx.fillRect(0,row*rowH,W,rowH);
+    // Crowd dots per row
+    ctx.fillStyle='rgba(255,255,255,.055)';
+    for(let d=((row*37)%13);d<W;d+=13+(row%3)*4){
+      ctx.beginPath();ctx.arc(d,row*rowH+rowH*.5,1.4,0,Math.PI*2);ctx.fill();
+    }
+  }
+  // Stadium lights glow (top corners)
+  const lgt=ctx.createRadialGradient(W*.12,g.groundY*.05,2,W*.12,g.groundY*.05,W*.22);
+  lgt.addColorStop(0,'rgba(255,240,180,.12)');lgt.addColorStop(1,'transparent');
+  ctx.fillStyle=lgt;ctx.fillRect(0,0,W,g.groundY);
+  const lgt2=ctx.createRadialGradient(W*.88,g.groundY*.05,2,W*.88,g.groundY*.05,W*.22);
+  lgt2.addColorStop(0,'rgba(255,240,180,.12)');lgt2.addColorStop(1,'transparent');
+  ctx.fillStyle=lgt2;ctx.fillRect(0,0,W,g.groundY);
+  // Grass — alternating horizontal stripes
+  const gsh=Math.max(10,Math.floor((H-g.groundY)/8));
+  for(let i=0;i<Math.ceil((H-g.groundY)/gsh);i++){
+    ctx.fillStyle=i%2===0?'#1a7a38':'#1f9044';
+    ctx.fillRect(0,g.groundY+i*gsh,W,gsh);
+  }
+  // Grass vignette
+  const gv=ctx.createLinearGradient(0,g.groundY,0,H);
+  gv.addColorStop(0,'rgba(0,0,0,.0)');gv.addColorStop(1,'rgba(0,0,0,.28)');
+  ctx.fillStyle=gv;ctx.fillRect(0,g.groundY,W,H-g.groundY);
+  // Goal line
+  ctx.strokeStyle='rgba(255,255,255,.65)';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(0,g.groundY+1);ctx.lineTo(W,g.groundY+1);ctx.stroke();
+  // Net area background
+  ctx.fillStyle='rgba(200,240,210,.055)';
+  ctx.fillRect(g.x1,g.barY,g.x2-g.x1,g.groundY-g.barY);
+  // Net vertical lines
+  ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=1;
+  for(let x=g.x1;x<=g.x2;x+=12){ctx.beginPath();ctx.moveTo(x,g.barY);ctx.lineTo(x,g.groundY);ctx.stroke();}
+  // Net horizontal lines (perspective: denser toward top)
+  let ny=g.groundY,step=14;
+  while(ny>g.barY){ctx.beginPath();ctx.moveTo(g.x1,ny);ctx.lineTo(g.x2,ny);ctx.stroke();step=Math.max(7,step*.88);ny-=step;}
+  // Post shadows
+  ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=6;ctx.shadowOffsetX=3;ctx.shadowOffsetY=2;
+  ctx.fillStyle='#fff';
+  ctx.fillRect(g.x1-4,g.barY-2,8,g.groundY-g.barY+6);
+  ctx.fillRect(g.x2-4,g.barY-2,8,g.groundY-g.barY+6);
+  ctx.fillRect(g.x1-4,g.barY-6,g.x2-g.x1+8,8);
+  ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+  // Post highlight
+  ctx.fillStyle='rgba(255,255,255,.4)';
+  ctx.fillRect(g.x1-2,g.barY-2,3,g.groundY-g.barY+4);
+  ctx.fillRect(g.x2-1,g.barY-2,3,g.groundY-g.barY+4);
+  // Bold post outline
+  ctx.strokeStyle='#fff';ctx.lineWidth=4.5;ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(g.x1,g.groundY+2);ctx.lineTo(g.x1,g.barY);ctx.lineTo(g.x2,g.barY);ctx.lineTo(g.x2,g.groundY+2);ctx.stroke();
   ctx.lineCap='butt';
 }
