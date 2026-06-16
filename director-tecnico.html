@@ -7035,31 +7035,40 @@ function fmAI(p,team,idx,dt){
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
 
-  // === GK: sweeper-keeper — comes off line, narrows angle, rushes in box ===
+  // === GK: realistic sweeper positioning ===
   if(p.isGK){
-    const paW=fieldW*0.175;   // penalty area depth
-    const paHH=f.VH*0.33;    // penalty area half-height
+    const paW=fieldW*0.175;  // penalty area depth
+    const paHH=f.VH*0.33;
     const bd=Math.hypot(p.x-b.x,p.y-b.y);
-
-    // How far ball is from our goal line
     const ballGoalDist=attRight?b.x-f.leftGL:f.rightGL-b.x;
     const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
 
-    // Forward fraction 0=on line, 0.82=near penalty spot
-    const inHalfT=Math.max(0,1-ballGoalDist/(fieldW*0.5));
-    const fwdFrac=Math.min(0.82, inHalfT*0.5+(ballInBox?(1-Math.max(0,ballGoalDist)/paW)*0.33:0));
+    // fwdFrac: how far off goal line as fraction of paW
+    // Ball in opp half  → ~7% (barely off line)
+    // Ball approaches   → creeps to ~21% at box edge
+    // Ball in box       → peaks ~48% at mid-box depth, less when very close to line
+    let fwdFrac=0.07;
+    if(ballGoalDist<fieldW*0.5){
+      fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
+    }
+    if(ballInBox){
+      // depth 0=box edge, 1=goal line; curve peaks around 0.6 depth then holds steady
+      const depth=1-Math.max(0,ballGoalDist)/paW;
+      fwdFrac+=Math.min(0.27, depth*(1-depth*0.45)*0.60);
+    }
+    fwdFrac=Math.min(0.52,fwdFrac);
 
-    // X: step off goal line proportionally
+    // X target
     const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
 
-    // Y: angle-narrow toward ball, range widens as GK steps out
-    const yRange=f.GH*(1+fwdFrac*0.85);
-    const trackStr=Math.min(0.82,0.28+fwdFrac*0.68);
+    // Y: tracks ball angle, range widens as GK steps forward
+    const yRange=f.GH*(1+fwdFrac*0.7);
+    const trackStr=Math.min(0.75,0.22+fwdFrac*0.70);
     const gkTargY=Math.max(mid-yRange,Math.min(mid+yRange,mid+(b.y-mid)*trackStr));
 
-    fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,ballInBox&&bd<320?0.088:0.065);
+    fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,ballInBox&&bd<280?0.085:0.062);
 
-    // Kick clear when ball is within reach
+    // Kick clear
     if(bd<p.r+40){
       const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
       b.vx=(dx/dd)*6.8+(Math.random()-.5)*0.9;
