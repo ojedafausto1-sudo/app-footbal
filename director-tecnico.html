@@ -2195,7 +2195,7 @@ function loadGame(){
     const saved = JSON.parse(raw);
     if(!saved || !saved.teamId || !saved.teamName) return false;
     G = saved;
-    // Rebuild bench references from squad so mutations stay in sync
+    if(!G.phoneMsgs) G.phoneMsgs = [];
     G.bench = G.squad.filter(p => !Object.values(G.slots).includes(p.id));
     applyTeamTheme(G.teamId);
     document.title = 'DIRECTOR TÉCNICO v7 — ' + G.teamName;
@@ -5052,6 +5052,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   // Heal injured players
   G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
+  if(G.week%6===0){
+    G.squad.forEach(p=>{
+      if(p.contract&&p.contract<=G.season&&!p._contractWarned){
+        p._contractWarned=true;
+        addPhoneMsg('player',p.name,`📄 Mi contrato vence a fin de temporada. Si querés que siga en el club, vamos a negociar la renovación.`,'📝',{gotoTab:'sq',tabIdx:1});
+      }
+      if(p.morale!==undefined&&p.morale<45&&Math.random()<0.4&&!p._moraleWarned){
+        p._moraleWarned=true;
+        const reasons=['No me siento valorado en el equipo.','Necesito más minutos de juego.','Las cosas no van como esperaba.','El ambiente del vestuario no me ayuda.'];
+        addPhoneMsg('player',p.name,`😤 ${reasons[~~(Math.random()*reasons.length)]} Mi moral está baja (${p.morale}%).`,'😤');
+      }
+    });
+  }
   weeklyOffers();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
@@ -5949,9 +5962,9 @@ function sitSetupAttack(W,H,oR,mainP,pool){
   s.defs=[...Array(Math.max(0,defN))].map((_,i)=>({
     x:W*(.15+.70*(defN>1?i/(defN-1):0.5))+(Math.random()*32-16),
     y:H*(.26+.12*i/Math.max(1,defN))+Math.random()*28,
-    vx:0,vy:0,r:11,spd:0.92+(oR-62)*.013
+    vx:0,vy:0,r:11,spd:1.10+(oR-62)*.016
   }));
-  s.gk={x:W/2,y:glY+11,spd:1.28+(oR-62)*.022,react:0};
+  s.gk={x:W/2,y:glY+11,spd:1.38+(oR-62)*.024,react:0};
   s.mode='dribble';s.scorer=mainP;
   s.shotLocked=false;
   const BR=6.5,KICK_R=12+BR+10;
@@ -5975,10 +5988,17 @@ function sitSetupAttack(W,H,oR,mainP,pool){
         a.x=sC(a.x,10,W-10);a.y=sC(a.y,glY+34,H-10);
         sitBodyBall(a,b,BR);
       });
-      s.defs.forEach(df=>{
-        sitMove(df,b.x-df.x,b.y-df.y,dt,.06);
+      s.defs.forEach((df,di)=>{
+        const carrier=s.atk[s.ctrl];
+        const tgtX=carrier.x+(carrier.x<W/2?-12:12);
+        const tgtY=Math.min(carrier.y+10,b.y);
+        const chaseStr=sD(df,carrier)<120?0.09:0.072;
+        sitMove(df,tgtX-df.x,tgtY-df.y,dt,chaseStr);
         df.x=sC(df.x,8,W-8);df.y=sC(df.y,glY+26,H-8);
-        sitBodyBall(df,b,BR,{x:(Math.random()-.5)*.8,y:1.1});
+        if(sD(df,carrier)<df.r+carrier.r+6&&Math.random()<0.04*dt){
+          b.vx=(Math.random()-.5)*2.5;b.vy=1.8+Math.random();
+        }
+        sitBodyBall(df,b,BR,{x:(Math.random()-.5)*1.0,y:1.4});
       });
       const bd=sD(p,b);
       const doPass=()=>{
@@ -6405,8 +6425,8 @@ function sitSetupDefense(W,H,oR){
   const defRat=68+((LM&&LM.S&&LM.S.avgR?LM.S.avgR:68)-65)*.5;
   s.player={x:W/2+(Math.random()*50-25),y:H*.50,vx:0,vy:0,r:12,spd:1.30+(defRat-68)*.014};
   s.cpuDef=defN>1?{x:W/2-(Math.random()*60+20),y:H*.45+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.15+(defRat-68)*.010}:null;
-  s.attacker={x:W/2+(Math.random()*70-35),y:H-75,vx:0,vy:0,r:12,spd:1.06+(oR-62)*.016};
-  s.attacker2=atkN>1?{x:W*(.25+Math.random()*.5),y:H-55+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.0+(oR-62)*.012}:null;
+  s.attacker={x:W/2+(Math.random()*70-35),y:H-75,vx:0,vy:0,r:12,spd:1.22+(oR-62)*.018};
+  s.attacker2=atkN>1?{x:W*(.25+Math.random()*.5),y:H-55+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.14+(oR-62)*.015}:null;
   s.ball={x:s.attacker.x+(Math.random()*10-5),y:s.attacker.y-24,vx:0,vy:-.4};
   s.gk={x:W/2,y:glY+14,spd:1.40};
   s.stun=0;s.tackleLock=false;s.despejeLock=false;s.mode='dribble';
@@ -6430,27 +6450,31 @@ function sitSetupDefense(W,H,oR){
         s.cpuDef.x=sC(s.cpuDef.x,8,W-8);s.cpuDef.y=sC(s.cpuDef.y,glY+30,H-8);
         sitBodyBall(s.cpuDef,b,BR);
       }
-      // Atacante principal: regate con toques periódicos
       const bdA=sD(a,b);
       s.touchCd=(s.touchCd||0)-dt;
-      sitMove(a,b.x-a.x,b.y-a.y,dt,.075);
+      sitMove(a,b.x-a.x,b.y-a.y,dt,.088);
       a.x=sC(a.x,8,W-8);a.y=sC(a.y,glY+18,H-8);
       if(bdA<a.r+BR+7&&s.touchCd<=0){
-        const tgx=W/2+Math.sin(s.t*.006)*W*.18;
-        const ang=Math.atan2((glY+16)-b.y,tgx-b.x);
-        b.vx=Math.cos(ang)*a.spd*1.55;b.vy=Math.sin(ang)*a.spd*1.55;
-        s.touchCd=28;
+        const feintX=W/2+Math.sin(s.t*.008)*W*.22;
+        const ang=Math.atan2((glY+14)-b.y,feintX-b.x);
+        b.vx=Math.cos(ang)*a.spd*1.75;b.vy=Math.sin(ang)*a.spd*1.75;
+        s.touchCd=22;
       }
       sitBodyBall(a,b,BR);
-      // Atacante2 (si existe): diagonal hacia el área
       if(s.attacker2){
-        sitMove(s.attacker2,W/2-s.attacker2.x,glY+60-s.attacker2.y,dt,.035);
+        const a2tgX=s.attacker2.x<W/2?W*.35:W*.65;
+        sitMove(s.attacker2,a2tgX-s.attacker2.x,glY+55-s.attacker2.y,dt,.048);
         s.attacker2.x=sC(s.attacker2.x,8,W-8);s.attacker2.y=sC(s.attacker2.y,glY+18,H-8);
+        if(sD(s.attacker2,b)<s.attacker2.r+BR+8&&bdA>a.r+BR+15&&Math.random()<0.03*dt){
+          const ang2=Math.atan2((glY-2)-b.y,(W/2+(Math.random()-.5)*gh)-b.x);
+          b.vx=Math.cos(ang2)*5.2;b.vy=Math.sin(ang2)*5.2;
+          s.mode='shot';
+        }
       }
-      // GK: sigue x de la pelota clamped al arco, y fijo en línea de gol
       s.gk.x+=sC(b.x-s.gk.x,-s.gk.spd*dt,s.gk.spd*dt);
       s.gk.x=sC(s.gk.x,W/2-gh+8,W/2+gh-8);
-      s.gk.y=glY+14;
+      const gkFwd=Math.max(0,Math.min(18,(H*.35-a.y)*0.12));
+      s.gk.y=glY+14+gkFwd;
       // Z: tackle
       if(k.shoot&&!s.tackleLock&&s.stun<=0){
         s.tackleLock=true;
@@ -6470,11 +6494,11 @@ function sitSetupDefense(W,H,oR){
         }
       }
       if(!k.pass)s.despejeLock=false;
-      // Remata si llega al área con la pelota
-      if(a.y<=glY+H*.16&&bdA<a.r+BR+10){
-        const noise=(Math.random()*2-1)*gh*.8;
+      if(a.y<=glY+H*.22&&bdA<a.r+BR+10){
+        const noise=(Math.random()*2-1)*gh*.7;
         const ang=Math.atan2((glY-4)-b.y,(W/2+noise)-b.x);
-        b.vx=Math.cos(ang)*(4.6+Math.random()*1.6);b.vy=Math.sin(ang)*(4.6+Math.random()*1.6);
+        const pwr=5.2+Math.random()*2.0;
+        b.vx=Math.cos(ang)*pwr;b.vy=Math.sin(ang)*pwr;
         s.mode='shot';
       }
       if(b.x<-BR||b.x>W+BR||b.y>H+BR)return sitEnd('def_clear');
@@ -7057,12 +7081,12 @@ function fmInit(m,W,H){
     const attrs=mkAttrs(rat,role);
     const isGK=['ARQ','GK'].includes(role);
     // My team gets speed boost so they feel responsive vs AI
-    const basePac=isGK?1.40:(1.30+(attrs.pac/100)*0.65);
+    const basePac=isGK?1.72:(1.30+(attrs.pac/100)*0.65);
     return{
       x:initPos[0],y:initPos[1],vx:0,vy:0,
-      hx:homePos[0],hy:homePos[1],  // full-field formation position (AI drifts here)
+      hx:homePos[0],hy:homePos[1],
       name:name.split(' ').pop().slice(0,7),
-      r:10,kit,role,isGK,
+      r:isGK?14:10,kit,role,isGK,
       rat:Math.round(rat),attrs,
       spd:basePac,
     };
@@ -7301,11 +7325,10 @@ function fmAI(p,team,idx,dt){
       fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,0.065);
     }
 
-    // Kick clear (larger radius so GK doesn't miss the ball)
-    if(bd<p.r+72){
+    if(bd<p.r+20){
       const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
-      b.vx=(dx/dd)*6.8+(Math.random()-.5)*0.9;
-      b.vy=(dy/dd)*5.5+(Math.random()-.5)*2.2;
+      b.vx=(dx/dd)*7.2+(Math.random()-.5)*0.9;
+      b.vy=(dy/dd)*5.8+(Math.random()-.5)*2.2;
       f._lastTouch=isM?'my':'opp';
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
@@ -7328,54 +7351,58 @@ function fmAI(p,team,idx,dt){
     tx=attRight?Math.min(tx,offX+2):Math.max(tx,offX-2);
     fmMove(p,tx-p.x,ty-p.y,dt,0.038);
   }else{
-    // === OPPONENT: top 2 press; smart shoot/pass/dribble ===
-    let d1=Infinity,d2=Infinity,i1=-1,i2=-1;
-    players.forEach((q,i)=>{
-      if(q.isGK)return;
-      const d=Math.hypot(q.x-b.x,q.y-b.y);
-      if(d<d1){d2=d1;i2=i1;d1=d;i1=i;}
-      else if(d<d2){d2=d;i2=i;}
-    });
-    const isChaser=idx===i1||(idx===i2&&d2<600);
+    // === OPPONENT: top 3 press; aggressive shoot/pass/dribble ===
+    const dists=[];
+    players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
+    dists.sort((a,bb)=>a.d-bb.d);
+    const isChaser=dists.length>0&&(idx===dists[0].i||(dists.length>1&&idx===dists[1].i&&dists[1].d<500)||(dists.length>2&&idx===dists[2].i&&dists[2].d<320));
     if(isChaser){
       if(bd<KICK_R){
         const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
         const inBox=distGoal<fieldW*.28;
-        const canShoot=distGoal<fieldW*.60;
-        // Decision: shoot if in box or lucky, pass if not in shooting position, else dribble
-        if(inBox&&Math.random()<0.040*dt){
-          // SHOOT with aim
-          const aimY=(Math.random()-.5)*f.GH*.76;
+        const canShoot=distGoal<fieldW*.55;
+        const longShot=distGoal<fieldW*.72&&distGoal>=fieldW*.55;
+        if(inBox&&Math.random()<0.09*dt){
+          const aimY=(Math.random()-.5)*f.GH*.70;
           const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-          const pwr=6.0+Math.random()*3.0;
+          const pwr=6.5+Math.random()*3.5;
           b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';
-        } else if(!canShoot&&Math.random()<0.024*dt){
-          // PASS to better-positioned teammate
+        } else if(canShoot&&!inBox&&Math.random()<0.035*dt){
+          const aimY=(Math.random()-.5)*f.GH*.55;
+          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+          const pwr=7.0+Math.random()*2.5;
+          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';
+        } else if(longShot&&Math.random()<0.012*dt){
+          const aimY=(Math.random()-.5)*f.GH*.40;
+          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+          b.vx=(ddx/dd)*8.0;b.vy=(ddy/dd)*8.0;f._lastTouch='opp';
+        } else if(Math.random()<0.055*dt){
           fmOppPass(idx);
         } else {
-          // DRIBBLE toward goal with lateral variation
-          const latWobble=(Math.sin(f.ticks*.08))*40;
-          const dribX=b.x+(tgx-b.x)*.10;
-          const dribY=b.y+(mid+latWobble-b.y)*.04;
-          fmMove(p,dribX-p.x,dribY-p.y,dt,0.060);
+          const latWobble=(Math.sin(f.ticks*.07+idx))*55;
+          const dribX=b.x+(tgx-b.x)*.14;
+          const dribY=b.y+(mid+latWobble-b.y)*.05;
+          fmMove(p,dribX-p.x,dribY-p.y,dt,0.068);
         }
       }else{
-        // Chase ball (sprint speed)
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.056);
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.072);
       }
     }else{
-      // Hold mid-block with intelligent shifting
       const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-      const fwdShift=Math.max(-fieldW*.05,(ballPct-0.45)*fieldW*0.18);
+      const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*0.26);
       const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
-      const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.10));
-      // Wingers/attackers make support runs
+      const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.14));
       const isAttacker=['DC','EI','ED','CF'].includes(p.role);
-      if(isAttacker&&ballPct>0.5){
-        const runX=attRight?Math.min(tx+60,f.rightGL-p.r):Math.max(tx-60,f.leftGL+p.r);
-        fmMove(p,runX-p.x,ty-p.y,dt,0.046);
+      const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
+      if(isAttacker&&ballPct>0.45){
+        const runX=attRight?Math.min(tx+90,f.rightGL-p.r):Math.max(tx-90,f.leftGL+p.r);
+        const runY=ty+(Math.sin(f.ticks*.04+idx*2))*30;
+        fmMove(p,runX-p.x,runY-p.y,dt,0.055);
+      }else if(isMid&&ballPct>0.35){
+        const supportX=attRight?Math.min(tx+45,f.rightGL-p.r):Math.max(tx-45,f.leftGL+p.r);
+        fmMove(p,supportX-p.x,ty-p.y,dt,0.048);
       }else{
-        fmMove(p,tx-p.x,ty-p.y,dt,0.042);
+        fmMove(p,tx-p.x,ty-p.y,dt,0.044);
       }
     }
   }
@@ -7390,17 +7417,22 @@ function fmOppPass(fromIdx){
   f.opp.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
-    if(d<90)return;
-    // Prefer forward teammates; penalize distance (accuracy drops)
+    if(d<60)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
-    const score=fwdScore*.7-d*.12+(Math.random()*20);
+    const blocked=f.my.some(m=>{
+      const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;
+      return Math.hypot(m.x-mx,m.y-my2)<d*0.3;
+    });
+    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?60:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
     const t=f.opp[bestI];
-    const dx=t.x-b.x,dy=t.y-b.y,dd=Math.hypot(dx,dy)||1;
-    const pwr=3.8+Math.random()*2.2;
-    b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.5;
+    const leadX=t.x+(attRight?t.vx:t.vx)*8;
+    const leadY=t.y+t.vy*8;
+    const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
+    const pwr=4.2+Math.random()*2.6;
+    b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4;
     f._lastTouch='opp';
   }
 }
