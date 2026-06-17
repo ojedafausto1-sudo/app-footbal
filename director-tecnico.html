@@ -199,11 +199,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .confbar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-top:3px}
 .conffill{height:100%;border-radius:4px;transition:width .5s,background .5s}
 /* ── PHONE WIDGET ─────────────────────────────────────────── */
-#phoneBtn{position:fixed!important;bottom:22px!important;right:16px!important;z-index:9000!important}
-#phoneBtn:hover{transform:scale(1.12);box-shadow:0 6px 28px rgba(246,211,24,.6)}
-#phoneBadge{z-index:9001}
-#phoneOverlay{position:fixed!important;inset:0!important;z-index:9500!important}
-#phoneOverlay.on{display:flex!important}
+@keyframes phonePulse{0%,100%{box-shadow:0 4px 24px rgba(246,211,24,.5),0 2px 12px rgba(0,0,0,.8)}50%{box-shadow:0 4px 32px rgba(246,211,24,.8),0 2px 16px rgba(0,0,0,.8),0 0 0 8px rgba(246,211,24,.15)}}
+#phoneBtn:hover{transform:scale(1.15)!important;animation:none!important;box-shadow:0 6px 36px rgba(246,211,24,.8)!important}
 #phoneDevice{width:min(360px,calc(100vw - 24px));height:min(660px,calc(100vh - 32px));background:#080818;border-radius:34px;border:3px solid #1e1e3a;box-shadow:0 24px 80px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;position:relative}
 #phoneDevice::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:30px;background:#080818;border-radius:0 0 22px 22px;z-index:12;pointer-events:none}
 .ph-status{height:30px;display:flex;align-items:flex-end;justify-content:space-between;padding:5px 22px 3px;font-size:8.5px;color:rgba(255,255,255,.4);flex-shrink:0;z-index:11;position:relative}
@@ -612,35 +609,36 @@ tr:hover td{background:rgba(255,255,255,.025)}
     </div>
   </div>
 
-  <!-- ── FLOATING PHONE WIDGET (inside #game so it shows/hides with game) ── -->
-  <button id="phoneBtn" onclick="openPhone()" style="position:fixed;bottom:22px;right:16px;width:56px;height:56px;background:linear-gradient(135deg,#0c2850,#091f3c);border:2.5px solid #F6D318;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9000;box-shadow:0 4px 24px rgba(246,211,24,.45),0 2px 10px rgba(0,0,0,.7);font-size:24px;transition:transform .2s;flex-shrink:0">
-    📱
-    <span id="phoneBadge" style="position:absolute;top:-5px;right:-5px;background:#e84545;color:#fff;border-radius:50%;width:22px;height:22px;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid #03172e;font-family:'Barlow Condensed',sans-serif;line-height:1"></span>
-  </button>
 
-  <div id="phoneOverlay" onclick="if(event.target===this)closePhone()" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9500;display:none;align-items:flex-end;justify-content:flex-end;padding:16px 14px">
-    <div id="phoneDevice">
-      <div class="ph-status">
-        <span id="phTime">12:00</span>
-        <span>●●●● 🔋</span>
-      </div>
-      <div class="ph-header">
-        <div>
-          <div class="ph-appname">📲 DT COMUNICACIONES</div>
-          <div style="font-size:9px;color:var(--t3);margin-top:1px" id="phSubtitle">Semana 1</div>
-        </div>
-        <button onclick="closePhone()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2);font-size:14px;cursor:pointer;padding:5px 11px;border-radius:20px;line-height:1">✕</button>
-      </div>
-      <div class="ph-tabs">
-        <button class="ph-tab on" onclick="phTab('all',this)">📬 Todos</button>
-        <button class="ph-tab" onclick="phTab('dt',this)">🎯 DT</button>
-        <button class="ph-tab" onclick="phTab('agent',this)">🤝 Agentes</button>
-        <button class="ph-tab" onclick="phTab('player',this)">👤 Jugadores</button>
-      </div>
-      <div class="ph-screen" id="phScreen"></div>
+</div>
+
+<!-- ── PHONE WIDGET — OUTSIDE ALL CONTAINERS ── -->
+<button id="phoneBtn" onclick="openPhone()" style="position:fixed;bottom:24px;right:18px;width:64px;height:64px;background:linear-gradient(135deg,#0c2850,#091f3c);border:3px solid #F6D318;border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 4px 24px rgba(246,211,24,.5),0 2px 12px rgba(0,0,0,.8);font-size:28px;transition:transform .2s;animation:phonePulse 2s ease-in-out infinite">
+  📱
+  <span id="phoneBadge" style="position:absolute;top:-6px;right:-6px;background:#e84545;color:#fff;border-radius:50%;width:24px;height:24px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid #03172e;font-family:'Barlow Condensed',sans-serif;line-height:1;z-index:100000"></span>
+</button>
+
+<div id="phoneOverlay" onclick="if(event.target===this)closePhone()" style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100001;display:none;align-items:flex-end;justify-content:flex-end;padding:16px 14px">
+  <div id="phoneDevice">
+    <div class="ph-status">
+      <span id="phTime">12:00</span>
+      <span>●●●● 🔋</span>
     </div>
+    <div class="ph-header">
+      <div>
+        <div class="ph-appname">📲 DT COMUNICACIONES</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:1px" id="phSubtitle">Semana 1</div>
+      </div>
+      <button onclick="closePhone()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2);font-size:14px;cursor:pointer;padding:5px 11px;border-radius:20px;line-height:1">✕</button>
+    </div>
+    <div class="ph-tabs">
+      <button class="ph-tab on" onclick="phTab('all',this)">📬 Todos</button>
+      <button class="ph-tab" onclick="phTab('dt',this)">🎯 DT</button>
+      <button class="ph-tab" onclick="phTab('agent',this)">🤝 Agentes</button>
+      <button class="ph-tab" onclick="phTab('player',this)">👤 Jugadores</button>
+    </div>
+    <div class="ph-screen" id="phScreen"></div>
   </div>
-
 </div>
 
 <script>
@@ -8173,7 +8171,13 @@ function addPhoneMsg(type, from, body, icon, data){
 }
 
 function updatePhoneBadge(){
+  const btn = document.getElementById('phoneBtn');
   const badge = document.getElementById('phoneBadge');
+  if(btn){
+    const gameOn = G && G.week;
+    const phoneOvOpen = document.getElementById('phoneOverlay') && document.getElementById('phoneOverlay').style.display === 'flex';
+    btn.style.display = (gameOn && !phoneOvOpen) ? 'flex' : 'none';
+  }
   if(!badge) return;
   const unread = (G && G.phoneMsgs) ? G.phoneMsgs.filter(m=>!m.read).length : 0;
   if(unread > 0){
