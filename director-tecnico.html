@@ -2584,51 +2584,131 @@ function openP(id, inSquad){
 }
 
 // =============================================
-// NEGOCIACIÓN
+// NEGOCIACIÓN — FIFA-STYLE MULTI-STEP
 // =============================================
+const AGENT_NAMES=['Jorge Mendes','Mino Raiola Jr.','Pini Zahavi','Jonathan Barnett','Volker Struth','Giuliano Bertolucci','Fernando Felicevich','Hernán Reguera','Marcelo Simonian','Daniel Arcucci','Cristian Bragarnik','Darío Bombini'];
+const AGENT_STYLES=['duro','negociador','razonable','ambicioso'];
+function _negAgent(p){
+  const seed=(p.id||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  return{name:AGENT_NAMES[seed%AGENT_NAMES.length],style:AGENT_STYLES[seed%AGENT_STYLES.length]};
+}
+function _negDemand(p){
+  const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
+  const prestige=topClubs.some(c=>p.club.includes(c))?1.18:1.0;
+  return Math.round(p.val*(1.1+Math.random()*.2)*prestige*10)/10;
+}
+function _negWageExpect(p){return Math.max(5,Math.round(p.rat*0.55));}
+function _negStepBar(step){
+  const steps=[{l:'1 CONTACTO',k:'contact'},{l:'2 OFERTA',k:'offer'},{l:'3 TÉRMINOS',k:'terms'},{l:'4 FIRMA',k:'sign'}];
+  return `<div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">${steps.map((s,i)=>{
+    const active=i+1===step;const done=i+1<step;
+    const bg=active?'rgba(246,211,24,.15)':done?'rgba(15,184,102,.12)':'rgba(255,255,255,.05)';
+    const bdr=active?'var(--gold)':done?'var(--green)':'rgba(255,255,255,.1)';
+    const col=active?'var(--gold)':done?'var(--green)':'var(--t3)';
+    const rad=i===0?'border-radius:6px 0 0 6px':i===3?'border-radius:0 6px 6px 0':'';
+    return `<div style="text-align:center;padding:6px 10px;background:${bg};border:1px solid ${bdr};font-size:9px;color:${col};font-weight:700;${rad}">${done?'✓ ':''}${s.l}</div>`;
+  }).join('')}</div>`;
+}
+
 function openNeg(id){
   if(!G) return;
-  const p = G.market.find(x=>x.id===id);
-  if(!p){ flash('Jugador no disponible','draw'); return; }
-  const base = p.val;
-  const topClubs = ['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
-  const prestige = topClubs.some(c=>p.club.includes(c))?1.18:1.0;
-  const demand = Math.round(base*(1.1+Math.random()*.2)*prestige*10)/10;
-  const suggest = Math.round(demand*0.88*10)/10;
-  const agentFee = Math.round(demand*(0.05+Math.random()*.03)*10)/10;
-  const isTopPlayer = p.rat>=85;
+  const p=G.market.find(x=>x.id===id);
+  if(!p){flash('Jugador no disponible','draw');return;}
+  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado — esperá la próxima ventana','loss');return;}
+  const agent=_negAgent(p);
+  const demand=_negDemand(p);
+  const wageExp=_negWageExpect(p);
+  const isTop=p.rat>=85;
+  const styleTxt={duro:'Agente difícil — pedirá mucho',negociador:'Agente flexible — dispuesto a negociar',razonable:'Agente razonable — trato justo',ambicioso:'Agente ambicioso — quiere comisiones altas'}[agent.style];
+  window._negData={id,demand,agent,wageExp,round:1,maxRounds:3,lastOffer:0};
+  addPhoneMsg('agent',agent.name,`📞 Recibí tu consulta sobre <b>${p.name}</b>. Estamos abiertos a escuchar ofertas, pero te aviso: ${p.club} no lo va a regalar.`,'🤝');
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">🤝 Negociar: ${p.name}</div>
-    <div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">
-      <div style="text-align:center;padding:6px 14px;background:rgba(246,211,24,.15);border:1px solid var(--gold);border-radius:6px 0 0 6px;font-size:10px;color:var(--gold);font-weight:700">1 CONTACTO</div>
-      <div style="text-align:center;padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:10px;color:var(--t3)">2 OFERTA</div>
-      <div style="text-align:center;padding:6px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:0 6px 6px 0;font-size:10px;color:var(--t3)">3 ACUERDO</div>
+    <div class="mtitle">🤝 Fichaje: ${p.name}</div>
+    ${_negStepBar(1)}
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <div style="width:48px;height:48px;background:linear-gradient(135deg,var(--mid),var(--d3));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid var(--gold);flex-shrink:0">${isTop?'⭐':'⚽'}</div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:#fff;font-family:'Barlow Condensed'">${p.name} <span style="color:var(--t3);font-size:11px">${p.age} años</span></div>
+        <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${p.lg}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${rb(p.rat)} Rating · ${rb(p.pot)} Potencial · Valor ${fv(p.val)}</div>
+      </div>
     </div>
-    <div style="text-align:center;margin-bottom:10px">
-      <div style="font-size:10px;color:var(--t3)">Valor TM · ${p.club}</div>
-      <div style="font-size:26px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed',sans-serif">${fv(base)}</div>
-      <div style="font-size:10px;color:var(--t3);margin-top:2px">Demanda estimada: <span style="color:var(--red)">${fv(demand)}</span></div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">👨‍💼 AGENTE</div>
+      <div style="font-size:13px;font-weight:600;color:var(--gold)">${agent.name}</div>
+      <div style="font-size:9px;color:var(--t2);margin-top:2px">${styleTxt}</div>
     </div>
-    ${isTopPlayer?`<div class="note R" style="margin-bottom:8px">⭐ Jugador de alto perfil — su agente exige condiciones especiales</div>`:''}
-    <div class="note">Ingresá tu oferta. Presupuesto: <strong style="color:var(--gold)">$${G.budget}M</strong></div>
-    <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
-      <span style="font-size:22px;color:var(--gold);font-family:'Barlow Condensed';font-weight:700">$</span>
-      <input type="number" id="negInp" step="0.1" min="0.1" value="${suggest}"
-        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Barlow Condensed';font-size:24px;font-weight:700;text-align:center;outline:none"
-        oninput="updNegI(${demand},${G.budget})">
-      <span style="font-size:12px;color:var(--t3)">M USD</span>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:9px;color:var(--t3)">Demanda estimada</div>
+        <div style="font-size:18px;font-weight:700;color:var(--red);font-family:'Barlow Condensed'">${fv(demand)}</div>
+      </div>
+      <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:9px;color:var(--t3)">Tu presupuesto</div>
+        <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Barlow Condensed'">$${G.budget}M</div>
+      </div>
     </div>
-    <div class="neg-rx" id="negRx"></div>
-    <div style="font-size:10px;color:var(--t3);margin-top:5px;text-align:center">📋 Demanda ≈ ${fv(demand)} · 👨‍💼 Fee agente estimado: ~${fv(agentFee)}</div>
-    <div style="font-size:10px;color:var(--t3);margin-top:3px;text-align:center;font-style:italic">⏳ Esperando respuesta del agente...</div>
+    ${isTop?`<div class="note R" style="margin-bottom:8px">⭐ Jugador de alto perfil — negociación complicada</div>`:''}
+    <div class="note">Contactá al agente para iniciar la negociación. Tenés hasta 3 rondas para acordar el traspaso.</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
-      <button class="btn bg" onclick="subNegI('${id}',${demand})">✉️ Enviar oferta</button>
-      <button class="btn bo bs" onclick="loanIn('${id}')">📥 Préstamo</button>
+      <button class="btn bg" onclick="negStep2()">📞 Contactar agente</button>
+      <button class="btn bo bs" onclick="negLoanOffer('${id}')">📥 Pedir préstamo</button>
       <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
     </div>
   `);
-  updNegI(demand, G.budget);
+}
+
+function negStep2(){
+  if(!G||!window._negData) return;
+  const nd=window._negData;
+  const p=G.market.find(x=>x.id===nd.id);
+  if(!p){flash('Jugador no disponible','draw');return;}
+  const suggest=Math.round(nd.demand*0.88*10)/10;
+  const agentFee=Math.round(nd.demand*(nd.agent.style==='ambicioso'?0.08:0.04)*10)/10;
+  const roundTxt=nd.round>1?` (Ronda ${nd.round}/${nd.maxRounds})`:'';
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">💰 Oferta por ${p.name}${roundTxt}</div>
+    ${_negStepBar(2)}
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <div style="width:40px;height:40px;background:var(--d3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:1.5px solid var(--gold);flex-shrink:0">${p.rat>=85?'⭐':'⚽'}</div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#fff;font-family:'Barlow Condensed'">${p.name}</div>
+        <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <div style="flex:1;text-align:center;padding:6px;background:rgba(255,255,255,.03);border-radius:6px">
+        <div style="font-size:8px;color:var(--t3)">VALOR TM</div>
+        <div style="font-size:16px;font-weight:700;color:var(--t2);font-family:'Barlow Condensed'">${fv(p.val)}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:6px;background:rgba(255,255,255,.03);border-radius:6px">
+        <div style="font-size:8px;color:var(--t3)">PIDEN</div>
+        <div style="font-size:16px;font-weight:700;color:var(--red);font-family:'Barlow Condensed'">${fv(nd.demand)}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:6px;background:rgba(255,255,255,.03);border-radius:6px">
+        <div style="font-size:8px;color:var(--t3)">BUDGET</div>
+        <div style="font-size:16px;font-weight:700;color:var(--green);font-family:'Barlow Condensed'">$${G.budget}M</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Oferta de traspaso:</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:22px;color:var(--gold);font-family:'Barlow Condensed';font-weight:700">$</span>
+      <input type="number" id="negInp" step="0.1" min="0.1" value="${nd.lastOffer||suggest}"
+        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Barlow Condensed';font-size:24px;font-weight:700;text-align:center;outline:none"
+        oninput="updNegI(${nd.demand},${G.budget})">
+      <span style="font-size:12px;color:var(--t3)">M USD</span>
+    </div>
+    <div class="neg-rx" id="negRx"></div>
+    <div style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center">👨‍💼 ${nd.agent.name} · Fee estimado: ~${fv(agentFee)} · Ronda ${nd.round}/${nd.maxRounds}</div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn bg" onclick="subNegI('${nd.id}',${nd.demand})">✉️ Enviar oferta</button>
+      <button class="btn bo bs" onclick="negLoanOffer('${nd.id}')">📥 Préstamo</button>
+      <button class="btn bR bs" onclick="closeMod()">Retirarse</button>
+    </div>
+  `);
+  updNegI(nd.demand, G.budget);
 }
 
 function updNegI(demand, budget){
@@ -2640,8 +2720,8 @@ function updNegI(demand, budget){
   let txt,col,bg;
   if(val>budget)        {txt='❌ Sin presupuesto';             col='var(--red)';  bg='rgba(232,69,69,.12)';}
   else if(ratio>=0.97)  {txt='✅ Prácticamente seguro';        col='var(--green)';bg='rgba(26,170,107,.12)';}
-  else if(ratio>=0.88)  {txt='🟢 Buena oferta, probable acuerdo';col='var(--green)';bg='rgba(26,170,107,.08)';}
-  else if(ratio>=0.76)  {txt='🟡 Posible contraoferta';        col='var(--gold)'; bg='rgba(246,211,24,.08)';}
+  else if(ratio>=0.88)  {txt='🟢 Buena oferta — probable acuerdo';col='var(--green)';bg='rgba(26,170,107,.08)';}
+  else if(ratio>=0.76)  {txt='🟡 Posible contraoferta del club';col='var(--gold)'; bg='rgba(246,211,24,.08)';}
   else if(ratio>=0.60)  {txt='🟠 Probablemente rechacen';      col='var(--ora)';  bg='rgba(240,148,58,.1)';}
   else                  {txt='⚠️ Oferta irrisoria — rechazarán';col='var(--red)';  bg='rgba(232,69,69,.1)';}
   rx.textContent=txt; rx.style.color=col; rx.style.background=bg; rx.style.padding='7px'; rx.style.borderRadius='6px';
@@ -2650,68 +2730,336 @@ function updNegI(demand, budget){
 function subNegI(id, demand){
   const inp=document.getElementById('negInp');
   if(!inp||!G){flash('Error','loss');return;}
-  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado — esperá la próxima ventana de transferencias','loss');return;}
+  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
   const offer=Math.round(parseFloat(inp.value)*10)/10;
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(isNaN(offer)||offer<=0){flash('Ingresá un monto válido','draw');return;}
   if(G.budget<offer){flash('❌ Presupuesto insuficiente','loss');return;}
-  if(isForeign(p.nat) && foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss');return;}
+  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
+  nd.lastOffer=offer;
   const ratio=offer/demand;
   const rnd=Math.random();
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
-  const hard=topClubs.some(c=>p.club.includes(c))?0.94:1;
-  const adj=ratio*hard;
-  if(adj>=0.97||(adj>=0.88&&rnd>.15)||(adj>=0.76&&rnd>.5)){
-    G.budget=Math.round((G.budget-offer)*10)/10;
-    p.club=G.teamName||'Boca Juniors';p.lg='Liga ARG';
-    G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
-    lg('💰',`${p.name} fichado por ${fv(offer)} ✅`);
-    closeMod();updateUI();flash('✅ ¡'+p.name+' firmó por '+fv(offer)+'!','win');
-  } else if(adj>=0.62||(adj>=0.5&&rnd>.4)){
-    const counter=Math.round(demand*(0.93+Math.random()*.08)*10)/10;
+  const hard=topClubs.some(c=>p.club.includes(c))?0.92:1;
+  const styleBonus=nd.agent.style==='razonable'?0.04:nd.agent.style==='duro'?-0.06:0;
+  const adj=ratio*hard+styleBonus;
+  if(adj>=0.95||(adj>=0.86&&rnd>.2)||(adj>=0.76&&rnd>.55)){
+    nd.agreedFee=offer;
+    addPhoneMsg('agent',nd.agent.name,`✅ <b>${p.club}</b> aceptó tu oferta de <b style="color:var(--gold)">${fv(offer)}</b> por <b>${p.name}</b>. Ahora tenés que acordar los términos personales con el jugador.`,'💰');
+    flash('✅ '+p.club+' aceptó '+fv(offer)+'!','win');
+    window._negData=nd;
+    negStep3(id);
+  } else if(nd.round<nd.maxRounds&&(adj>=0.58||(adj>=0.45&&rnd>.4))){
+    const bump=nd.agent.style==='duro'?0.98:nd.agent.style==='ambicioso'?0.96:0.93;
+    const counter=Math.round(demand*(bump+Math.random()*.06)*10)/10;
+    nd.round++;
+    nd.counterOffer=counter;
+    window._negData=nd;
+    addPhoneMsg('agent',nd.agent.name,`↔️ ${p.club} rechazó ${fv(offer)} pero hizo una contraoferta: <b style="color:var(--gold)">${fv(counter)}</b> por ${p.name}. Ronda ${nd.round}/${nd.maxRounds}.`,'💬');
     showMod(`
       <button class="mclose" onclick="closeMod()">✕</button>
       <div class="mtitle">↔ Contraoferta de ${p.club}</div>
-      <div style="text-align:center;margin:14px 0">
-        <div style="font-size:10px;color:var(--t3)">Tu oferta</div>
-        <div style="font-size:18px;color:var(--t2);font-family:'Barlow Condensed';font-weight:600">${fv(offer)}</div>
-        <div style="font-size:22px;margin:6px 0">↓</div>
-        <div style="font-size:10px;color:var(--t3)">${p.club} pide</div>
-        <div style="font-size:28px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed'">${fv(counter)}</div>
+      ${_negStepBar(2)}
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="text-align:center;flex:1">
+            <div style="font-size:9px;color:var(--t3)">TU OFERTA</div>
+            <div style="font-size:18px;color:var(--t2);font-family:'Barlow Condensed';font-weight:600;text-decoration:line-through;opacity:.6">${fv(offer)}</div>
+          </div>
+          <div style="font-size:22px;color:var(--gold)">→</div>
+          <div style="text-align:center;flex:1">
+            <div style="font-size:9px;color:var(--t3)">${p.club.toUpperCase()} PIDE</div>
+            <div style="font-size:26px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed'">${fv(counter)}</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:10px;color:var(--t3)">Ronda ${nd.round} de ${nd.maxRounds} · 👨‍💼 ${nd.agent.name}</div>
       </div>
-      <div class="note">¿Aceptás ${fv(counter)}?</div>
-      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn bG" onclick="accCounter('${id}',${counter})">✓ Aceptar ${fv(counter)}</button>
-        <button class="btn bo" onclick="openNeg('${id}')">↔ Nueva oferta</button>
-        <button class="btn bR bs" onclick="closeMod()">No, gracias</button>
+      <div class="note" style="margin-bottom:8px">Podés aceptar, hacer una nueva oferta, o retirarte.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn bg" onclick="accCounter('${id}',${counter})">✓ Aceptar ${fv(counter)}</button>
+        <button class="btn bo" onclick="negStep2()">↔ Nueva oferta</button>
+        <button class="btn bR bs" onclick="negWalkAway('${id}')">🚪 Retirarse</button>
       </div>
     `);
   } else {
-    closeMod();flash('❌ '+p.club+' rechazó ${fv(offer)}','loss');
+    addPhoneMsg('agent',nd.agent.name,`❌ ${p.club} rechazó tu oferta de ${fv(offer)} por ${p.name}. No hay margen para negociar.`,'🚫');
+    closeMod();flash('❌ '+p.club+' rechazó '+fv(offer),'loss');
     lg('❌',`${p.club} rechazó oferta por ${p.name} (${fv(offer)})`);
+    window._negData=null;
   }
 }
-function updNeg(){}
-function updNegInput(demand,budget){ updNegI(demand,budget); }
-function subNegInput(id,demand){ subNegI(id,demand); }
-function subNeg(){}
+
+function negWalkAway(id){
+  const nd=window._negData;
+  if(nd) addPhoneMsg('agent',nd.agent.name,`🚪 Te retiraste de la negociación por ${G.market.find(x=>x.id===id)?.name||'el jugador'}. La puerta queda abierta para el futuro.`,'👋');
+  closeMod();flash('Te retiraste de la negociación','draw');
+  window._negData=null;
+}
 
 function accCounter(id, val){
   if(!G) return;
-  const p = G.market.find(x=>x.id===id);
+  const p=G.market.find(x=>x.id===id);
   if(!p) return;
-  if(G.budget<val){ flash('❌ Sin presupuesto','loss'); return; }
-  if(isForeign(p.nat) && foreignCount(G.squad)>=5){ flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss'); return; }
-  G.budget = Math.round((G.budget-val)*10)/10;
-  p.club=G.teamName||'Boca Juniors'; p.lg='Liga ARG';
-  G.squad.push(p);
-  G.market = G.market.filter(x=>x.id!==id);
-  G.bench.push(p);
-  lg('💰',`${p.name} fichado por ${fv(val)} (contraoferta aceptada)`);
-  closeMod(); updateUI();
-  flash('✅ '+p.name+' incorporado por '+fv(val)+'!','win');
+  if(G.budget<val){flash('❌ Sin presupuesto','loss');return;}
+  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  const nd=window._negData||{agent:{name:'Agente',wageExp:_negWageExpect(p)}};
+  nd.agreedFee=val;
+  window._negData=nd;
+  addPhoneMsg('agent',nd.agent.name,`✅ Aceptaste la contraoferta de <b style="color:var(--gold)">${fv(val)}</b> por <b>${p.name}</b>. Ahora a negociar términos personales.`,'✅');
+  flash('✅ Acuerdo por '+fv(val)+'!','win');
+  negStep3(id);
 }
+
+function negStep3(id){
+  if(!G) return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p) return;
+  const nd=window._negData;
+  if(!nd){openNeg(id);return;}
+  const wageExp=_negWageExpect(p);
+  nd.wageExp=wageExp;
+  const recWage=Math.round(wageExp*1.05);
+  const roles=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
+  const roleExpect=p.rat>=85?0:p.rat>=80?1:p.rat>=75?2:3;
+  window._negYears=3;
+  window._negRole=roleExpect;
+  window._negBonus=0;
+  addPhoneMsg('player',p.name,`👋 Me interesa ir a ${G.teamName||'tu club'}. Quiero saber qué rol tendría y las condiciones del contrato.`,'⚽');
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📋 Términos personales: ${p.name}</div>
+    ${_negStepBar(3)}
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <div style="width:40px;height:40px;background:var(--d3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:1.5px solid var(--gold);flex-shrink:0">${p.rat>=85?'⭐':'⚽'}</div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#fff;font-family:'Barlow Condensed'">${p.name}</div>
+        <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.age} años · ${rb(p.rat)}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:9px;color:var(--t3)">Traspaso acordado</div>
+        <div style="font-size:14px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed'">${fv(nd.agreedFee)}</div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">💰 SALARIO SEMANAL</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+        <span style="color:var(--t2)">Pretensión: ~${wageExp}k</span>
+        <span id="negWageL" style="color:var(--gold);font-weight:700">${recWage}k</span>
+      </div>
+      <input type="range" id="negWage" class="neg-slider" min="${Math.round(wageExp*0.5)}" max="${Math.round(wageExp*2)}" value="${recWage}" oninput="updNegTerms()">
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📅 DURACIÓN DEL CONTRATO</div>
+      <div style="display:flex;gap:4px" id="negYearsDiv">
+        ${[1,2,3,4,5].map(y=>`<button class="btn ${y===3?'bg':'bo'} bs negYrBtn" data-y="${y}" onclick="selNegYears(${y})" style="flex:1;font-size:11px">${y}a</button>`).join('')}
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL EN EL EQUIPO</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap" id="negRoleDiv">
+        ${roles.map((r,i)=>`<button class="btn ${i===roleExpect?'bg':'bo'} bs negRoleBtn" data-r="${i}" onclick="selNegRole(${i})" style="flex:1;font-size:9px;min-width:80px;white-space:nowrap">${r}</button>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">Expectativa del jugador: <b style="color:var(--gold)">${roles[roleExpect]}</b></div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
+      <div style="display:flex;gap:4px">
+        ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}
+      </div>
+    </div>
+    <div class="neg-rx" id="negTermsRx"></div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn bg" onclick="submitNegTerms('${id}')">✍️ Ofrecer contrato</button>
+      <button class="btn bR bs" onclick="negWalkAway('${id}')">🚪 Retirarse</button>
+    </div>
+  `);
+  updNegTerms();
+}
+
+function selNegYears(y){window._negYears=y;document.querySelectorAll('.negYrBtn').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
+function selNegRole(r){window._negRole=r;document.querySelectorAll('.negRoleBtn').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
+function selNegBonus(b){window._negBonus=b;document.querySelectorAll('.negBonBtn').forEach(btn=>{const on=parseFloat(btn.dataset.b)===b;btn.classList.toggle('bg',on);btn.classList.toggle('bo',!on);});updNegTerms();}
+
+function updNegTerms(){
+  const nd=window._negData;if(!nd) return;
+  const w=document.getElementById('negWage'),rx=document.getElementById('negTermsRx'),wl=document.getElementById('negWageL');
+  if(!w||!rx) return;
+  const wage=+w.value;if(wl) wl.textContent=wage+'k';
+  const years=window._negYears||3;
+  const role=window._negRole||2;
+  const bonus=window._negBonus||0;
+  const wageExp=nd.wageExp;
+  const wageRatio=wage/wageExp;
+  const roleExpect=nd.wageExp>=47?0:nd.wageExp>=44?1:nd.wageExp>=41?2:3;
+  const roleDiff=role-roleExpect;
+  let score=0;
+  if(wageRatio>=1.15) score+=3; else if(wageRatio>=1.0) score+=2; else if(wageRatio>=0.85) score+=1; else if(wageRatio>=0.7) score+=0; else score-=2;
+  if(roleDiff<=0) score+=2; else if(roleDiff===1) score+=1; else score-=1;
+  if(bonus>=2) score+=1; else if(bonus>=1) score+=0.5;
+  if(years>=4) score+=0.5; else if(years<=1) score-=1;
+  let txt,col,bg;
+  if(score>=5){txt='✅ Aceptará encantado — oferta irresistible';col='var(--green)';bg='rgba(26,170,107,.12)';}
+  else if(score>=3.5){txt='🟢 Muy probable que acepte';col='var(--green)';bg='rgba(26,170,107,.08)';}
+  else if(score>=2){txt='🟡 Lo pensará — puede pedir ajustes';col='var(--gold)';bg='rgba(246,211,24,.08)';}
+  else if(score>=0.5){txt='🟠 Difícil — subí salario o mejorá rol';col='var(--ora)';bg='rgba(240,148,58,.1)';}
+  else{txt='🔴 Rechazará — condiciones insuficientes';col='var(--red)';bg='rgba(232,69,69,.1)';}
+  const totalCost=Math.round((nd.agreedFee+bonus+wage*years*4/1000)*10)/10;
+  rx.innerHTML=txt+`<div style="font-size:10px;color:var(--t3);margin-top:4px">💵 Costo total: ${fv(totalCost)} (traspaso ${fv(nd.agreedFee)} + salarios ${fv(Math.round(wage*years*4/1000*10)/10)} + bono ${fv(bonus)})</div>`;
+  rx.style.color=col;rx.style.background=bg;rx.style.padding='8px';rx.style.borderRadius='6px';
+}
+
+function submitNegTerms(id){
+  if(!G) return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p) return;
+  const nd=window._negData;if(!nd) return;
+  const wage=+document.getElementById('negWage').value;
+  const years=window._negYears||3;
+  const role=window._negRole||2;
+  const bonus=window._negBonus||0;
+  const wageExp=nd.wageExp;
+  const totalCost=Math.round((nd.agreedFee+bonus)*10)/10;
+  if(G.budget<totalCost){flash('❌ Sin presupuesto para traspaso + bono ('+fv(totalCost)+')','loss');return;}
+  const wageRatio=wage/wageExp;
+  const roleExpect=wageExp>=47?0:wageExp>=44?1:wageExp>=41?2:3;
+  const roleDiff=role-roleExpect;
+  let score=0;
+  if(wageRatio>=1.15) score+=3; else if(wageRatio>=1.0) score+=2; else if(wageRatio>=0.85) score+=1; else if(wageRatio>=0.7) score+=0; else score-=2;
+  if(roleDiff<=0) score+=2; else if(roleDiff===1) score+=1; else score-=1;
+  if(bonus>=2) score+=1; else if(bonus>=1) score+=0.5;
+  if(years>=4) score+=0.5; else if(years<=1) score-=1;
+  const accept=score>=3.5||(score>=2&&Math.random()>0.35)||(score>=0.5&&Math.random()>0.7);
+  const roles=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
+  if(accept){
+    G.budget=Math.round((G.budget-totalCost)*10)/10;
+    p.club=G.teamName||'Boca Juniors';p.lg='Liga ARG';p.wage=wage;p.contract=G.season+years;
+    G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
+    lg('💰',`${p.name} fichado por ${fv(nd.agreedFee)} (${wage}k/sem, ${years}a, ${roles[role]})`);
+    addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de unirme a <b>${G.teamName||'el club'}</b>! Voy a dar todo en la cancha. ¡Vamos!`,'⭐');
+    addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
+    negStep4(p,nd.agreedFee,wage,years,roles[role]);
+  } else {
+    const hint=wageRatio<0.85?'Pedí más salario':'Quiero un rol más importante';
+    addPhoneMsg('player',p.name,`❌ No me convencen las condiciones. ${hint}.`,'😤');
+    flash('❌ '+p.name+' rechazó los términos — '+hint,'loss');
+    showMod(`
+      <button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">❌ ${p.name} rechazó</div>
+      ${_negStepBar(3)}
+      <div style="text-align:center;margin:16px 0">
+        <div style="font-size:40px;margin-bottom:8px">😤</div>
+        <div style="font-size:13px;color:var(--t2);margin-bottom:6px">"${hint}"</div>
+        <div style="font-size:10px;color:var(--t3)">El jugador no aceptó tus condiciones. Podés mejorar la oferta.</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn bg" onclick="negStep3('${id}')">↔ Mejorar oferta</button>
+        <button class="btn bR bs" onclick="negWalkAway('${id}')">🚪 Retirarse</button>
+      </div>
+    `);
+  }
+}
+
+function negStep4(p,fee,wage,years,role){
+  window._negData=null;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🎉 ¡FICHAJE OFICIAL!</div>
+    ${_negStepBar(4)}
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:56px;margin-bottom:8px">🏆</div>
+      <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin-bottom:4px">${p.name}</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${p.pos} · ${p.age} años · ${rb(p.rat)}</div>
+      <div style="background:linear-gradient(135deg,rgba(246,211,24,.1),rgba(15,184,102,.1));border:1px solid rgba(246,211,24,.3);border-radius:10px;padding:14px;margin:0 auto;max-width:280px">
+        <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Rol</span><span style="font-weight:600">${role}</span></div>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:var(--green);font-weight:600">✅ ¡Bienvenido a ${G.teamName||'Boca Juniors'}!</div>
+    </div>
+    <button class="btn bg" onclick="closeMod();updateUI()" style="width:100%;margin-top:8px">👏 ¡Cerrar y celebrar!</button>
+  `);
+  updateUI();
+}
+
+function negLoanOffer(id){
+  if(!G) return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p){flash('Jugador no disponible','draw');return;}
+  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  const agent=_negAgent(p);
+  let rejectChance=0.20;
+  if(p.rat>=87||p.val>=20) rejectChance=0.97;
+  else if(p.rat>=83||p.val>=12) rejectChance=0.80;
+  else if(p.rat>=79||p.val>=6) rejectChance=0.50;
+  const feePct=p.rat>=83?0.12:p.rat>=79?0.08:0.05;
+  const cost=Math.round(p.val*feePct*10)/10;
+  const buyOption=Math.round(p.val*(0.7+Math.random()*0.4)*10)/10;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📥 Préstamo: ${p.name}</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <div style="width:40px;height:40px;background:var(--d3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:1.5px solid var(--gold);flex-shrink:0">📥</div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#fff;font-family:'Barlow Condensed'">${p.name}</div>
+        <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${rb(p.rat)}</div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Cargo por préstamo</span><span style="color:var(--gold);font-weight:700">${fv(cost)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span>26 semanas</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Prob. aprobación</span><span style="color:${rejectChance>0.7?'var(--red)':rejectChance>0.4?'var(--gold)':'var(--green)'}">${Math.round((1-rejectChance)*100)}%</span></div>
+    </div>
+    ${p.rat<=82?`
+    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Tipo de préstamo:</div>
+    <div style="display:flex;gap:4px;margin-bottom:10px">
+      <button class="btn bg bs negLoanBtn" data-t="simple" onclick="selLoanType('simple')" style="flex:1;font-size:10px">📤 Préstamo simple</button>
+      <button class="btn bo bs negLoanBtn" data-t="option" onclick="selLoanType('option')" style="flex:1;font-size:10px">💰 Con opción (${fv(buyOption)})</button>
+      <button class="btn bo bs negLoanBtn" data-t="obligation" onclick="selLoanType('obligation')" style="flex:1;font-size:10px">📋 Con obligación (${fv(buyOption)})</button>
+    </div>
+    `:''}
+    <div class="note" style="margin-bottom:8px">El club decidirá si acepta ceder al jugador. Budget: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn bg" onclick="submitLoanOffer('${id}',${cost},${rejectChance},${buyOption})">📩 Enviar solicitud</button>
+      <button class="btn bo" onclick="openNeg('${id}')">🤝 Negociar compra</button>
+      <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+  window._loanType='simple';
+}
+function selLoanType(t){window._loanType=t;document.querySelectorAll('.negLoanBtn').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});}
+
+function submitLoanOffer(id,cost,rejectChance,buyOption){
+  if(!G) return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p) return;
+  if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
+  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  const agent=_negAgent(p);
+  if(Math.random()<rejectChance){
+    addPhoneMsg('agent',agent.name,`❌ ${p.club} rechazó el préstamo de <b>${p.name}</b>. ${rejectChance>=0.8?'No ceden a sus figuras.':'Prefieren tenerlo en su plantel.'}`,'🚫');
+    closeMod();flash('❌ Préstamo rechazado','loss');return;
+  }
+  const loanType=window._loanType||'simple';
+  G.budget=Math.round((G.budget-cost)*10)/10;
+  p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';
+  if(loanType==='option') p.loanBuyOption=buyOption;
+  if(loanType==='obligation') p.loanBuyObligation=buyOption;
+  G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
+  const extra=loanType==='option'?' con opción de compra ('+fv(buyOption)+')':loanType==='obligation'?' con obligación de compra ('+fv(buyOption)+')':'';
+  lg('📥',`Préstamo: ${p.name} ($${cost}M)${extra}`);
+  addPhoneMsg('agent',agent.name,`✅ ¡Préstamo aprobado! <b>${p.name}</b> se une a ${G.teamName||'tu club'}${extra}.`,'📥');
+  addPhoneMsg('player',p.name,`👋 Llegué a ${G.teamName||'el club'} en préstamo. ¡Voy a demostrar que puedo quedarme!`,'⚽');
+  updateUI();closeMod();flash('✅ '+p.name+' en préstamo'+extra,'win');
+}
+
+function updNeg(){}
+function updNegInput(demand,budget){updNegI(demand,budget);}
+function subNegInput(id,demand){subNegI(id,demand);}
+function subNeg(){}
 
 // =============================================
 // MARKET RENDER — SAFE VERSION
@@ -6649,33 +6997,7 @@ function rStats(){
 // =============================================
 // TRANSFERS
 // =============================================
-function loanIn(id){
-  if(!G) return;
-  const p = G.market.find(x=>x.id===id);
-  if(!p) return;
-  // Realistic rejection: elite clubs never loan their stars
-  let rejectChance = 0.20;
-  if(p.rat >= 87 || p.val >= 20) rejectChance = 0.97;
-  else if(p.rat >= 83 || p.val >= 12) rejectChance = 0.80;
-  else if(p.rat >= 79 || p.val >= 6) rejectChance = 0.50;
-  if(Math.random() < rejectChance){
-    const msg = rejectChance >= 0.80
-      ? `❌ El club de ${p.name} rechazó la cesión — no ceden a sus figuras`
-      : rejectChance >= 0.50
-        ? `❌ ${p.name} no está disponible para préstamo — intentá negociar la compra`
-        : `❌ La cesión fue rechazada — el club prefiere tenerlo en su plantel`;
-    flash(msg,'loss'); return;
-  }
-  const feePct = p.rat >= 83 ? 0.12 : p.rat >= 79 ? 0.08 : 0.05;
-  const cost = Math.round(p.val*feePct*10)/10;
-  if(G.budget<cost){ flash('❌ Sin presupuesto para la cesión ($'+cost+'M)','loss'); return; }
-  if(isForeign(p.nat) && foreignCount(G.squad)>=5){ flash('❌ Cupo de extranjeros lleno (5/5). Vendé un extranjero primero.','loss'); return; }
-  G.budget=Math.round((G.budget-cost)*10)/10;
-  p.club=(G.teamName||G.teamName)+' (prést)'; p.lg='Liga ARG';
-  G.squad.push(p); G.market=G.market.filter(x=>x.id!==id); G.bench.push(p);
-  lg('📥',`Préstamo: ${p.name} ($${cost}M)`);
-  updateUI(); closeMod(); flash('✅ '+p.name+' en préstamo','win');
-}
+function loanIn(id){negLoanOffer(id);}
 
 // ——— Transfer listing (poner en venta) ———
 function sellPlayer(id){
