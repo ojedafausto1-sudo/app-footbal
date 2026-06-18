@@ -359,6 +359,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <button class="nb" onclick="gTab('stats',this);rStats()">📊 STATS</button>
     <button class="nb" onclick="gTab('news',this);rNewsTab()">📰 NOTICIAS</button>
     <button class="nb" onclick="gTab('social',this);rSocial()">📱 REDES</button>
+    <button class="nb" onclick="gTab('pres',this);rPresTab()">🏛️ PRESIDENTE</button>
   </div>
   <div class="main">
 
@@ -559,6 +560,40 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button onclick="rSocial()" style="flex-shrink:0;background:rgba(246,211,24,.12);border:1px solid rgba(246,211,24,.3);color:var(--gold);font-family:'Barlow Condensed';font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer">🔄 Actualizar</button>
       </div>
       <div id="socialFeed"></div>
+    </div>
+
+    <!-- PRESIDENTE -->
+    <div id="tab-pres" class="tc">
+      <div class="stitle">🏛️ Presidente</div>
+      <div class="tc2">
+        <div>
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">📊 Confianza de la Junta Directiva</div>
+            <div id="presConfDetail"></div>
+          </div>
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">🎯 Objetivos de Temporada</div>
+            <div id="presObjList"></div>
+          </div>
+          <div class="card">
+            <div class="ctitle">🎙️ Sala de Prensa</div>
+            <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Las conferencias de prensa se activan despues de cada partido.</div>
+            <div id="presLogList"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">📋 Exigencias del Presidente
+              <button class="btn bg bs" style="float:right;margin-top:-2px" onclick="openPressDemandModal()">+ Nueva</button>
+            </div>
+            <div id="pressDemandsList2"></div>
+          </div>
+          <div class="card">
+            <div class="ctitle">📰 Mensajes de la Directiva</div>
+            <div id="presBoardMsgs"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -3314,27 +3349,29 @@ function buildYouth(){
 
 function buildCal(teamName, teamId){
   teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
+  function shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
   const all18 = ['Racing Club','San Lorenzo','River Plate','Independiente','Boca Juniors',
     'Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán',
     'Belgrano','Lanús','Newell\'s','Defensa y Justicia','Godoy Cruz',
     'Platense','Argentinos Jrs','Barracas Central','Gimnasia LP'];
-  const lr = all18.filter(t => t !== teamName).slice(0, 18);
-  // Use 4 GS rivals for more realism
-  const libG = [
-    ['Flamengo','BRA'],['Nacional (URU)','URU'],['LDU Quito','ECU'],['Botafogo','BRA']
+  const lr = shuf(all18.filter(t => t !== teamName).slice(0, 18));
+  const libPool=[
+    ['Flamengo','BRA'],['Palmeiras','BRA'],['Atlético Mineiro','BRA'],['Botafogo','BRA'],
+    ['Nacional (URU)','URU'],['Peñarol','URU'],['LDU Quito','ECU'],['Olimpia','PAR'],
+    ['Cerro Porteño','PAR'],['Colo-Colo','CHI'],['U. Católica','CHI'],['Alianza Lima','PER'],
+    ['Millonarios','COL'],['Dep. Cali','COL'],['The Strongest','BOL'],['Sporting Cristal','PER']
   ];
-  // Pick a Copa Argentina final opponent that isn't the selected team
-  const caFinalRivals = ['Racing Club','River Plate','Independiente','San Lorenzo','Boca Juniors'].filter(t=>t!==teamName);
+  const libG = shuf(libPool).slice(0,4);
+  const caFinalRivals = shuf(['Racing Club','River Plate','Independiente','San Lorenzo','Boca Juniors'].filter(t=>t!==teamName));
   const caFinalRival = caFinalRivals[0] || 'Racing Club';
-  const caOpps = ['Almagro','Tigre','Newell\'s',caFinalRivals[1]||'San Lorenzo'];
+  const caPool=['Almagro','Tigre','Quilmes','Atlanta','Chacarita','Brown de Adrogué','All Boys','Villa Dálmine','Temperley','Tristán Suárez','Sacachispas','Comunicaciones','Deportivo Morón','Los Andes','Almirante Brown'];
+  const caOpps = shuf(caPool).slice(0,3).concat([caFinalRivals[1]||'San Lorenzo']);
   const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF'];
   const sch = [];
-  // Liga Profesional: home weeks 1-18, away weeks 20-37
   lr.forEach((r,i) => {
     sch.push({week:i+1,  comp:'Liga Profesional', home:teamName, away:r, played:false,result:null,score:null});
     sch.push({week:i+20, comp:'Liga Profesional', home:r, away:teamName, played:false,result:null,score:null});
   });
-  // Copa Libertadores GS: only for teams with initRep >= 72 (top clubs qualify)
   const resolvedTeamId = teamId || (G&&G.teamId) || 'boca';
   const tc=TEAMS[resolvedTeamId];
   const qualifiesLib=(tc&&tc.initRep>=72)||!!(G&&G.qualifiedLib);
@@ -3345,19 +3382,17 @@ function buildCal(teamName, teamId){
       sch.push({week:libWeeks[i*2+1], comp:'Copa Libertadores - Grupos', home:r, away:teamName, played:false,result:null,score:null});
     });
   } else {
-    // Add Copa Sudamericana instead (weaker teams)
     const sudWeeks=[3,5,7,9,12,14,17,19];
-    const sudRivals=[['Peñarol','URU'],['Independiente Medellín','COL'],['Emelec','ECU'],['Cerro Porteño','PAR']];
+    const sudPool=[['Peñarol','URU'],['Ind. Medellín','COL'],['Emelec','ECU'],['Cerro Porteño','PAR'],['Deportivo Cali','COL'],['Liga de Quito','ECU'],['Defensor Sporting','URU'],['Sol de América','PAR']];
+    const sudRivals=shuf(sudPool).slice(0,4);
     sudRivals.forEach(([r,nat],i)=>{
       sch.push({week:sudWeeks[i*2],   comp:'Copa Sudamericana - Grupos', home:teamName, away:r, played:false,result:null,score:null});
       sch.push({week:sudWeeks[i*2+1], comp:'Copa Sudamericana - Grupos', home:r, away:teamName, played:false,result:null,score:null});
     });
   }
-  // Copa Argentina: 4 rounds at weeks 3,10,19,28
   caOpps.forEach((r,i) => {
     sch.push({week:3+i*9, comp:caRnds[i], home:i%2===0?teamName:r, away:i%2===0?r:teamName, played:false,result:null,score:null});
   });
-  // Copa Argentina Final at week 35
   sch.push({week:35, comp:'Copa Argentina Final', home:teamName, away:caFinalRival, played:false,result:null,score:null});
   return sch.sort((a,b)=>a.week-b.week);
 }
@@ -3520,10 +3555,18 @@ function initGame(teamId){
     medicalCenter: false,
     phoneMsgs: [],
     boardConf: 50,
-    boardObjectives: (function(){
-      const pool=['Terminar en el Top 4 de la liga','Llegar a semifinales de Copa','Fichar un jugador de +80 de rating','Mantener presupuesto positivo todo el año','Ganar al menos el 55% de los partidos','Desarrollar un juvenil al primer equipo','No perder más de 5 partidos en la temporada','Mejorar el estadio con al menos 1 ampliación'];
-      const picked=[];while(picked.length<3){const r=pool[Math.floor(Math.random()*pool.length)];if(!picked.includes(r))picked.push(r);}
-      return picked.map(o=>({text:o,done:false}));
+    boardObjectives: (()=>{
+      const allObj=[
+        {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=10&&(g.wins*3+g.draws)/(pj*3)>=0.55}},
+        {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp.includes('Libertadores')&&x.comp.includes('Semi')&&x.played).length>0},
+        {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>g.squad.some(p=>p.rat>=80&&p.club===g.teamName)},
+        {id:'budget_pos',desc:'Mantener presupuesto positivo',check:g=>g.budget>0},
+        {id:'win60',desc:'Ganar al menos 60% de los partidos',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=5&&g.wins/pj>=0.6}},
+        {id:'youth_debut',desc:'Debutar un juvenil en el primer equipo',check:g=>g.log.some(l=>l.msg&&l.msg.includes('promovido'))},
+        {id:'unbeaten5',desc:'Mantener 5 partidos invicto seguidos',check:g=>{const last5=g.calendar.filter(x=>x.played).slice(-5);return last5.length>=5&&last5.every(x=>x.result!=='L')}},
+      ];
+      const shuffled=allObj.sort(()=>Math.random()-0.5);
+      return shuffled.slice(0,3).map(o=>({...o,completed:false}));
     })(),
     pressConfDone: false,
   };
@@ -3543,49 +3586,172 @@ function initGame(teamId){
   lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
   updateUI();
   addPhoneMsg('board', 'Junta Directiva', `📋 Bienvenido a tu primera semana como Director Técnico de ${G.teamName}. Desde aquí recibirás todas las comunicaciones importantes: pedidos del DT, ofertas de agentes y mensajes de jugadores.`, '🏛️');
-  const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.text}`).join('<br>');
+  const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.desc}`).join('<br>');
   addPhoneMsg('board', 'Presidente', `🏛️ Como presidente del club, espero resultados esta temporada. Tus <b>objetivos</b> son:<br><br>${objList}<br><br>La confianza de la directiva depende de vos. ¡Éxitos!`, '👔');
 }
 
-function pressConf(result,oppName){
-  if(!G) return;
-  const won=result==='win',drew=result==='draw';
-  const q=won?'¿Cómo analiza la victoria ante '+oppName+'?':drew?'¿Conforme con el empate ante '+oppName+'?':'¿Qué pasó en la derrota ante '+oppName+'?';
-  const opts=won?[
-    {txt:'Fue un gran trabajo colectivo. Estoy orgulloso del equipo.',mor:3,conf:2},
-    {txt:'Ganamos pero hay cosas para mejorar. No nos relajamos.',mor:1,conf:3},
-    {txt:'Somos candidatos. Que se preparen los rivales.',mor:4,conf:1}
-  ]:drew?[
-    {txt:'Merecimos más, pero un punto suma. Seguimos.',mor:1,conf:1},
-    {txt:'No estoy conforme. Hay que ser más efectivos.',mor:-1,conf:2},
-    {txt:'Rescato la actitud del equipo. Vamos por buen camino.',mor:2,conf:0}
-  ]:[
-    {txt:'Hoy no fue nuestro día, pero confío en el plantel.',mor:1,conf:-1},
-    {txt:'Fue inaceptable. Vamos a trabajar el doble esta semana.',mor:-2,conf:1},
-    {txt:'Los errores se pagan caro. Hay que hacer autocrítica.',mor:0,conf:0}
+function pressConf(){
+  if(!G||!window._pendingPressConf) return;
+  const pc=window._pendingPressConf;
+  window._pendingPressConf=null;
+  const isWin=pc.res==='W',isDraw=pc.res==='D',isLoss=pc.res==='L';
+  const isCopa=pc.comp&&(pc.comp.includes('Copa')||pc.comp.includes('Libertadores')||pc.comp.includes('Sudamericana'));
+  const isLib=pc.comp&&pc.comp.includes('Libertadores');
+  const isSuda=pc.comp&&pc.comp.includes('Sudamericana');
+  const goleada=pc.gf>=pc.ga+3;
+  const ajustada=Math.abs(pc.gf-pc.ga)<=1&&pc.gf>0;
+  const rk=()=>~~(Math.random()*3);
+  const journalists=[
+    {name:'Martín Arévalo',outlet:'TyC Sports'},
+    {name:'Diego Díaz',outlet:'ESPN'},
+    {name:'Pablo Giralt',outlet:'TNT Sports'},
+    {name:'Gustavo López',outlet:'Radio La Red'},
+    {name:'Mariano Closs',outlet:'Fox Sports'},
+    {name:'Sebastián Vignolo',outlet:'ESPN'},
+    {name:'Horacio Pagani',outlet:'TyC Sports'},
+    {name:'Juan Pablo Varsky',outlet:'DSports'},
+    {name:'Atilio Costa Febre',outlet:'Radio Del Plata'},
+    {name:'Marcelo Benedetto',outlet:'TNT Sports'},
+    {name:'Fernando Czyz',outlet:'TyC Sports'},
+    {name:'Luciana Rubinska',outlet:'ESPN'}
   ];
+  const j=journalists[~~(Math.random()*journalists.length)];
+  const winQs=[
+    `"Victoria ${pc.gf}-${pc.ga} ante ${pc.oppName}. ¿Cómo evalúa el rendimiento del equipo?"`,
+    `"Tres puntos importantes contra ${pc.oppName}. ¿El equipo está para pelear arriba?"`,
+    `"Gran resultado ${pc.gf}-${pc.ga}. ¿Se siente satisfecho con lo que mostró el equipo hoy?"`,
+    ...(goleada?[`"Goleada categórica ${pc.gf}-${pc.ga}. ¿Es este el mejor partido de su gestión?"`]:[]),
+    ...(ajustada?[`"Victoria ajustada ${pc.gf}-${pc.ga}. ¿Sufrieron más de lo esperado ante ${pc.oppName}?"`]:[]),
+    ...(isLib?[`"Triunfo clave en Libertadores contra ${pc.oppName}. ¿Este equipo puede soñar con la gloria continental?"`]:[]),
+    ...(isCopa?[`"Avance en la copa, ${pc.gf}-${pc.ga}. ¿Cuánto vale este triunfo copero ante ${pc.oppName}?"`]:[])
+  ];
+  const drawQs=[
+    `"Empate ${pc.gf}-${pc.ga} con ${pc.oppName}. ¿Se queda conforme?"`,
+    `"No pudieron con ${pc.oppName}, ${pc.gf}-${pc.ga}. ¿Qué les faltó para llevarse los tres puntos?"`,
+    `"Reparto de puntos ante ${pc.oppName}. ¿Suma o resta este empate?"`,
+    ...(isLib?[`"Empate en Libertadores con ${pc.oppName}. ¿Complica la clasificación?"`]:[]),
+    ...(pc.gf===0?[`"Cero goles hoy. ¿Le preocupa la falta de efectividad del equipo?"`]:[])
+  ];
+  const lossQs=[
+    `"Derrota ${pc.gf}-${pc.ga} ante ${pc.oppName}. ¿Qué pasó hoy?"`,
+    `"Caída dolorosa contra ${pc.oppName}. ¿Se siente responsable del resultado?"`,
+    `"Tres puntos que se van ante ${pc.oppName}. ¿Hay que hacer cambios?"`,
+    ...(goleada?[`"Goleada en contra ${pc.gf}-${pc.ga}. ¿Es la peor derrota de su ciclo?"`]:[]),
+    ...(isLib?[`"Eliminados de la Libertadores tras el ${pc.gf}-${pc.ga}. ¿Cómo se explica?"`,`"Dura derrota en Libertadores. ¿Siente que el plantel estuvo a la altura del torneo continental?"`]:[]),
+    ...(isCopa?[`"Eliminados de la Copa. ¿Qué le dice a los hinchas que esperaban más?"`]:[])
+  ];
+  const journalistQ=(isWin?winQs:isDraw?drawQs:lossQs);
+  const qText=journalistQ[~~(Math.random()*journalistQ.length)];
+
+  const followUpQs=[
+    ...(G.morale<40?[{q:`"Se nota al plantel desanimado. ¿Hay un problema interno?"`,opts:[
+      {txt:'"No hay ningún problema. El grupo está unido y va a salir adelante."',morale:2,conf:0},
+      {txt:'"Hay que ser sinceros, no estamos en nuestro mejor momento. Pero vamos a trabajar para revertirlo."',morale:0,conf:2},
+      {txt:'"Lo que pase en el vestuario queda ahí. No voy a hablar de eso en conferencia."',morale:1,conf:-1}
+    ]}]:[]),
+    ...(G.boardConf&&G.boardConf<35?[{q:`"Hay rumores de que la dirigencia no está conforme con su gestión. ¿Siente que su puesto peligra?"`,opts:[
+      {txt:'"Tengo contrato y lo voy a cumplir. Los resultados van a llegar."',morale:1,conf:1},
+      {txt:'"Eso pregúntenselo a los dirigentes. Yo me dedico a trabajar."',morale:0,conf:-1},
+      {txt:'"Entiendo la impaciencia pero este es un proceso. Pido paciencia y confianza."',morale:0,conf:3}
+    ]}]:[]),
+  ];
+  const hasFollowUp=followUpQs.length>0&&Math.random()<0.5;
+  const followUp=hasFollowUp?followUpQs[~~(Math.random()*followUpQs.length)]:null;
+
+  const winOpts=[
+    [{txt:'"El mérito es del plantel. Cada uno dejó la vida en la cancha y se vio en el resultado."',morale:3,conf:2},
+     {txt:'"Esto es solo el principio. Vinimos a ganar todo y no vamos a parar hasta lograrlo."',morale:4,conf:1},
+     {txt:'"Hay cosas para mejorar todavía. No nos podemos relajar ni un segundo."',morale:1,conf:3}],
+    [{txt:'"Le dedico esta victoria a la hinchada que siempre nos banca. Sin ellos no es lo mismo."',morale:4,conf:1},
+     {txt:'"Trabajamos toda la semana para este plan de juego y salió perfecto. Mérito del cuerpo técnico y los jugadores."',morale:2,conf:3},
+     {txt:'"Ganamos pero no me vuelvo loco. El torneo es largo y hay que mantener los pies en la tierra."',morale:2,conf:2}],
+    [{txt:'"Encontramos los espacios que habíamos trabajado. El rival nos dejó jugar y lo aprovechamos."',morale:2,conf:3},
+     {txt:'"Le dije al plantel que iban a ganar y cumplieron. Estoy orgulloso de este grupo."',morale:4,conf:2},
+     {txt:'"Tres puntos importantísimos. Cada partido es una batalla y hoy la ganamos."',morale:3,conf:2}]
+  ];
+  const drawOpts=[
+    [{txt:'"Rescatamos un punto. El equipo compitió bien y seguimos sumando."',morale:2,conf:1},
+     {txt:'"No estoy conforme. Pudimos ganar y se nos escapó. Hay que mejorar."',morale:-1,conf:2},
+     {txt:'"El equipo dejó todo. A veces el resultado no acompaña pero el esfuerzo estuvo."',morale:3,conf:0}],
+    [{txt:'"Nos faltó un poquito más de profundidad. Tuvimos las chances pero no las convertimos."',morale:1,conf:2},
+     {txt:'"Ante un rival así, sumar siempre es positivo. Seguimos en carrera."',morale:2,conf:1},
+     {txt:'"Me voy caliente. Tuvimos el partido en nuestras manos y lo dejamos escapar."',morale:-2,conf:1}],
+    [{txt:'"Hay que valorar la entrega del equipo. Jugamos de igual a igual contra un rival difícil."',morale:3,conf:0},
+     {txt:'"No me sirve empatar. Este club tiene que ganar siempre, en cualquier cancha."',morale:-1,conf:3},
+     {txt:'"Vamos a corregir errores durante la semana. El equipo tiene potencial para mucho más."',morale:1,conf:2}]
+  ];
+  const lossOpts=[
+    [{txt:'"No fue nuestro día pero confío en mis jugadores. Vamos a revertir esto."',morale:3,conf:-1},
+     {txt:'"Inaceptable. Así no se puede. Algunos no estuvieron a la altura."',morale:-3,conf:2},
+     {txt:'"Hay que analizar con calma. Cometimos errores que no podemos repetir."',morale:1,conf:1}],
+    [{txt:'"Me hago cargo. El equipo salió con un planteo que no funcionó y eso es responsabilidad mía."',morale:2,conf:-2},
+     {txt:'"Les pido disculpas a los hinchas. No estuvimos a la altura de la camiseta."',morale:1,conf:0},
+     {txt:'"Perder duele, pero el fútbol te da revancha. Vamos a levantarnos como lo hicimos siempre."',morale:3,conf:0}],
+    [{txt:'"Nos ganaron bien. Hay que felicitar al rival y nosotros trabajar el doble."',morale:0,conf:1},
+     {txt:'"Esto no puede volver a pasar. Se vienen cambios y el que no está comprometido, que lo diga."',morale:-4,conf:3},
+     {txt:'"El grupo está dolido pero unido. De las derrotas se aprende y esto nos va a fortalecer."',morale:3,conf:-1}]
+  ];
+  const pool=isWin?winOpts:isDraw?drawOpts:lossOpts;
+  const options=pool[~~(Math.random()*pool.length)];
+
+  let followUpHTML='';
+  if(followUp){
+    window._pressConfFollowUp=followUp;
+    followUpHTML=`<div id="pcFollowUp" style="display:none;margin-top:10px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:6px">🎤 ${j.name} (${j.outlet}) repregunta:</div>
+        <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${followUp.q}</div>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Tu respuesta:</div>
+      ${followUp.opts.map(o=>`
+        <div onclick="pressConfAnswer(${o.morale},${o.conf})" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(246,211,24,.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
+          ${o.txt}
+          <div style="font-size:9px;color:var(--t3);margin-top:4px">Moral ${o.morale>=0?'+':''}${o.morale} · Confianza ${o.conf>=0?'+':''}${o.conf}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">🎙️ Conferencia de Prensa</div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">PERIODISTA</div>
-      <div style="font-size:13px;color:var(--t2);font-style:italic">"${q}"</div>
+    <div class="mtitle">🎙️ Conferencia de prensa</div>
+    <div style="text-align:center;margin-bottom:10px">
+      <span style="font-size:10px;color:var(--t3)">${pc.comp||'Liga Profesional'} · Fecha ${G.week||''}</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${opts.map((o,i)=>`<button class="btn bo" onclick="pressConfAnswer(${o.mor},${o.conf})" style="text-align:left;font-size:11px;line-height:1.3;padding:10px;white-space:normal">"${o.txt}"</button>`).join('')}
+    <div id="pcMainQ">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:12px">
+        <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:6px">🎤 ${j.name} (${j.outlet}) pregunta:</div>
+        <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${qText}</div>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Elegí tu respuesta:</div>
+      ${options.map((o,i)=>`
+        <div onclick="${followUp?`document.getElementById('pcMainQ').style.display='none';document.getElementById('pcFollowUp').style.display='block';pressConfPartial(${o.morale},${o.conf})`:`pressConfAnswer(${o.morale},${o.conf})`}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(246,211,24,.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
+          ${o.txt}
+          <div style="font-size:9px;color:var(--t3);margin-top:4px">Moral ${o.morale>=0?'+':''}${o.morale} · Confianza ${o.conf>=0?'+':''}${o.conf}</div>
+        </div>
+      `).join('')}
     </div>
+    ${followUpHTML}
   `);
 }
 
-function pressConfAnswer(morDelta,confDelta){
+function pressConfPartial(moraleDelta,confDelta){
   if(!G) return;
-  G.morale=Math.max(20,Math.min(100,G.morale+morDelta));
-  G.boardConf=Math.max(5,Math.min(100,(G.boardConf||50)+confDelta));
-  const morTxt=morDelta>0?`Moral del plantel +${morDelta}`:morDelta<0?`Moral del plantel ${morDelta}`:'';
-  const confTxt=confDelta>0?`Confianza directiva +${confDelta}`:confDelta<0?`Confianza directiva ${confDelta}`:'';
-  const effects=[morTxt,confTxt].filter(Boolean).join(' · ');
+  G.morale=Math.max(0,Math.min(100,G.morale+moraleDelta));
+  if(!G.boardConf) G.boardConf=50;
+  G.boardConf=Math.max(5,Math.min(100,G.boardConf+confDelta));
+}
+
+function pressConfAnswer(moraleDelta,confDelta){
+  if(!G) return;
+  G.morale=Math.max(0,Math.min(100,G.morale+moraleDelta));
+  if(!G.boardConf) G.boardConf=50;
+  G.boardConf=Math.max(5,Math.min(100,G.boardConf+confDelta));
+  const moraleMsg=moraleDelta>0?`Moral del plantel +${moraleDelta}`:`Moral del plantel ${moraleDelta}`;
+  const confMsg=confDelta>0?`Confianza de la junta +${confDelta}`:`Confianza de la junta ${confDelta}`;
+  flash(`🎙️ ${moraleMsg} · ${confMsg}`,moraleDelta>=0?'win':'loss');
+  lg('🎙️',`Conferencia de prensa: ${moraleMsg}, ${confMsg}`);
   closeMod();
-  if(effects) flash('🎙️ '+effects,'draw');
   updateUI();
 }
 
@@ -3693,7 +3859,19 @@ function updateBoard($){
           :G.rep>=70?'Clasificar a la Copa Libertadores (top 4)'
           :G.rep>=58?'Pelear arriba y clasificar a un torneo continental'
           :'Mantener la categoría y sanear las finanzas';
-  if($('objText'))$('objText').innerHTML=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
+  let objHtml=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
+  if(G.boardObjectives&&G.boardObjectives.length){
+    objHtml+=`<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px">`;
+    objHtml+=`<div style="font-size:9px;color:var(--gold);text-transform:uppercase;font-weight:700;margin-bottom:4px;letter-spacing:.05em">Objetivos de la Junta Directiva</div>`;
+    G.boardObjectives.forEach(o=>{
+      try{if(!o.completed&&o.check&&o.check(G)){o.completed=true;G.boardConf=Math.min(100,(G.boardConf||50)+5);lg('🏛️','Objetivo cumplido: '+o.desc);}}catch(e){}
+      const icon=o.completed?'✅':'⬜';
+      const col=o.completed?'var(--green)':'var(--t3)';
+      objHtml+=`<div style="font-size:10px;color:${col};margin-bottom:2px">${icon} ${o.desc}</div>`;
+    });
+    objHtml+=`</div>`;
+  }
+  if($('objText'))$('objText').innerHTML=objHtml;
 }
 
 // =============================================
@@ -4237,29 +4415,39 @@ function submitNegTerms(id){
 
 function negStep4(p,fee,wage,years,role){
   window._negData=null;
-  const pressTxt=[`"Estoy muy feliz de llegar a ${G.teamName||'este club'}. Es un paso importante en mi carrera."`,`"Desde chico soñé con vestir esta camiseta. Voy a dejar todo en cada partido."`,`"Le agradezco al club por la confianza. Vine a ganar títulos."`,`"Me convenció el proyecto deportivo. Quiero hacer historia acá."`][Math.floor(Math.random()*4)];
+  const pressQuotes=[
+    `"Estamos muy contentos con la llegada de ${p.name}. Es el tipo de jugador que necesitábamos."`,
+    `"${p.name} eligió nuestro proyecto deportivo y eso habla del crecimiento del club."`,
+    `"Fue una negociación intensa pero logramos traer a un jugador de jerarquía como ${p.name}."`,
+  ];
+  const fanReaction=p.rat>=85?'Los hinchas explotan de alegría en redes sociales. #BombazoDelMercado es tendencia.':p.rat>=78?'Los hinchas reciben con optimismo al nuevo refuerzo. Buenos comentarios en redes.':p.age<=22?'Los hinchas están ilusionados con esta apuesta a futuro. "Tiene toda la pinta" dicen en las redes.':'Refuerzo confirmado. Los hinchas esperan verlo en cancha cuanto antes.';
+  const shirtNum=~~(Math.random()*30)+2;
   if(G.boardConf!==undefined) G.boardConf=Math.min(100,G.boardConf+(p.rat>=80?5:p.rat>=75?2:0));
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🎉 ¡FICHAJE OFICIAL!</div>
     ${_negStepBar(4)}
-    <div style="text-align:center;padding:12px 0">
-      <div style="font-size:56px;margin-bottom:6px">🏆</div>
-      <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin-bottom:2px">${p.name}</div>
-      <div style="font-size:12px;color:var(--t2);margin-bottom:10px">${p.pos} · ${p.age} años · ${rb(p.rat)} · ${p.nat}</div>
-      <div style="background:linear-gradient(135deg,rgba(246,211,24,.1),rgba(15,184,102,.1));border:1px solid rgba(246,211,24,.3);border-radius:10px;padding:14px;margin:0 auto;max-width:300px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">📰 CONFERENCIA DE PRENSA</div>
-        <div style="font-style:italic;font-size:12px;color:var(--t2);margin-bottom:10px;line-height:1.4">${pressTxt}</div>
-        <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px">
-          <div style="font-size:9px;color:var(--t3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Rol</span><span style="font-weight:600">${role}</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Procedencia</span><span style="font-weight:600">${p.club} (${p.lg})</span></div>
-        </div>
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:56px;margin-bottom:8px">🏆</div>
+      <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin-bottom:4px">${p.name}</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:4px">${p.pos} · ${p.age} años · ${rb(p.rat)}</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:12px">🎽 Camiseta #${shirtNum}</div>
+      <div style="background:linear-gradient(135deg,rgba(246,211,24,.08),rgba(15,184,102,.06));border:1px solid rgba(246,211,24,.2);border-radius:10px;padding:14px;margin:0 auto;max-width:320px;margin-bottom:12px">
+        <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Rol</span><span style="font-weight:600">${role}</span></div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--green);font-weight:600">✅ ¡Bienvenido a ${G.teamName||'Boca Juniors'}!</div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin:0 auto;max-width:320px;margin-bottom:10px">
+        <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">🎙️ Conferencia de prensa</div>
+        <div style="font-size:11px;color:var(--t2);font-style:italic;line-height:1.5;margin-bottom:6px">${pressQuotes[~~(Math.random()*pressQuotes.length)]}</div>
+        <div style="font-size:9px;color:var(--t3)">— Presidente de ${G.teamName||'Boca Juniors'}</div>
+      </div>
+      <div style="background:rgba(176,110,245,.08);border:1px solid rgba(176,110,245,.2);border-radius:8px;padding:8px 12px;margin:0 auto;max-width:320px;font-size:10px;color:var(--pur);line-height:1.4">
+        📱 ${fanReaction}
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:var(--green);font-weight:600">✅ ¡Bienvenido a ${G.teamName||'Boca Juniors'}!</div>
     </div>
     <button class="btn bg" onclick="closeMod();updateUI()" style="width:100%;margin-top:8px">👏 ¡Cerrar y celebrar!</button>
   `);
@@ -6661,6 +6849,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
     }
   });
 
+  // Board confidence update from match result
+  if(!G.boardConf) G.boardConf=50;
+  if(res==='W'){G.boardConf=Math.min(100,G.boardConf+3);}
+  else if(res==='D'){G.boardConf=Math.max(5,G.boardConf-1);}
+  else{G.boardConf=Math.max(5,G.boardConf-4);}
+
+  // Schedule post-match press conference
+  window._pendingPressConf={res,gf,ga,oppName:m.home===G.teamName?m.away:m.home,comp:m.comp};
+
   G.week++;
   // Loan returns
   if(G.loaned&&G.loaned.length){
@@ -6998,10 +7195,12 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
     ${isLastMatch ? `
     <div style="margin-top:12px">
       <button class="btn bg" style="width:100%;font-size:13px;padding:9px" onclick="showSeasonSummary()">🏆 Ver Resumen de Temporada →</button>
-    </div>` : `
-    <div style="margin-top:8px">
-      <button class="btn bo" style="width:100%;font-size:11px;padding:7px" onclick="closeMod();pressConf('${res==='W'?'win':res==='D'?'draw':'loss'}','${(m.home===G.teamName?m.away:m.home).replace(/'/g,"\\'")}')">🎙️ Conferencia de prensa →</button>
-    </div>`}
+    </div>` : ''}
+
+    ${window._pendingPressConf ? `
+    <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
+      <button class="btn bo" style="width:100%;font-size:11px" onclick="closeMod();pressConf()">🎙️ Conferencia de prensa post-partido</button>
+    </div>` : ''}
   `);
 }
 
@@ -8722,7 +8921,7 @@ function fmInit(m,W,H){
       x:initPos[0],y:initPos[1],vx:0,vy:0,
       hx:homePos[0],hy:homePos[1],
       name:name.split(' ').pop().slice(0,7),
-      r:isGK?16:12,kit,role,isGK,
+      r:isGK?18:14,kit,role,isGK,
       rat:Math.round(rat),attrs,
       spd:basePac,
     };
@@ -9431,6 +9630,63 @@ function flash(msg, type='win'){
   setTimeout(()=>el.style.opacity='0', 2500);
   setTimeout(()=>el.remove(), 3100);
 }
+function rPresTab(){
+  if(!G) return;
+  const conf=G.boardConf||50;
+  const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
+  const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Critica';
+  const el=document.getElementById('presConfDetail');
+  if(el){
+    el.innerHTML=`
+      <div style="text-align:center;padding:12px 0">
+        <div style="font-size:42px;font-weight:900;color:${col};font-family:'Barlow Condensed'">${conf}<span style="font-size:14px;color:var(--t3)">/100</span></div>
+        <div style="font-size:13px;color:${col};font-weight:700;margin-top:2px">${lbl}</div>
+        <div class="confbar" style="margin-top:8px;height:8px"><div class="conffill" style="width:${conf}%;background:${col}"></div></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:8px">La confianza sube con victorias, buenos fichajes y cumplir objetivos. Baja con derrotas y gastos excesivos.</div>
+      </div>
+      ${conf<25?'<div class="note R">La directiva esta muy disconforme. Si no mejoran los resultados, tu puesto peligra.</div>':''}
+      ${conf>=85?'<div class="note G">La directiva esta encantada con tu gestion. Segui asi.</div>':''}
+    `;
+  }
+  const objEl=document.getElementById('presObjList');
+  if(objEl&&G.boardObjectives){
+    objEl.innerHTML=G.boardObjectives.map(o=>{
+      const icon=o.completed?'✅':'⬜';
+      const bg=o.completed?'rgba(15,184,102,.08)':'rgba(255,255,255,.03)';
+      const bdr=o.completed?'rgba(15,184,102,.25)':'rgba(255,255,255,.08)';
+      const txtCol=o.completed?'var(--green)':'var(--t2)';
+      return `<div style="background:${bg};border:1px solid ${bdr};border-radius:7px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">${icon}</span>
+        <span style="font-size:11px;color:${txtCol};${o.completed?'text-decoration:line-through;opacity:.7':''}">${o.desc}</span>
+      </div>`;
+    }).join('');
+  }
+  const logEl=document.getElementById('presLogList');
+  if(logEl){
+    const pressLogs=(G.log||[]).filter(l=>l.ic==='🎙️'||l.ic==='🏛️').slice(-6).reverse();
+    logEl.innerHTML=pressLogs.length?pressLogs.map(l=>`<div style="font-size:10px;color:var(--t2);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">${l.ic} ${l.msg}</div>`).join(''):'<div class="note">Todavia no hubo conferencias de prensa.</div>';
+  }
+  const demEl=document.getElementById('pressDemandsList2');
+  if(demEl){
+    if(!G.pressDemands) G.pressDemands=[];
+    const active=G.pressDemands.filter(d=>!d.fulfilled&&!d.expired);
+    demEl.innerHTML=active.length?active.map(d=>{
+      const left=d.deadline-G.week;
+      const statusCol=left<=1?'var(--red)':left<=3?'var(--ora)':'var(--t2)';
+      return `<div style="padding:6px;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-family:'Barlow Condensed'">${d.type.replace('_',' ')}</div>
+        <div style="font-size:11px;margin-top:2px">${d.desc}</div>
+        <div style="font-size:9px;color:${statusCol};margin-top:2px">Vence en ${Math.max(0,left)} semana${left===1?'':'s'}</div>
+      </div>`;
+    }).join(''):'<div class="note">Sin exigencias activas.</div>';
+  }
+  const boardEl=document.getElementById('presBoardMsgs');
+  if(boardEl){
+    const boardLogs=(G.log||[]).filter(l=>l.ic==='🏛️'||l.ic==='💰'||l.ic==='📋').slice(-8).reverse();
+    boardEl.innerHTML=boardLogs.length?boardLogs.map(l=>`<div style="font-size:10px;color:var(--t2);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">${l.ic} ${l.msg}</div>`).join(''):'<div class="note">Sin mensajes de la directiva.</div>';
+  }
+}
+
 function gTab(name, btn){
   document.querySelectorAll('#game .main > .tc').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
