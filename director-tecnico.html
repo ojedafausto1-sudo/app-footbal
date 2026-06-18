@@ -1712,7 +1712,6 @@ function buildMkt(){
   a(8,'Mateo Tanlongo','MC',22,'ARG','Sporting Gijón','España',3,73,0);
   a(10,'Alan Velasco','MCO',23,'ARG','FC Dallas','MLS',8,75,0);
   a(9,'Nicolás Fernández','DC',27,'ARG','Monza','Italia',6,75,0);
-  a(8,'Facundo Torres','MC',26,'URU','Orlando City','MLS',14,78,0);
   a(5,'Valentín Gómez','DFC',21,'ARG','River Plate','Liga ARG',8,74,0);
   a(9,'Iván López','DC',25,'ARG','Rayo Vallecano','España',5,74,0);
   a(10,'Lucas Robertone','MC',27,'ARG','Almería','España',5,75,0);
@@ -1720,7 +1719,7 @@ function buildMkt(){
   a(9,'Ángel González','DC',29,'ARG','Hajduk Split','Croacia',3,73,0);
   a(8,'Rodrigo Guth','DFC',24,'ARG','Reggiana','Italia',3,72,0);
   a(10,'Federico Redondo','MC',22,'ARG','Inter Miami','MLS',8,76,0);
-  a(8,'Martín Zubimendi','MCD',25,'ARG','Real Sociedad','España',55,83,0);
+  a(8,'Martín Zubimendi','MCD',25,'ESP','Real Sociedad','España',55,83,0);
   a(9,'Luciano Vietto','DC',31,'ARG','AEK Atenas','Grecia',2,73,0);
   a(1,'Paulo Gazzaniga','ARQ',33,'ARG','Girona','España',4,76,0);
   a(8,'Matías de los Santos','DFC',27,'ARG','PAOK','Grecia',4,74,0);
@@ -1784,7 +1783,7 @@ function buildMkt(){
   a(11,'Kenedy','EI',29,'BRA','Valladolid','España',3,73,0);
   a(8,'Éderson','MC',25,'BRA','Atalanta','Italia',30,80,0);
   a(9,'Arthur Cabral','DC',27,'BRA','Benfica','Portugal',10,76,0);
-  a(8,'Danilo Pereira','MCD',33,'BRA','PSG','Francia',4,77,0);
+  a(8,'Danilo Pereira','MCD',33,'POR','PSG','Francia',4,77,0);
   a(9,'Felipe Anderson','DC',32,'BRA','Palmeiras','Brasil',5,77,0);
   a(11,'Tetê','EI',24,'BRA','Panathinaikos','Grecia',8,76,0);
   a(9,'Matheus Pereira','MCO',28,'BRA','Cruzeiro','Brasil',10,78,0);
@@ -1793,7 +1792,7 @@ function buildMkt(){
   a(9,'Angelo Gabriel','ED',20,'BRA','Chelsea','Premier',10,74,0);
   a(11,'Talles Magno','EI',23,'BRA','NYCFC','MLS',6,74,0);
   a(8,'Thiago Mendes','MC',32,'BRA','Lyon','Francia',3,75,0);
-  a(9,'Madueke','ED',22,'BRA','Chelsea','Premier',25,79,0);
+  a(9,'Noni Madueke','ED',22,'ING','Chelsea','Premier',25,79,0);
   a(5,'Nino','DFC',27,'BRA','Zenit','Rusia',8,75,0);
   a(8,'Gerson','MC',28,'BRA','Marsella','Francia',20,80,0);
   a(3,'Renan Lodi','DFI',27,'BRA','Marsella','Francia',12,78,0);
@@ -2121,15 +2120,15 @@ function buildMkt(){
   a(3,'Igor','DFI',26,'BRA','Brighton','Premier',10,76,0);
   a(9,'Carlos Vinícius','DC',29,'BRA','Fulham','Premier',5,74,0);
   a(9,'Willian José','DC',33,'BRA','Real Betis','España',3,74,0);
-  a(8,'Danilo Pereira','MCD',33,'BRA','PSG','Francia',4,77,0);
+  a(8,'Danilo Pereira','MCD',33,'POR','PSG','Francia',4,77,0);
   a(11,'Kenedy','EI',29,'BRA','Valladolid','España',3,73,0);
   a(8,'Thiago Mendes','MC',32,'BRA','Lyon','Francia',3,75,0);
   a(5,'Nino','DFC',27,'BRA','Zenit','Rusia',8,75,0);
   a(9,'Evanilson','DC',25,'BRA','Bournemouth','Premier',20,78,0);
   a(8,'Caio Henrique','DFI',27,'BRA','Monaco','Francia',12,77,0);
-  a(7,'Raphael Guerreiro','DFI',31,'BRA','Bayern','Alemania',15,79,0);
-  a(9,'Pedro Neto','ED',24,'BRA','Chelsea','Premier',25,79,0);
-  a(8,'Jorginho','MCD',33,'BRA','Arsenal','Premier',8,78,0);
+  a(7,'Raphael Guerreiro','DFI',31,'POR','Bayern','Alemania',15,79,0);
+  a(9,'Pedro Neto','ED',24,'POR','Chelsea','Premier',25,79,0);
+  a(8,'Jorginho','MCD',33,'ITA','Arsenal','Premier',8,78,0);
   a(11,'Marcos Antônio','EI',24,'BRA','Lazio','Italia',5,74,0);
   a(9,'Mateus Vital','MC',26,'BRA','PAOK','Grecia',4,74,0);
   a(8,'Diego Pituca','MC',31,'BRA','Santos','Brasil',3,75,0);
@@ -3520,6 +3519,13 @@ function initGame(teamId){
     tourney: null,
     medicalCenter: false,
     phoneMsgs: [],
+    boardConf: 50,
+    boardObjectives: (function(){
+      const pool=['Terminar en el Top 4 de la liga','Llegar a semifinales de Copa','Fichar un jugador de +80 de rating','Mantener presupuesto positivo todo el año','Ganar al menos el 55% de los partidos','Desarrollar un juvenil al primer equipo','No perder más de 5 partidos en la temporada','Mejorar el estadio con al menos 1 ampliación'];
+      const picked=[];while(picked.length<3){const r=pool[Math.floor(Math.random()*pool.length)];if(!picked.includes(r))picked.push(r);}
+      return picked.map(o=>({text:o,done:false}));
+    })(),
+    pressConfDone: false,
   };
   G.stadium.name = tc.stadName;
   G.stadium.capacity = tc.stadCap;
@@ -3537,6 +3543,50 @@ function initGame(teamId){
   lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
   updateUI();
   addPhoneMsg('board', 'Junta Directiva', `📋 Bienvenido a tu primera semana como Director Técnico de ${G.teamName}. Desde aquí recibirás todas las comunicaciones importantes: pedidos del DT, ofertas de agentes y mensajes de jugadores.`, '🏛️');
+  const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.text}`).join('<br>');
+  addPhoneMsg('board', 'Presidente', `🏛️ Como presidente del club, espero resultados esta temporada. Tus <b>objetivos</b> son:<br><br>${objList}<br><br>La confianza de la directiva depende de vos. ¡Éxitos!`, '👔');
+}
+
+function pressConf(result,oppName){
+  if(!G) return;
+  const won=result==='win',drew=result==='draw';
+  const q=won?'¿Cómo analiza la victoria ante '+oppName+'?':drew?'¿Conforme con el empate ante '+oppName+'?':'¿Qué pasó en la derrota ante '+oppName+'?';
+  const opts=won?[
+    {txt:'Fue un gran trabajo colectivo. Estoy orgulloso del equipo.',mor:3,conf:2},
+    {txt:'Ganamos pero hay cosas para mejorar. No nos relajamos.',mor:1,conf:3},
+    {txt:'Somos candidatos. Que se preparen los rivales.',mor:4,conf:1}
+  ]:drew?[
+    {txt:'Merecimos más, pero un punto suma. Seguimos.',mor:1,conf:1},
+    {txt:'No estoy conforme. Hay que ser más efectivos.',mor:-1,conf:2},
+    {txt:'Rescato la actitud del equipo. Vamos por buen camino.',mor:2,conf:0}
+  ]:[
+    {txt:'Hoy no fue nuestro día, pero confío en el plantel.',mor:1,conf:-1},
+    {txt:'Fue inaceptable. Vamos a trabajar el doble esta semana.',mor:-2,conf:1},
+    {txt:'Los errores se pagan caro. Hay que hacer autocrítica.',mor:0,conf:0}
+  ];
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🎙️ Conferencia de Prensa</div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">PERIODISTA</div>
+      <div style="font-size:13px;color:var(--t2);font-style:italic">"${q}"</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${opts.map((o,i)=>`<button class="btn bo" onclick="pressConfAnswer(${o.mor},${o.conf})" style="text-align:left;font-size:11px;line-height:1.3;padding:10px;white-space:normal">"${o.txt}"</button>`).join('')}
+    </div>
+  `);
+}
+
+function pressConfAnswer(morDelta,confDelta){
+  if(!G) return;
+  G.morale=Math.max(20,Math.min(100,G.morale+morDelta));
+  G.boardConf=Math.max(5,Math.min(100,(G.boardConf||50)+confDelta));
+  const morTxt=morDelta>0?`Moral del plantel +${morDelta}`:morDelta<0?`Moral del plantel ${morDelta}`:'';
+  const confTxt=confDelta>0?`Confianza directiva +${confDelta}`:confDelta<0?`Confianza directiva ${confDelta}`:'';
+  const effects=[morTxt,confTxt].filter(Boolean).join(' · ');
+  closeMod();
+  if(effects) flash('🎙️ '+effects,'draw');
+  updateUI();
 }
 
 const BUYER_CLUBS=['River Plate','Racing','Flamengo','Palmeiras','São Paulo','Benfica','Porto','Sevilla','Ajax','Bologna','Lyon','Villarreal','Galatasaray','Bayer Leverkusen','Sporting CP','Monaco','Al-Nassr','Al-Hilal','Atalanta','Real Betis','Wolves','Marseille'];
@@ -3842,7 +3892,8 @@ function openNeg(id){
   const isTop=p.rat>=85;
   const styleTxt={duro:'Agente difícil — pedirá mucho',negociador:'Agente flexible — dispuesto a negociar',razonable:'Agente razonable — trato justo',ambicioso:'Agente ambicioso — quiere comisiones altas'}[agent.style];
   window._negData={id,demand,agent,wageExp,round:1,maxRounds:3,lastOffer:0};
-  addPhoneMsg('agent',agent.name,`📞 Recibí tu consulta sobre <b>${p.name}</b>. Estamos abiertos a escuchar ofertas, pero te aviso: ${p.club} no lo va a regalar.`,'🤝');
+  const agentMsg={duro:`⚠️ Mirá, ${p.club} no necesita vender. Si querés a <b>${p.name}</b>, vas a tener que poner una oferta MUY seria. No me hagas perder el tiempo.`,negociador:`📞 Buenas. Recibí tu interés por <b>${p.name}</b>. ${p.club} está dispuesto a sentarse a negociar si la oferta es razonable. Hablemos.`,razonable:`😊 ¡Hola! Qué bueno que se interesen por <b>${p.name}</b>. Creo que podemos llegar a un acuerdo si ambas partes ponemos voluntad.`,ambicioso:`💰 Mi cliente <b>${p.name}</b> es un jugador top. ${p.club} lo valora mucho, y yo me aseguro de que reciba lo que merece. La comisión es parte del paquete.`}[agent.style];
+  addPhoneMsg('agent',agent.name,agentMsg,'🤝');
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🤝 Fichaje: ${p.name}</div>
@@ -3978,7 +4029,8 @@ function subNegI(id, demand){
     nd.round++;
     nd.counterOffer=counter;
     window._negData=nd;
-    addPhoneMsg('agent',nd.agent.name,`↔️ ${p.club} rechazó ${fv(offer)} pero hizo una contraoferta: <b style="color:var(--gold)">${fv(counter)}</b> por ${p.name}. Ronda ${nd.round}/${nd.maxRounds}.`,'💬');
+    const counterMsg={duro:`😤 ¿${fv(offer)}? No me faltes el respeto. ${p.club} quiere <b style="color:var(--gold)">${fv(counter)}</b> y ni un centavo menos. Última chance, ronda ${nd.round}/${nd.maxRounds}.`,negociador:`↔️ ${p.club} no aceptó ${fv(offer)}, pero hay voluntad. Contraoferta: <b style="color:var(--gold)">${fv(counter)}</b>. Estamos cerca. Ronda ${nd.round}/${nd.maxRounds}.`,razonable:`🤝 Mirá, ${fv(offer)} queda corto. ${p.club} bajó a <b style="color:var(--gold)">${fv(counter)}</b>, creo que es justo. Ronda ${nd.round}/${nd.maxRounds}.`,ambicioso:`💰 Mi cliente necesita una oferta mejor. ${p.club} pide <b style="color:var(--gold)">${fv(counter)}</b>. Acordate que mi comisión sale de ahí. Ronda ${nd.round}/${nd.maxRounds}.`}[nd.agent.style]||`↔️ Contraoferta: ${fv(counter)}`;
+    addPhoneMsg('agent',nd.agent.name,counterMsg,'💬');
     showMod(`
       <button class="mclose" onclick="closeMod()">✕</button>
       <div class="mtitle">↔ Contraoferta de ${p.club}</div>
@@ -4047,7 +4099,8 @@ function negStep3(id){
   window._negYears=3;
   window._negRole=roleExpect;
   window._negBonus=0;
-  addPhoneMsg('player',p.name,`👋 Me interesa ir a ${G.teamName||'tu club'}. Quiero saber qué rol tendría y las condiciones del contrato.`,'⚽');
+  const playerMsg=p.rat>=85?`⭐ Conozco el proyecto de ${G.teamName||'tu club'}. Pero te aviso: soy un jugador top y espero ser titular indiscutido. Convenceme con los números.`:p.age<=22?`😃 ¡Qué emoción! Siempre soñé con jugar en ${G.teamName||'un club grande'}. Quiero minutos y un proyecto deportivo serio para seguir creciendo.`:p.age>=32?`🧠 A mi edad busco estabilidad. Quiero un contrato justo y un rol claro. Puedo aportar experiencia al vestuario de ${G.teamName||'tu club'}.`:`👋 Me interesa el proyecto de ${G.teamName||'tu club'}. Hablemos de las condiciones. Quiero un rol donde pueda rendir al máximo.`;
+  addPhoneMsg('player',p.name,playerMsg,'⚽');
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">📋 Términos personales: ${p.name}</div>
@@ -4162,8 +4215,8 @@ function submitNegTerms(id){
     addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
     negStep4(p,nd.agreedFee,wage,years,roles[role]);
   } else {
-    const hint=wageRatio<0.85?'Pedí más salario':'Quiero un rol más importante';
-    addPhoneMsg('player',p.name,`❌ No me convencen las condiciones. ${hint}.`,'😤');
+    const hint=wageRatio<0.7?'El salario es una falta de respeto. No voy a regalar mi talento.':wageRatio<0.85?'Necesito un salario acorde a mi nivel. Estoy ganando más donde estoy.':roleDiff>=2?'No vine a calentar el banco. Si no soy titular, no me interesa.':years<=1?'¿Un año? Necesito estabilidad, no un contrato de prueba.':'Las condiciones no me convencen. Esperaba una oferta más ambiciosa.';
+    addPhoneMsg('player',p.name,`❌ ${hint}`,'😤');
     flash('❌ '+p.name+' rechazó los términos — '+hint,'loss');
     showMod(`
       <button class="mclose" onclick="closeMod()">✕</button>
@@ -4184,22 +4237,29 @@ function submitNegTerms(id){
 
 function negStep4(p,fee,wage,years,role){
   window._negData=null;
+  const pressTxt=[`"Estoy muy feliz de llegar a ${G.teamName||'este club'}. Es un paso importante en mi carrera."`,`"Desde chico soñé con vestir esta camiseta. Voy a dejar todo en cada partido."`,`"Le agradezco al club por la confianza. Vine a ganar títulos."`,`"Me convenció el proyecto deportivo. Quiero hacer historia acá."`][Math.floor(Math.random()*4)];
+  if(G.boardConf!==undefined) G.boardConf=Math.min(100,G.boardConf+(p.rat>=80?5:p.rat>=75?2:0));
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🎉 ¡FICHAJE OFICIAL!</div>
     ${_negStepBar(4)}
-    <div style="text-align:center;padding:16px 0">
-      <div style="font-size:56px;margin-bottom:8px">🏆</div>
-      <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin-bottom:4px">${p.name}</div>
-      <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${p.pos} · ${p.age} años · ${rb(p.rat)}</div>
-      <div style="background:linear-gradient(135deg,rgba(246,211,24,.1),rgba(15,184,102,.1));border:1px solid rgba(246,211,24,.3);border-radius:10px;padding:14px;margin:0 auto;max-width:280px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Rol</span><span style="font-weight:600">${role}</span></div>
+    <div style="text-align:center;padding:12px 0">
+      <div style="font-size:56px;margin-bottom:6px">🏆</div>
+      <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin-bottom:2px">${p.name}</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:10px">${p.pos} · ${p.age} años · ${rb(p.rat)} · ${p.nat}</div>
+      <div style="background:linear-gradient(135deg,rgba(246,211,24,.1),rgba(15,184,102,.1));border:1px solid rgba(246,211,24,.3);border-radius:10px;padding:14px;margin:0 auto;max-width:300px">
+        <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">📰 CONFERENCIA DE PRENSA</div>
+        <div style="font-style:italic;font-size:12px;color:var(--t2);margin-bottom:10px;line-height:1.4">${pressTxt}</div>
+        <div style="border-top:1px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px">
+          <div style="font-size:9px;color:var(--t3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:3px"><span>Rol</span><span style="font-weight:600">${role}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Procedencia</span><span style="font-weight:600">${p.club} (${p.lg})</span></div>
+        </div>
       </div>
-      <div style="margin-top:14px;font-size:11px;color:var(--green);font-weight:600">✅ ¡Bienvenido a ${G.teamName||'Boca Juniors'}!</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--green);font-weight:600">✅ ¡Bienvenido a ${G.teamName||'Boca Juniors'}!</div>
     </div>
     <button class="btn bg" onclick="closeMod();updateUI()" style="width:100%;margin-top:8px">👏 ¡Cerrar y celebrar!</button>
   `);
@@ -6938,7 +6998,10 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
     ${isLastMatch ? `
     <div style="margin-top:12px">
       <button class="btn bg" style="width:100%;font-size:13px;padding:9px" onclick="showSeasonSummary()">🏆 Ver Resumen de Temporada →</button>
-    </div>` : ''}
+    </div>` : `
+    <div style="margin-top:8px">
+      <button class="btn bo" style="width:100%;font-size:11px;padding:7px" onclick="closeMod();pressConf('${res==='W'?'win':res==='D'?'draw':'loss'}','${(m.home===G.teamName?m.away:m.home).replace(/'/g,"\\'")}')">🎙️ Conferencia de prensa →</button>
+    </div>`}
   `);
 }
 
@@ -8659,7 +8722,7 @@ function fmInit(m,W,H){
       x:initPos[0],y:initPos[1],vx:0,vy:0,
       hx:homePos[0],hy:homePos[1],
       name:name.split(' ').pop().slice(0,7),
-      r:isGK?14:10,kit,role,isGK,
+      r:isGK?16:12,kit,role,isGK,
       rat:Math.round(rat),attrs,
       spd:basePac,
     };
@@ -8869,7 +8932,7 @@ function fmAI(p,team,idx,dt){
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
 
-  // === GK: sweeper-keeper ===
+  // === GK: sweeper-keeper (fixed: only chase near own goal) ===
   if(p.isGK){
     const paW=fieldW*0.175;
     const paHH=f.VH*0.33;
@@ -8878,12 +8941,14 @@ function fmAI(p,team,idx,dt){
     const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
     // Ball moving toward our goal?
     const ballThreat=attRight?(b.vx<-0.5):(b.vx>0.5);
+    // Only chase when ball is near own goal area
+    const ballNearGoal=ballGoalDist<paW*1.3;
 
-    if(bd<380||(ballInBox&&ballThreat)){
-      // CHASE: go directly at the ball to intercept
+    if(ballNearGoal&&(bd<380||(ballInBox&&ballThreat))){
+      // CHASE: go directly at the ball to intercept (only when ball is near our box)
       fmMove(p,b.x-p.x,b.y-p.y,dt,0.095);
     } else {
-      // POSITION: hold between ball and goal, step off line moderately
+      // POSITION: return smoothly between posts
       let fwdFrac=0.07;
       if(ballGoalDist<fieldW*0.5)
         fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
@@ -8895,7 +8960,9 @@ function fmAI(p,team,idx,dt){
       const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
       // Y: fully track ball within post height (no partial tracking — avoids dodging)
       const gkTargY=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
-      fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,0.065);
+      // Return faster when ball is far from goal
+      const returnSpd=ballNearGoal?0.065:0.09;
+      fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,returnSpd);
     }
 
     if(bd<p.r+20){
@@ -8924,58 +8991,63 @@ function fmAI(p,team,idx,dt){
     tx=attRight?Math.min(tx,offX+2):Math.max(tx,offX-2);
     fmMove(p,tx-p.x,ty-p.y,dt,0.038);
   }else{
-    // === OPPONENT: top 3 press; aggressive shoot/pass/dribble ===
+    // === OPPONENT: top 4 press; tiki-taka style ===
     const dists=[];
     players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
     dists.sort((a,bb)=>a.d-bb.d);
-    const isChaser=dists.length>0&&(idx===dists[0].i||(dists.length>1&&idx===dists[1].i&&dists[1].d<500)||(dists.length>2&&idx===dists[2].i&&dists[2].d<320));
+    const isChaser=dists.length>0&&(idx===dists[0].i||(dists.length>1&&idx===dists[1].i&&dists[1].d<600)||(dists.length>2&&idx===dists[2].i&&dists[2].d<550)||(dists.length>3&&idx===dists[3].i&&dists[3].d<400));
     if(isChaser){
       if(bd<KICK_R){
         const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
         const inBox=distGoal<fieldW*.28;
         const canShoot=distGoal<fieldW*.55;
         const longShot=distGoal<fieldW*.72&&distGoal>=fieldW*.55;
-        if(inBox&&Math.random()<0.09*dt){
-          const aimY=(Math.random()-.5)*f.GH*.70;
+        // One-touch passing: 30% chance of immediate pass when receiving ball
+        const justReceived=p._oppRecvTick&&(f.ticks-p._oppRecvTick)<8;
+        if(justReceived&&Math.random()<0.30*dt){
+          fmOppPass(idx);
+          p._oppRecvTick=0;
+        } else if(inBox&&Math.random()<0.13*dt){
+          const aimY=(Math.random()-.5)*f.GH*.55;
           const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
           const pwr=6.5+Math.random()*3.5;
           b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';
-        } else if(canShoot&&!inBox&&Math.random()<0.035*dt){
-          const aimY=(Math.random()-.5)*f.GH*.55;
+        } else if(canShoot&&!inBox&&Math.random()<0.05*dt){
+          const aimY=(Math.random()-.5)*f.GH*.45;
           const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
           const pwr=7.0+Math.random()*2.5;
           b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';
-        } else if(longShot&&Math.random()<0.012*dt){
-          const aimY=(Math.random()-.5)*f.GH*.40;
+        } else if(longShot&&Math.random()<0.02*dt){
+          const aimY=(Math.random()-.5)*f.GH*.35;
           const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
           b.vx=(ddx/dd)*8.0;b.vy=(ddy/dd)*8.0;f._lastTouch='opp';
-        } else if(Math.random()<0.055*dt){
+        } else if(Math.random()<0.12*dt){
           fmOppPass(idx);
         } else {
           const latWobble=(Math.sin(f.ticks*.07+idx))*55;
           const dribX=b.x+(tgx-b.x)*.14;
           const dribY=b.y+(mid+latWobble-b.y)*.05;
-          fmMove(p,dribX-p.x,dribY-p.y,dt,0.068);
+          fmMove(p,dribX-p.x,dribY-p.y,dt,0.078);
         }
       }else{
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.072);
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082);
       }
     }else{
       const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-      const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*0.26);
+      const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*0.32);
       const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
-      const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.14));
+      const ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.18));
       const isAttacker=['DC','EI','ED','CF'].includes(p.role);
       const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
-      if(isAttacker&&ballPct>0.45){
-        const runX=attRight?Math.min(tx+90,f.rightGL-p.r):Math.max(tx-90,f.leftGL+p.r);
-        const runY=ty+(Math.sin(f.ticks*.04+idx*2))*30;
-        fmMove(p,runX-p.x,runY-p.y,dt,0.055);
-      }else if(isMid&&ballPct>0.35){
-        const supportX=attRight?Math.min(tx+45,f.rightGL-p.r):Math.max(tx-45,f.leftGL+p.r);
-        fmMove(p,supportX-p.x,ty-p.y,dt,0.048);
+      if(isAttacker&&ballPct>0.40){
+        const runX=attRight?Math.min(tx+110,f.rightGL-p.r):Math.max(tx-110,f.leftGL+p.r);
+        const runY=ty+(Math.sin(f.ticks*.04+idx*2))*35;
+        fmMove(p,runX-p.x,runY-p.y,dt,0.060);
+      }else if(isMid&&ballPct>0.30){
+        const supportX=attRight?Math.min(tx+65,f.rightGL-p.r):Math.max(tx-65,f.leftGL+p.r);
+        fmMove(p,supportX-p.x,ty-p.y,dt,0.055);
       }else{
-        fmMove(p,tx-p.x,ty-p.y,dt,0.044);
+        fmMove(p,tx-p.x,ty-p.y,dt,0.048);
       }
     }
   }
@@ -8996,17 +9068,19 @@ function fmOppPass(fromIdx){
       const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;
       return Math.hypot(m.x-mx,m.y-my2)<d*0.3;
     });
-    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?60:0);
+    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?40:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
     const t=f.opp[bestI];
-    const leadX=t.x+(attRight?t.vx:t.vx)*8;
-    const leadY=t.y+t.vy*8;
+    const leadX=t.x+(attRight?t.vx:t.vx)*12;
+    const leadY=t.y+t.vy*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
-    const pwr=4.2+Math.random()*2.6;
+    const pwr=5.0+Math.random()*2.6;
     b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4;
     f._lastTouch='opp';
+    // Mark receiver for one-touch passing
+    t._oppRecvTick=f.ticks;
   }
 }
 
