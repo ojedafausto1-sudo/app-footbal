@@ -684,38 +684,31 @@ let G = null;
 let PID = 1;
 let selSlot = null; // currently selected slot index in tactics
 
-// Rating base desde valor TM: €0.1M→67, €1M→74, €5M→80, €10M→83, €50M→89, €200M→95
+// Rating = 55 (base) + PuntosValor (0-30, raíz cuadrada) + ModEdad (5-14)
+// Fórmula: Rating = 55 + min(30, sqrt(val/150)*30) + ageMod
 function baseRat(val) {
-  return Math.max(60, Math.min(96, Math.round(60 + 7 * Math.log10(Math.max(0.05, val) * 100))));
+  return Math.min(30, Math.sqrt(Math.max(0, val) / 150) * 30);
 }
 
-// Ajuste por edad: jóvenes valen por potencial (no rendimiento actual),
-// veteranos pierden rendimiento aunque su valor baje más lento por experiencia
 function ageAdj(age) {
-  if (age <= 17) return -9;
-  if (age <= 19) return -6;
-  if (age <= 21) return -4;
-  if (age <= 23) return -2;
-  if (age <= 25) return -1;
-  if (age <= 29) return  0; // pico
-  if (age <= 32) return -1;
-  if (age <= 35) return -3;
-  return -5;
+  if (age <= 20) return 5;
+  if (age <= 23) return 10;
+  if (age <= 30) return 14;
+  if (age <= 34) return 11;
+  return 8;
 }
 
 function valToRat(val, age) {
-  return Math.max(55, Math.min(96, baseRat(val) + ageAdj(age)));
+  return Math.max(55, Math.min(99, Math.round(55 + baseRat(val) + ageAdj(age))));
 }
 
 function valToPot(val, age) {
-  const br = baseRat(val); // potencial basado en valor sin penalizar por juventud
-  if (age <= 18) return Math.min(96, br + 9);
-  if (age <= 20) return Math.min(95, br + 6);
-  if (age <= 22) return Math.min(94, br + 4);
-  if (age <= 24) return Math.min(93, br + 2);
-  if (age <= 26) return Math.min(92, br + 1);
-  if (age <= 29) return Math.min(91, br);
-  return valToRat(val, age); // veteranos: potencial = rating actual
+  const vp = baseRat(val);
+  if (age <= 20) return Math.min(96, Math.round(55 + vp + 14 + 4));
+  if (age <= 23) return Math.min(95, Math.round(55 + vp + 14 + 2));
+  if (age <= 26) return Math.min(94, Math.round(55 + vp + 14 + 1));
+  if (age <= 30) return Math.min(93, Math.round(55 + vp + 14));
+  return valToRat(val, age);
 }
 
 // Badge de rating coloreado
@@ -725,9 +718,8 @@ function rb(r) {
 }
 // Etiqueta de edad
 function ratToVal(rat, age) {
-  // Inverse of valToRat: derive market value from rating + age
-  const base = rat - ageAdj(age);
-  const val = Math.pow(10, (base - 60) / 7) / 100;
+  const vp = Math.max(0, rat - 55 - ageAdj(age));
+  const val = 150 * Math.pow(Math.min(30, vp) / 30, 2);
   return Math.max(0.1, Math.round(val * 10) / 10);
 }
 
