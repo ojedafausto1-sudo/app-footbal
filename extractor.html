@@ -189,29 +189,62 @@ async function discoverLeagues() {
 
     log(`Buscando ligas de ${cName} (${cId})...`);
 
-    let leaguesPath = '';
-    if (typeof cId === 'string' && cId.startsWith('/')) {
-      leaguesPath = cId;
-    } else {
-      leaguesPath = `/football/${cId}`;
-    }
+    // Try multiple path formats
+    const paths = [
+      typeof cId === 'string' && cId.startsWith('/') ? cId : null,
+      `/football/${cId}`,
+      `/football/${cName.toLowerCase()}`,
+    ].filter(Boolean);
 
-    const leagues = await apiGet(leaguesPath);
+    let leagues = null;
+    for (const p of paths) {
+      leagues = await apiGet(p);
+      if (leagues) break;
+    }
     if (!leagues) continue;
 
-    let leagueList = [];
-    if (leagues.DATA) {
-      leagueList = Array.isArray(leagues.DATA) ? leagues.DATA : Object.values(leagues.DATA);
-    } else if (Array.isArray(leagues)) {
-      leagueList = leagues;
+    // Debug: log raw response for first 2 countries
+    if (checked < 2) {
+      log('  RAW respuesta: ' + JSON.stringify(leagues).slice(0, 1500));
     }
 
+    // Parse leagues from response — try all known structures
+    let leagueList = [];
+    if (leagues.DATA) {
+      const d = leagues.DATA;
+      if (Array.isArray(d)) {
+        leagueList = d;
+      } else if (typeof d === 'object') {
+        // Could be {key: [...leagues]} or {key: {leagues}}
+        for (const [k, v] of Object.entries(d)) {
+          if (Array.isArray(v)) {
+            leagueList.push(...v.map(x => ({...x, _section: k})));
+          } else if (v && typeof v === 'object' && (v.NAME || v.name || v.LEAGUE_NAME)) {
+            leagueList.push({...v, _section: k});
+          }
+        }
+        if (leagueList.length === 0) leagueList = Object.values(d);
+      }
+    } else if (Array.isArray(leagues)) {
+      leagueList = leagues;
+    } else if (typeof leagues === 'object') {
+      // Maybe the response IS the league list at root level
+      for (const [k, v] of Object.entries(leagues)) {
+        if (k === 'DATA' || k === 'META') continue;
+        if (Array.isArray(v)) leagueList.push(...v);
+        else if (v && typeof v === 'object') leagueList.push(v);
+      }
+    }
+
+    if (checked < 2) log('  Parsed leagues: ' + leagueList.length + ' — first: ' + JSON.stringify(leagueList[0]).slice(0,500));
+
     for (const lg of leagueList) {
-      const lName = lg.NAME || lg.name || lg.LEAGUE_NAME || '';
-      const lId = lg.ID || lg.id || lg.LEAGUE_ID || lg.URL || '';
+      // Try every possible key name for league name/id
+      const lName = lg.NAME || lg.name || lg.LEAGUE_NAME || lg.TOURNAMENT_NAME || lg.STAGE_NAME || lg.CATEGORY_NAME || '';
+      const lId = lg.ID || lg.id || lg.LEAGUE_ID || lg.TOURNAMENT_ID || lg.URL || lg.STAGE_ID || '';
       if (lName && lId) {
-        discoveredLeagues.push({ country: cName, name: lName, id: lId, path: lg.URL || lId });
-        log(`  Liga: ${cName} - ${lName}`);
+        discoveredLeagues.push({ country: cName, name: lName, id: lId, path: lg.URL || lId, raw: lg });
+        log(`  Liga: ${cName} - ${lName} (${lId})`);
       }
     }
     checked++;
