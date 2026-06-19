@@ -103,18 +103,43 @@ async function apiGet(path, base) {
   base = base || API_BASE;
   reqCount++;
   if (reqCount % 3 === 0) await sleep(1100);
-  const url = base + path;
-  try {
-    const res = await fetch(url, { headers: { 'X-API-Key': API_KEY } });
-    if (!res.ok) {
-      log(`ERROR ${res.status} en ${path}`);
-      return null;
+  const directUrl = base + path;
+  const proxyUrls = [
+    'https://corsproxy.io/?' + encodeURIComponent(directUrl),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl + (directUrl.includes('?') ? '&' : '?') + 'apikey=' + API_KEY),
+  ];
+  // Try direct first, then proxies
+  for (let i = 0; i <= proxyUrls.length; i++) {
+    try {
+      let url, opts;
+      if (i === 0) {
+        url = directUrl;
+        opts = { headers: { 'X-API-Key': API_KEY } };
+      } else {
+        url = proxyUrls[i - 1];
+        if (url.includes('corsproxy.io')) {
+          opts = { headers: { 'X-API-Key': API_KEY } };
+        } else {
+          opts = {};
+        }
+      }
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        if (i === 0) continue; // try proxy
+        log(`ERROR ${res.status} en ${path}`);
+        return null;
+      }
+      const data = await res.json();
+      if (i > 0 && reqCount <= 2) log('Usando proxy CORS (normal)');
+      return data;
+    } catch (e) {
+      if (i === proxyUrls.length) {
+        log(`FETCH ERROR: ${e.message} — ${path}`);
+        return null;
+      }
     }
-    return await res.json();
-  } catch (e) {
-    log(`FETCH ERROR: ${e.message} — ${path}`);
-    return null;
   }
+  return null;
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
