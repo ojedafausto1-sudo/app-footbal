@@ -125,10 +125,29 @@ async function testAPI() {
   log('Probando conexión...');
   const data = await apiGet('/football');
   if (data) {
-    log('Conexión OK. Respuesta: ' + JSON.stringify(data).slice(0, 500));
-    log('Estructura: ' + (Array.isArray(data) ? `Array de ${data.length} items` : typeof data));
-    if (data.DATA) log('DATA keys: ' + JSON.stringify(Object.keys(data.DATA)).slice(0,500));
-    if (Array.isArray(data)) log('Primer item: ' + JSON.stringify(data[0]));
+    log('Conexión OK');
+    log('Keys raíz: ' + JSON.stringify(Object.keys(data)));
+    if (data.DATA) {
+      const d = data.DATA;
+      if (Array.isArray(d)) {
+        log('DATA es Array de ' + d.length + ' items');
+        log('Primer país: ' + JSON.stringify(d[0]));
+        if (d[0]) log('Keys del país: ' + JSON.stringify(Object.keys(d[0])));
+        const arg = d.find(c => JSON.stringify(c).toLowerCase().includes('argentin'));
+        if (arg) log('Argentina: ' + JSON.stringify(arg));
+      } else if (typeof d === 'object') {
+        const keys = Object.keys(d);
+        log('DATA es Object con ' + keys.length + ' keys: ' + keys.slice(0,10).join(', '));
+        const first = d[keys[0]];
+        log('Primer valor: ' + JSON.stringify(first).slice(0,500));
+      }
+    }
+    // Try getting Argentina leagues
+    log('\n--- Probando obtener ligas de Argentina ---');
+    const argTest1 = await apiGet('/football/11');
+    if (argTest1) log('  /football/11: ' + JSON.stringify(argTest1).slice(0,800));
+    const argTest2 = await apiGet('/football/argentina');
+    if (argTest2) log('  /football/argentina: ' + JSON.stringify(argTest2).slice(0,800));
   } else {
     log('Error de conexión. Verificá tu API key.');
   }
