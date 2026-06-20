@@ -302,7 +302,7 @@ async function extractAll() {
   generateOutput();
 }
 
-// TransferMarkt extraction: /competitions/{id} → clubs → /clubs/{id}/players
+// TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
 async function extractTM(selected) {
   let totalTeams = 0, totalPlayers = 0;
 
@@ -311,110 +311,172 @@ async function extractTM(selected) {
     setProgress((li / selected.length) * 95);
     log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
 
-    // Get competition details to find clubs
+    // Step 1: Get competition details (has seasons array)
     const comp = await apiGet(`/competitions/${lg.id}`, 'transfermarkt');
     if (!comp) { log('  ✗ No se pudo obtener la competición'); continue; }
 
     if (li < 3) {
       log('  Competición keys: ' + JSON.stringify(Object.keys(comp)));
-      log('  Data: ' + JSON.stringify(comp).slice(0, 800));
     }
 
-    // Find clubs in the competition data
-    let clubs = [];
-    if (Array.isArray(comp)) {
-      clubs = comp;
+    // Step 2: Find the latest season
+    let seasons = [];
+    if (comp.seasons && Array.isArray(comp.seasons)) {
+      seasons = comp.seasons;
+    } else if (Array.isArray(comp)) {
+      seasons = comp;
     } else if (typeof comp === 'object') {
-      // Look for clubs/teams array
-      for (const key of ['clubs','teams','participants','table','standings','data']) {
-        if (comp[key] && Array.isArray(comp[key])) { clubs = comp[key]; break; }
+      for (const v of Object.values(comp)) {
+        if (Array.isArray(v) && v.length > 0 && v[0].id) { seasons = v; break; }
       }
-      // Check nested
-      if (clubs.length === 0) {
-        for (const v of Object.values(comp)) {
-          if (Array.isArray(v) && v.length > 2 && typeof v[0] === 'object') {
-            clubs = v;
-            break;
+    }
+
+    if (li < 3) {
+      log('  Temporadas: ' + seasons.length);
+      if (seasons.length > 0) log('  Última: ' + JSON.stringify(seasons[0]).slice(0, 300));
+    }
+
+    // Pick the latest season (usually first in array, or highest id)
+    let currentSeason = seasons[0];
+    if (!currentSeason) {
+      log('  ✗ Sin temporadas, probando standings directo...');
+      // Try direct standings
+      const directStandings = await apiGet(`/competitions/${lg.id}/standings`, 'transfermarkt');
+      if (directStandings) {
+        currentSeason = { standingsUrl: `/competitions/${lg.id}/standings` };
+      } else {
+        continue;
+      }
+    }
+
+    // Step 3: Get standings to find actual clubs
+    let standingsPath = '';
+    if (currentSeason.standings) {
+      standingsPath = currentSeason.standings.replace('/api/transfermarkt', '');
+    } else if (currentSeason.standingsUrl) {
+      standingsPath = currentSeason.standingsUrl;
+    } else if (currentSeason.id) {
+      standingsPath = `/competitions/${lg.id}/${currentSeason.id}/standings`;
+    }
+
+    log(`  Buscando standings: ${standingsPath}`);
+    let standingsData = null;
+    if (standingsPath) {
+      standingsData = await apiGet(standingsPath, 'transfermarkt');
+    }
+
+    if (!standingsData) {
+      // Try alternate paths
+      const altPaths = [
+        `/competitions/${lg.id}/2025/standings`,
+        `/competitions/${lg.id}/2024/standings`,
+        `/competitions/${lg.id}/standings`
+      ];
+      for (const ap of altPaths) {
+        standingsData = await apiGet(ap, 'transfermarkt');
+        if (standingsData) { log(`  ✓ Standings via ${ap}`); break; }
+      }
+    }
+
+    if (!standingsData) { log('  ✗ Sin standings'); continue; }
+
+    if (li < 3) {
+      log('  Standings keys: ' + JSON.stringify(Object.keys(standingsData)));
+      log('  Standings: ' + JSON.stringify(standingsData).slice(0, 800));
+    }
+
+    // Step 4: Extract clubs from standings
+    let clubs = [];
+    if (Array.isArray(standingsData)) {
+      clubs = standingsData;
+    } else if (typeof standingsData === 'object') {
+      for (const key of ['table','clubs','teams','standings','data','rows','group']) {
+        if (standingsData[key]) {
+          const val = standingsData[key];
+          if (Array.isArray(val)) { clubs = val; break; }
+          // Could be groups: {A: [...], B: [...]}
+          if (typeof val === 'object') {
+            for (const gv of Object.values(val)) {
+              if (Array.isArray(gv)) clubs.push(...gv);
+            }
+            if (clubs.length > 0) break;
           }
+        }
+      }
+      if (clubs.length === 0) {
+        for (const v of Object.values(standingsData)) {
+          if (Array.isArray(v) && v.length > 2) { clubs = v; break; }
         }
       }
     }
 
     if (li < 3 && clubs.length > 0) {
-      log('  Club ejemplo: ' + JSON.stringify(clubs[0]).slice(0, 500));
+      log('  Club real ejemplo: ' + JSON.stringify(clubs[0]).slice(0, 600));
       log('  Club keys: ' + JSON.stringify(Object.keys(clubs[0])));
     }
 
-    log(`  ${clubs.length} clubs encontrados`);
+    log(`  ${clubs.length} clubs reales encontrados`);
     totalTeams += clubs.length;
 
+    // Step 5: For each club, get /clubs/{id}/players
     for (let ci = 0; ci < clubs.length; ci++) {
       const club = clubs[ci];
-      const clubName = club.name || club.NAME || club.clubName || '';
-      const clubId = club.id || club.ID || club.clubId || '';
+      const clubName = String(club.name || club.clubName || club.club || club.teamName || '');
+      const clubId = club.id || club.clubId || club.ID || '';
 
-      if (!clubId) { log(`  [${ci+1}] ${clubName} — sin ID, skip`); continue; }
+      if (!clubId) continue;
       log(`  [${ci+1}/${clubs.length}] ${clubName} (${clubId})...`);
 
-      // GET /clubs/{id}/players — THE KEY ENDPOINT
       const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
-      if (!playersData) { log(`    ✗ Sin datos de jugadores`); continue; }
+      if (!playersData) { log(`    ✗ Sin datos`); continue; }
 
-      if (ci < 2 && li < 2) {
-        log('    Players keys: ' + JSON.stringify(Object.keys(playersData)));
-        log('    Players data: ' + JSON.stringify(playersData).slice(0, 800));
+      if (ci < 2 && li < 1) {
+        log('    Players response keys: ' + JSON.stringify(Object.keys(playersData)));
+        log('    Data: ' + JSON.stringify(playersData).slice(0, 600));
       }
 
       let playerList = [];
       if (Array.isArray(playersData)) {
         playerList = playersData;
       } else if (typeof playersData === 'object') {
-        for (const v of Object.values(playersData)) {
-          if (Array.isArray(v) && v.length > 0) { playerList = v; break; }
+        // Could have nested groups like {goalkeepers: [...], defenders: [...], ...}
+        for (const [k, v] of Object.entries(playersData)) {
+          if (Array.isArray(v) && v.length > 0) {
+            playerList.push(...v);
+          }
         }
       }
 
-      if (ci < 2 && li < 2 && playerList.length > 0) {
-        log('    Jugador ejemplo: ' + JSON.stringify(playerList[0]).slice(0, 600));
+      if (ci < 2 && li < 1 && playerList.length > 0) {
+        log('    Jugador ejemplo: ' + JSON.stringify(playerList[0]).slice(0, 500));
         log('    Jugador keys: ' + JSON.stringify(Object.keys(playerList[0])));
       }
 
       let added = 0;
-      // Try to get real club name from players data
-      let realClubName = String(clubName);
-      if (typeof playersData === 'object' && !Array.isArray(playersData)) {
-        const cn = playersData.clubName || playersData.name || playersData.club || '';
-        if (cn && typeof cn === 'string' && cn.length > 2) realClubName = cn;
-      }
-      if (/^\d+$/.test(realClubName) && playerList.length > 0) {
-        // Club name is just a number - try to find it from player data
-        for (const p of playerList) {
-          const pc = p.club || p.clubName || p.team || p.teamName || '';
-          if (pc && typeof pc === 'string' && !/^\d+$/.test(pc)) { realClubName = String(pc); break; }
-          if (typeof p.club === 'object' && p.club && p.club.name) { realClubName = String(p.club.name); break; }
-        }
-      }
-
       for (const p of playerList) {
         const name = String(p.name || p.playerName || p.fullName || '');
-        if (!name || name === 'undefined' || name === 'null') continue;
+        if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
-        const player = {
+        const natRaw = p.nationality || p.nationalities?.[0] || p.country || '';
+        const nat = typeof natRaw === 'object' ? (natRaw.name || natRaw.code || JSON.stringify(natRaw)) : String(natRaw);
+        const posRaw = p.position || p.mainPosition || p.pos || '';
+        const pos = typeof posRaw === 'object' ? (posRaw.name || posRaw.main || JSON.stringify(posRaw)) : String(posRaw);
+
+        allPlayers.push({
           name,
-          age: p.age || 0,
-          nat: p.nationality || p.nationalities?.[0] || p.country || '',
-          pos: p.position || p.mainPosition || p.pos || '',
-          club: realClubName,
+          age: parseInt(p.age) || 0,
+          nat,
+          pos,
+          club: clubName || String(clubId),
           league: lg.name,
           country: lg.country,
-          goals: p.goals || 0,
-          assists: p.assists || 0,
-          apps: p.appearances || p.matches || 0,
+          goals: parseInt(p.goals) || 0,
+          assists: parseInt(p.assists) || 0,
+          apps: parseInt(p.appearances || p.matches) || 0,
           marketVal: parseMarketVal(p.marketValue || p.value || p.currentMarketValue || ''),
-          number: p.shirtNumber || p.number || p.jerseyNumber || 0,
+          number: parseInt(p.shirtNumber || p.number || p.jerseyNumber) || 0,
           playerId: p.id || p.playerId || ''
-        };
-        allPlayers.push(player);
+        });
         added++;
         totalPlayers++;
       }
@@ -568,7 +630,7 @@ function mapPos(pos) {
 }
 
 function mapNat(nat) {
-  const n = (nat || '').toLowerCase();
+  const n = String(nat || '').toLowerCase();
   const map = {
     'argentina':'ARG','brazil':'BRA','brasil':'BRA','chile':'CHI','paraguay':'PAR',
     'uruguay':'URU','colombia':'COL','peru':'PER','perú':'PER','ecuador':'ECU',
