@@ -380,16 +380,31 @@ async function extractTM(selected) {
       }
 
       let added = 0;
+      // Try to get real club name from players data
+      let realClubName = String(clubName);
+      if (typeof playersData === 'object' && !Array.isArray(playersData)) {
+        const cn = playersData.clubName || playersData.name || playersData.club || '';
+        if (cn && typeof cn === 'string' && cn.length > 2) realClubName = cn;
+      }
+      if (/^\d+$/.test(realClubName) && playerList.length > 0) {
+        // Club name is just a number - try to find it from player data
+        for (const p of playerList) {
+          const pc = p.club || p.clubName || p.team || p.teamName || '';
+          if (pc && typeof pc === 'string' && !/^\d+$/.test(pc)) { realClubName = String(pc); break; }
+          if (typeof p.club === 'object' && p.club && p.club.name) { realClubName = String(p.club.name); break; }
+        }
+      }
+
       for (const p of playerList) {
-        const name = p.name || p.playerName || p.fullName || '';
-        if (!name) continue;
+        const name = String(p.name || p.playerName || p.fullName || '');
+        if (!name || name === 'undefined' || name === 'null') continue;
 
         const player = {
           name,
           age: p.age || 0,
           nat: p.nationality || p.nationalities?.[0] || p.country || '',
           pos: p.position || p.mainPosition || p.pos || '',
-          club: clubName,
+          club: realClubName,
           league: lg.name,
           country: lg.country,
           goals: p.goals || 0,
@@ -616,37 +631,44 @@ function generateOutput() {
     return;
   }
 
-  const seen = new Set();
-  const unique = [];
-  for (const p of allPlayers) {
-    const key = p.name.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(p);
+  try {
+    const seen = new Set();
+    const unique = [];
+    for (const p of allPlayers) {
+      const key = String(p.name || '').toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        unique.push(p);
+      }
     }
+
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
+    let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
+
+    for (const p of unique) {
+      const pName = String(p.name || 'Unknown');
+      const pClub = String(p.club || '');
+      const pos = mapPos(p.pos);
+      const nat = mapNat(p.nat);
+      const lg = mapLeague(p.country, p.league);
+      const val = p.marketVal || 1;
+      const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
+
+      js += `  a(${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},0,0);\n`;
+      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
+    }
+
+    js += `  // Total: ${unique.length} jugadores extraidos\n`;
+
+    document.getElementById('output').value = js;
+    window._csvData = csv;
+    window._jsData = js;
+
+    log(`Output generado: ${unique.length} jugadores únicos (de ${allPlayers.length} totales)`);
+  } catch (e) {
+    log('ERROR generando output: ' + e.message);
+    document.getElementById('output').value = '// Error: ' + e.message;
   }
-
-  let csv = 'Nombre,Posicion,Edad,Nacionalidad,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
-  let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
-
-  for (const p of unique) {
-    const pos = mapPos(p.pos);
-    const nat = mapNat(p.nat);
-    const lg = mapLeague(p.country, p.league);
-    const val = p.marketVal || 1;
-    const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
-
-    js += `  a(${num},'${p.name.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${p.club.replace(/'/g,"\\'")}','${lg}',${val},0,0);\n`;
-    csv += `"${p.name}","${pos}",${p.age||''},"${nat}","${p.club}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
-  }
-
-  js += `  // Total: ${unique.length} jugadores extraidos\n`;
-
-  document.getElementById('output').value = js;
-  window._csvData = csv;
-  window._jsData = js;
-
-  log(`Output generado: ${unique.length} jugadores únicos (de ${allPlayers.length} totales)`);
 }
 
 function copyOutput() {
