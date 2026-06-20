@@ -240,202 +240,179 @@ async function extractAll() {
 
   if (selected.length === 0) { alert('Seleccioná al menos una liga'); return; }
 
-  // Log raw league structure for debugging
-  if (selected[0] && selected[0].raw) {
-    log('=== ESTRUCTURA LIGA RAW ===');
-    log('Keys: ' + JSON.stringify(Object.keys(selected[0].raw)));
-    log('Raw completo: ' + JSON.stringify(selected[0].raw).slice(0,1200));
-    // Log all string values that look like URLs
-    for (const [k, v] of Object.entries(selected[0].raw)) {
-      if (typeof v === 'string' && v.includes('/')) log('  URL field: ' + k + ' = ' + v);
+  log(`=== PASO 1: Probando APIs para encontrar jugadores reales ===`);
+  log(`Ligas seleccionadas: ${selected.length}`);
+
+  // First, probe TransferMarkt API to discover its structure
+  log('\n--- Probando TransferMarkt API ---');
+  const tmRoot = await apiGet('/football', TM_BASE);
+  if (tmRoot) {
+    log('TM /football: ' + JSON.stringify(tmRoot).slice(0, 600));
+    if (Array.isArray(tmRoot) && tmRoot.length > 0) {
+      log('TM primer país: ' + JSON.stringify(tmRoot[0]).slice(0, 400));
+      log('TM keys país: ' + JSON.stringify(Object.keys(tmRoot[0])));
+    }
+  } else {
+    log('TM /football: no responde');
+  }
+
+  // Probe a known team endpoint on both APIs
+  log('\n--- Probando endpoints de equipo ---');
+  const probeTeamPaths = [
+    '/football/team/boca-juniors', '/football/team/river-plate',
+    '/football/club/boca-juniors', '/football/club/river-plate'
+  ];
+  for (const tp of probeTeamPaths) {
+    const r1 = await apiGet(tp);
+    if (r1) log('FS ' + tp + ': ' + JSON.stringify(r1).slice(0, 400));
+    const r2 = await apiGet(tp, TM_BASE);
+    if (r2) log('TM ' + tp + ': ' + JSON.stringify(r2).slice(0, 400));
+  }
+
+  // For squad probing
+  for (const tp of probeTeamPaths) {
+    for (const suffix of ['/squad', '/players', '/roster']) {
+      const r1 = await apiGet(tp + suffix);
+      if (r1) { log('FS ' + tp + suffix + ': OK — ' + JSON.stringify(r1).slice(0, 300)); break; }
+      const r2 = await apiGet(tp + suffix, TM_BASE);
+      if (r2) { log('TM ' + tp + suffix + ': OK — ' + JSON.stringify(r2).slice(0, 300)); break; }
     }
   }
 
-  log(`\nExtrayendo ${selected.length} ligas...`);
+  log(`\n=== PASO 2: Extrayendo equipos de las ligas ===`);
   let totalTeams = 0, totalPlayers = 0;
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
     const raw = lg.raw || {};
-    setProgress((li / selected.length) * 100);
+    setProgress((li / selected.length) * 90);
     log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name}...`);
 
-    // Collect all URL-like fields from raw
+    // Get teams from the league (we know Flashscore works for this)
     let paths = [];
     for (const [k, v] of Object.entries(raw)) {
       if (typeof v === 'string' && v.includes('/football/')) {
-        paths.push({ label: k, path: v.replace('/api/flashscore', '') });
+        paths.push(v.replace('/api/flashscore', ''));
       }
     }
-
-    // Also try slug-based paths (country-slug/league-slug)
     const cs = lg.countrySlug || lg.country.toLowerCase().replace(/\s+/g, '-');
     const ls = lg.slug || lg.name.toLowerCase().replace(/\s+/g, '-');
-    paths.push({ label: 'slug-standings', path: `/football/${cs}/${ls}/standings` });
-    paths.push({ label: 'slug-teams', path: `/football/${cs}/${ls}/teams` });
-    paths.push({ label: 'slug-base', path: `/football/${cs}/${ls}` });
-
-    // ID-based paths as fallback
+    paths.push(`/football/${cs}/${ls}/standings`);
+    paths.push(`/football/${cs}/${ls}`);
     if (lg.id) {
-      paths.push({ label: 'id-standings', path: `/football/${lg.id}/standings` });
-      paths.push({ label: 'id-teams', path: `/football/${lg.id}/teams` });
-      paths.push({ label: 'id-base', path: `/football/${lg.id}` });
+      paths.push(`/football/${lg.id}/standings`);
+      paths.push(`/football/${lg.id}`);
     }
 
-    // First, get the league detail page to discover endpoints
-    let leagueDetail = null;
-    let detailPath = '';
+    let leagueData = null;
     for (const p of paths) {
-      if (!p.path) continue;
-      if (li < 3) log(`  Probando [${p.label}]: ${p.path}`);
-      const d = await apiGet(p.path);
-      if (d && !d.error) {
-        leagueDetail = d;
-        detailPath = p.path;
-        if (li < 3) log(`  ✓ Funciona [${p.label}]`);
-        break;
-      } else {
-        if (li < 3) log(`  ✗ Falló [${p.label}]`);
-      }
+      leagueData = await apiGet(p);
+      if (leagueData && !leagueData.error) break;
     }
+    if (!leagueData) { log('  ✗ No se pudo obtener datos de liga'); continue; }
 
-    if (!leagueDetail) {
-      log(`  ✗ No se pudo acceder a esta liga con ningún path`);
-      continue;
-    }
-
-    if (li < 3) {
-      log('  Response keys: ' + JSON.stringify(Object.keys(leagueDetail)));
-      log('  Data: ' + JSON.stringify(leagueDetail).slice(0, 1000));
-    }
-
-    // If leagueDetail has URL fields pointing to sub-resources, follow them
-    let teamsData = null;
-    if (typeof leagueDetail === 'object' && !Array.isArray(leagueDetail)) {
-      // Look for sub-resource URLs
-      for (const [k, v] of Object.entries(leagueDetail)) {
-        if (typeof v === 'string' && v.includes('/') && (k.toLowerCase().includes('standing') || k.toLowerCase().includes('table') || k.toLowerCase().includes('team'))) {
-          if (li < 3) log(`  Siguiendo sub-recurso [${k}]: ${v}`);
-          const subData = await apiGet(v.replace('/api/flashscore', ''));
-          if (subData && !subData.error) {
-            teamsData = subData;
-            if (li < 3) log(`  ✓ Sub-recurso [${k}] OK: ` + JSON.stringify(subData).slice(0, 500));
-            break;
-          }
-        }
-      }
-    }
-
-    const dataSource = teamsData || leagueDetail;
-
-    // Parse teams from whatever format we got
+    // Extract teams
     let teams = [];
-    if (Array.isArray(dataSource)) {
-      teams = dataSource;
-    } else if (typeof dataSource === 'object') {
-      for (const key of ['rows','teams','standings','data','DATA','ROWS','table','participants','clubs']) {
-        if (dataSource[key]) {
-          const val = dataSource[key];
-          if (Array.isArray(val)) { teams = val; break; }
-          if (typeof val === 'object') {
-            for (const v of Object.values(val)) {
-              if (Array.isArray(v)) { teams.push(...v); }
-            }
-            if (teams.length > 0) break;
-          }
-        }
+    if (Array.isArray(leagueData)) {
+      teams = leagueData;
+    } else if (typeof leagueData === 'object') {
+      for (const key of ['rows','teams','standings','data','participants','clubs','table']) {
+        if (leagueData[key] && Array.isArray(leagueData[key])) { teams = leagueData[key]; break; }
       }
       if (teams.length === 0) {
-        for (const v of Object.values(dataSource)) {
+        for (const v of Object.values(leagueData)) {
           if (Array.isArray(v) && v.length > 2) { teams = v; break; }
         }
       }
     }
 
-    if (li < 3 && teams.length > 0) {
-      log('  Primer equipo: ' + JSON.stringify(teams[0]).slice(0,600));
+    if (li < 2 && teams.length > 0) {
+      log('  Equipo ejemplo: ' + JSON.stringify(teams[0]).slice(0, 500));
       log('  Keys equipo: ' + JSON.stringify(Object.keys(teams[0])));
     }
 
-    log(`  Equipos encontrados: ${teams.length}`);
+    log(`  ${teams.length} equipos`);
     totalTeams += teams.length;
-    updateStats(li + 1, totalTeams, totalPlayers);
 
-    for (const team of teams) {
-      const teamName = team.name || team.NAME || team.TEAM_NAME || team.teamName || team.participant || '';
-      const teamId = team.id || team.ID || team.TEAM_ID || '';
+    // For each team, try to get squad data
+    for (let ti = 0; ti < teams.length; ti++) {
+      const team = teams[ti];
+      const teamName = team.name || team.NAME || team.teamName || team.participant || '';
+      const teamId = team.id || team.ID || '';
+      const teamSlug = team.slug || '';
 
-      // Collect all URL-like fields from the team object
-      let teamPaths = [];
+      if (!teamName && !teamId) continue;
+      log(`  [${ti+1}/${teams.length}] ${teamName}...`);
+
+      // Collect team URL paths from the team object
+      let teamUrls = [];
       for (const [k, v] of Object.entries(team)) {
-        if (typeof v === 'string' && v.includes('/')) {
-          teamPaths.push(v.replace('/api/flashscore', ''));
-        }
-      }
-      if (teamId) teamPaths.push(`/football/team/${teamId}`);
-      if (teamPaths.length === 0 && !teamName) continue;
-
-      log(`  Equipo: ${teamName}...`);
-
-      // Try to get team detail / squad
-      let teamData = null;
-      for (const tp of teamPaths) {
-        teamData = await apiGet(tp);
-        if (teamData && !teamData.error) break;
-      }
-
-      if (!teamData) {
-        // Try squad sub-path
-        for (const tp of teamPaths) {
-          teamData = await apiGet(tp + '/squad');
-          if (teamData && !teamData.error) break;
+        if (typeof v === 'string' && v.includes('/football/')) {
+          teamUrls.push(v.replace('/api/flashscore', '').replace('/api/transfermarkt', ''));
         }
       }
 
-      if (!teamData) {
-        log(`    ✗ Sin datos de equipo`);
-        continue;
-      }
+      // Try various squad endpoints on BOTH APIs
+      let squad = [];
+      let foundVia = '';
 
-      if (totalTeams <= 3) log('    Team keys: ' + JSON.stringify(Object.keys(teamData)));
+      const basePaths = [];
+      if (teamId) basePaths.push(`/football/team/${teamId}`);
+      if (teamSlug) basePaths.push(`/football/team/${teamSlug}`);
+      for (const u of teamUrls) basePaths.push(u);
+      // Add cleaned name as slug
+      const nameSlug = teamName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-');
+      basePaths.push(`/football/team/${nameSlug}`);
 
-      // Find squad/players
-      let squad = findPlayersArray(teamData);
+      const suffixes = ['/squad', '/players', '', '/roster'];
 
-      if (squad.length === 0) {
-        // Try /squad endpoint
-        for (const tp of teamPaths) {
-          const sq = await apiGet(tp + '/squad');
-          if (sq) { squad = findPlayersArray(sq); if (squad.length > 0) break; }
-          const pl = await apiGet(tp + '/players');
-          if (pl) { squad = findPlayersArray(pl); if (squad.length > 0) break; }
-        }
-      }
+      for (const base of basePaths) {
+        if (squad.length > 0) break;
+        for (const suffix of suffixes) {
+          const fullPath = base + suffix;
 
-      if (totalTeams <= 3 && squad.length > 0) {
-        log('    === ITEM RAW [0] ===');
-        log('    ' + JSON.stringify(squad[0]).slice(0,800));
-        log('    Keys: ' + JSON.stringify(Object.keys(squad[0])));
-        // Log nested objects too
-        for (const [k, v] of Object.entries(squad[0])) {
-          if (typeof v === 'object' && v !== null) {
-            log('    Sub-obj [' + k + '] keys: ' + JSON.stringify(Object.keys(v)));
+          // Try Flashscore
+          const fsData = await apiGet(fullPath);
+          if (fsData && !fsData.error) {
+            const arr = findPlayersArray(fsData);
+            const validated = arr.filter(p => isLikelyPlayer(p));
+            if (validated.length > 3) {
+              squad = validated;
+              foundVia = 'FS:' + fullPath;
+              break;
+            }
+            if (ti < 2 && li < 1 && arr.length > 0) {
+              log(`    FS ${fullPath}: ${arr.length} items, ${validated.length} parecen jugadores`);
+              log('    Item[0]: ' + JSON.stringify(arr[0]).slice(0, 400));
+            }
+          }
+
+          // Try TransferMarkt
+          const tmData = await apiGet(fullPath, TM_BASE);
+          if (tmData && !tmData.error) {
+            const arr = findPlayersArray(tmData);
+            const validated = arr.filter(p => isLikelyPlayer(p));
+            if (validated.length > 3) {
+              squad = validated;
+              foundVia = 'TM:' + fullPath;
+              break;
+            }
+            if (ti < 2 && li < 1 && arr.length > 0) {
+              log(`    TM ${fullPath}: ${arr.length} items, ${validated.length} parecen jugadores`);
+              log('    Item[0]: ' + JSON.stringify(arr[0]).slice(0, 400));
+            }
           }
         }
       }
 
-      let foundInTeam = 0;
-      for (const p of squad) {
-        const player = extractPlayer(p, teamName, lg.name, lg.country);
-        if (player) {
-          allPlayers.push(player);
-          totalPlayers++;
-          foundInTeam++;
+      if (squad.length > 0) {
+        if (ti < 3) log(`    ✓ ${squad.length} jugadores via ${foundVia}`);
+        for (const p of squad) {
+          const player = extractPlayer(p, teamName, lg.name, lg.country);
+          if (player) { allPlayers.push(player); totalPlayers++; }
         }
-      }
-      log(`    Jugadores: ${squad.length} items, ${foundInTeam} con nombre`);
-      if (foundInTeam === 0 && squad.length > 0) {
-        log('    ⚠ NINGUN ITEM TIENE NOMBRE — estructura no reconocida');
+      } else {
+        if (ti < 5) log(`    ✗ Sin plantel`);
       }
 
       updateStats(li + 1, totalTeams, totalPlayers);
@@ -443,9 +420,33 @@ async function extractAll() {
   }
 
   setProgress(100);
-  log(`\nExtracción completa: ${totalPlayers} jugadores de ${totalTeams} equipos en ${selected.length} ligas`);
-
+  log(`\n=== RESULTADO: ${totalPlayers} jugadores de ${totalTeams} equipos en ${selected.length} ligas ===`);
   generateOutput();
+}
+
+function isLikelyPlayer(item) {
+  if (typeof item !== 'object' || !item) return false;
+  const name = getPlayerName(item);
+  if (!name) return false;
+  // Reject competition/stage names
+  const lower = name.toLowerCase();
+  const badWords = ['play off','playoff','stage','final','relegation','promotion','qualification',
+    'apertura','clausura','winners','losers','group','round','copa','league','championship',
+    'torneo','zona','additional','super final','primera','segunda'];
+  if (badWords.some(w => lower.includes(w))) return false;
+  // Must have at least one player-like field
+  const hasAge = (item.age || item.AGE) > 0;
+  const hasPos = !!(item.position || item.POSITION || item.pos || item.role);
+  const hasNumber = (item.number || item.shirt || item.jerseyNumber) > 0;
+  const hasNat = !!(item.nationality || item.NATIONALITY || item.country || item.flag);
+  // Nested checks
+  const nested = item.player || item.playerInfo || item.athlete || {};
+  const hasNestedAge = (nested.age || nested.AGE) > 0;
+  const hasNestedPos = !!(nested.position || nested.POSITION || nested.pos);
+  if (hasAge || hasPos || hasNumber || hasNat || hasNestedAge || hasNestedPos) return true;
+  // If name has at least 2 words and no bad words, likely a player
+  if (name.split(/\s+/).length >= 2) return true;
+  return false;
 }
 
 function getPlayerName(p) {
