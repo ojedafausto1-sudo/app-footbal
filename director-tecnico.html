@@ -699,7 +699,7 @@ function ageAdj(age) {
 }
 
 function valToRat(val, age) {
-  return Math.max(55, Math.min(99, Math.round(55 + baseRat(val) + ageAdj(age))));
+  return Math.max(55, Math.min(93, Math.round(55 + baseRat(val) + ageAdj(age))));
 }
 
 function valToPot(val, age) {
@@ -2179,32 +2179,32 @@ function buildMkt(){
   // ║  TOP 100 MUNDIAL (No-Sudamericanos)          ║
   // ╚══════════════════════════════════════════════╝
 
-  a(10,'Kylian Mbappé','ED',27,'FRA','Real Madrid','España',180,95,0);
-  a(9,'Erling Haaland','DC',26,'NOR','Man. City','Premier',200,94,0);
-  a(5,'Jude Bellingham','MC',23,'ING','Real Madrid','España',180,91,0);
-  a(11,'Lamine Yamal','EI',18,'ESP','Barcelona','España',150,87,0);
-  a(7,'Bukayo Saka','ED',24,'ING','Arsenal','Premier',150,88,0);
-  a(8,'Pedri','MC',24,'ESP','Barcelona','España',100,87,0);
-  a(10,'Florian Wirtz','MCO',23,'ALE','Bayer Leverkusen','Alemania',130,88,0);
-  a(10,'Jamal Musiala','MCO',23,'ALE','Bayern','Alemania',120,87,0);
-  a(11,'Mohamed Salah','ED',33,'EGI','Liverpool','Premier',30,87,0);
+  a(10,'Kylian Mbappé','ED',27,'FRA','Real Madrid','España',180,93,0);
+  a(9,'Erling Haaland','DC',26,'NOR','Man. City','Premier',200,93,0);
+  a(5,'Jude Bellingham','MC',23,'ING','Real Madrid','España',180,92,0);
+  a(11,'Lamine Yamal','EI',18,'ESP','Barcelona','España',150,88,0);
+  a(7,'Bukayo Saka','ED',24,'ING','Arsenal','Premier',150,91,0);
+  a(8,'Pedri','MC',24,'ESP','Barcelona','España',100,89,0);
+  a(10,'Florian Wirtz','MCO',23,'ALE','Bayer Leverkusen','Alemania',130,90,0);
+  a(10,'Jamal Musiala','MCO',23,'ALE','Bayern','Alemania',120,89,0);
+  a(11,'Mohamed Salah','ED',33,'EGI','Liverpool','Premier',30,88,0);
   a(10,'Kevin De Bruyne','MCO',34,'BEL','Man. City','Premier',25,88,0);
-  a(7,'Phil Foden','ED',26,'ING','Man. City','Premier',120,87,0);
-  a(9,'Harry Kane','DC',33,'ING','Bayern','Alemania',70,88,0);
-  a(8,'Declan Rice','MCD',27,'ING','Arsenal','Premier',100,86,0);
-  a(5,'William Saliba','DFC',25,'FRA','Arsenal','Premier',80,86,0);
-  a(9,'Victor Osimhen','DC',27,'NIG','Nápoles','Italia',100,87,0);
-  a(8,'Nicolò Barella','MC',28,'ITA','Inter Milán','Italia',80,86,0);
-  a(4,'Virgil van Dijk','DFC',34,'HOL','Liverpool','Premier',20,85,0);
-  a(7,'Ousmane Dembélé','ED',28,'FRA','PSG','Francia',60,85,0);
-  a(7,'Federico Chiesa','EI',27,'ITA','Liverpool','Premier',40,78,0);
-  a(10,'Cole Palmer','MCO',23,'ING','Chelsea','Premier',80,86,0);
-  a(9,'Alexander Isak','DC',26,'SUE','Newcastle','Premier',70,85,0);
-  a(8,'Martin Ødegaard','MCO',27,'NOR','Arsenal','Premier',100,87,0);
-  a(4,'Rúben Días','DFC',28,'POR','Man. City','Premier',70,85,0);
-  a(11,'Leroy Sané','EI',29,'ALE','Bayern','Alemania',40,83,0);
-  a(10,'Gavi','MC',21,'ESP','Barcelona','España',60,83,0);
-  a(8,'Aurélien Tchouaméni','MCD',26,'FRA','Real Madrid','España',80,84,0);
+  a(7,'Phil Foden','ED',26,'ING','Man. City','Premier',120,90,0);
+  a(9,'Harry Kane','DC',33,'ING','Bayern','Alemania',70,89,0);
+  a(8,'Declan Rice','MCD',27,'ING','Arsenal','Premier',100,88,0);
+  a(5,'William Saliba','DFC',25,'FRA','Arsenal','Premier',80,87,0);
+  a(9,'Victor Osimhen','DC',27,'NIG','Nápoles','Italia',100,88,0);
+  a(8,'Nicolò Barella','MC',28,'ITA','Inter Milán','Italia',80,88,0);
+  a(4,'Virgil van Dijk','DFC',34,'HOL','Liverpool','Premier',20,86,0);
+  a(7,'Ousmane Dembélé','ED',28,'FRA','PSG','Francia',60,86,0);
+  a(7,'Federico Chiesa','EI',27,'ITA','Liverpool','Premier',40,82,0);
+  a(10,'Cole Palmer','MCO',23,'ING','Chelsea','Premier',80,89,0);
+  a(9,'Alexander Isak','DC',26,'SUE','Newcastle','Premier',70,87,0);
+  a(8,'Martin Ødegaard','MCO',27,'NOR','Arsenal','Premier',100,89,0);
+  a(4,'Rúben Días','DFC',28,'POR','Man. City','Premier',70,86,0);
+  a(11,'Leroy Sané','EI',29,'ALE','Bayern','Alemania',40,84,0);
+  a(10,'Gavi','MC',21,'ESP','Barcelona','España',60,85,0);
+  a(8,'Aurélien Tchouaméni','MCD',26,'FRA','Real Madrid','España',80,86,0);
 
   // ╔══════════════════════════════════════════════╗
   // ║  LIGA CHILENA — PLANTELES COMPLETOS          ║
@@ -2869,6 +2869,588 @@ function buildMkt(){
 
   // --- Luis Advíncula (Peru in Argentina) ---
   a(2,'Luis Advíncula','DFD',34,'PER','Boca Juniors','Liga ARG',1.5,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  PREMIER LEAGUE                              ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Manchester City ---
+  a(1,'Ederson','ARQ',31,'BRA','Man. City','Premier',30,0,0);
+  a(3,'Rúben Dias','DFC',28,'POR','Man. City','Premier',70,0,0);
+  a(25,'Manuel Akanji','DFC',29,'SUI','Man. City','Premier',35,0,0);
+  a(24,'Josko Gvardiol','DFI',23,'CRO','Man. City','Premier',75,0,0);
+  a(2,'Kyle Walker','DFD',36,'ING','Man. City','Premier',8,0,0);
+  a(5,'John Stones','DFC',31,'ING','Man. City','Premier',25,0,0);
+  a(6,'Rodri','MCD',29,'ESP','Man. City','Premier',120,91,0);
+  a(8,'Mateo Kovacic','MC',31,'CRO','Man. City','Premier',25,0,0);
+  a(27,'Matheus Nunes','MC',26,'POR','Man. City','Premier',40,0,0);
+  a(20,'Bernardo Silva','MCO',30,'POR','Man. City','Premier',70,87,0);
+  a(10,'Jack Grealish','EI',30,'ING','Man. City','Premier',45,0,0);
+  a(11,'Jeremy Doku','EI',22,'BEL','Man. City','Premier',55,0,0);
+  a(26,'Savinho','ED',21,'BRA','Man. City','Premier',50,0,0);
+
+  // --- Arsenal ---
+  a(1,'David Raya','ARQ',29,'ESP','Arsenal','Premier',30,0,0);
+  a(6,'Gabriel Magalhães','DFC',27,'BRA','Arsenal','Premier',65,0,0);
+  a(2,'Ben White','DFD',27,'ING','Arsenal','Premier',50,0,0);
+  a(12,'Jurrien Timber','DFI',24,'HOL','Arsenal','Premier',45,0,0);
+  a(33,'Oleksandr Zinchenko','DFI',29,'UCR','Arsenal','Premier',20,0,0);
+  a(15,'Riccardo Calafiori','DFI',23,'ITA','Arsenal','Premier',45,0,0);
+  a(41,'Declan Rice','MCD',27,'ING','Arsenal','Premier',100,0,0);
+  a(29,'Kai Havertz','DC',26,'ALE','Arsenal','Premier',65,0,0);
+  a(20,'Jorginho','MCD',33,'ITA','Arsenal','Premier',10,0,0);
+  a(19,'Leandro Trossard','EI',30,'BEL','Arsenal','Premier',30,0,0);
+  a(11,'Gabriel Martinelli','EI',24,'BRA','Arsenal','Premier',55,0,0);
+  a(14,'Eddie Nketiah','DC',27,'ING','Arsenal','Premier',25,0,0);
+  a(9,'Gabriel Jesus','DC',28,'BRA','Arsenal','Premier',35,0,0);
+
+  // --- Liverpool ---
+  a(1,'Alisson','ARQ',33,'BRA','Liverpool','Premier',25,86,0);
+  a(66,'Trent Alexander-Arnold','DFD',27,'ING','Liverpool','Premier',60,87,0);
+  a(26,'Andy Robertson','DFI',32,'ESC','Liverpool','Premier',15,0,0);
+  a(5,'Ibrahima Konaté','DFC',26,'FRA','Liverpool','Premier',55,0,0);
+  a(8,'Ryan Gravenberch','MC',23,'HOL','Liverpool','Premier',45,0,0);
+  a(10,'Alexis Mac Allister','MC',26,'ARG','Liverpool','Premier',65,0,0);
+  a(25,'Dominik Szoboszlai','MCO',25,'HUN','Liverpool','Premier',50,0,0);
+  a(18,'Cody Gakpo','EI',26,'HOL','Liverpool','Premier',50,0,0);
+  a(7,'Luis Díaz','EI',28,'COL','Liverpool','Premier',55,0,0);
+  a(9,'Darwin Núñez','DC',26,'URU','Liverpool','Premier',50,0,0);
+  a(19,'Harvey Elliott','MCO',22,'ING','Liverpool','Premier',30,0,0);
+  a(21,'Diogo Jota','DC',28,'POR','Liverpool','Premier',40,0,0);
+
+  // --- Chelsea ---
+  a(1,'Robert Sánchez','ARQ',27,'ESP','Chelsea','Premier',20,0,0);
+  a(2,'Malo Gusto','DFD',22,'FRA','Chelsea','Premier',35,0,0);
+  a(6,'Levi Colwill','DFC',22,'ING','Chelsea','Premier',40,0,0);
+  a(26,'Wesley Fofana','DFC',24,'FRA','Chelsea','Premier',40,0,0);
+  a(27,'Marc Cucurella','DFI',27,'ESP','Chelsea','Premier',25,0,0);
+  a(25,'Moisés Caicedo','MCD',23,'ECU','Chelsea','Premier',70,0,0);
+  a(45,'Romeo Lavia','MCD',21,'BEL','Chelsea','Premier',35,0,0);
+  a(8,'Enzo Fernández','MC',24,'ARG','Chelsea','Premier',65,0,0);
+  a(11,'Noni Madueke','ED',23,'ING','Chelsea','Premier',45,0,0);
+  a(15,'Nicolas Jackson','DC',24,'SEN','Chelsea','Premier',40,0,0);
+  a(10,'Mykhailo Mudryk','EI',24,'UCR','Chelsea','Premier',30,0,0);
+  a(14,'João Félix','MCO',25,'POR','Chelsea','Premier',30,0,0);
+
+  // --- Manchester United ---
+  a(24,'André Onana','ARQ',29,'CAM','Man. United','Premier',25,0,0);
+  a(20,'Diogo Dalot','DFD',26,'POR','Man. United','Premier',35,0,0);
+  a(6,'Lisandro Martínez','DFC',27,'ARG','Man. United','Premier',50,0,0);
+  a(5,'Harry Maguire','DFC',32,'ING','Man. United','Premier',10,0,0);
+  a(23,'Luke Shaw','DFI',30,'ING','Man. United','Premier',15,0,0);
+  a(18,'Casemiro','MCD',33,'BRA','Man. United','Premier',10,80,0);
+  a(37,'Kobbie Mainoo','MC',20,'ING','Man. United','Premier',50,0,0);
+  a(7,'Mason Mount','MCO',27,'ING','Man. United','Premier',25,0,0);
+  a(8,'Bruno Fernandes','MCO',30,'POR','Man. United','Premier',55,86,0);
+  a(10,'Marcus Rashford','EI',28,'ING','Man. United','Premier',50,0,0);
+  a(16,'Amad Diallo','ED',23,'CIV','Man. United','Premier',35,0,0);
+  a(11,'Alejandro Garnacho','EI',21,'ARG','Man. United','Premier',40,0,0);
+  a(9,'Rasmus Højlund','DC',22,'DIN','Man. United','Premier',50,0,0);
+
+  // --- Tottenham ---
+  a(1,'Guglielmo Vicario','ARQ',28,'ITA','Tottenham','Premier',30,0,0);
+  a(17,'Cristian Romero','DFC',27,'ARG','Tottenham','Premier',50,85,0);
+  a(37,'Micky van de Ven','DFC',24,'HOL','Tottenham','Premier',50,0,0);
+  a(23,'Pedro Porro','DFD',26,'ESP','Tottenham','Premier',35,0,0);
+  a(22,'Destiny Udogie','DFI',22,'ITA','Tottenham','Premier',35,0,0);
+  a(30,'Rodrigo Bentancur','MC',28,'URU','Tottenham','Premier',25,0,0);
+  a(8,'Yves Bissouma','MCD',29,'MAL','Tottenham','Premier',20,0,0);
+  a(10,'James Maddison','MCO',29,'ING','Tottenham','Premier',35,0,0);
+  a(21,'Dejan Kulusevski','ED',25,'SUE','Tottenham','Premier',40,0,0);
+  a(9,'Richarlison','DC',28,'BRA','Tottenham','Premier',30,0,0);
+  a(16,'Timo Werner','EI',29,'ALE','Tottenham','Premier',15,0,0);
+  a(7,'Heung-min Son','EI',33,'COR','Tottenham','Premier',25,87,0);
+  a(19,'Brennan Johnson','ED',24,'GAL','Tottenham','Premier',30,0,0);
+
+  // --- Newcastle ---
+  a(22,'Nick Pope','ARQ',33,'ING','Newcastle','Premier',10,0,0);
+  a(4,'Sven Botman','DFC',25,'HOL','Newcastle','Premier',40,0,0);
+  a(12,'Kieran Trippier','DFD',35,'ING','Newcastle','Premier',5,0,0);
+  a(33,'Dan Burn','DFC',32,'ING','Newcastle','Premier',8,0,0);
+  a(39,'Bruno Guimarães','MC',27,'BRA','Newcastle','Premier',70,86,0);
+  a(8,'Sandro Tonali','MC',25,'ITA','Newcastle','Premier',45,0,0);
+  a(36,'Sean Longstaff','MC',28,'ING','Newcastle','Premier',12,0,0);
+  a(7,'Joelinton','MC',28,'BRA','Newcastle','Premier',25,0,0);
+  a(10,'Anthony Gordon','EI',24,'ING','Newcastle','Premier',55,0,0);
+  a(23,'Jacob Murphy','ED',30,'ING','Newcastle','Premier',12,0,0);
+  a(24,'Miguel Almirón','ED',31,'PAR','Newcastle','Premier',10,0,0);
+  a(13,'Callum Wilson','DC',33,'ING','Newcastle','Premier',8,0,0);
+
+  // --- Aston Villa ---
+  a(1,'Emiliano Martínez','ARQ',33,'ARG','Aston Villa','Premier',25,86,0);
+  a(2,'Matty Cash','DFD',28,'POL','Aston Villa','Premier',20,0,0);
+  a(5,'Tyrone Mings','DFC',32,'ING','Aston Villa','Premier',12,0,0);
+  a(4,'Ezri Konsa','DFC',27,'ING','Aston Villa','Premier',30,0,0);
+  a(27,'Lucas Digne','DFI',32,'FRA','Aston Villa','Premier',10,0,0);
+  a(6,'Douglas Luiz','MC',27,'BRA','Aston Villa','Premier',40,0,0);
+  a(7,'John McGinn','MC',31,'ESC','Aston Villa','Premier',20,0,0);
+  a(41,'Youri Tielemans','MC',28,'BEL','Aston Villa','Premier',25,0,0);
+  a(10,'Moussa Diaby','ED',25,'FRA','Aston Villa','Premier',45,0,0);
+  a(20,'Morgan Rogers','MCO',22,'ING','Aston Villa','Premier',25,0,0);
+  a(11,'Ollie Watkins','DC',29,'ING','Aston Villa','Premier',55,85,0);
+  a(9,'Jhon Durán','DC',21,'COL','Aston Villa','Premier',35,0,0);
+
+  // --- Brighton ---
+  a(1,'Bart Verbruggen','ARQ',22,'HOL','Brighton','Premier',15,0,0);
+  a(20,'Carlos Baleba','MC',21,'CAM','Brighton','Premier',20,0,0);
+  a(8,'Georginio Rutter','MCO',23,'FRA','Brighton','Premier',30,0,0);
+  a(9,'Evan Ferguson','DC',20,'IRL','Brighton','Premier',25,0,0);
+  a(22,'Kaoru Mitoma','EI',28,'JAP','Brighton','Premier',30,0,0);
+  a(14,'João Pedro','DC',23,'BRA','Brighton','Premier',25,0,0);
+
+  // --- West Ham ---
+  a(1,'Alphonse Areola','ARQ',32,'FRA','West Ham','Premier',8,0,0);
+  a(27,'Nayef Aguerd','DFC',29,'MAR','West Ham','Premier',15,0,0);
+  a(4,'Kurt Zouma','DFC',30,'FRA','West Ham','Premier',10,0,0);
+  a(28,'Tomáš Souček','MCD',30,'CZE','West Ham','Premier',18,0,0);
+  a(10,'Lucas Paquetá','MCO',28,'BRA','West Ham','Premier',45,0,0);
+  a(8,'James Ward-Prowse','MC',30,'ING','West Ham','Premier',15,0,0);
+  a(20,'Jarrod Bowen','ED',28,'ING','West Ham','Premier',35,0,0);
+  a(7,'Mohammed Kudus','ED',24,'GHA','West Ham','Premier',40,0,0);
+  a(9,'Michail Antonio','DC',35,'JAM','West Ham','Premier',5,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LA LIGA (ESPAÑA)                            ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Real Madrid ---
+  a(1,'Thibaut Courtois','ARQ',33,'BEL','Real Madrid','España',20,87,0);
+  a(2,'Dani Carvajal','DFD',33,'ESP','Real Madrid','España',12,83,0);
+  a(3,'Éder Militão','DFC',27,'BRA','Real Madrid','España',55,0,0);
+  a(22,'Antonio Rüdiger','DFC',32,'ALE','Real Madrid','España',15,82,0);
+  a(23,'Ferland Mendy','DFI',30,'FRA','Real Madrid','España',25,0,0);
+  a(10,'Luka Modrić','MC',40,'CRO','Real Madrid','España',3,82,0);
+  a(12,'Eduardo Camavinga','MC',23,'FRA','Real Madrid','España',60,0,0);
+  a(15,'Federico Valverde','MC',27,'URU','Real Madrid','España',100,89,0);
+  a(11,'Rodrygo','ED',25,'BRA','Real Madrid','España',80,88,0);
+  a(14,'Endrick','DC',20,'BRA','Real Madrid','España',45,0,0);
+
+  // --- Barcelona ---
+  a(1,'Marc-André ter Stegen','ARQ',33,'ALE','Barcelona','España',15,85,0);
+  a(23,'Jules Koundé','DFD',29,'FRA','Barcelona','España',50,0,0);
+  a(4,'Ronald Araújo','DFC',26,'URU','Barcelona','España',55,0,0);
+  a(28,'Eric García','DFC',24,'ESP','Barcelona','España',15,0,0);
+  a(3,'Alejandro Balde','DFI',21,'ESP','Barcelona','España',30,0,0);
+  a(21,'Frenkie de Jong','MC',28,'HOL','Barcelona','España',35,0,0);
+  a(22,'Raphinha','ED',29,'BRA','Barcelona','España',55,86,0);
+  a(9,'Robert Lewandowski','DC',38,'POL','Barcelona','España',5,84,0);
+  a(19,'Dani Olmo','MCO',27,'ESP','Barcelona','España',50,85,0);
+  a(17,'Ferran Torres','EI',26,'ESP','Barcelona','España',25,0,0);
+  a(16,'Fermín López','MC',22,'ESP','Barcelona','España',35,0,0);
+  a(27,'Pau Cubarsí','DFC',18,'ESP','Barcelona','España',40,0,0);
+
+  // --- Atlético Madrid ---
+  a(13,'Jan Oblak','ARQ',32,'SVN','Atlético Madrid','España',20,86,0);
+  a(2,'José Giménez','DFC',30,'URU','Atlético Madrid','España',20,0,0);
+  a(15,'Stefan Savić','DFC',34,'MNE','Atlético Madrid','España',3,0,0);
+  a(6,'Koke','MC',33,'ESP','Atlético Madrid','España',8,80,0);
+  a(5,'Rodrigo De Paul','MC',31,'ARG','Atlético Madrid','España',18,82,0);
+  a(14,'Marcos Llorente','MC',30,'ESP','Atlético Madrid','España',25,0,0);
+  a(8,'Pablo Barrios','MC',22,'ESP','Atlético Madrid','España',35,0,0);
+  a(7,'Antoine Griezmann','MCO',34,'FRA','Atlético Madrid','España',15,86,0);
+  a(10,'Ángel Correa','ED',30,'ARG','Atlético Madrid','España',18,0,0);
+  a(19,'Álvaro Morata','DC',33,'ESP','Atlético Madrid','España',12,0,0);
+  a(11,'Julián Álvarez','DC',25,'ARG','Atlético Madrid','España',80,89,0);
+  a(21,'Alexander Sørloth','DC',29,'NOR','Atlético Madrid','España',25,0,0);
+
+  // --- Real Sociedad ---
+  a(1,'Álex Remiro','ARQ',30,'ESP','Real Sociedad','España',15,0,0);
+  a(24,'Robin Le Normand','DFC',28,'ESP','Real Sociedad','España',25,0,0);
+  a(4,'Martín Zubimendi','MCD',26,'ESP','Real Sociedad','España',55,0,0);
+  a(6,'Mikel Merino','MC',29,'ESP','Real Sociedad','España',35,0,0);
+  a(10,'Mikel Oyarzabal','EI',28,'ESP','Real Sociedad','España',30,0,0);
+  a(14,'Takefusa Kubo','ED',24,'JAP','Real Sociedad','España',40,0,0);
+  a(21,'David Silva','MCO',39,'ESP','Real Sociedad','España',1,75,0);
+  a(11,'Brais Méndez','MCO',28,'ESP','Real Sociedad','España',20,0,0);
+
+  // --- Athletic Bilbao ---
+  a(1,'Unai Simón','ARQ',28,'ESP','Athletic Bilbao','España',25,0,0);
+  a(4,'Aitor Paredes','DFC',24,'ESP','Athletic Bilbao','España',15,0,0);
+  a(3,'Yuri Berchiche','DFI',34,'ESP','Athletic Bilbao','España',3,0,0);
+  a(6,'Mikel Vesga','MCD',30,'ESP','Athletic Bilbao','España',8,0,0);
+  a(10,'Nico Williams','EI',23,'ESP','Athletic Bilbao','España',70,87,0);
+  a(9,'Iñaki Williams','DC',31,'ESP','Athletic Bilbao','España',15,0,0);
+  a(8,'Oihan Sancet','MCO',25,'ESP','Athletic Bilbao','España',25,0,0);
+
+  // --- Villarreal ---
+  a(7,'Gerard Moreno','DC',33,'ESP','Villarreal','España',8,0,0);
+  a(9,'Alexander Sørloth','DC',29,'NOR','Villarreal','España',25,0,0);
+  a(10,'Álex Baena','MCO',24,'ESP','Villarreal','España',35,0,0);
+  a(6,'Dani Parejo','MC',36,'ESP','Villarreal','España',3,0,0);
+  a(5,'Pau Torres','DFC',28,'ESP','Villarreal','España',35,0,0);
+
+  // --- Real Betis ---
+  a(18,'Giovani Lo Celso','MCO',29,'ARG','Real Betis','España',15,0,0);
+  a(22,'Isco','MCO',33,'ESP','Real Betis','España',5,79,0);
+  a(10,'Nabil Fekir','MCO',32,'FRA','Real Betis','España',10,0,0);
+  a(9,'Ayoze Pérez','DC',32,'ESP','Real Betis','España',8,0,0);
+  a(14,'William Carvalho','MCD',33,'POR','Real Betis','España',3,0,0);
+  a(17,'Abde Ezzalzouli','EI',23,'MAR','Real Betis','España',15,0,0);
+
+  // --- Sevilla ---
+  a(25,'Youssef En-Nesyri','DC',28,'MAR','Sevilla','España',18,0,0);
+  a(22,'Isco','MCO',33,'ESP','Sevilla','España',5,0,0);
+  a(10,'Suso','ED',31,'ESP','Sevilla','España',5,0,0);
+  a(15,'Nemanja Gudelj','MCD',33,'SER','Sevilla','España',3,0,0);
+  a(5,'Lucas Ocampos','EI',31,'ARG','Sevilla','España',8,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  SERIE A (ITALIA)                            ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Inter ---
+  a(1,'Yann Sommer','ARQ',36,'SUI','Inter Milán','Italia',3,0,0);
+  a(15,'Francesco Acerbi','DFC',37,'ITA','Inter Milán','Italia',2,0,0);
+  a(95,'Alessandro Bastoni','DFC',26,'ITA','Inter Milán','Italia',65,87,0);
+  a(28,'Benjamin Pavard','DFC',29,'FRA','Inter Milán','Italia',25,0,0);
+  a(36,'Matteo Darmian','DFD',35,'ITA','Inter Milán','Italia',2,0,0);
+  a(32,'Federico Dimarco','DFI',27,'ITA','Inter Milán','Italia',45,0,0);
+  a(2,'Denzel Dumfries','DFD',29,'HOL','Inter Milán','Italia',25,0,0);
+  a(20,'Hakan Calhanoglu','MCD',31,'TUR','Inter Milán','Italia',20,84,0);
+  a(22,'Henrikh Mkhitaryan','MCO',37,'ARM','Inter Milán','Italia',2,0,0);
+  a(16,'Davide Frattesi','MC',26,'ITA','Inter Milán','Italia',30,0,0);
+  a(9,'Marcus Thuram','DC',28,'FRA','Inter Milán','Italia',55,85,0);
+  a(10,'Lautaro Martínez','DC',28,'ARG','Inter Milán','Italia',85,90,0);
+
+  // --- Milan ---
+  a(16,'Mike Maignan','ARQ',29,'FRA','Milan','Italia',35,85,0);
+  a(19,'Theo Hernández','DFI',28,'FRA','Milan','Italia',50,85,0);
+  a(23,'Fikayo Tomori','DFC',27,'ING','Milan','Italia',25,0,0);
+  a(46,'Matteo Gabbia','DFC',25,'ITA','Milan','Italia',15,0,0);
+  a(14,'Tijjani Reijnders','MC',27,'HOL','Milan','Italia',45,0,0);
+  a(4,'Ismaël Bennacer','MCD',27,'ARG','Milan','Italia',20,0,0);
+  a(8,'Ruben Loftus-Cheek','MC',29,'ING','Milan','Italia',15,0,0);
+  a(11,'Christian Pulisic','ED',27,'USA','Milan','Italia',30,83,0);
+  a(10,'Rafael Leão','EI',26,'POR','Milan','Italia',70,88,0);
+  a(7,'Álvaro Morata','DC',33,'ESP','Milan','Italia',12,0,0);
+  a(90,'Samuel Chukwueze','ED',26,'NIG','Milan','Italia',20,0,0);
+
+  // --- Juventus ---
+  a(1,'Wojciech Szczęsny','ARQ',35,'POL','Juventus','Italia',3,0,0);
+  a(3,'Gleison Bremer','DFC',28,'BRA','Juventus','Italia',40,0,0);
+  a(6,'Danilo','DFD',34,'BRA','Juventus','Italia',3,0,0);
+  a(4,'Federico Gatti','DFC',26,'ITA','Juventus','Italia',15,0,0);
+  a(27,'Andrea Cambiaso','DFI',25,'ITA','Juventus','Italia',25,0,0);
+  a(5,'Manuel Locatelli','MC',27,'ITA','Juventus','Italia',15,0,0);
+  a(16,'Weston McKennie','MC',27,'USA','Juventus','Italia',15,0,0);
+  a(25,'Adrien Rabiot','MC',30,'FRA','Juventus','Italia',15,0,0);
+  a(10,'Kenan Yildiz','EI',20,'TUR','Juventus','Italia',30,0,0);
+  a(22,'Timothy Weah','ED',25,'USA','Juventus','Italia',12,0,0);
+  a(7,'Federico Chiesa','EI',27,'ITA','Juventus','Italia',40,0,0);
+  a(9,'Dušan Vlahović','DC',26,'SER','Juventus','Italia',55,85,0);
+
+  // --- Napoli ---
+  a(1,'Alex Meret','ARQ',28,'ITA','Nápoles','Italia',12,0,0);
+  a(22,'Giovanni Di Lorenzo','DFD',31,'ITA','Nápoles','Italia',20,0,0);
+  a(13,'Amir Rrahmani','DFC',31,'KOS','Nápoles','Italia',10,0,0);
+  a(17,'Mathías Olivera','DFI',27,'URU','Nápoles','Italia',18,0,0);
+  a(99,'André-Frank Zambo Anguissa','MCD',29,'CAM','Nápoles','Italia',25,0,0);
+  a(68,'Stanislav Lobotka','MCD',30,'SVK','Nápoles','Italia',25,0,0);
+  a(21,'Matteo Politano','ED',31,'ITA','Nápoles','Italia',10,0,0);
+  a(77,'Khvicha Kvaratskhelia','EI',24,'GEO','Nápoles','Italia',75,88,0);
+  a(9,'Victor Osimhen','DC',27,'NIG','Nápoles','Italia',100,0,0);
+  a(81,'Giacomo Raspadori','DC',25,'ITA','Nápoles','Italia',20,0,0);
+
+  // --- Roma ---
+  a(1,'Mile Svilar','ARQ',26,'BEL','Roma','Italia',12,0,0);
+  a(23,'Gianluca Mancini','DFC',29,'ITA','Roma','Italia',15,0,0);
+  a(4,'Bryan Cristante','MCD',30,'ITA','Roma','Italia',12,0,0);
+  a(7,'Lorenzo Pellegrini','MCO',29,'ITA','Roma','Italia',22,0,0);
+  a(21,'Paulo Dybala','MCO',31,'ARG','Roma','Italia',15,84,0);
+  a(6,'Leandro Paredes','MC',31,'ARG','Roma','Italia',8,0,0);
+  a(9,'Romelu Lukaku','DC',32,'BEL','Roma','Italia',15,0,0);
+  a(17,'Stephan El Shaarawy','EI',32,'ITA','Roma','Italia',5,0,0);
+
+  // --- Atalanta ---
+  a(1,'Marco Carnesecchi','ARQ',24,'ITA','Atalanta','Italia',15,0,0);
+  a(19,'Berat Djimsiti','DFC',32,'ALB','Atalanta','Italia',8,0,0);
+  a(42,'Giorgio Scalvini','DFC',21,'ITA','Atalanta','Italia',30,0,0);
+  a(77,'Isak Hien','DFC',25,'SUE','Atalanta','Italia',18,0,0);
+  a(2,'Davide Zappacosta','DFD',33,'ITA','Atalanta','Italia',3,0,0);
+  a(13,'Ederson','MCD',26,'BRA','Atalanta','Italia',35,0,0);
+  a(15,'Marten de Roon','MC',34,'HOL','Atalanta','Italia',5,0,0);
+  a(88,'Mario Pasalic','MCO',30,'CRO','Atalanta','Italia',12,0,0);
+  a(7,'Ademola Lookman','EI',27,'NIG','Atalanta','Italia',45,85,0);
+  a(10,'Charles De Ketelaere','MCO',24,'BEL','Atalanta','Italia',30,0,0);
+  a(90,'Gianluca Scamacca','DC',26,'ITA','Atalanta','Italia',30,0,0);
+
+  // --- Lazio ---
+  a(94,'Ivan Provedel','ARQ',31,'ITA','Lazio','Italia',8,0,0);
+  a(13,'Alessio Romagnoli','DFC',30,'ITA','Lazio','Italia',8,0,0);
+  a(26,'Stefan Radu','DFC',38,'RUM','Lazio','Italia',1,0,0);
+  a(6,'Mattéo Guendouzi','MC',26,'FRA','Lazio','Italia',28,0,0);
+  a(32,'Danilo Cataldi','MCD',30,'ITA','Lazio','Italia',5,0,0);
+  a(18,'Gustav Isaksen','ED',24,'DIN','Lazio','Italia',15,0,0);
+  a(10,'Luis Alberto','MCO',32,'ESP','Lazio','Italia',8,0,0);
+  a(11,'Taty Castellanos','DC',26,'ARG','Lazio','Italia',18,0,0);
+  a(20,'Mattia Zaccagni','EI',30,'ITA','Lazio','Italia',18,0,0);
+  a(7,'Felipe Anderson','ED',32,'BRA','Lazio','Italia',5,0,0);
+  a(17,'Ciro Immobile','DC',35,'ITA','Lazio','Italia',5,82,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  BUNDESLIGA (ALEMANIA)                       ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Bayern ---
+  a(1,'Manuel Neuer','ARQ',39,'ALE','Bayern','Alemania',5,83,0);
+  a(21,'Raphaël Guerreiro','DFI',31,'POR','Bayern','Alemania',15,0,0);
+  a(2,'Dayot Upamecano','DFC',26,'FRA','Bayern','Alemania',40,0,0);
+  a(5,'Min-jae Kim','DFC',29,'COR','Bayern','Alemania',50,0,0);
+  a(19,'Alphonso Davies','DFI',25,'CAN','Bayern','Alemania',50,84,0);
+  a(6,'Joshua Kimmich','MCD',30,'ALE','Bayern','Alemania',55,87,0);
+  a(8,'Leon Goretzka','MC',30,'ALE','Bayern','Alemania',30,0,0);
+  a(18,'Michael Olise','ED',23,'FRA','Bayern','Alemania',55,0,0);
+  a(11,'Kingsley Coman','EI',29,'FRA','Bayern','Alemania',30,0,0);
+  a(39,'Mathys Tel','DC',20,'FRA','Bayern','Alemania',25,0,0);
+  a(25,'Thomas Müller','MCO',36,'ALE','Bayern','Alemania',5,80,0);
+  a(17,'Konrad Laimer','MC',28,'AUT','Bayern','Alemania',18,0,0);
+  a(42,'Noussair Mazraoui','DFD',27,'MAR','Bayern','Alemania',18,0,0);
+
+  // --- Dortmund ---
+  a(1,'Gregor Kobel','ARQ',27,'SUI','Dortmund','Alemania',25,0,0);
+  a(4,'Nico Schlotterbeck','DFC',25,'ALE','Dortmund','Alemania',35,0,0);
+  a(2,'Niklas Süle','DFC',30,'ALE','Dortmund','Alemania',15,0,0);
+  a(25,'Ryerson','DFD',27,'NOR','Dortmund','Alemania',20,0,0);
+  a(10,'Julian Brandt','MCO',29,'ALE','Dortmund','Alemania',30,0,0);
+  a(20,'Marcel Sabitzer','MC',31,'AUT','Dortmund','Alemania',18,0,0);
+  a(24,'Karim Adeyemi','EI',23,'ALE','Dortmund','Alemania',30,0,0);
+  a(21,'Donyell Malen','ED',26,'HOL','Dortmund','Alemania',30,0,0);
+  a(11,'Marco Reus','MCO',36,'ALE','Dortmund','Alemania',3,78,0);
+  a(14,'Niclas Füllkrug','DC',32,'ALE','Dortmund','Alemania',18,0,0);
+  a(43,'Jamie Bynoe-Gittens','EI',21,'ING','Dortmund','Alemania',20,0,0);
+
+  // --- Bayer Leverkusen ---
+  a(1,'Lukáš Hrádecký','ARQ',35,'FIN','Bayer Leverkusen','Alemania',3,0,0);
+  a(4,'Jonathan Tah','DFC',29,'ALE','Bayer Leverkusen','Alemania',30,0,0);
+  a(12,'Edmond Tapsoba','DFC',26,'BUR','Bayer Leverkusen','Alemania',25,0,0);
+  a(30,'Jeremie Frimpong','DFD',24,'HOL','Bayer Leverkusen','Alemania',40,0,0);
+  a(20,'Álex Grimaldo','DFI',29,'ESP','Bayer Leverkusen','Alemania',25,0,0);
+  a(34,'Granit Xhaka','MC',32,'SUI','Bayer Leverkusen','Alemania',15,83,0);
+  a(23,'Robert Andrich','MCD',30,'ALE','Bayer Leverkusen','Alemania',15,0,0);
+  a(25,'Exequiel Palacios','MC',27,'ARG','Bayer Leverkusen','Alemania',20,0,0);
+  a(9,'Patrik Schick','DC',29,'CZE','Bayer Leverkusen','Alemania',15,0,0);
+  a(14,'Victor Boniface','DC',24,'NIG','Bayer Leverkusen','Alemania',35,0,0);
+  a(19,'Amine Adli','MCO',25,'MAR','Bayer Leverkusen','Alemania',18,0,0);
+
+  // --- RB Leipzig ---
+  a(1,'Péter Gulácsi','ARQ',36,'HUN','RB Leipzig','Alemania',3,0,0);
+  a(4,'Willi Orbán','DFC',32,'HUN','RB Leipzig','Alemania',5,0,0);
+  a(2,'Mohamed Simakan','DFC',25,'FRA','RB Leipzig','Alemania',25,0,0);
+  a(23,'David Raum','DFI',27,'ALE','RB Leipzig','Alemania',18,0,0);
+  a(44,'Kevin Kampl','MC',34,'SVN','RB Leipzig','Alemania',3,0,0);
+  a(18,'Christoph Baumgartner','MCO',26,'AUT','RB Leipzig','Alemania',20,0,0);
+  a(10,'Xavi Simons','MCO',22,'HOL','RB Leipzig','Alemania',70,87,0);
+  a(17,'Loïs Openda','DC',25,'BEL','RB Leipzig','Alemania',50,0,0);
+  a(14,'Benjamin Šeško','DC',22,'SVN','RB Leipzig','Alemania',50,0,0);
+  a(7,'Dani Olmo','MCO',27,'ESP','RB Leipzig','Alemania',50,0,0);
+
+  // --- Stuttgart ---
+  a(1,'Alexander Nübel','ARQ',28,'ALE','Stuttgart','Alemania',10,0,0);
+  a(4,'Jeff Chabot','DFC',27,'ALE','Stuttgart','Alemania',15,0,0);
+  a(2,'Waldemar Anton','DFC',29,'ALE','Stuttgart','Alemania',20,0,0);
+  a(10,'Chris Führich','EI',27,'ALE','Stuttgart','Alemania',18,0,0);
+  a(38,'Angelo Stiller','MCD',24,'ALE','Stuttgart','Alemania',18,0,0);
+  a(18,'Jamie Leweling','ED',24,'ALE','Stuttgart','Alemania',12,0,0);
+  a(9,'Serhou Guirassy','DC',29,'GUI','Stuttgart','Alemania',35,0,0);
+  a(23,'Deniz Undav','DC',28,'ALE','Stuttgart','Alemania',25,0,0);
+
+  // --- Frankfurt ---
+  a(1,'Kevin Trapp','ARQ',35,'ALE','Frankfurt','Alemania',3,0,0);
+  a(35,'Robin Koch','DFC',29,'ALE','Frankfurt','Alemania',12,0,0);
+  a(15,'Ellyes Skhiri','MCD',30,'TUN','Frankfurt','Alemania',10,0,0);
+  a(7,'Omar Marmoush','DC',26,'EGI','Frankfurt','Alemania',30,0,0);
+  a(9,'Hugo Ekitiké','DC',23,'FRA','Frankfurt','Alemania',25,0,0);
+  a(10,'Mario Götze','MCO',33,'ALE','Frankfurt','Alemania',5,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LIGUE 1 (FRANCIA)                           ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- PSG ---
+  a(99,'Gianluigi Donnarumma','ARQ',27,'ITA','PSG','Francia',35,86,0);
+  a(2,'Achraf Hakimi','DFD',27,'MAR','PSG','Francia',55,86,0);
+  a(5,'Marquinhos','DFC',31,'BRA','PSG','Francia',20,84,0);
+  a(22,'Nuno Mendes','DFI',23,'POR','PSG','Francia',40,0,0);
+  a(35,'Lucas Beraldo','DFC',21,'BRA','PSG','Francia',15,0,0);
+  a(17,'Vitinha','MC',25,'POR','PSG','Francia',55,86,0);
+  a(87,'Manuel Ugarte','MCD',24,'URU','PSG','Francia',45,0,0);
+  a(29,'Warren Zaïre-Emery','MC',19,'FRA','PSG','Francia',45,0,0);
+  a(19,'Lee Kang-in','MCO',24,'COR','PSG','Francia',30,0,0);
+  a(7,'Ousmane Dembélé','ED',28,'FRA','PSG','Francia',60,0,0);
+  a(9,'Gonçalo Ramos','DC',24,'POR','PSG','Francia',45,0,0);
+  a(25,'Marco Asensio','MCO',30,'ESP','PSG','Francia',15,0,0);
+
+  // --- Marseille ---
+  a(1,'Pau López','ARQ',30,'ESP','Marseille','Francia',8,0,0);
+  a(4,'Leonardo Balerdi','DFC',26,'ARG','Marseille','Francia',15,0,0);
+  a(5,'Pierre-Emile Højbjerg','MCD',29,'DIN','Marseille','Francia',15,0,0);
+  a(8,'Amine Harit','MCO',28,'MAR','Marseille','Francia',8,0,0);
+  a(10,'Pierre-Emerick Aubameyang','DC',36,'GAB','Marseille','Francia',3,78,0);
+  a(11,'Jonathan Clauss','DFD',32,'FRA','Marseille','Francia',5,0,0);
+  a(14,'Azzedine Ounahi','MC',25,'MAR','Marseille','Francia',12,0,0);
+
+  // --- Monaco ---
+  a(1,'Philipp Köhn','ARQ',26,'AUT','Monaco','Francia',8,0,0);
+  a(17,'Aleksandr Golovin','MCO',29,'RUS','Monaco','Francia',15,0,0);
+  a(9,'Breel Embolo','DC',28,'SUI','Monaco','Francia',10,0,0);
+  a(19,'Youssouf Fofana','MCD',26,'FRA','Monaco','Francia',25,0,0);
+  a(4,'Mohamed Camara','MCD',25,'MAL','Monaco','Francia',18,0,0);
+  a(10,'Denis Zakaria','MC',28,'SUI','Monaco','Francia',10,0,0);
+  a(36,'Maghnes Akliouche','MCO',22,'FRA','Monaco','Francia',15,0,0);
+
+  // --- Lyon ---
+  a(1,'Anthony Lopes','ARQ',34,'POR','Lyon','Francia',3,0,0);
+  a(10,'Alexandre Lacazette','DC',34,'FRA','Lyon','Francia',5,79,0);
+  a(18,'Rayan Cherki','MCO',21,'FRA','Lyon','Francia',25,0,0);
+  a(6,'Corentin Tolisso','MC',31,'FRA','Lyon','Francia',5,0,0);
+  a(8,'Maxence Caqueret','MC',25,'FRA','Lyon','Francia',12,0,0);
+  a(7,'Malick Fofana','EI',20,'BEL','Lyon','Francia',18,0,0);
+
+  // --- Lille ---
+  a(16,'Cheikh Oumar Ballo-Touré','DFI',28,'SEN','Lille','Francia',3,0,0);
+  a(10,'Jonathan David','DC',25,'CAN','Lille','Francia',45,0,0);
+  a(14,'Edon Zhegrova','ED',26,'KOS','Lille','Francia',18,0,0);
+  a(8,'Benjamin André','MCD',34,'FRA','Lille','Francia',3,0,0);
+  a(5,'Tiago Santos','DFD',22,'POR','Lille','Francia',12,0,0);
+  a(7,'Angel Gomes','MCO',24,'ING','Lille','Francia',15,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  EREDIVISIE (HOLANDA)                        ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Ajax ---
+  a(1,'Remko Pasveer','ARQ',41,'HOL','Ajax','Holanda',1,0,0);
+  a(2,'Devyne Rensch','DFD',22,'HOL','Ajax','Holanda',12,0,0);
+  a(4,'Josip Šutalo','DFC',24,'CRO','Ajax','Holanda',10,0,0);
+  a(5,'Jorrel Hato','DFI',19,'HOL','Ajax','Holanda',18,0,0);
+  a(6,'Jordan Henderson','MC',35,'ING','Ajax','Holanda',3,0,0);
+  a(11,'Steven Berghuis','MCO',33,'HOL','Ajax','Holanda',3,0,0);
+  a(9,'Brian Brobbey','DC',23,'HOL','Ajax','Holanda',25,0,0);
+  a(7,'Steven Bergwijn','EI',27,'HOL','Ajax','Holanda',15,0,0);
+
+  // --- PSV ---
+  a(99,'Walter Benítez','ARQ',32,'ARG','PSV','Holanda',5,0,0);
+  a(10,'Luuk de Jong','DC',34,'HOL','PSV','Holanda',3,0,0);
+  a(14,'Joey Veerman','MC',26,'HOL','PSV','Holanda',15,0,0);
+  a(4,'Olivier Boscagli','DFC',27,'FRA','PSV','Holanda',12,0,0);
+  a(23,'Xavi Simons','MCO',22,'HOL','PSV','Holanda',70,0,0);
+  a(7,'Johan Bakayoko','ED',22,'BEL','PSV','Holanda',30,0,0);
+  a(9,'Ricardo Pepi','DC',23,'USA','PSV','Holanda',10,0,0);
+
+  // --- Feyenoord ---
+  a(1,'Justin Bijlow','ARQ',27,'HOL','Feyenoord','Holanda',10,0,0);
+  a(3,'Dávid Hancko','DFC',27,'SVK','Feyenoord','Holanda',20,0,0);
+  a(8,'Quinten Timber','MC',23,'HOL','Feyenoord','Holanda',18,0,0);
+  a(29,'Santiago Giménez','DC',24,'MEX','Feyenoord','Holanda',35,0,0);
+  a(10,'Calvin Stengs','MCO',26,'HOL','Feyenoord','Holanda',12,0,0);
+  a(14,'Igor Paixão','EI',24,'BRA','Feyenoord','Holanda',15,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LIGA PORTUGUESA                             ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Porto ---
+  a(99,'Diogo Costa','ARQ',26,'POR','Porto','Portugal',25,0,0);
+  a(4,'Pepe','DFC',42,'POR','Porto','Portugal',1,74,0);
+  a(13,'Wendell','DFI',31,'BRA','Porto','Portugal',3,0,0);
+  a(11,'Galeno','EI',26,'BRA','Porto','Portugal',20,0,0);
+  a(7,'Pepê','ED',28,'BRA','Porto','Portugal',15,0,0);
+  a(10,'Francisco Conceição','ED',22,'POR','Porto','Portugal',25,0,0);
+  a(8,'Stephen Eustáquio','MC',28,'CAN','Porto','Portugal',12,0,0);
+  a(20,'Alan Varela','MCD',23,'ARG','Porto','Portugal',18,0,0);
+
+  // --- Benfica ---
+  a(99,'Anatoliy Trubin','ARQ',23,'UCR','Benfica','Portugal',12,0,0);
+  a(3,'Nicolás Otamendi','DFC',37,'ARG','Benfica','Portugal',2,76,0);
+  a(4,'António Silva','DFC',21,'POR','Benfica','Portugal',30,0,0);
+  a(14,'Fredrik Aursnes','MC',29,'NOR','Benfica','Portugal',12,0,0);
+  a(30,'Florentino Luís','MCD',25,'POR','Benfica','Portugal',20,0,0);
+  a(87,'João Neves','MC',20,'POR','Benfica','Portugal',55,0,0);
+  a(70,'David Neres','ED',28,'BRA','Benfica','Portugal',12,0,0);
+  a(11,'Ángel Di María','ED',37,'ARG','Benfica','Portugal',3,79,0);
+  a(9,'Vangelis Pavlidis','DC',26,'GRE','Benfica','Portugal',15,0,0);
+
+  // --- Sporting CP ---
+  a(1,'Franco Israel','ARQ',24,'URU','Sporting CP','Portugal',5,0,0);
+  a(3,'Sebastián Coates','DFC',34,'URU','Sporting CP','Portugal',2,0,0);
+  a(5,'Hidemasa Morita','MC',29,'JAP','Sporting CP','Portugal',12,0,0);
+  a(28,'Pedro Gonçalves','MCO',26,'POR','Sporting CP','Portugal',25,0,0);
+  a(9,'Viktor Gyökeres','DC',27,'SUE','Sporting CP','Portugal',60,87,0);
+  a(17,'Francisco Trincão','ED',25,'POR','Sporting CP','Portugal',15,0,0);
+  a(20,'Marcus Edwards','EI',26,'ING','Sporting CP','Portugal',12,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LIGA TURCA (SÜPER LIG)                      ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Galatasaray ---
+  a(9,'Mauro Icardi','DC',32,'ARG','Galatasaray','Turquía',10,82,0);
+  a(10,'Dries Mertens','MCO',38,'BEL','Galatasaray','Turquía',1,75,0);
+  a(22,'Hakim Ziyech','MCO',32,'MAR','Galatasaray','Turquía',5,78,0);
+  a(34,'Lucas Torreira','MCD',29,'URU','Galatasaray','Turquía',10,0,0);
+  a(11,'Yusuf Demir','EI',22,'AUT','Galatasaray','Turquía',5,0,0);
+  a(3,'Davinson Sánchez','DFC',29,'COL','Galatasaray','Turquía',10,0,0);
+  a(4,'Victor Nelsson','DFC',26,'DIN','Galatasaray','Turquía',12,0,0);
+  a(7,'Kerem Aktürkoğlu','EI',26,'TUR','Galatasaray','Turquía',18,0,0);
+
+  // --- Fenerbahçe ---
+  a(14,'Edin Džeko','DC',39,'BIH','Fenerbahçe','Turquía',2,76,0);
+  a(10,'Dušan Tadić','MCO',36,'SER','Fenerbahçe','Turquía',3,78,0);
+  a(28,'Sebastian Szymański','MCO',26,'POL','Fenerbahçe','Turquía',18,0,0);
+  a(19,'Bright Osayi-Samuel','DFD',27,'NIG','Fenerbahçe','Turquía',10,0,0);
+  a(5,'Fred','MCD',32,'BRA','Fenerbahçe','Turquía',5,78,0);
+  a(17,'İrfan Can Kahveci','MC',29,'TUR','Fenerbahçe','Turquía',10,0,0);
+  a(8,'Cengiz Ünder','ED',28,'TUR','Fenerbahçe','Turquía',8,0,0);
+
+  // --- Beşiktaş ---
+  a(10,'Rafa Silva','MCO',31,'POR','Beşiktaş','Turquía',5,0,0);
+  a(7,'Gedson Fernandes','MC',26,'POR','Beşiktaş','Turquía',8,0,0);
+  a(9,'Vincent Aboubakar','DC',33,'CAM','Beşiktaş','Turquía',3,0,0);
+  a(88,'Ciro Immobile','DC',35,'ITA','Beşiktaş','Turquía',3,0,0);
+  a(5,'Ernest Muci','EI',22,'ALB','Beşiktaş','Turquía',8,0,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LIGA BELGA (JUPILER PRO)                    ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Club Brugge ---
+  a(1,'Simon Mignolet','ARQ',37,'BEL','Club Brugge','Bélgica',1,0,0);
+  a(20,'Hans Vanaken','MCO',32,'BEL','Club Brugge','Bélgica',5,0,0);
+  a(7,'Ferran Jutglà','DC',25,'ESP','Club Brugge','Bélgica',8,0,0);
+  a(11,'Andreas Skov Olsen','ED',25,'DIN','Club Brugge','Bélgica',10,0,0);
+  a(26,'Raphael Onyedika','MCD',23,'NIG','Club Brugge','Bélgica',12,0,0);
+  a(14,'Christos Tzolis','EI',23,'GRE','Club Brugge','Bélgica',5,0,0);
+
+  // --- Anderlecht ---
+  a(9,'Kasper Dolberg','DC',27,'DIN','Anderlecht','Bélgica',8,0,0);
+  a(10,'Mario Stroeykens','MCO',20,'BEL','Anderlecht','Bélgica',10,0,0);
+  a(8,'Yari Verschaeren','MC',24,'BEL','Anderlecht','Bélgica',5,0,0);
+  a(11,'Anders Dreyer','ED',26,'DIN','Anderlecht','Bélgica',5,0,0);
+  a(4,'Jan Vertonghen','DFC',38,'BEL','Anderlecht','Bélgica',1,74,0);
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  LIGA RUSA (PREMIER LIGA)                    ║
+  // ╚══════════════════════════════════════════════╝
+
+  // --- Zenit ---
+  a(40,'Claudinho','MCO',28,'BRA','Zenit','Rusia',18,0,0);
+  a(7,'Malcom','ED',28,'BRA','Zenit','Rusia',15,0,0);
+  a(8,'Wendel','MC',27,'BRA','Zenit','Rusia',12,0,0);
+  a(9,'Serdar Azmoun','DC',30,'IRN','Zenit','Rusia',10,0,0);
+  a(22,'Artem Dzyuba','DC',36,'RUS','Zenit','Rusia',2,0,0);
+  a(17,'Andrey Mostovoy','MCO',25,'RUS','Zenit','Rusia',5,0,0);
+  a(2,'Rodrigão','DFC',26,'BRA','Zenit','Rusia',8,0,0);
+
+  // --- Spartak Moscow ---
+  a(10,'Quincy Promes','EI',33,'HOL','Spartak Moscú','Rusia',3,0,0);
+  a(9,'Alexander Sobolev','DC',28,'RUS','Spartak Moscú','Rusia',8,0,0);
+  a(14,'Nail Umyarov','MC',24,'RUS','Spartak Moscú','Rusia',5,0,0);
+  a(17,'Mikhail Ignatov','MCO',24,'RUS','Spartak Moscú','Rusia',3,0,0);
+
+  // --- CSKA Moscow ---
+  a(9,'Fedor Chalov','DC',27,'RUS','CSKA Moscú','Rusia',6,0,0);
+  a(10,'Adolfo Gaich','DC',26,'ARG','CSKA Moscú','Rusia',4,0,0);
+  a(7,'Chidera Ejuke','EI',27,'NIG','CSKA Moscú','Rusia',5,0,0);
 
   // Deduplicate by name — keep ONLY the single highest-rated version
   const best={};
