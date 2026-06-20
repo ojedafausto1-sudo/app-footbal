@@ -14,7 +14,7 @@ button{background:linear-gradient(135deg,#F6D318,#e8b800);color:#03172e;border:n
 button:hover{opacity:.9}
 button:disabled{opacity:.4;cursor:not-allowed}
 button.secondary{background:#1a3a6a;color:#e8edf5}
-#status{background:#091f3c;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;margin:12px 0;font-size:12px;color:#8faed4;max-height:300px;overflow-y:auto;white-space:pre-wrap}
+#status{background:#091f3c;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;margin:12px 0;font-size:12px;color:#8faed4;max-height:500px;overflow-y:auto;white-space:pre-wrap}
 #output{width:100%;height:400px;background:#091f3c;color:#0fb866;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:12px;font-family:'Consolas',monospace;font-size:11px;resize:vertical}
 .progress{background:#091f3c;border-radius:8px;height:24px;margin:8px 0;overflow:hidden}
 .progress-bar{background:linear-gradient(90deg,#F6D318,#0fb866);height:100%;transition:width .3s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#03172e}
@@ -84,7 +84,7 @@ const TARGET_COUNTRIES = {
 
 function log(msg) {
   const el = document.getElementById('status');
-  el.textContent = msg + '\n' + el.textContent.slice(0, 5000);
+  el.textContent = msg + '\n' + el.textContent.slice(0, 30000);
 }
 
 function setProgress(pct) {
@@ -413,32 +413,29 @@ async function extractAll() {
       }
 
       if (totalTeams <= 3 && squad.length > 0) {
-        log('    Primer jugador: ' + JSON.stringify(squad[0]).slice(0,500));
-        log('    Keys jugador: ' + JSON.stringify(Object.keys(squad[0])));
+        log('    === ITEM RAW [0] ===');
+        log('    ' + JSON.stringify(squad[0]).slice(0,800));
+        log('    Keys: ' + JSON.stringify(Object.keys(squad[0])));
+        // Log nested objects too
+        for (const [k, v] of Object.entries(squad[0])) {
+          if (typeof v === 'object' && v !== null) {
+            log('    Sub-obj [' + k + '] keys: ' + JSON.stringify(Object.keys(v)));
+          }
+        }
       }
-      log(`    Jugadores: ${squad.length}`);
 
+      let foundInTeam = 0;
       for (const p of squad) {
-        const player = {
-          name: p.name || p.NAME || p.playerName || p.PLAYER_NAME || p.participant || '',
-          age: p.age || p.AGE || 0,
-          nat: p.nationality || p.NATIONALITY || p.country || p.COUNTRY || p.flag || p.FLAG || '',
-          pos: p.position || p.POSITION || p.pos || p.POS || p.role || '',
-          club: teamName,
-          league: lg.name,
-          country: lg.country,
-          goals: p.goals || p.GOALS || p.G || 0,
-          assists: p.assists || p.ASSISTS || p.A || 0,
-          apps: p.appearances || p.APPEARANCES || p.matches || p.MATCHES || p.apps || p.MP || 0,
-          marketVal: p.marketValue || p.MARKET_VALUE || p.value || p.VALUE || 0,
-          rating: p.rating || p.RATING || 0,
-          id: p.id || p.ID || p.playerId || p.PLAYER_ID || '',
-          number: p.number || p.NUMBER || p.shirt || p.SHIRT || 0
-        };
-        if (player.name) {
+        const player = extractPlayer(p, teamName, lg.name, lg.country);
+        if (player) {
           allPlayers.push(player);
           totalPlayers++;
+          foundInTeam++;
         }
+      }
+      log(`    Jugadores: ${squad.length} items, ${foundInTeam} con nombre`);
+      if (foundInTeam === 0 && squad.length > 0) {
+        log('    ⚠ NINGUN ITEM TIENE NOMBRE — estructura no reconocida');
       }
 
       updateStats(li + 1, totalTeams, totalPlayers);
@@ -451,10 +448,73 @@ async function extractAll() {
   generateOutput();
 }
 
+function getPlayerName(p) {
+  // Direct fields
+  for (const k of ['name','NAME','playerName','PLAYER_NAME','participant','fullName','full_name','displayName','shortName','short_name']) {
+    if (p[k] && typeof p[k] === 'string') return p[k];
+  }
+  // firstName + lastName
+  const fn = p.firstName || p.first_name || p.FIRST_NAME || '';
+  const ln = p.lastName || p.last_name || p.LAST_NAME || '';
+  if (fn || ln) return (fn + ' ' + ln).trim();
+  // Nested: p.player.name, p.playerInfo.name, p.athlete.name
+  for (const k of ['player','playerInfo','athlete','person','info','details']) {
+    if (p[k] && typeof p[k] === 'object') {
+      const sub = p[k];
+      for (const nk of ['name','NAME','fullName','displayName','shortName']) {
+        if (sub[nk] && typeof sub[nk] === 'string') return sub[nk];
+      }
+      const sfn = sub.firstName || sub.first_name || '';
+      const sln = sub.lastName || sub.last_name || '';
+      if (sfn || sln) return (sfn + ' ' + sln).trim();
+    }
+  }
+  // Any string value in nested objects that looks like a name (has a space)
+  for (const v of Object.values(p)) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      const n = v.name || v.NAME;
+      if (n && typeof n === 'string') return n;
+    }
+  }
+  return '';
+}
+
+function getField(p, ...keys) {
+  for (const k of keys) {
+    if (p[k] !== undefined && p[k] !== null && p[k] !== '') return p[k];
+    // Check nested player/playerInfo
+    for (const nest of ['player','playerInfo','athlete','person','info']) {
+      if (p[nest] && typeof p[nest] === 'object' && p[nest][k] !== undefined) return p[nest][k];
+    }
+  }
+  return '';
+}
+
+function extractPlayer(p, teamName, leagueName, countryName) {
+  const name = getPlayerName(p);
+  if (!name) return null;
+  return {
+    name,
+    age: getField(p, 'age','AGE') || 0,
+    nat: getField(p, 'nationality','NATIONALITY','country','COUNTRY','flag','FLAG','countryName','nationalTeam') || '',
+    pos: getField(p, 'position','POSITION','pos','POS','role','type','typeName') || '',
+    club: teamName,
+    league: leagueName,
+    country: countryName,
+    goals: getField(p, 'goals','GOALS','G','goal') || 0,
+    assists: getField(p, 'assists','ASSISTS','A','assist') || 0,
+    apps: getField(p, 'appearances','APPEARANCES','matches','MATCHES','apps','MP','played','gamesPlayed') || 0,
+    marketVal: getField(p, 'marketValue','MARKET_VALUE','value','VALUE','transferValue') || 0,
+    rating: getField(p, 'rating','RATING','averageRating') || 0,
+    id: getField(p, 'id','ID','playerId','PLAYER_ID') || '',
+    number: getField(p, 'number','NUMBER','shirt','SHIRT','jerseyNumber','shirtNumber') || 0
+  };
+}
+
 function findPlayersArray(obj) {
   if (Array.isArray(obj)) return obj;
   if (typeof obj !== 'object' || !obj) return [];
-  for (const key of ['squad','players','roster','data','DATA','SQUAD','PLAYERS','members','lineup']) {
+  for (const key of ['squad','players','roster','data','DATA','SQUAD','PLAYERS','members','lineup','rows']) {
     if (obj[key]) {
       if (Array.isArray(obj[key])) return obj[key];
       if (typeof obj[key] === 'object') {
@@ -464,13 +524,14 @@ function findPlayersArray(obj) {
       }
     }
   }
+  // Return the largest array that has objects
+  let best = [];
   for (const v of Object.values(obj)) {
-    if (Array.isArray(v) && v.length > 3 && typeof v[0] === 'object' && v[0] !== null) {
-      const k = Object.keys(v[0]);
-      if (k.some(x => ['name','NAME','playerName','participant'].includes(x))) return v;
+    if (Array.isArray(v) && v.length > best.length && typeof v[0] === 'object' && v[0] !== null) {
+      best = v;
     }
   }
-  return [];
+  return best;
 }
 
 function mapPos(pos) {
