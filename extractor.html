@@ -457,7 +457,8 @@ async function extractTM(selected) {
         const name = String(p.name || p.playerName || p.fullName || '');
         if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
-        const natRaw = p.nationality || p.nationalities?.[0] || p.country || '';
+        let natRaw = p.nationality || p.nationalities || p.country || '';
+        if (Array.isArray(natRaw)) natRaw = natRaw[0] || '';
         const nat = typeof natRaw === 'object' ? (natRaw.name || natRaw.code || JSON.stringify(natRaw)) : String(natRaw);
         const posRaw = p.position || p.mainPosition || p.pos || '';
         const pos = typeof posRaw === 'object' ? (posRaw.name || posRaw.main || JSON.stringify(posRaw)) : String(posRaw);
@@ -597,14 +598,14 @@ async function extractFS(selected) {
 
 // Parse market value strings like "€25.00m", "€500k", or numeric values
 function parseMarketVal(val) {
-  if (typeof val === 'number') return val;
   if (!val) return 0;
+  if (typeof val === 'number') return val >= 100000 ? Math.round(val / 100000) / 10 : val;
   const s = String(val).toLowerCase().replace(/[€$£,\s]/g, '');
   let num = parseFloat(s);
   if (isNaN(num)) return 0;
   if (s.includes('m') || s.includes('mil')) return num;
   if (s.includes('k') || s.includes('thou')) return num / 1000;
-  if (num > 1000) return num / 1000000;
+  if (num >= 100000) return Math.round(num / 100000) / 10;
   return num;
 }
 
