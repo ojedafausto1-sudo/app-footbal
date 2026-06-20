@@ -18,21 +18,28 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 #output{width:100%;height:400px;background:#091f3c;color:#0fb866;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:12px;font-family:'Consolas',monospace;font-size:11px;resize:vertical}
 .progress{background:#091f3c;border-radius:8px;height:24px;margin:8px 0;overflow:hidden}
 .progress-bar{background:linear-gradient(90deg,#F6D318,#0fb866);height:100%;transition:width .3s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#03172e}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .check-group{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .check-group label{display:inline-flex;align-items:center;gap:6px;background:#091f3c;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid rgba(255,255,255,.1)}
 .check-group label:hover{border-color:#F6D318}
 .check-group input[type=checkbox]{accent-color:#F6D318}
 .stat{display:inline-block;background:#091f3c;padding:4px 10px;border-radius:6px;margin:2px;font-size:12px}
 .stat b{color:#F6D318}
+.api-select{display:flex;gap:12px;margin-bottom:12px}
+.api-select label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;color:#e8edf5}
+.api-select input[type=radio]{accent-color:#F6D318}
 </style>
 </head>
 <body>
-<h1>&#9917; SportDB Player Extractor</h1>
+<h1>&#9917; SportDB Player Extractor v3</h1>
 
 <div class="panel">
   <label>API Key (SportDB)</label>
   <input type="text" id="apiKey" placeholder="Pegá tu API key acá">
+  <label>API a usar:</label>
+  <div class="api-select">
+    <label><input type="radio" name="apiChoice" value="transfermarkt" checked> TransferMarkt (planteles + valores)</label>
+    <label><input type="radio" name="apiChoice" value="flashscore"> Flashscore (equipos + stats)</label>
+  </div>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
 </div>
@@ -52,6 +59,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
     <span class="stat">Ligas: <b id="sLeagues">0</b></span>
     <span class="stat">Equipos: <b id="sTeams">0</b></span>
     <span class="stat">Jugadores: <b id="sPlayers">0</b></span>
+    <span class="stat">Requests: <b id="sReqs">0</b></span>
   </div>
 </div>
 
@@ -65,21 +73,18 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 </div>
 
 <script>
-const API_BASE = 'https://api.sportdb.dev/api/flashscore';
-const TM_BASE = 'https://api.sportdb.dev/api/transfermarkt';
 let API_KEY = '';
 let allPlayers = [];
 let discoveredLeagues = [];
 let reqCount = 0;
 
-const TARGET_COUNTRIES = {
-  'Argentina':true,'Brazil':true,'Brasil':true,'Chile':true,'Paraguay':true,
-  'Uruguay':true,'Colombia':true,'Peru':true,'Perú':true,'Ecuador':true,
-  'Venezuela':true,'Bolivia':true,'Mexico':true,'México':true,'USA':true,
+const TARGET_COUNTRIES_TM = {
+  'Argentina':true,'Brazil':true,'Chile':true,'Paraguay':true,
+  'Uruguay':true,'Colombia':true,'Peru':true,'Ecuador':true,
+  'Venezuela':true,'Bolivia':true,'Mexico':true,'USA':true,
   'United States':true,'England':true,'Spain':true,'France':true,
   'Germany':true,'Italy':true,'Netherlands':true,'Russia':true,
-  'Belgium':true,'Portugal':true,'Turkey':true,'Türkiye':true,
-  'Turkiye':true
+  'Belgium':true,'Portugal':true,'Turkey':true
 };
 
 function log(msg) {
@@ -97,11 +102,17 @@ function updateStats(leagues, teams, players) {
   document.getElementById('sLeagues').textContent = leagues;
   document.getElementById('sTeams').textContent = teams;
   document.getElementById('sPlayers').textContent = players;
+  document.getElementById('sReqs').textContent = reqCount;
 }
 
-async function apiGet(path, base) {
-  const apiType = (base && base.includes('transfermarkt')) ? 'transfermarkt' : 'flashscore';
+function getApiChoice() {
+  return document.querySelector('input[name="apiChoice"]:checked').value;
+}
+
+async function apiGet(path, apiType) {
+  apiType = apiType || getApiChoice();
   reqCount++;
+  document.getElementById('sReqs').textContent = reqCount;
   if (reqCount % 3 === 0) await sleep(1100);
   const fnUrl = '/.netlify/functions/sportdb?api=' + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
   try {
@@ -119,176 +130,296 @@ async function apiGet(path, base) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ========== TEST CONNECTION ==========
 async function testAPI() {
   API_KEY = document.getElementById('apiKey').value.trim();
   if (!API_KEY) { alert('Ingresá tu API key'); return; }
-  log('Probando conexión...');
-  const data = await apiGet('/football');
-  if (data) {
-    log('Conexión OK');
-    log('Keys raíz: ' + JSON.stringify(Object.keys(data)));
-    if (data.DATA) {
-      const d = data.DATA;
-      if (Array.isArray(d)) {
-        log('DATA es Array de ' + d.length + ' items');
-        log('Primer país: ' + JSON.stringify(d[0]));
-        if (d[0]) log('Keys del país: ' + JSON.stringify(Object.keys(d[0])));
-        const arg = d.find(c => JSON.stringify(c).toLowerCase().includes('argentin'));
-        if (arg) log('Argentina: ' + JSON.stringify(arg));
-      } else if (typeof d === 'object') {
-        const keys = Object.keys(d);
-        log('DATA es Object con ' + keys.length + ' keys: ' + keys.slice(0,10).join(', '));
-        const first = d[keys[0]];
-        log('Primer valor: ' + JSON.stringify(first).slice(0,500));
-      }
+  const api = getApiChoice();
+  log(`Probando conexión (${api})...`);
+
+  if (api === 'transfermarkt') {
+    const countries = await apiGet('/countries', 'transfermarkt');
+    if (countries) {
+      log('✓ TransferMarkt conectado');
+      log('Países: ' + JSON.stringify(countries).slice(0, 800));
+    } else {
+      log('✗ Error conectando a TransferMarkt');
     }
-    // Try getting Argentina leagues
-    log('\n--- Probando obtener ligas de Argentina ---');
-    const argTest1 = await apiGet('/football/11');
-    if (argTest1) log('  /football/11: ' + JSON.stringify(argTest1).slice(0,800));
-    const argTest2 = await apiGet('/football/argentina');
-    if (argTest2) log('  /football/argentina: ' + JSON.stringify(argTest2).slice(0,800));
   } else {
-    log('Error de conexión. Verificá tu API key.');
+    const data = await apiGet('/football', 'flashscore');
+    if (data) {
+      log('✓ Flashscore conectado');
+      if (Array.isArray(data)) log(`${data.length} países encontrados`);
+    } else {
+      log('✗ Error conectando a Flashscore');
+    }
   }
 }
 
+// ========== DISCOVER LEAGUES ==========
 async function discoverLeagues() {
   API_KEY = document.getElementById('apiKey').value.trim();
   if (!API_KEY) { alert('Ingresá tu API key'); return; }
-  log('Descubriendo ligas...');
-
-  const countries = await apiGet('/football');
-  if (!countries || !Array.isArray(countries)) { log('No se pudieron obtener países'); return; }
-
-  log(`Encontrados ${countries.length} países`);
-
+  const api = getApiChoice();
+  log(`Descubriendo ligas via ${api}...`);
   discoveredLeagues = [];
-  let checked = 0;
 
-  for (const country of countries) {
-    const cName = country.name || '';
-    const cSlug = country.slug || '';
-    const compPath = country.competitions || '';
-
-    const isTarget = Object.keys(TARGET_COUNTRIES).some(t =>
-      cName.toLowerCase().includes(t.toLowerCase())
-    );
-    if (!isTarget) continue;
-
-    log(`Buscando ligas de ${cName}...`);
-
-    // competitions path is like "/api/flashscore/football/argentina"
-    // strip the "/api/flashscore" prefix since apiGet adds the base
-    const relPath = compPath.replace('/api/flashscore', '');
-
-    const leagues = await apiGet(relPath);
-    if (!leagues) continue;
-
-    if (checked < 2) {
-      log('  RAW: ' + JSON.stringify(leagues).slice(0, 1200));
-    }
-
-    // Parse: could be array or object
-    let leagueList = Array.isArray(leagues) ? leagues : [];
-    if (!leagueList.length && typeof leagues === 'object') {
-      if (leagues.DATA && Array.isArray(leagues.DATA)) leagueList = leagues.DATA;
-      else if (leagues.competitions && Array.isArray(leagues.competitions)) leagueList = leagues.competitions;
-      else {
-        for (const v of Object.values(leagues)) {
-          if (Array.isArray(v)) { leagueList = v; break; }
-        }
-      }
-    }
-
-    if (checked < 2 && leagueList.length > 0) {
-      log('  Primera liga: ' + JSON.stringify(leagueList[0]).slice(0,500));
-    }
-
-    for (const lg of leagueList) {
-      const lName = lg.name || lg.NAME || '';
-      const lId = lg.id || lg.ID || '';
-      const lSlug = lg.slug || '';
-      const lUrl = lg.standings || lg.url || lg.URL || '';
-      if (lName) {
-        discoveredLeagues.push({
-          country: cName, countrySlug: cSlug, name: lName, id: lId, slug: lSlug,
-          path: lUrl, raw: lg
-        });
-        log(`  ✓ ${lName}`);
-      }
-    }
-    checked++;
+  if (api === 'transfermarkt') {
+    await discoverTM();
+  } else {
+    await discoverFS();
   }
 
-  log(`\nTotal: ${discoveredLeagues.length} ligas en ${checked} países`);
+  log(`\nTotal: ${discoveredLeagues.length} ligas encontradas`);
 
   const panel = document.getElementById('leaguePanel');
   panel.style.display = 'block';
   const checksDiv = document.getElementById('leagueChecks');
   checksDiv.innerHTML = discoveredLeagues.map((lg, i) =>
-    `<label><input type="checkbox" value="${i}" ${i < 30 ? 'checked' : ''}> ${lg.country} - ${lg.name}</label>`
+    `<label><input type="checkbox" value="${i}" ${i < 40 ? 'checked' : ''}> ${lg.country} - ${lg.name}</label>`
   ).join('');
 }
 
+async function discoverTM() {
+  const countries = await apiGet('/countries', 'transfermarkt');
+  if (!countries) { log('No se pudieron obtener países'); return; }
+
+  // countries could be array or object
+  let countryList = Array.isArray(countries) ? countries : [];
+  if (!countryList.length && typeof countries === 'object') {
+    for (const v of Object.values(countries)) {
+      if (Array.isArray(v)) { countryList = v; break; }
+    }
+  }
+
+  log(`${countryList.length} países disponibles`);
+  if (countryList.length > 0) {
+    log('País ejemplo: ' + JSON.stringify(countryList[0]).slice(0, 300));
+  }
+
+  for (const country of countryList) {
+    const cName = country.name || country.NAME || '';
+    const cId = country.id || country.ID || '';
+
+    const isTarget = Object.keys(TARGET_COUNTRIES_TM).some(t =>
+      cName.toLowerCase().includes(t.toLowerCase())
+    );
+    if (!isTarget) continue;
+
+    log(`Buscando ligas de ${cName} (id: ${cId})...`);
+    const comps = await apiGet(`/countries/${cId}`, 'transfermarkt');
+    if (!comps) continue;
+
+    let compList = Array.isArray(comps) ? comps : [];
+    if (!compList.length && typeof comps === 'object') {
+      for (const v of Object.values(comps)) {
+        if (Array.isArray(v)) { compList = v; break; }
+      }
+    }
+
+    if (compList.length === 0 && typeof comps === 'object') {
+      // Maybe single competition or nested
+      log('  Estructura: ' + JSON.stringify(Object.keys(comps)));
+      log('  Data: ' + JSON.stringify(comps).slice(0, 500));
+    }
+
+    for (const comp of compList) {
+      const lName = comp.name || comp.NAME || comp.title || '';
+      const lId = comp.id || comp.ID || '';
+      if (lName) {
+        discoveredLeagues.push({
+          country: cName, name: lName, id: lId,
+          api: 'transfermarkt', raw: comp
+        });
+        log(`  ✓ ${lName} (${lId})`);
+      }
+    }
+  }
+}
+
+async function discoverFS() {
+  const countries = await apiGet('/football', 'flashscore');
+  if (!countries || !Array.isArray(countries)) { log('No se pudieron obtener países'); return; }
+
+  log(`${countries.length} países`);
+
+  for (const country of countries) {
+    const cName = country.name || '';
+    const cSlug = country.slug || '';
+    const compPath = (country.competitions || '').replace('/api/flashscore', '');
+
+    const isTarget = Object.keys(TARGET_COUNTRIES_TM).some(t =>
+      cName.toLowerCase().includes(t.toLowerCase())
+    );
+    if (!isTarget) continue;
+
+    log(`Buscando ligas de ${cName}...`);
+    const leagues = await apiGet(compPath, 'flashscore');
+    if (!leagues) continue;
+
+    let leagueList = Array.isArray(leagues) ? leagues : [];
+    if (!leagueList.length && typeof leagues === 'object') {
+      for (const v of Object.values(leagues)) {
+        if (Array.isArray(v)) { leagueList = v; break; }
+      }
+    }
+
+    for (const lg of leagueList) {
+      const lName = lg.name || '';
+      const lId = lg.id || '';
+      const lSlug = lg.slug || '';
+      if (lName) {
+        discoveredLeagues.push({
+          country: cName, countrySlug: cSlug, name: lName,
+          id: lId, slug: lSlug, api: 'flashscore', raw: lg
+        });
+        log(`  ✓ ${lName}`);
+      }
+    }
+  }
+}
+
+// ========== EXTRACT PLAYERS ==========
 async function extractAll() {
   API_KEY = document.getElementById('apiKey').value.trim();
   allPlayers = [];
 
   const checks = document.querySelectorAll('#leagueChecks input:checked');
   const selected = Array.from(checks).map(c => discoveredLeagues[parseInt(c.value)]);
-
   if (selected.length === 0) { alert('Seleccioná al menos una liga'); return; }
 
-  log(`=== PASO 1: Probando APIs para encontrar jugadores reales ===`);
-  log(`Ligas seleccionadas: ${selected.length}`);
+  const api = selected[0].api || getApiChoice();
+  log(`\nExtrayendo ${selected.length} ligas via ${api}...`);
 
-  // First, probe TransferMarkt API to discover its structure
-  log('\n--- Probando TransferMarkt API ---');
-  const tmRoot = await apiGet('/football', TM_BASE);
-  if (tmRoot) {
-    log('TM /football: ' + JSON.stringify(tmRoot).slice(0, 600));
-    if (Array.isArray(tmRoot) && tmRoot.length > 0) {
-      log('TM primer país: ' + JSON.stringify(tmRoot[0]).slice(0, 400));
-      log('TM keys país: ' + JSON.stringify(Object.keys(tmRoot[0])));
-    }
+  if (api === 'transfermarkt') {
+    await extractTM(selected);
   } else {
-    log('TM /football: no responde');
+    await extractFS(selected);
   }
 
-  // Probe a known team endpoint on both APIs
-  log('\n--- Probando endpoints de equipo ---');
-  const probeTeamPaths = [
-    '/football/team/boca-juniors', '/football/team/river-plate',
-    '/football/club/boca-juniors', '/football/club/river-plate'
-  ];
-  for (const tp of probeTeamPaths) {
-    const r1 = await apiGet(tp);
-    if (r1) log('FS ' + tp + ': ' + JSON.stringify(r1).slice(0, 400));
-    const r2 = await apiGet(tp, TM_BASE);
-    if (r2) log('TM ' + tp + ': ' + JSON.stringify(r2).slice(0, 400));
-  }
+  setProgress(100);
+  log(`\n=== RESULTADO: ${allPlayers.length} jugadores extraídos ===`);
+  generateOutput();
+}
 
-  // For squad probing
-  for (const tp of probeTeamPaths) {
-    for (const suffix of ['/squad', '/players', '/roster']) {
-      const r1 = await apiGet(tp + suffix);
-      if (r1) { log('FS ' + tp + suffix + ': OK — ' + JSON.stringify(r1).slice(0, 300)); break; }
-      const r2 = await apiGet(tp + suffix, TM_BASE);
-      if (r2) { log('TM ' + tp + suffix + ': OK — ' + JSON.stringify(r2).slice(0, 300)); break; }
+// TransferMarkt extraction: /competitions/{id} → clubs → /clubs/{id}/players
+async function extractTM(selected) {
+  let totalTeams = 0, totalPlayers = 0;
+
+  for (let li = 0; li < selected.length; li++) {
+    const lg = selected[li];
+    setProgress((li / selected.length) * 95);
+    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
+
+    // Get competition details to find clubs
+    const comp = await apiGet(`/competitions/${lg.id}`, 'transfermarkt');
+    if (!comp) { log('  ✗ No se pudo obtener la competición'); continue; }
+
+    if (li < 3) {
+      log('  Competición keys: ' + JSON.stringify(Object.keys(comp)));
+      log('  Data: ' + JSON.stringify(comp).slice(0, 800));
+    }
+
+    // Find clubs in the competition data
+    let clubs = [];
+    if (Array.isArray(comp)) {
+      clubs = comp;
+    } else if (typeof comp === 'object') {
+      // Look for clubs/teams array
+      for (const key of ['clubs','teams','participants','table','standings','data']) {
+        if (comp[key] && Array.isArray(comp[key])) { clubs = comp[key]; break; }
+      }
+      // Check nested
+      if (clubs.length === 0) {
+        for (const v of Object.values(comp)) {
+          if (Array.isArray(v) && v.length > 2 && typeof v[0] === 'object') {
+            clubs = v;
+            break;
+          }
+        }
+      }
+    }
+
+    if (li < 3 && clubs.length > 0) {
+      log('  Club ejemplo: ' + JSON.stringify(clubs[0]).slice(0, 500));
+      log('  Club keys: ' + JSON.stringify(Object.keys(clubs[0])));
+    }
+
+    log(`  ${clubs.length} clubs encontrados`);
+    totalTeams += clubs.length;
+
+    for (let ci = 0; ci < clubs.length; ci++) {
+      const club = clubs[ci];
+      const clubName = club.name || club.NAME || club.clubName || '';
+      const clubId = club.id || club.ID || club.clubId || '';
+
+      if (!clubId) { log(`  [${ci+1}] ${clubName} — sin ID, skip`); continue; }
+      log(`  [${ci+1}/${clubs.length}] ${clubName} (${clubId})...`);
+
+      // GET /clubs/{id}/players — THE KEY ENDPOINT
+      const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
+      if (!playersData) { log(`    ✗ Sin datos de jugadores`); continue; }
+
+      if (ci < 2 && li < 2) {
+        log('    Players keys: ' + JSON.stringify(Object.keys(playersData)));
+        log('    Players data: ' + JSON.stringify(playersData).slice(0, 800));
+      }
+
+      let playerList = [];
+      if (Array.isArray(playersData)) {
+        playerList = playersData;
+      } else if (typeof playersData === 'object') {
+        for (const v of Object.values(playersData)) {
+          if (Array.isArray(v) && v.length > 0) { playerList = v; break; }
+        }
+      }
+
+      if (ci < 2 && li < 2 && playerList.length > 0) {
+        log('    Jugador ejemplo: ' + JSON.stringify(playerList[0]).slice(0, 600));
+        log('    Jugador keys: ' + JSON.stringify(Object.keys(playerList[0])));
+      }
+
+      let added = 0;
+      for (const p of playerList) {
+        const name = p.name || p.playerName || p.fullName || '';
+        if (!name) continue;
+
+        const player = {
+          name,
+          age: p.age || 0,
+          nat: p.nationality || p.nationalities?.[0] || p.country || '',
+          pos: p.position || p.mainPosition || p.pos || '',
+          club: clubName,
+          league: lg.name,
+          country: lg.country,
+          goals: p.goals || 0,
+          assists: p.assists || 0,
+          apps: p.appearances || p.matches || 0,
+          marketVal: parseMarketVal(p.marketValue || p.value || p.currentMarketValue || ''),
+          number: p.shirtNumber || p.number || p.jerseyNumber || 0,
+          playerId: p.id || p.playerId || ''
+        };
+        allPlayers.push(player);
+        added++;
+        totalPlayers++;
+      }
+      log(`    ✓ ${added} jugadores`);
+      updateStats(li + 1, totalTeams, totalPlayers);
     }
   }
+}
 
-  log(`\n=== PASO 2: Extrayendo equipos de las ligas ===`);
+// Flashscore extraction: /team/{slug}/{id} includes squad
+async function extractFS(selected) {
   let totalTeams = 0, totalPlayers = 0;
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
     const raw = lg.raw || {};
-    setProgress((li / selected.length) * 90);
+    setProgress((li / selected.length) * 95);
     log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name}...`);
 
-    // Get teams from the league (we know Flashscore works for this)
+    // Get teams from league standings
     let paths = [];
     for (const [k, v] of Object.entries(raw)) {
       if (typeof v === 'string' && v.includes('/football/')) {
@@ -299,258 +430,125 @@ async function extractAll() {
     const ls = lg.slug || lg.name.toLowerCase().replace(/\s+/g, '-');
     paths.push(`/football/${cs}/${ls}/standings`);
     paths.push(`/football/${cs}/${ls}`);
-    if (lg.id) {
-      paths.push(`/football/${lg.id}/standings`);
-      paths.push(`/football/${lg.id}`);
-    }
 
     let leagueData = null;
     for (const p of paths) {
-      leagueData = await apiGet(p);
-      if (leagueData && !leagueData.error) break;
+      leagueData = await apiGet(p, 'flashscore');
+      if (leagueData) break;
     }
-    if (!leagueData) { log('  ✗ No se pudo obtener datos de liga'); continue; }
+    if (!leagueData) { log('  ✗ Sin datos de liga'); continue; }
 
-    // Extract teams
+    // Find teams array
     let teams = [];
     if (Array.isArray(leagueData)) {
       teams = leagueData;
     } else if (typeof leagueData === 'object') {
-      for (const key of ['rows','teams','standings','data','participants','clubs','table']) {
-        if (leagueData[key] && Array.isArray(leagueData[key])) { teams = leagueData[key]; break; }
+      for (const v of Object.values(leagueData)) {
+        if (Array.isArray(v) && v.length > 2) { teams = v; break; }
       }
-      if (teams.length === 0) {
-        for (const v of Object.values(leagueData)) {
-          if (Array.isArray(v) && v.length > 2) { teams = v; break; }
-        }
-      }
-    }
-
-    if (li < 2 && teams.length > 0) {
-      log('  Equipo ejemplo: ' + JSON.stringify(teams[0]).slice(0, 500));
-      log('  Keys equipo: ' + JSON.stringify(Object.keys(teams[0])));
     }
 
     log(`  ${teams.length} equipos`);
     totalTeams += teams.length;
 
-    // For each team, try to get squad data
     for (let ti = 0; ti < teams.length; ti++) {
       const team = teams[ti];
-      const teamName = team.name || team.NAME || team.teamName || team.participant || '';
-      const teamId = team.id || team.ID || '';
-      const teamSlug = team.slug || '';
+      const teamName = team.name || '';
+      const teamId = team.id || '';
+      const teamSlug = team.slug || teamName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-      if (!teamName && !teamId) continue;
+      if (!teamId) continue;
       log(`  [${ti+1}/${teams.length}] ${teamName}...`);
 
-      // Collect team URL paths from the team object
-      let teamUrls = [];
-      for (const [k, v] of Object.entries(team)) {
-        if (typeof v === 'string' && v.includes('/football/')) {
-          teamUrls.push(v.replace('/api/flashscore', '').replace('/api/transfermarkt', ''));
-        }
+      // Flashscore team endpoint: /team/{slug}/{id}
+      const teamData = await apiGet(`/team/${teamSlug}/${teamId}`, 'flashscore');
+      if (!teamData) { log(`    ✗ Sin datos`); continue; }
+
+      if (ti < 2 && li < 2) {
+        log('    Team keys: ' + JSON.stringify(Object.keys(teamData)));
+        log('    Data: ' + JSON.stringify(teamData).slice(0, 800));
       }
 
-      // Try various squad endpoints on BOTH APIs
+      // Find squad/players in team data
       let squad = [];
-      let foundVia = '';
-
-      const basePaths = [];
-      if (teamId) basePaths.push(`/football/team/${teamId}`);
-      if (teamSlug) basePaths.push(`/football/team/${teamSlug}`);
-      for (const u of teamUrls) basePaths.push(u);
-      // Add cleaned name as slug
-      const nameSlug = teamName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-');
-      basePaths.push(`/football/team/${nameSlug}`);
-
-      const suffixes = ['/squad', '/players', '', '/roster'];
-
-      for (const base of basePaths) {
-        if (squad.length > 0) break;
-        for (const suffix of suffixes) {
-          const fullPath = base + suffix;
-
-          // Try Flashscore
-          const fsData = await apiGet(fullPath);
-          if (fsData && !fsData.error) {
-            const arr = findPlayersArray(fsData);
-            const validated = arr.filter(p => isLikelyPlayer(p));
-            if (validated.length > 3) {
-              squad = validated;
-              foundVia = 'FS:' + fullPath;
-              break;
+      if (typeof teamData === 'object') {
+        for (const key of ['squad','players','roster','data']) {
+          if (teamData[key] && Array.isArray(teamData[key])) { squad = teamData[key]; break; }
+          if (teamData[key] && typeof teamData[key] === 'object') {
+            for (const v of Object.values(teamData[key])) {
+              if (Array.isArray(v)) { squad.push(...v); }
             }
-            if (ti < 2 && li < 1 && arr.length > 0) {
-              log(`    FS ${fullPath}: ${arr.length} items, ${validated.length} parecen jugadores`);
-              log('    Item[0]: ' + JSON.stringify(arr[0]).slice(0, 400));
-            }
-          }
-
-          // Try TransferMarkt
-          const tmData = await apiGet(fullPath, TM_BASE);
-          if (tmData && !tmData.error) {
-            const arr = findPlayersArray(tmData);
-            const validated = arr.filter(p => isLikelyPlayer(p));
-            if (validated.length > 3) {
-              squad = validated;
-              foundVia = 'TM:' + fullPath;
-              break;
-            }
-            if (ti < 2 && li < 1 && arr.length > 0) {
-              log(`    TM ${fullPath}: ${arr.length} items, ${validated.length} parecen jugadores`);
-              log('    Item[0]: ' + JSON.stringify(arr[0]).slice(0, 400));
-            }
+            if (squad.length > 0) break;
           }
         }
       }
 
-      if (squad.length > 0) {
-        if (ti < 3) log(`    ✓ ${squad.length} jugadores via ${foundVia}`);
-        for (const p of squad) {
-          const player = extractPlayer(p, teamName, lg.name, lg.country);
-          if (player) { allPlayers.push(player); totalPlayers++; }
-        }
-      } else {
-        if (ti < 5) log(`    ✗ Sin plantel`);
+      if (ti < 2 && li < 2 && squad.length > 0) {
+        log('    Jugador ejemplo: ' + JSON.stringify(squad[0]).slice(0, 500));
       }
 
+      let added = 0;
+      for (const p of squad) {
+        const name = p.name || p.playerName || '';
+        if (!name) continue;
+        const lower = name.toLowerCase();
+        const badWords = ['play off','stage','final','relegation','promotion','apertura','clausura','copa','round','group'];
+        if (badWords.some(w => lower.includes(w))) continue;
+
+        allPlayers.push({
+          name,
+          age: p.age || 0,
+          nat: p.nationality || p.country || p.flag || '',
+          pos: p.position || p.pos || '',
+          club: teamName,
+          league: lg.name,
+          country: lg.country,
+          goals: p.goals || 0,
+          assists: p.assists || 0,
+          apps: p.appearances || p.matches || 0,
+          marketVal: parseMarketVal(p.marketValue || p.value || ''),
+          number: p.number || p.shirt || 0
+        });
+        added++;
+        totalPlayers++;
+      }
+      log(`    ✓ ${added} jugadores`);
       updateStats(li + 1, totalTeams, totalPlayers);
     }
   }
-
-  setProgress(100);
-  log(`\n=== RESULTADO: ${totalPlayers} jugadores de ${totalTeams} equipos en ${selected.length} ligas ===`);
-  generateOutput();
 }
 
-function isLikelyPlayer(item) {
-  if (typeof item !== 'object' || !item) return false;
-  const name = getPlayerName(item);
-  if (!name) return false;
-  // Reject competition/stage names
-  const lower = name.toLowerCase();
-  const badWords = ['play off','playoff','stage','final','relegation','promotion','qualification',
-    'apertura','clausura','winners','losers','group','round','copa','league','championship',
-    'torneo','zona','additional','super final','primera','segunda'];
-  if (badWords.some(w => lower.includes(w))) return false;
-  // Must have at least one player-like field
-  const hasAge = (item.age || item.AGE) > 0;
-  const hasPos = !!(item.position || item.POSITION || item.pos || item.role);
-  const hasNumber = (item.number || item.shirt || item.jerseyNumber) > 0;
-  const hasNat = !!(item.nationality || item.NATIONALITY || item.country || item.flag);
-  // Nested checks
-  const nested = item.player || item.playerInfo || item.athlete || {};
-  const hasNestedAge = (nested.age || nested.AGE) > 0;
-  const hasNestedPos = !!(nested.position || nested.POSITION || nested.pos);
-  if (hasAge || hasPos || hasNumber || hasNat || hasNestedAge || hasNestedPos) return true;
-  // If name has at least 2 words and no bad words, likely a player
-  if (name.split(/\s+/).length >= 2) return true;
-  return false;
+// Parse market value strings like "€25.00m", "€500k", or numeric values
+function parseMarketVal(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const s = String(val).toLowerCase().replace(/[€$£,\s]/g, '');
+  let num = parseFloat(s);
+  if (isNaN(num)) return 0;
+  if (s.includes('m') || s.includes('mil')) return num;
+  if (s.includes('k') || s.includes('thou')) return num / 1000;
+  if (num > 1000) return num / 1000000;
+  return num;
 }
 
-function getPlayerName(p) {
-  // Direct fields
-  for (const k of ['name','NAME','playerName','PLAYER_NAME','participant','fullName','full_name','displayName','shortName','short_name']) {
-    if (p[k] && typeof p[k] === 'string') return p[k];
-  }
-  // firstName + lastName
-  const fn = p.firstName || p.first_name || p.FIRST_NAME || '';
-  const ln = p.lastName || p.last_name || p.LAST_NAME || '';
-  if (fn || ln) return (fn + ' ' + ln).trim();
-  // Nested: p.player.name, p.playerInfo.name, p.athlete.name
-  for (const k of ['player','playerInfo','athlete','person','info','details']) {
-    if (p[k] && typeof p[k] === 'object') {
-      const sub = p[k];
-      for (const nk of ['name','NAME','fullName','displayName','shortName']) {
-        if (sub[nk] && typeof sub[nk] === 'string') return sub[nk];
-      }
-      const sfn = sub.firstName || sub.first_name || '';
-      const sln = sub.lastName || sub.last_name || '';
-      if (sfn || sln) return (sfn + ' ' + sln).trim();
-    }
-  }
-  // Any string value in nested objects that looks like a name (has a space)
-  for (const v of Object.values(p)) {
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      const n = v.name || v.NAME;
-      if (n && typeof n === 'string') return n;
-    }
-  }
-  return '';
-}
-
-function getField(p, ...keys) {
-  for (const k of keys) {
-    if (p[k] !== undefined && p[k] !== null && p[k] !== '') return p[k];
-    // Check nested player/playerInfo
-    for (const nest of ['player','playerInfo','athlete','person','info']) {
-      if (p[nest] && typeof p[nest] === 'object' && p[nest][k] !== undefined) return p[nest][k];
-    }
-  }
-  return '';
-}
-
-function extractPlayer(p, teamName, leagueName, countryName) {
-  const name = getPlayerName(p);
-  if (!name) return null;
-  return {
-    name,
-    age: getField(p, 'age','AGE') || 0,
-    nat: getField(p, 'nationality','NATIONALITY','country','COUNTRY','flag','FLAG','countryName','nationalTeam') || '',
-    pos: getField(p, 'position','POSITION','pos','POS','role','type','typeName') || '',
-    club: teamName,
-    league: leagueName,
-    country: countryName,
-    goals: getField(p, 'goals','GOALS','G','goal') || 0,
-    assists: getField(p, 'assists','ASSISTS','A','assist') || 0,
-    apps: getField(p, 'appearances','APPEARANCES','matches','MATCHES','apps','MP','played','gamesPlayed') || 0,
-    marketVal: getField(p, 'marketValue','MARKET_VALUE','value','VALUE','transferValue') || 0,
-    rating: getField(p, 'rating','RATING','averageRating') || 0,
-    id: getField(p, 'id','ID','playerId','PLAYER_ID') || '',
-    number: getField(p, 'number','NUMBER','shirt','SHIRT','jerseyNumber','shirtNumber') || 0
-  };
-}
-
-function findPlayersArray(obj) {
-  if (Array.isArray(obj)) return obj;
-  if (typeof obj !== 'object' || !obj) return [];
-  for (const key of ['squad','players','roster','data','DATA','SQUAD','PLAYERS','members','lineup','rows']) {
-    if (obj[key]) {
-      if (Array.isArray(obj[key])) return obj[key];
-      if (typeof obj[key] === 'object') {
-        for (const v of Object.values(obj[key])) {
-          if (Array.isArray(v) && v.length > 0) return v;
-        }
-      }
-    }
-  }
-  // Return the largest array that has objects
-  let best = [];
-  for (const v of Object.values(obj)) {
-    if (Array.isArray(v) && v.length > best.length && typeof v[0] === 'object' && v[0] !== null) {
-      best = v;
-    }
-  }
-  return best;
-}
-
+// ========== OUTPUT GENERATION ==========
 function mapPos(pos) {
-  const p = (pos || '').toUpperCase();
-  if (p.includes('GOAL') || p.includes('GK') || p === 'G' || p === 'POR') return 'ARQ';
-  if (p.includes('CENTRE-BACK') || p.includes('CB') || p === 'DC' || p.includes('CENTRAL') && p.includes('DEF')) return 'DFC';
-  if (p.includes('LEFT-BACK') || p.includes('LB') || p.includes('LEFT DEF')) return 'DFI';
-  if (p.includes('RIGHT-BACK') || p.includes('RB') || p.includes('RIGHT DEF')) return 'DFD';
-  if (p.includes('DEF') || p.includes('BACK')) return 'DFC';
-  if (p.includes('DEFENSIVE MID') || p.includes('CDM') || p.includes('DM')) return 'MCD';
-  if (p.includes('CENTRAL MID') || p.includes('CM') || p === 'M') return 'MC';
-  if (p.includes('ATTACKING MID') || p.includes('CAM') || p.includes('AM') || p.includes('PLAYMAKER')) return 'MCO';
-  if (p.includes('LEFT MID') || p.includes('LM') || p.includes('LEFT WING') || p.includes('LW')) return 'EI';
-  if (p.includes('RIGHT MID') || p.includes('RM') || p.includes('RIGHT WING') || p.includes('RW')) return 'ED';
-  if (p.includes('MID') || p.includes('MF')) return 'MC';
-  if (p.includes('FORWARD') || p.includes('STRIKER') || p.includes('CF') || p.includes('ST')) return 'DC';
-  if (p.includes('WINGER') || p.includes('WING')) return 'ED';
-  if (p.includes('ATT') || p.includes('FW')) return 'DC';
+  const p = (pos || '').toLowerCase();
+  if (p.includes('goalkeeper') || p.includes('keeper') || p === 'gk' || p.includes('torwart')) return 'ARQ';
+  if (p.includes('centre-back') || p.includes('center-back') || p.includes('central defender') || p === 'cb' || p.includes('innenverteidiger')) return 'DFC';
+  if (p.includes('left-back') || p.includes('left back') || p === 'lb' || p.includes('linker verteidiger')) return 'DFI';
+  if (p.includes('right-back') || p.includes('right back') || p === 'rb' || p.includes('rechter verteidiger')) return 'DFD';
+  if (p.includes('defen')) return 'DFC';
+  if (p.includes('defensive mid') || p === 'cdm' || p === 'dm' || p.includes('defensives mittelfeld')) return 'MCD';
+  if (p.includes('central mid') || p === 'cm' || p.includes('zentrales mittelfeld')) return 'MC';
+  if (p.includes('attacking mid') || p === 'cam' || p === 'am' || p.includes('offensives mittelfeld')) return 'MCO';
+  if (p.includes('left mid') || p.includes('left wing') || p === 'lw' || p === 'lm' || p.includes('linksaussen') || p.includes('left forward')) return 'EI';
+  if (p.includes('right mid') || p.includes('right wing') || p === 'rw' || p === 'rm' || p.includes('rechtsaussen') || p.includes('right forward')) return 'ED';
+  if (p.includes('midfield')) return 'MC';
+  if (p.includes('second striker') || p.includes('hangende spitze')) return 'MCO';
+  if (p.includes('centre-forward') || p.includes('center-forward') || p.includes('striker') || p === 'cf' || p === 'st' || p.includes('mittelstürmer')) return 'DC';
+  if (p.includes('forward') || p.includes('attack')) return 'DC';
+  if (p.includes('winger')) return 'ED';
   return 'MC';
 }
 
@@ -560,27 +558,24 @@ function mapNat(nat) {
     'argentina':'ARG','brazil':'BRA','brasil':'BRA','chile':'CHI','paraguay':'PAR',
     'uruguay':'URU','colombia':'COL','peru':'PER','perú':'PER','ecuador':'ECU',
     'venezuela':'VEN','bolivia':'BOL','mexico':'MEX','méxico':'MEX',
-    'england':'ING','spain':'ESP','españa':'ESP','france':'FRA','francia':'FRA',
-    'germany':'ALE','alemania':'ALE','italy':'ITA','italia':'ITA',
-    'netherlands':'HOL','holanda':'HOL','russia':'RUS','rusia':'RUS',
-    'belgium':'BEL','bélgica':'BEL','portugal':'POR','turkey':'TUR','türkiye':'TUR',
-    'usa':'USA','united states':'USA','estados unidos':'USA',
-    'japan':'JAP','south korea':'COR','nigeria':'NIG','senegal':'SEN',
-    'cameroon':'CAM','ghana':'GHA','ivory coast':'CIV','morocco':'MAR',
-    'egypt':'EGI','croatia':'CRO','serbia':'SER','denmark':'DIN',
-    'sweden':'SUE','norway':'NOR','austria':'AUT','switzerland':'SUI',
-    'poland':'POL','czech republic':'CZE','czechia':'CZE',
-    'scotland':'ESC','wales':'GAL','ireland':'IRL',
-    'costa rica':'CRC','honduras':'HON','jamaica':'JAM',
-    'canada':'CAN','australia':'AUS','new zealand':'NZL',
-    'ar':'ARG','br':'BRA','cl':'CHI','py':'PAR','uy':'URU','co':'COL',
-    'pe':'PER','ec':'ECU','ve':'VEN','bo':'BOL','mx':'MEX',
-    'us':'USA','gb-eng':'ING','es':'ESP','fr':'FRA','de':'ALE',
-    'it':'ITA','nl':'HOL','ru':'RUS','be':'BEL','pt':'POR','tr':'TUR',
-    'jp':'JAP','kr':'COR','ng':'NIG','sn':'SEN','cm':'CAM','gh':'GHA',
-    'ma':'MAR','eg':'EGI','hr':'CRO','rs':'SER','dk':'DIN','se':'SUE',
-    'no':'NOR','at':'AUT','ch':'SUI','pl':'POL','cz':'CZE',
-    'ie':'IRL','ca':'CAN','au':'AUS'
+    'england':'ING','spain':'ESP','españa':'ESP','france':'FRA',
+    'germany':'ALE','italy':'ITA','netherlands':'HOL','russia':'RUS',
+    'belgium':'BEL','portugal':'POR','turkey':'TUR',
+    'usa':'USA','united states':'USA','japan':'JAP','south korea':'COR',
+    'nigeria':'NIG','senegal':'SEN','cameroon':'CAM','ghana':'GHA',
+    'ivory coast':'CIV','morocco':'MAR','egypt':'EGI','croatia':'CRO',
+    'serbia':'SER','denmark':'DIN','sweden':'SUE','norway':'NOR',
+    'austria':'AUT','switzerland':'SUI','poland':'POL','czech republic':'CZE',
+    'czechia':'CZE','scotland':'ESC','wales':'GAL','ireland':'IRL',
+    'costa rica':'CRC','honduras':'HON','jamaica':'JAM','canada':'CAN',
+    'australia':'AUS','new zealand':'NZL','ukraine':'UCR','algeria':'ARG_DZ',
+    'tunisia':'TUN','mali':'MAL','guinea':'GUI','gabon':'GAB',
+    'democratic republic of congo':'COD','slovenia':'SVN','slovakia':'SVK',
+    'hungary':'HUN','romania':'RUM','greece':'GRE','georgia':'GEO',
+    'iran':'IRN','north macedonia':'MKD','albania':'ALB','montenegro':'MNE',
+    'bosnia and herzegovina':'BIH','bosnia-herzegovina':'BIH','kosovo':'KOS',
+    'finland':'FIN','iceland':'ISL','israel':'ISR','jamaica':'JAM',
+    'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV'
   };
   for (const [key, val] of Object.entries(map)) {
     if (n === key || n.includes(key)) return val;
@@ -590,7 +585,6 @@ function mapNat(nat) {
 
 function mapLeague(country, league) {
   const c = (country||'').toLowerCase();
-  const l = (league||'').toLowerCase();
   if (c.includes('argentin')) return 'Liga ARG';
   if (c.includes('brazil') || c.includes('brasil')) return 'Brasil';
   if (c.includes('chile')) return 'Chile';
@@ -604,15 +598,15 @@ function mapLeague(country, league) {
   if (c.includes('mexic') || c.includes('méxic')) return 'Liga MX';
   if (c.includes('united states') || c.includes('usa')) return 'MLS';
   if (c.includes('england')) return 'Premier';
-  if (c.includes('spain') || c.includes('españa')) return 'España';
-  if (c.includes('france') || c.includes('francia')) return 'Francia';
-  if (c.includes('germany') || c.includes('aleman')) return 'Alemania';
-  if (c.includes('italy') || c.includes('italia')) return 'Italia';
-  if (c.includes('netherlands') || c.includes('holan')) return 'Holanda';
-  if (c.includes('russia') || c.includes('rusia')) return 'Rusia';
-  if (c.includes('belgium') || c.includes('bélgi')) return 'Bélgica';
+  if (c.includes('spain')) return 'España';
+  if (c.includes('france')) return 'Francia';
+  if (c.includes('germany')) return 'Alemania';
+  if (c.includes('italy')) return 'Italia';
+  if (c.includes('netherlands')) return 'Holanda';
+  if (c.includes('russia')) return 'Rusia';
+  if (c.includes('belgium')) return 'Bélgica';
   if (c.includes('portugal')) return 'Portugal';
-  if (c.includes('turkey') || c.includes('türk')) return 'Turquía';
+  if (c.includes('turkey')) return 'Turquía';
   return league || country || 'Otro';
 }
 
@@ -632,18 +626,18 @@ function generateOutput() {
     }
   }
 
-  let csv = 'Nombre,Posicion,Edad,Nacionalidad,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,Rating\n';
+  let csv = 'Nombre,Posicion,Edad,Nacionalidad,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
   let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
   for (const p of unique) {
     const pos = mapPos(p.pos);
     const nat = mapNat(p.nat);
     const lg = mapLeague(p.country, p.league);
-    const val = p.marketVal ? parseFloat(p.marketVal) || 1 : 1;
-    const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos.includes('MCD') ? 8 : 9);
+    const val = p.marketVal || 1;
+    const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
 
     js += `  a(${num},'${p.name.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${p.club.replace(/'/g,"\\'")}','${lg}',${val},0,0);\n`;
-    csv += `"${p.name}","${pos}",${p.age||''},"${nat}","${p.club}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val},${p.rating||''}\n`;
+    csv += `"${p.name}","${pos}",${p.age||''},"${nat}","${p.club}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
   }
 
   js += `  // Total: ${unique.length} jugadores extraidos\n`;
