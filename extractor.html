@@ -180,6 +180,97 @@ async function discoverLeagues() {
   ).join('');
 }
 
+function getLeagueTier(name, country) {
+  const n = name.toLowerCase();
+  const c = (country||'').toLowerCase();
+
+  // Blacklist: cups, youth, women, reserves, amateur, regional, etc.
+  const blacklist = [
+    'cup','copa','pokal','coupe','coppa','taca','taça',
+    'women','femen','feminin','féminin','damen','vrouwen',
+    'youth','juvenil','juniores','junior','sub-','sub ','u17','u18','u19','u20','u21','u23',
+    'reserve','reserva','riserv',
+    'super cup','supercopa','supercoupe','supercoppa',
+    'tercera','terza','3.liga','3rd','third','dritte','derde',
+    'cuarta','quarta','4th','fourth','vierte','vierde',
+    'regional','provincial','amateur','amateure',
+    'friendly','amistoso',
+    'qualification','qualifikation','playoff','play-off',
+    'shield','trophée','trophy','community',
+    'primavera','academy','formación',
+    'futsal','beach','playa',
+    'segunda b','ligue nationale','national 2','national 3',
+    'serie c','serie d','league one','league two',
+    'league 1','league 2', // English lower divisions
+    '3. lig','bal ligi', // Turkish lower
+    'eerste divisie amateur',
+    'regionalliga','oberliga',
+    'campeonato de portugal' // Portuguese 3rd tier
+  ];
+  if (blacklist.some(b => n.includes(b))) return 0;
+
+  // Known first divisions (tier 1)
+  const tier1 = [
+    'liga profesional','superliga argentina','primera división argentina',
+    'série a','brasileirão','campeonato brasileiro série a',
+    'primera división chile','campeonato nacional chile',
+    'primera división paraguay','división de honor',
+    'primera división uruguay','campeonato uruguayo',
+    'liga betplay','categoría primera a','liga dimayor',
+    'liga 1 perú','liga 1','primera división perú',
+    'ligapro serie a','ligapro','primera a ecuador',
+    'primera división venezuela','liga futve',
+    'primera división bolivia','liga profesional bolivia',
+    'liga mx','primera división mexico',
+    'major league soccer','mls',
+    'premier league','english premier',
+    'laliga','la liga','primera división españa','liga santander',
+    'ligue 1','division 1 france','ligue 1 mcdonald',
+    'bundesliga','1.bundesliga','1. bundesliga',
+    'serie a italy','serie a tim','serie a italia',
+    'eredivisie',
+    'premier liga','russian premier','premjer-liga',
+    'jupiler pro league','first division a belgium','pro league',
+    'liga portugal','primeira liga','liga nos',
+    'süper lig','super lig turkey'
+  ];
+  if (tier1.some(t => n.includes(t) || n === t)) return 1;
+
+  // Known second divisions (tier 2)
+  const tier2 = [
+    'primera nacional','primera b nacional','segunda división argentina',
+    'série b','brasileirão série b','campeonato brasileiro série b',
+    'primera b chile','segunda división chile',
+    'división intermedia','segunda división paraguay',
+    'segunda división uruguay',
+    'torneo betplay','categoría primera b colombia',
+    'liga 2 perú','liga 2','segunda división perú',
+    'ligapro serie b','primera b ecuador',
+    'segunda división venezuela',
+    'segunda división bolivia',
+    'liga de expansión','liga de expansión mx',
+    'usl championship',
+    'championship','efl championship','english championship',
+    'laliga 2','la liga 2','segunda división españa','laliga hypermotion',
+    'ligue 2','division 2 france',
+    '2.bundesliga','2. bundesliga','zweite bundesliga',
+    'serie b italy','serie b italia','serie bkt',
+    'eerste divisie',
+    'fnl','first division russia','pervaja liga',
+    'challenger pro league','first division b belgium',
+    'liga portugal 2','segunda liga','liga sabseg',
+    '1. lig','tff 1. lig','first league turkey'
+  ];
+  if (tier2.some(t => n.includes(t) || n === t)) return 2;
+
+  // Generic pattern matching for "primera" / "first" / "1st" → tier 1
+  if (/\b(primera|first|1st|1a|1ère)\b/.test(n) && !/\b(b|nacional)\b/.test(n)) return 1;
+  // Generic for "segunda" / "second" / "2nd" → tier 2
+  if (/\b(segunda|second|2nd|2a|2ème)\b/.test(n)) return 2;
+
+  return 0;
+}
+
 async function discoverTM() {
   const countries = await apiGet('/countries', 'transfermarkt');
   if (!countries) { log('No se pudieron obtener países'); return; }
@@ -223,17 +314,24 @@ async function discoverTM() {
       log('  Data: ' + JSON.stringify(comps).slice(0, 500));
     }
 
+    let kept = 0;
     for (const comp of compList) {
       const lName = comp.name || comp.NAME || comp.title || '';
       const lId = comp.id || comp.ID || '';
-      if (lName) {
+      if (!lName) continue;
+      const tier = getLeagueTier(lName, cName);
+      if (tier > 0) {
         discoveredLeagues.push({
           country: cName, name: lName, id: lId,
-          api: 'transfermarkt', raw: comp
+          api: 'transfermarkt', raw: comp, tier
         });
-        log(`  ✓ ${lName} (${lId})`);
+        log(`  ✓ ${lName} (${lId}) [Div ${tier}]`);
+        kept++;
+      } else {
+        log(`  ✗ ${lName} (filtrada)`);
       }
     }
+    if (kept === 0) log(`  ⚠ Ninguna liga pasó el filtro para ${cName}`);
   }
 }
 
@@ -264,18 +362,25 @@ async function discoverFS() {
       }
     }
 
+    let kept = 0;
     for (const lg of leagueList) {
       const lName = lg.name || '';
       const lId = lg.id || '';
       const lSlug = lg.slug || '';
-      if (lName) {
+      if (!lName) continue;
+      const tier = getLeagueTier(lName, cName);
+      if (tier > 0) {
         discoveredLeagues.push({
           country: cName, countrySlug: cSlug, name: lName,
-          id: lId, slug: lSlug, api: 'flashscore', raw: lg
+          id: lId, slug: lSlug, api: 'flashscore', raw: lg, tier
         });
-        log(`  ✓ ${lName}`);
+        log(`  ✓ ${lName} [Div ${tier}]`);
+        kept++;
+      } else {
+        log(`  ✗ ${lName} (filtrada)`);
       }
     }
+    if (kept === 0) log(`  ⚠ Ninguna liga pasó el filtro para ${cName}`);
   }
 }
 
