@@ -107,6 +107,9 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .fm-dlsbtn:active{background:rgba(255,255,255,.22);transform:scale(.94)}
 .fm-btncap{font-size:6.5px;font-weight:700;letter-spacing:.08em;opacity:.65}
 .fm-hrow{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.75)}
+.fm-keybtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:rgba(255,255,255,.8);font-size:10px;padding:5px 8px;cursor:pointer;text-align:left;font-family:'Barlow',sans-serif}
+.fm-keybtn b{color:#F6D318;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em}
+.fm-keybtn:hover{border-color:#F6D318}
 .fm-hrow b{color:#F6D318;font-family:'Barlow Condensed',sans-serif;letter-spacing:.05em;white-space:nowrap}
 .fm-hrow i{color:rgba(255,255,255,.45)}
 /* VIRTUE BADGES (DLS-style) */
@@ -6847,9 +6850,10 @@ function renderMkt(){
   else if(sort==='pot') pl.sort((a,b)=>b.pot-a.pot);
   else if(sort==='ganga') pl.sort((a,b)=>(b.rat/Math.max(0.3,b.val))-(a.rat/Math.max(0.3,a.val)));
   else pl.sort((a,b)=>a.age-b.age);
-  pl = pl.slice(0,80);
+  const totalFound=pl.length;
+  pl = pl.slice(0,150);
   const winOpen=isTransferWindowOpen();
-  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Barlow Condensed';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()}</div>`;
+  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Barlow Condensed';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>`;
   el.innerHTML = winBanner+pl.map(p=>{
     const tag = p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>':p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>':p.rat>=78&&p.age<=23?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':'';
     const vb = vbadges(p);
@@ -11236,7 +11240,8 @@ function startFullMatch(){
               <div class="fm-hrow"><b>A / B / C</b><span>Igual que teclado (mantener = potencia)</span></div>
             </div>
           </div>
-          <div style="text-align:center;margin-top:16px">
+          <div id="fm-keycfg" style="margin-top:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"></div>
+          <div style="text-align:center;margin-top:14px">
             <button onclick="fmCloseHelp()" style="background:linear-gradient(135deg,#F6D318,#e8b800);color:#03172e;border:none;border-radius:10px;padding:12px 44px;font-family:'Barlow Condensed';font-size:18px;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 4px 18px rgba(246,211,24,.4)">▶ JUGAR</button>
           </div>
         </div>
@@ -11252,7 +11257,7 @@ function startFullMatch(){
     cv.width=Math.round(gm.clientWidth*dpr);
     cv.height=Math.round(gm.clientHeight*dpr);
     fmInit(m,cv.width,cv.height);
-    fmBind();fmJoySetup();
+    fmBind();fmJoySetup();fmRenderKeyCfg();
     FM.raf=requestAnimationFrame(fmLoop);
   });
 }
@@ -11384,12 +11389,61 @@ function fmShowHelp(){
   if(h)h.style.display='flex';
 }
 
+// ═══ TECLAS CONFIGURABLES (se guardan en el navegador) ═══
+const FM_ACTIONS=[
+  {id:'up',lbl:'Arriba',def:'KeyW'},
+  {id:'dn',lbl:'Abajo',def:'KeyS'},
+  {id:'lf',lbl:'Izquierda',def:'KeyA'},
+  {id:'rt',lbl:'Derecha',def:'KeyD'},
+  {id:'z',lbl:'A · Tiro/Barrida',def:'Space'},
+  {id:'x',lbl:'B · Pase/Presión',def:'KeyX'},
+  {id:'c',lbl:'C · Elevado/Despeje',def:'KeyC'},
+  {id:'tab',lbl:'Cambiar jugador',def:'KeyZ'},
+  {id:'sprint',lbl:'Sprint',def:'ShiftLeft'},
+  {id:'pause',lbl:'Pausa',def:'KeyP'},
+];
+function fmKeyCfg(){
+  let cfg={};
+  try{cfg=JSON.parse(localStorage.getItem('dt_keys')||'{}')||{};}catch(e){cfg={};}
+  const out={};
+  FM_ACTIONS.forEach(a=>out[a.id]=cfg[a.id]||a.def);
+  return out;
+}
+function fmKeyLabel(code){
+  if(!code)return '—';
+  const M={Space:'ESPACIO',ShiftLeft:'SHIFT',ShiftRight:'SHIFT DER',Tab:'TAB',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Enter:'ENTER',ControlLeft:'CTRL',AltLeft:'ALT'};
+  return M[code]||code.replace('Key','').replace('Digit','').toUpperCase();
+}
+function fmRenderKeyCfg(){
+  const el=document.getElementById('fm-keycfg');if(!el)return;
+  const cfg=fmKeyCfg();
+  el.innerHTML='<div style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:800;color:#fff;margin-bottom:6px">⚙ PERSONALIZAR TECLAS <span style="font-size:10px;color:rgba(255,255,255,.4);font-weight:400">— hacé click y presioná la tecla nueva</span></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px">'+
+    FM_ACTIONS.map(a=>`<button class="fm-keybtn" onclick="fmCaptureKey('${a.id}',this)">${a.lbl}: <b>${fmKeyLabel(cfg[a.id])}</b></button>`).join('')+
+    '</div>'+
+    '<button class="fm-keybtn" style="margin-top:5px;border-color:rgba(232,69,69,.4);color:#f77a7a" onclick="localStorage.removeItem(\'dt_keys\');fmRenderKeyCfg();if(FM)fmBind();">↩ Restaurar teclas por defecto</button>';
+}
+function fmCaptureKey(id,btn){
+  btn.innerHTML='<b style="color:#F6D318">PRESIONÁ UNA TECLA…</b>';
+  const h=e=>{
+    e.preventDefault();e.stopPropagation();
+    document.removeEventListener('keydown',h,true);
+    let cfg={};try{cfg=JSON.parse(localStorage.getItem('dt_keys')||'{}')||{};}catch(_){cfg={};}
+    cfg[id]=e.code;
+    localStorage.setItem('dt_keys',JSON.stringify(cfg));
+    fmRenderKeyCfg();
+    if(FM)fmBind();
+  };
+  document.addEventListener('keydown',h,true);
+}
+
 function fmBind(){
   if(FM._kd)document.removeEventListener('keydown',FM._kd);
   if(FM._ku)document.removeEventListener('keyup',FM._ku);
-  const mp={ArrowUp:'up',ArrowDown:'dn',ArrowLeft:'lf',ArrowRight:'rt',
-            KeyW:'up',KeyS:'dn',KeyA:'lf',KeyD:'rt',
-            Space:'z',KeyZ:'tab',KeyX:'x',KeyC:'c',Tab:'tab',ShiftLeft:'sprint',ShiftRight:'sprint',KeyP:'pause',Escape:'esc'};
+  // Flechas siempre mueven; el resto es configurable por el usuario
+  const cfg=fmKeyCfg();
+  const mp={ArrowUp:'up',ArrowDown:'dn',ArrowLeft:'lf',ArrowRight:'rt',Tab:'tab',Escape:'esc'};
+  FM_ACTIONS.forEach(a=>{mp[cfg[a.id]]=a.id;});
   FM._kd=e=>{if(!FM)return;const k=mp[e.code];if(k){e.preventDefault();if(k!=='pause'&&k!=='esc')FM.keys[k]=1;}if(k==='esc')fmQuit();if(k==='pause')fmPause();};
   FM._ku=e=>{if(!FM)return;const k=mp[e.code];if(k)FM.keys[k]=0;};
   document.addEventListener('keydown',FM._kd);
@@ -11614,6 +11668,9 @@ function fmCtrl(dt){
   }
 
   if(hasBall){
+    // CONTROL DE RECEPCIÓN: amortigua la pelota que llega rápido (primer toque)
+    {const bv2=Math.hypot(b.vx,b.vy);const pv2=Math.hypot(p.vx||0,p.vy||0);
+     if(bv2>Math.max(2.4,pv2*1.5)){b.vx*=Math.pow(0.85,dt);b.vy*=Math.pow(0.85,dt);}}
     // ════ CON PELOTA (ataque) ════
     // A = TIRO: mantené para cargar potencia, soltá para patear
     if(k.z){
@@ -11843,11 +11900,33 @@ function fmAI(p,team,idx,dt){
     }
 
     if(bd<p.r+20&&!(b.air>2)){
-      const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
-      b.vx=(dx/dd)*7.2+(Math.random()-.5)*0.9;
-      b.vy=(dy/dd)*5.8+(Math.random()-.5)*2.2;
+      // Salida en corto (45%): busca un compañero libre en su mitad; si no, pelotazo
+      let shortT=null;
+      if(Math.random()<0.45){
+        const mates=isM?f.my:f.opp;
+        const rivals=isM?f.opp:f.my;
+        let bestD=1e9;
+        mates.forEach(q=>{
+          if(q.isGK)return;
+          const dGoal=attRight?q.x-f.leftGL:f.rightGL-q.x;
+          if(dGoal>fieldW*0.5)return;
+          if(rivals.some(o=>Math.hypot(o.x-q.x,o.y-q.y)<140))return;
+          const dd2=Math.hypot(q.x-b.x,q.y-b.y);
+          if(dd2>120&&dd2<bestD){bestD=dd2;shortT=q;}
+        });
+      }
+      if(shortT){
+        const dx=shortT.x-b.x,dy=shortT.y-b.y,dd=Math.hypot(dx,dy)||1;
+        const pw2=3.4+dd*0.008;
+        b.vx=(dx/dd)*pw2;b.vy=(dy/dd)*pw2;
+      }else{
+        const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
+        b.vx=(dx/dd)*7.2+(Math.random()-.5)*0.9;
+        b.vy=(dy/dd)*5.8+(Math.random()-.5)*2.2;
+        b.air=22;
+      }
       f._lastTouch=isM?'my':'opp';
-      p._kickT=9;b.air=22;
+      p._kickT=9;
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
     p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
@@ -11858,6 +11937,26 @@ function fmAI(p,team,idx,dt){
   const KICK_R=p.r+7+18;
 
   if(isM){
+    // === PELOTA DIVIDIDA: el compañero más cercano va a buscarla (no se queda mirando) ===
+    if(!p.isGK&&bd<360&&!(b.air>2)){
+      const cpX=f.my[f.ctrl];
+      const ctrlD=cpX?Math.hypot(cpX.x-b.x,cpX.y-b.y):9999;
+      // Solo si la pelota está suelta (nadie del equipo la domina) y soy el más cercano
+      if(ctrlD>90){
+        let closest=true;
+        for(let qi=0;qi<f.my.length;qi++){
+          const q=f.my[qi];
+          if(qi===idx||q.isGK||qi===f.ctrl)continue;
+          if(Math.hypot(q.x-b.x,q.y-b.y)<bd-6){closest=false;break;}
+        }
+        if(closest){
+          fmMove(p,b.x-p.x,b.y-p.y,dt,0.072);
+          p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+          p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+          return;
+        }
+      }
+    }
     // === MY TEAM: hold shape, push up + mentalidad + desmarques ===
     const push=FM_MENTS[f.mentality||1].push;
     const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
@@ -11909,7 +12008,17 @@ function fmAI(p,team,idx,dt){
         }
       }
     }
+    const chaseRank=isChaser?dists.findIndex(dd=>dd.i===idx):-1;
     if(isChaser){
+      // Los perseguidores secundarios NO van todos a la pelota: cortan el ángulo hacia su arco
+      if(chaseRank>0&&bd>KICK_R+30){
+        const cutX=b.x+(ownGX-b.x)*(0.16+chaseRank*0.07);
+        const cutY=b.y+(mid-b.y)*0.14+(chaseRank%2?1:-1)*34;
+        fmMove(p,cutX-p.x,cutY-p.y,dt,0.078*(1+ad.aggr*0.10));
+        p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+        p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+        return;
+      }
       if(bd<KICK_R&&!(b.air>2)){
         const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
         const inBox=distGoal<fieldW*.28;
@@ -11976,6 +12085,7 @@ function fmAI(p,team,idx,dt){
 function fmOppPass(fromIdx){
   const f=FM,b=f.ball;
   const attRight=!f.myAttRight;
+  const fieldW=f.rightGL-f.leftGL;
   let bestI=-1,bestScore=-Infinity;
   f.opp.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
@@ -11986,7 +12096,12 @@ function fmOppPass(fromIdx){
       const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;
       return Math.hypot(m.x-mx,m.y-my2)<d*0.3;
     });
-    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?40:0);
+    // Receptor marcado de cerca: mal pase
+    const marked=f.my.some(m=>Math.hypot(m.x-t.x,m.y-t.y)<110);
+    // Pase hacia atrás cerca del propio arco: peligro de regalo
+    const recvOwnDist=attRight?(t.x-f.leftGL):(f.rightGL-t.x);
+    const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.28;
+    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?40:0)-(marked?50:0)-(suicidal?90:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
@@ -12262,22 +12377,23 @@ function fmDraw(){
 
   // ═══ JUGADORES 2.5D (humanoides con animaciones, escalados por profundidad) ═══
   const drawP3=(p,isCtrl,isNext)=>{
-    const sc=kxAt(p.y)/s;              // factor de profundidad (lejos = chico)
-    const[sx,syF]=P(p.x,p.y);          // posición de los pies en pantalla
-    const hg=48*sc;                     // altura del jugador en px
-    const rw=hg*0.30;
+    const sc=kxAt(p.y)/s;
+    const[sx,syF]=P(p.x,p.y);
+    const hg=52*sc,rw=hg*0.27;
     const mv=Math.hypot(p.vx||0,p.vy||0);
-    p._anim=(p._anim||Math.random()*6)+mv*0.35+0.02;
+    p._anim=(p._anim||Math.random()*6)+mv*0.30+0.02;
+    const ph=p._anim;
     const running=mv>0.3;
-    const run=running?Math.sin(p._anim):0;
-    const bob=running?Math.abs(Math.cos(p._anim))*hg*0.035:0;
+    const spdF=Math.min(1,mv/2.1);
+    const bob=running?Math.abs(Math.cos(ph))*hg*0.032*spdF:0;
     if((p.vx||0)>0.2)p._face=1;else if((p.vx||0)<-0.2)p._face=-1;
     const face=p._face||1;
     const kit=p.isGK?{c1:'#15181c',c2:'#c8d420'}:p.kit;
-    const skin='#d9a06b',hair='#241609';
+    const skin='#d9a06b';
+    const sockC=(kit.c2&&kit.c2!==kit.c1)?kit.c2:'#eeeeee';
     if(p._kickT>0)p._kickT-=1;
     if(p._diveT>0)p._diveT-=1;
-    const kick=(p._kickT||0)>0?(p._kickT/9):0;
+    const kick=(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0;
     const lying=(p._slideT||0)>0||(p._diveT||0)>0;
 
     // Indicadores en el piso
@@ -12292,13 +12408,16 @@ function fmDraw(){
       ctx.strokeStyle='rgba(68,221,255,.55)';ctx.lineWidth=1.7;ctx.stroke();
       ctx.setLineDash([]);ctx.restore();
     }
-    // Sombra
-    ctx.beginPath();ctx.ellipse(sx+hg*0.07,syF,rw*1.25,rw*0.42,0,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,.38)';ctx.fill();
+    // Sombra suave (gradiente radial, como sprite 3D)
+    {
+      const shG=ctx.createRadialGradient(sx+hg*0.05,syF,rw*0.15,sx+hg*0.05,syF,rw*1.6);
+      shG.addColorStop(0,'rgba(0,0,0,.45)');shG.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=shG;
+      ctx.beginPath();ctx.ellipse(sx+hg*0.05,syF,rw*1.6,rw*0.55,0,0,Math.PI*2);ctx.fill();
+    }
 
     ctx.save();
-    ctx.translate(sx,syF);
-    // Barrida / palomada: cuerpo acostado + polvo
+    ctx.translate(sx,syF-bob);
     if(lying){
       const ang=Math.atan2(p.vy||0,(p.vx||0.001));
       ctx.fillStyle='rgba(255,255,255,.22)';
@@ -12307,64 +12426,98 @@ function fmDraw(){
       ctx.rotate((Math.cos(ang)>=0?1:-1)*Math.PI/2*0.88);
       ctx.translate(0,-hg*0.12);
     }
-    const yTop=-hg;                      // cabeza
-    const hipY=-hg*0.40,shY=-hg*0.66;    // cadera / hombros
-    // PIERNAS con animación de correr (o patada)
-    const legSwing=run*hg*0.18;
-    const kickExt=kick*face*hg*0.30;     // pierna delantera extendida al patear
-    ctx.lineCap='round';
-    const legW=Math.max(2,hg*0.10);
-    // pierna 1 (atrás en la zancada)
-    ctx.strokeStyle=skin;ctx.lineWidth=legW;
-    ctx.beginPath();ctx.moveTo(-rw*0.42,hipY);ctx.lineTo(-rw*0.42-legSwing-kickExt*0.3,-hg*0.06);ctx.stroke();
-    ctx.strokeStyle=kit.c2;ctx.lineWidth=legW*1.05;
-    ctx.beginPath();ctx.moveTo(-rw*0.42-legSwing-kickExt*0.3,-hg*0.07);ctx.lineTo(-rw*0.42-(legSwing+kickExt*0.3)*1.12,0);ctx.stroke();
-    // pierna 2 (adelante — la que patea)
-    ctx.strokeStyle=skin;ctx.lineWidth=legW;
-    ctx.beginPath();ctx.moveTo(rw*0.42,hipY);ctx.lineTo(rw*0.42+legSwing+kickExt,-hg*0.06);ctx.stroke();
-    ctx.strokeStyle=kit.c2;ctx.lineWidth=legW*1.05;
-    ctx.beginPath();ctx.moveTo(rw*0.42+legSwing+kickExt,-hg*0.07);ctx.lineTo(rw*0.42+(legSwing+kickExt)*1.12,0);ctx.stroke();
-    // botines
-    ctx.fillStyle='#1a1a1a';
-    ctx.beginPath();ctx.ellipse(-rw*0.42-(legSwing+kickExt*0.3)*1.12,0,legW*0.7,legW*0.4,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(rw*0.42+(legSwing+kickExt)*1.12,0,legW*0.7,legW*0.4,0,0,Math.PI*2);ctx.fill();
-    // PANTALÓN
+    // Inclinación del cuerpo al correr (se lanza hacia adelante)
+    if(running&&!lying)ctx.transform(1,0,-face*0.09*spdF,1,0,0);
+
+    const hipY=-hg*0.42,shY=-hg*0.68,headY=-hg*0.85;
+    const Lt=hg*0.23,Ls=hg*0.23;      // muslo / pantorrilla
+    const La=hg*0.17,Lb=hg*0.15;      // brazo / antebrazo
+    const legW=Math.max(2,hg*0.085);
+    ctx.lineCap='round';ctx.lineJoin='round';
+
+    // ── PIERNA articulada (cadera→rodilla→pie) con ciclo de zancada real
+    const drawLeg=(phase,isFront)=>{
+      let swing=running?Math.sin(phase)*0.78*spdF:0.03;
+      let bend=running?Math.max(0.12,-Math.cos(phase)*0.95)*spdF:0.10;
+      if(isFront&&kick>0){swing=swing*(1-kick)-1.15*kick;bend=0.15+kick*0.25;}
+      const hx=(isFront?1:-1)*rw*0.36;
+      const kneeX=hx+Math.sin(swing)*Lt*face;
+      const kneeY=hipY+Math.cos(swing)*Lt;
+      const shinA=swing-bend;
+      const footX=kneeX+Math.sin(shinA)*Ls*face;
+      const footY=kneeY+Math.cos(shinA)*Ls;
+      // muslo (piel)
+      ctx.strokeStyle=skin;ctx.lineWidth=legW;
+      ctx.beginPath();ctx.moveTo(hx,hipY);ctx.lineTo(kneeX,kneeY);ctx.stroke();
+      // pantorrilla con media del kit
+      ctx.strokeStyle=sockC;ctx.lineWidth=legW*1.02;
+      ctx.beginPath();ctx.moveTo(kneeX,kneeY);ctx.lineTo(footX,footY);ctx.stroke();
+      // botín
+      ctx.fillStyle='#141414';
+      ctx.beginPath();ctx.ellipse(footX+face*legW*0.45,footY,legW*0.8,legW*0.42,0,0,Math.PI*2);ctx.fill();
+    };
+    // ── BRAZO articulado (hombro→codo→mano), balancea opuesto a las piernas
+    const drawArm=(phase,isFront)=>{
+      const swing=running?Math.sin(phase)*0.62*spdF:0.10*(isFront?1:-1);
+      const shX=(isFront?1:-1)*rw*0.66;
+      const elX=shX+Math.sin(swing)*La*face;
+      const elY=shY+Math.cos(swing)*La;
+      const hndX=elX+Math.sin(swing+0.85)*Lb*face;
+      const hndY=elY+Math.cos(swing+0.85)*Lb;
+      ctx.strokeStyle=kit.c1;ctx.lineWidth=legW*0.82;
+      ctx.beginPath();ctx.moveTo(shX,shY);ctx.lineTo(elX,elY);ctx.stroke();
+      ctx.strokeStyle=skin;ctx.lineWidth=legW*0.72;
+      ctx.beginPath();ctx.moveTo(elX,elY);ctx.lineTo(hndX,hndY);ctx.stroke();
+      ctx.fillStyle=p.isGK?'#eee':skin;
+      ctx.beginPath();ctx.arc(hndX,hndY,legW*0.5,0,Math.PI*2);ctx.fill();
+    };
+
+    // Orden de dibujo: extremidades traseras → torso → extremidades delanteras
+    drawArm(ph,false);
+    drawLeg(ph+Math.PI,false);
+    // PANTALÓN (shorts sobre las caderas)
     ctx.fillStyle=kit.c2;
     ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-rw*0.82,hipY-hg*0.06,rw*1.64,hg*0.18,hg*0.03);
-    else ctx.rect(-rw*0.82,hipY-hg*0.06,rw*1.64,hg*0.18);
+    if(ctx.roundRect)ctx.roundRect(-rw*0.80,hipY-hg*0.09,rw*1.60,hg*0.17,hg*0.03);
+    else ctx.rect(-rw*0.80,hipY-hg*0.09,rw*1.60,hg*0.17);
     ctx.fill();
-    // BRAZOS (balancean opuesto a las piernas)
-    const armSw=run*hg*0.14;
-    ctx.strokeStyle=kit.c1;ctx.lineWidth=legW*0.9;
-    ctx.beginPath();ctx.moveTo(-rw*0.85,shY);ctx.lineTo(-rw*1.05+armSw,shY+hg*0.24);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(rw*0.85,shY);ctx.lineTo(rw*1.05-armSw,shY+hg*0.24);ctx.stroke();
-    ctx.fillStyle=p.isGK?'#eee':skin;
-    ctx.beginPath();ctx.arc(-rw*1.05+armSw,shY+hg*0.26,legW*0.55,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(rw*1.05-armSw,shY+hg*0.26,legW*0.55,0,Math.PI*2);ctx.fill();
-    // TORSO (camiseta) — leve inclinación al correr
-    ctx.save();
-    if(running&&!lying)ctx.transform(1,0,-face*0.07,1,0,0);
+    ctx.fillStyle='rgba(0,0,0,.18)';
+    ctx.fillRect(-rw*0.80,hipY+hg*0.03,rw*1.60,hg*0.05);
+    // TORSO con sombreado (luz desde arriba)
     ctx.fillStyle=kit.c1;
     ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-rw*0.88,shY-hg*0.06,rw*1.76,hg*0.34,hg*0.05);
-    else ctx.rect(-rw*0.88,shY-hg*0.06,rw*1.76,hg*0.34);
+    if(ctx.roundRect)ctx.roundRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32,hg*0.06);
+    else ctx.rect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32);
     ctx.fill();
-    // Franja del kit
+    // franja del kit
     ctx.fillStyle=kit.c2;
-    ctx.fillRect(-rw*0.88,shY+hg*0.08,rw*1.76,hg*0.09);
-    ctx.strokeStyle=isCtrl?'rgba(246,211,24,.9)':'rgba(0,0,0,.32)';
-    ctx.lineWidth=isCtrl?1.4:0.7;
+    ctx.fillRect(-rw*0.86,shY+hg*0.075,rw*1.72,hg*0.085);
+    // brillo superior + sombra inferior (volumen)
+    ctx.fillStyle='rgba(255,255,255,.14)';
+    ctx.fillRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.07);
+    ctx.fillStyle='rgba(0,0,0,.16)';
+    ctx.fillRect(-rw*0.86,shY+hg*0.20,rw*1.72,hg*0.07);
+    // contorno
+    ctx.strokeStyle=isCtrl?'rgba(246,211,24,.9)':'rgba(0,0,0,.35)';
+    ctx.lineWidth=isCtrl?1.4:0.8;
     ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-rw*0.88,shY-hg*0.06,rw*1.76,hg*0.34,hg*0.05);
-    else ctx.rect(-rw*0.88,shY-hg*0.06,rw*1.76,hg*0.34);
+    if(ctx.roundRect)ctx.roundRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32,hg*0.06);
+    else ctx.rect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32);
     ctx.stroke();
-    ctx.restore();
-    // CABEZA + pelo
-    ctx.beginPath();ctx.arc(0,yTop+hg*0.12,hg*0.13,0,Math.PI*2);
-    ctx.fillStyle=skin;ctx.fill();
-    ctx.beginPath();ctx.arc(0,yTop+hg*0.10,hg*0.13,Math.PI*1.02,Math.PI*1.98);
-    ctx.strokeStyle=hair;ctx.lineWidth=hg*0.07;ctx.stroke();
+    // CUELLO + CABEZA con sombreado y pelo
+    ctx.fillStyle=skin;
+    ctx.fillRect(-legW*0.4,headY+hg*0.09,legW*0.8,hg*0.05);
+    const hR=hg*0.125;
+    const hdG=ctx.createRadialGradient(-hR*0.3,headY-hR*0.3+hg*0.02,hR*0.15,0,headY+hg*0.02,hR*1.1);
+    hdG.addColorStop(0,'#e8b481');hdG.addColorStop(1,'#c08a56');
+    ctx.beginPath();ctx.arc(0,headY+hg*0.02,hR,0,Math.PI*2);
+    ctx.fillStyle=hdG;ctx.fill();
+    // pelo (variado por jugador)
+    const hairC=['#241609','#3a2410','#151210','#4a3418'][(p.name.length+(p.rat||70))%4];
+    ctx.beginPath();ctx.arc(0,headY,hR*1.02,Math.PI*1.0,Math.PI*2.0);
+    ctx.fillStyle=hairC;ctx.fill();
+    drawLeg(ph,true);
+    drawArm(ph+Math.PI,true);
     ctx.restore();
 
     // Flecha sobre el controlado
@@ -12400,6 +12553,15 @@ function fmDraw(){
     // sombra en el piso
     ctx.beginPath();ctx.ellipse(shx+z*0.14,shy,bR*0.85,bR*0.32,0,0,Math.PI*2);
     ctx.fillStyle=`rgba(0,0,0,${Math.max(.08,.30-z*.003-bspd*.008)})`;ctx.fill();
+    // Estela de velocidad (motion blur)
+    if(bspd>3.4){
+      const nvx=(b.vx||0)/bspd,nvy=(b.vy||0)/bspd;
+      const scT=kxAt(b.y)/s;
+      ctx.fillStyle='rgba(255,255,255,.14)';
+      ctx.beginPath();ctx.arc(bx3-nvx*bR*2.4*scT,by3-nvy*bR*1.6*scT,bR*0.82,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.07)';
+      ctx.beginPath();ctx.arc(bx3-nvx*bR*4.6*scT,by3-nvy*bR*3.0*scT,bR*0.62,0,Math.PI*2);ctx.fill();
+    }
     // cuerpo
     ctx.beginPath();ctx.arc(bx3,by3,bR,0,Math.PI*2);
     const bg=ctx.createRadialGradient(bx3-bR*0.3,by3-bR*0.3,bR*0.1,bx3,by3,bR);
