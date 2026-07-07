@@ -11314,7 +11314,7 @@ function fmInit(m,W,H){
       dri:r(rat+(isAtt?8:isMid?4:isDef?-4:isGK?-14:0)),
     };
   };
-  const mkP=(initPos,homePos,role,name,rat,kit,isMy,realP)=>{
+  const mkP=(initPos,homePos,role,name,rat,kit,isMy,realP,numFallback)=>{
     const attrs=mkAttrs(rat,role,realP);
     const isGK=['ARQ','GK'].includes(role);
     // My team gets speed boost so they feel responsive vs AI
@@ -11325,6 +11325,7 @@ function fmInit(m,W,H){
       name:name.split(' ').pop().slice(0,7),
       r:isGK?18:14,kit,role,isGK,
       rat:Math.round(rat),attrs,
+      num:(realP&&realP.num)||numFallback||0,
       spd:basePac,
     };
   };
@@ -11351,7 +11352,7 @@ function fmInit(m,W,H){
     raf:0,lastTs:0,
     ball:{x:VW/2,y:VH/2,vx:0,vy:0,air:0},
     my:myXI.map((p,i)=>mkP(myPos[i],fullMyPos[i],form[i].pos,p.name,p.rat||72,myKit,true,p)),
-    opp:oNms.map((n,i)=>mkP(oppPos[i],fullOppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false)),
+    opp:oNms.map((n,i)=>mkP(oppPos[i],fullOppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false,null,i+1)),
     ctrl:10,
     charging:false,power:0,
     keys:{up:0,dn:0,lf:0,rt:0,z:0,x:0,c:0,tab:0,sprint:0},
@@ -12199,7 +12200,7 @@ function fmDraw(){
 
   // ═══ CÁMARA 2.5D ESTILO DLS: vista elevada desde la platea ═══
   // La cancha se proyecta en perspectiva: lo lejano (arriba) se ve más chico
-  const s=H/740;                 // escala base (px por unidad de mundo)
+  const s=H/705;                 // escala base (px por unidad de mundo)
   const KY=s*0.78;               // compresión vertical de la vista inclinada
   const visH=H/KY;
   const kxAt=y=>s*(0.56+0.56*Math.max(0,Math.min(1,y/VH)));
@@ -12238,7 +12239,7 @@ function fmDraw(){
     const pc=document.createElement('canvas');pc.width=52;pc.height=52;
     const px=pc.getContext('2d');
     px.fillStyle='#161c2b';px.fillRect(0,0,52,52);
-    const cols=['#3a4a63','#5d4a4a','#4a5d55','#6b6b7d','#7d6b5d','#8494ac','#9a8574','#4f5d78'];
+    const cols=['#2e3a4e','#463a3a','#3a4a42','#4e4e5c','#5c5246','#5a6678','#6b5f52','#3e4a5e'];
     let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
     for(let i=0;i<120;i++){px.fillStyle=cols[i%cols.length];px.fillRect(rnd()*49,rnd()*49,2.6,2.6);}
     f._crowdPat=ctx.createPattern(pc,'repeat');
@@ -12290,18 +12291,34 @@ function fmDraw(){
   ctx.fillStyle='rgba(255,255,255,.08)';
   quad3(-400,VH+2,VW+400,VH+8);ctx.fill();
 
-  // ═══ CÉSPED EN PERSPECTIVA — franjas horizontales (como DLS) ═══
+  // ═══ CÉSPED EN PERSPECTIVA — verde natural desaturado (estilo PES) ═══
   const sh2=155;
   for(let y=0;y<VH;y+=sh2*2){
-    ctx.fillStyle='#1c7034';quad3(-60,y,VW+60,Math.min(y+sh2,VH));ctx.fill();
-    ctx.fillStyle='#207c3a';quad3(-60,Math.min(y+sh2,VH),VW+60,Math.min(y+sh2*2,VH));ctx.fill();
+    ctx.fillStyle='#3c7346';quad3(-60,y,VW+60,Math.min(y+sh2,VH));ctx.fill();
+    ctx.fillStyle='#41794b';quad3(-60,Math.min(y+sh2,VH),VW+60,Math.min(y+sh2*2,VH));ctx.fill();
   }
-  // Brillo direccional sutil del pasto
-  ctx.fillStyle='rgba(255,255,255,.015)';
-  for(let x=0;x<VW;x+=300){quad3(x,0,Math.min(x+150,VW),VH);ctx.fill();}
+  // Textura de grano del pasto
+  if(!f._turfPat){
+    const tc=document.createElement('canvas');tc.width=64;tc.height=64;
+    const tx2=tc.getContext('2d');
+    let sd=13;const rr=()=>{sd=(sd*16807)%2147483647;return sd/2147483647;};
+    for(let i=0;i<170;i++){tx2.fillStyle=rr()<0.5?'rgba(0,0,0,.055)':'rgba(255,255,255,.04)';tx2.fillRect(rr()*63,rr()*63,1.7,1.7);}
+    f._turfPat=ctx.createPattern(tc,'repeat');
+  }
+  ctx.fillStyle=f._turfPat;quad3(-60,0,VW+60,VH);ctx.fill();
+  // Zonas desgastadas (centro y bocas de arco — pasto gastado)
+  const worn=(wx,wy,wr)=>{
+    const[wpx,wpy]=P(wx,wy);const rr2=wr*kxAt(wy);
+    const wg=ctx.createRadialGradient(wpx,wpy,0,wpx,wpy,rr2);
+    wg.addColorStop(0,'rgba(146,128,74,.15)');wg.addColorStop(1,'rgba(146,128,74,0)');
+    ctx.fillStyle=wg;
+    ctx.beginPath();ctx.ellipse(wpx,wpy,rr2,rr2*0.45,0,0,Math.PI*2);ctx.fill();
+  };
+  worn(cx,mid,190);
+  worn(leftGL+55,mid,160);worn(rightGL-55,mid,160);
 
   // ═══ LÍNEAS DEL CAMPO (proyectadas) ═══
-  ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(1.6,2.6*kxMid/s);
+  ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=Math.max(1.4,2.4*kxMid/s);
   line3(leftGL,10,rightGL,10);line3(leftGL,VH-10,rightGL,VH-10);
   line3(leftGL,10,leftGL,VH-10);line3(rightGL,10,rightGL,VH-10);
   line3(cx,10,cx,VH-10);
@@ -12389,7 +12406,9 @@ function fmDraw(){
     if((p.vx||0)>0.2)p._face=1;else if((p.vx||0)<-0.2)p._face=-1;
     const face=p._face||1;
     const kit=p.isGK?{c1:'#15181c',c2:'#c8d420'}:p.kit;
-    const skin='#d9a06b';
+    const TONES=[['#e8b481','#c08a56'],['#d9a06b','#a87848'],['#b07a48','#845428'],['#8a5a30','#5f3a1c']];
+    const tone=TONES[(p.name.charCodeAt(0)+p.name.length)%4];
+    const skin=tone[1];
     const sockC=(kit.c2&&kit.c2!==kit.c1)?kit.c2:'#eeeeee';
     if(p._kickT>0)p._kickT-=1;
     if(p._diveT>0)p._diveT-=1;
@@ -12398,10 +12417,8 @@ function fmDraw(){
 
     // Indicadores en el piso
     if(isCtrl){
-      ctx.beginPath();ctx.ellipse(sx,syF,rw*2.0,rw*0.72,0,0,Math.PI*2);
-      ctx.strokeStyle='rgba(246,211,24,.85)';ctx.lineWidth=2.4;ctx.stroke();
-      ctx.beginPath();ctx.ellipse(sx,syF,rw*2.6,rw*0.95,0,0,Math.PI*2);
-      ctx.strokeStyle='rgba(246,211,24,.25)';ctx.lineWidth=1.4;ctx.stroke();
+      ctx.beginPath();ctx.ellipse(sx,syF,rw*1.85,rw*0.62,0,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,240,120,.72)';ctx.lineWidth=1.8;ctx.stroke();
     }else if(isNext){
       ctx.save();ctx.setLineDash([5,4]);
       ctx.beginPath();ctx.ellipse(sx,syF,rw*1.8,rw*0.65,0,0,Math.PI*2);
@@ -12483,33 +12500,39 @@ function fmDraw(){
     ctx.fill();
     ctx.fillStyle='rgba(0,0,0,.18)';
     ctx.fillRect(-rw*0.80,hipY+hg*0.03,rw*1.60,hg*0.05);
-    // TORSO con sombreado (luz desde arriba)
-    ctx.fillStyle=kit.c1;
-    ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32,hg*0.06);
-    else ctx.rect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32);
-    ctx.fill();
+    // TORSO trapezoidal (hombros anchos, cintura fina — proporción real)
+    const shW=rw*0.98,waW=rw*0.74;
+    const torso=()=>{ctx.beginPath();ctx.moveTo(-shW,shY-hg*0.04);ctx.lineTo(shW,shY-hg*0.04);ctx.lineTo(waW,hipY+hg*0.03);ctx.lineTo(-waW,hipY+hg*0.03);ctx.closePath();};
+    ctx.fillStyle=kit.c1;torso();ctx.fill();
     // franja del kit
+    ctx.save();torso();ctx.clip();
     ctx.fillStyle=kit.c2;
-    ctx.fillRect(-rw*0.86,shY+hg*0.075,rw*1.72,hg*0.085);
-    // brillo superior + sombra inferior (volumen)
-    ctx.fillStyle='rgba(255,255,255,.14)';
-    ctx.fillRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.07);
-    ctx.fillStyle='rgba(0,0,0,.16)';
-    ctx.fillRect(-rw*0.86,shY+hg*0.20,rw*1.72,hg*0.07);
-    // contorno
-    ctx.strokeStyle=isCtrl?'rgba(246,211,24,.9)':'rgba(0,0,0,.35)';
-    ctx.lineWidth=isCtrl?1.4:0.8;
-    ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32,hg*0.06);
-    else ctx.rect(-rw*0.86,shY-hg*0.05,rw*1.72,hg*0.32);
-    ctx.stroke();
+    ctx.fillRect(-shW,shY+hg*0.075,shW*2,hg*0.075);
+    // volumen: luz arriba, sombra abajo
+    ctx.fillStyle='rgba(255,255,255,.12)';
+    ctx.fillRect(-shW,shY-hg*0.04,shW*2,hg*0.06);
+    ctx.fillStyle='rgba(0,0,0,.17)';
+    ctx.fillRect(-shW,hipY-hg*0.04,shW*2,hg*0.07);
+    // NÚMERO en la camiseta
+    if(p.num){
+      ctx.fillStyle='rgba(255,255,255,.95)';
+      ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(.6,hg*0.012);
+      ctx.font=`bold ${Math.max(5,hg*0.15)}px "Barlow Condensed",sans-serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.strokeText(p.num,0,shY+hg*0.045);
+      ctx.fillText(p.num,0,shY+hg*0.045);
+    }
+    ctx.restore();
+    // contorno fino
+    ctx.strokeStyle=isCtrl?'rgba(255,240,120,.8)':'rgba(0,0,0,.30)';
+    ctx.lineWidth=isCtrl?1.2:0.7;
+    torso();ctx.stroke();
     // CUELLO + CABEZA con sombreado y pelo
     ctx.fillStyle=skin;
     ctx.fillRect(-legW*0.4,headY+hg*0.09,legW*0.8,hg*0.05);
-    const hR=hg*0.125;
+    const hR=hg*0.112;
     const hdG=ctx.createRadialGradient(-hR*0.3,headY-hR*0.3+hg*0.02,hR*0.15,0,headY+hg*0.02,hR*1.1);
-    hdG.addColorStop(0,'#e8b481');hdG.addColorStop(1,'#c08a56');
+    hdG.addColorStop(0,tone[0]);hdG.addColorStop(1,tone[1]);
     ctx.beginPath();ctx.arc(0,headY+hg*0.02,hR,0,Math.PI*2);
     ctx.fillStyle=hdG;ctx.fill();
     // pelo (variado por jugador)
@@ -12520,26 +12543,22 @@ function fmDraw(){
     drawArm(ph+Math.PI,true);
     ctx.restore();
 
-    // Flecha sobre el controlado
+    // Cursor sobre el controlado (discreto, estilo PES)
     if(isCtrl){
-      const ay=syF-hg-9-bob*8;
-      ctx.beginPath();ctx.moveTo(sx,ay+6);ctx.lineTo(sx-5.5,ay-3);ctx.lineTo(sx+5.5,ay-3);ctx.closePath();
-      ctx.fillStyle='#f6d318';ctx.fill();
-      ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=0.8;ctx.stroke();
+      const ay=syF-hg-7-bob*8;
+      ctx.beginPath();ctx.moveTo(sx,ay+5);ctx.lineTo(sx-4.5,ay-2.5);ctx.lineTo(sx+4.5,ay-2.5);ctx.closePath();
+      ctx.fillStyle='rgba(255,240,120,.95)';ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=0.7;ctx.stroke();
+      // Nombre solo del jugador controlado
+      const tag=p.name.slice(0,10);
+      const fpx=Math.max(7,Math.round(8.5*Math.max(0.75,sc)));
+      ctx.font=`600 ${fpx}px "Barlow Condensed",sans-serif`;
+      ctx.strokeStyle='rgba(0,0,0,.75)';ctx.lineWidth=2.4;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.strokeText(tag.toUpperCase(),sx,syF+9);
+      ctx.fillStyle='rgba(255,255,255,.95)';
+      ctx.fillText(tag.toUpperCase(),sx,syF+9);
     }
-    // Nombre
-    const tag=p.name.slice(0,8);
-    const fpx=Math.max(7,Math.round(8.5*Math.max(0.75,sc)));
-    ctx.font=`bold ${fpx}px sans-serif`;
-    const tw=ctx.measureText(tag).width+8;
-    ctx.fillStyle='rgba(0,0,0,.70)';
-    ctx.beginPath();
-    if(ctx.roundRect)ctx.roundRect(sx-tw/2,syF+4,tw,fpx+4,3);
-    else ctx.rect(sx-tw/2,syF+4,tw,fpx+4);
-    ctx.fill();
-    ctx.fillStyle=isCtrl?'#f6d318':isNext?'#4df':'rgba(255,255,255,.92)';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(tag,sx,syF+4+(fpx+4)/2);
   };
 
   // ═══ PELOTA 2.5D (con altura real de vuelo) ═══
@@ -12549,7 +12568,7 @@ function fmDraw(){
     const bspd=Math.hypot(b.vx||0,b.vy||0);
     const[bx3,by3]=P(b.x,b.y,z);
     const[shx,shy]=P(b.x,b.y,0);
-    const bR=(6.2+z*0.05)*scB;
+    const bR=(5.6+z*0.05)*scB;
     // sombra en el piso
     ctx.beginPath();ctx.ellipse(shx+z*0.14,shy,bR*0.85,bR*0.32,0,0,Math.PI*2);
     ctx.fillStyle=`rgba(0,0,0,${Math.max(.08,.30-z*.003-bspd*.008)})`;ctx.fill();
@@ -12599,42 +12618,52 @@ function fmDraw(){
     ctx.strokeRect(bx4,by4,bw2,bh2);
   }
 
+  // Gradación de color tipo transmisión (viñeta sutil)
+  {
+    const vg=ctx.createRadialGradient(W/2,H*0.42,H*0.38,W/2,H*0.55,H*1.02);
+    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(3,7,16,.36)');
+    ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+  }
+
   // ══════════ HUD FIJO EN PANTALLA ══════════
   if(f.phase!=='play'&&f.phase!=='kickoff'){
     ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,W,H);
   }
 
-  // Marcador DLS (arriba izquierda)
+  // Marcador tipo transmisión (PES broadcast bar)
   {
     const ab3=t=>t.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,3).toUpperCase()||t.slice(0,3).toUpperCase();
     const myAb=ab3(G.teamName),opAb=ab3(f.oppName||'RIV');
-    const sbX=12,sbY=10,sbH2=30;
-    ctx.font='bold 13px "Barlow Condensed",sans-serif';
-    const sbW2=170;
-    ctx.fillStyle='rgba(8,10,18,.85)';
-    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(sbX,sbY,sbW2,sbH2,5);else ctx.rect(sbX,sbY,sbW2,sbH2);ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1;
-    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(sbX,sbY,sbW2,sbH2,5);else ctx.rect(sbX,sbY,sbW2,sbH2);ctx.stroke();
-    ctx.fillStyle=f.myKit.c1;ctx.fillRect(sbX+8,sbY+8,5,sbH2-16);
-    ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+104,sbY+8,5,sbH2-16);
-    ctx.textBaseline='middle';ctx.textAlign='left';
-    ctx.fillStyle='#fff';
-    ctx.fillText(myAb,sbX+18,sbY+sbH2/2+1);
-    ctx.fillText(opAb,sbX+113,sbY+sbH2/2+1);
-    ctx.fillStyle='#f6d318';ctx.textAlign='center';
-    ctx.font='bold 15px "Barlow Condensed",sans-serif';
-    ctx.fillText(`${f.myG} - ${f.oppG}`,sbX+72,sbY+sbH2/2+1);
-    ctx.fillStyle='rgba(8,10,18,.85)';
-    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(sbX+sbW2+6,sbY,46,sbH2,5);else ctx.rect(sbX+sbW2+6,sbY,46,sbH2);ctx.fill();
-    ctx.fillStyle='#fff';ctx.font='bold 13px "Barlow Condensed",sans-serif';
-    ctx.fillText(`${f.minute}'`,sbX+sbW2+29,sbY+sbH2/2+1);
+    const sbX=16,sbY=12,sbH2=25;
+    // reloj
+    ctx.fillStyle='rgba(6,8,14,.92)';
+    ctx.fillRect(sbX,sbY,44,sbH2);
+    ctx.fillStyle='#e8e8e8';ctx.font='600 12px "Barlow Condensed",sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`${f.minute}'`,sbX+22,sbY+sbH2/2+1);
+    // equipo local
+    ctx.fillStyle=f.myKit.c1;ctx.fillRect(sbX+44,sbY,5,sbH2);
+    ctx.fillStyle='rgba(16,20,32,.92)';ctx.fillRect(sbX+49,sbY,44,sbH2);
+    ctx.fillStyle='#fff';ctx.font='700 12.5px "Barlow Condensed",sans-serif';
+    ctx.fillText(myAb,sbX+71,sbY+sbH2/2+1);
+    // marcador
+    ctx.fillStyle='rgba(240,240,240,.96)';ctx.fillRect(sbX+93,sbY,46,sbH2);
+    ctx.fillStyle='#0a0c14';ctx.font='800 14px "Barlow Condensed",sans-serif';
+    ctx.fillText(`${f.myG} - ${f.oppG}`,sbX+116,sbY+sbH2/2+1);
+    // equipo visitante
+    ctx.fillStyle='rgba(16,20,32,.92)';ctx.fillRect(sbX+139,sbY,44,sbH2);
+    ctx.fillStyle='#fff';ctx.font='700 12.5px "Barlow Condensed",sans-serif';
+    ctx.fillText(opAb,sbX+161,sbY+sbH2/2+1);
+    ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+183,sbY,5,sbH2);
+    // línea inferior dorada fina (broadcast)
+    ctx.fillStyle='rgba(246,211,24,.65)';ctx.fillRect(sbX,sbY+sbH2,188,2);
   }
 
   // Chip del jugador controlado
   if(f.phase==='play'){
     const cp=f.my[f.ctrl];
     if(cp){
-      const txt=`${cp.name.toUpperCase()}  ·  ${cp.role}  ⭐${cp.rat}`;
+      const txt=`${cp.name.toUpperCase()}   ${cp.role}   ${cp.rat}`;
       ctx.font='bold 10px "Barlow Condensed",sans-serif';
       const tw2=ctx.measureText(txt).width+18;
       const pcx=W/2-tw2/2,pcy=H-152;
