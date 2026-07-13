@@ -295,35 +295,35 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🟡</div>
       <div class="ts-card-name" style="color:#FFD700">BOCA</div>
       <div class="ts-card-sub">JUNIORS</div>
-      <div class="ts-card-val">Val: €95.4M</div>
+      <div class="ts-card-val">Val: €100.4M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
     </div>
     <div onclick="selectTeam('river')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(204,0,0,.35));border-color:#cc3333">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚪</div>
       <div class="ts-card-name" style="color:#fff">RIVER</div>
       <div class="ts-card-sub">PLATE</div>
-      <div class="ts-card-val">Val: €102.8M</div>
+      <div class="ts-card-val">Val: €99.1M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
     </div>
     <div onclick="selectTeam('indep')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(200,0,0,.35));border-color:#aa2222">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚫</div>
       <div class="ts-card-name" style="color:#ff5555">INDEPENDIENTE</div>
       <div class="ts-card-sub">EL ROJO</div>
-      <div class="ts-card-val">Val: €36.4M</div>
+      <div class="ts-card-val">Val: €41.1M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★☆☆</span></div>
     </div>
     <div onclick="selectTeam('racing')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,80,.8),rgba(0,51,153,.35));border-color:#2255bb">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵⚪</div>
       <div class="ts-card-name" style="color:#aaccff">RACING</div>
       <div class="ts-card-sub">CLUB</div>
-      <div class="ts-card-val">Val: €62.6M</div>
+      <div class="ts-card-val">Val: €76.9M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
     </div>
     <div onclick="selectTeam('sanlo')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,70,.8),rgba(0,76,151,.35));border-color:#1155aa">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🔴</div>
       <div class="ts-card-name" style="color:#88aaff">SAN LORENZO</div>
       <div class="ts-card-sub">DE ALMAGRO</div>
-      <div class="ts-card-val">Val: €47.2M</div>
+      <div class="ts-card-val">Val: €43.6M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
     </div>
   </div>
@@ -448,10 +448,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="tc2">
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">📰 Novedades</div><div id="newsLog"></div></div>
-          <div class="card" id="ovDtReqCard" style="display:none">
-            <div class="ctitle">📬 Pedidos del DT <span id="ovDtReqBadge" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px"></span></div>
-            <div id="ovDtReqList"></div>
-          </div>
+
         </div>
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">💰 Finanzas</div>
@@ -503,11 +500,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
         </div>
         <div>
           <div class="card" style="margin-bottom:8px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-              <div class="ctitle" style="margin-bottom:0">📬 Pedidos del DT <span id="dtReqBadge" style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px;display:none"></span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div class="ctitle" style="margin-bottom:0">📬 Pedidos del DT</div>
               <button class="btn bg bs" onclick="openNewDtReqModal()" style="padding:4px 9px;font-size:10px">➕ Nuevo pedido</button>
             </div>
-            <div id="dtReqList"></div>
+            <div class="note" style="margin:7px 0 0">Los pedidos del DT te llegan al 📱 celular — ahí los aprobás o rechazás.</div>
           </div>
           <div class="card">
             <div class="ctitle">📊 Informe del DT</div>
@@ -920,7 +917,7 @@ function lg(ic,msg){ if(!G) return; G.log.unshift({ic,msg,w:'S'+G.week}); if(G.l
 function buildBoca(){
   return [
     // ARQUEROS
-    P(1, 'Leandro Brey',        'ARQ',24,'ARG','Boca Juniors','Liga ARG', 1.5,  0, 0),
+    P(1, 'Leandro Brey',        'ARQ',24,'ARG','Boca Juniors','Liga ARG', 3.5,  0, 0),
     P(25,'Agustín Marchesín',   'ARQ',38,'ARG','Boca Juniors','Liga ARG', 0.5, 78, 0),
     P(34,'Javier García',       'ARQ',39,'ARG','Boca Juniors','Liga ARG', 0.025,0, 0),
     // DEFENSORES CENTRALES
@@ -936,9 +933,9 @@ function buildBoca(){
     P(21,'Juan Barinaga',       'DFD',26,'ARG','Boca Juniors','Liga ARG', 2.8,  0, 0),
     P(17,'Marcelo Weigandt',    'DFD',26,'ARG','Boca Juniors','Liga ARG', 1.7,  0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
-    P(16,'Milton Delgado',      'MCD',21,'ARG','Boca Juniors','Liga ARG',10.0,  0, 0),
+    P(16,'Milton Delgado',      'MCD',21,'ARG','Boca Juniors','Liga ARG',15.0,  0, 0),
     P(15,'Santiago Ascacíbar',  'MCD',29,'ARG','Boca Juniors','Liga ARG', 5.5,  0, 0),
-    P(8, 'Leandro Paredes',     'MCD',32,'ARG','Boca Juniors','Liga ARG', 5.0, 82, 0),
+    P(8, 'Leandro Paredes',     'MCD',32,'ARG','Boca Juniors','Liga ARG', 4.0, 82, 0),
     P(30,'Tomás Belmonte',      'MCD',28,'ARG','Boca Juniors','Liga ARG', 3.0,  0, 0),
     P(20,'Rodrigo Battaglia',   'MCD',34,'ARG','Boca Juniors','Liga ARG', 0.5,  0, 0),
     P(14,'Camilo Rey Domenech', 'MCD',20,'ARG','Boca Juniors','Liga ARG', 0.4,  0, 0),
@@ -947,15 +944,15 @@ function buildBoca(){
     P(10,'Ander Herrera',       'MC', 36,'ESP','Boca Juniors','Liga ARG', 0.4, 76, 0),
     P(28,'Juan Ramírez',        'MC', 33,'ARG','Boca Juniors','Liga ARG', 0.15, 0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
-    P(7, 'Tomás Aranda',        'MCO',19,'ARG','Boca Juniors','Liga ARG', 9.0,  0, 0),
-    P(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 3.0, 82, 0),
+    P(7, 'Tomás Aranda',        'MCO',19,'ARG','Boca Juniors','Liga ARG', 6.0,  0, 0),
+    P(18,'Carlos Palacios',     'MCO',25,'CHI','Boca Juniors','Liga ARG', 4.5, 81, 0),
     P(22,'Agustín Martegani',   'MCO',26,'ARG','Boca Juniors','Liga ARG', 0.275,0, 0),
     // EXTREMOS IZQUIERDOS
-    P(11,'Kevin Zenón',         'EI', 25,'ARG','Boca Juniors','Liga ARG', 3.5, 81, 0),
+    P(11,'Kevin Zenón',         'EI', 25,'ARG','Boca Juniors','Liga ARG', 7.0, 81, 0),
     P(44,'Alan Velasco',        'EI', 23,'ARG','Boca Juniors','Liga ARG', 2.8,  0, 0),
     P(23,'Lucas Janson',        'EI', 31,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0),
     // EXTREMOS DERECHOS
-    P(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 7.0, 80, 0),
+    P(13,'Exequiel Zeballos',   'ED', 24,'ARG','Boca Juniors','Liga ARG', 4.0, 79, 0),
     P(39,'Ángel Romero',        'ED', 33,'PAR','Boca Juniors','Liga ARG', 0.6,  0, 0),
     P(43,'Gonzalo Gelini',      'ED', 19,'ARG','Boca Juniors','Liga ARG', 0.25, 0, 0),
     P(45,'Iker Zufiaurre',      'ED', 20,'ARG','Boca Juniors','Liga ARG', 0.2,  0, 0),
@@ -974,22 +971,22 @@ function buildBoca(){
 function buildRiver(){
   return [
     // ARQUEROS
-    P(1, 'Santiago Beltrán',    'ARQ',21,'ARG','River Plate','Liga ARG', 9.0, 0, 0),
+    P(1, 'Jeremías Ledesma',    'ARQ',33,'ARG','River Plate','Liga ARG', 2.0, 0, 0),
     P(23,'Ezequiel Centurión',  'ARQ',29,'ARG','River Plate','Liga ARG', 1.5, 0, 0),
     P(34,'Franco Armani',       'ARQ',39,'ARG','River Plate','Liga ARG', 0.2, 79, 0),
     // DEFENSORES CENTRALES
-    P(2, 'Lautaro Rivero',      'DFC',22,'ARG','River Plate','Liga ARG', 7.0, 0, 0),
+    P(2, 'Lautaro Rivero',      'DFC',22,'ARG','River Plate','Liga ARG',10.0, 0, 0),
     P(5, 'Lucas Martínez Quarta','DFC',30,'ARG','River Plate','Liga ARG',4.5, 82, 0),
     P(29,'Tobías Ramírez',      'DFC',19,'ARG','River Plate','Liga ARG', 3.5, 0, 0),
     P(4, 'Juan Carlos Portillo','DFC',26,'ARG','River Plate','Liga ARG', 3.2, 0, 0),
-    P(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 2.0, 81, 0),
+    P(19,'Paulo Díaz',          'DFC',31,'CHI','River Plate','Liga ARG', 3.0, 81, 0),
     P(3, 'Germán Pezzella',     'DFC',34,'ARG','River Plate','Liga ARG', 0.3, 79, 0),
     P(28,'Ulises Giménez',      'DFC',20,'ARG','River Plate','Liga ARG', 0.2, 0, 0),
     // LATERALES IZQUIERDOS
     P(6, 'Matías Viña',         'DFI',28,'URU','River Plate','Liga ARG', 2.5, 79, 0),
-    P(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 0.8, 79, 0),
+    P(22,'Marcos Acuña',        'DFI',34,'ARG','River Plate','Liga ARG', 1.2, 79, 0),
     // LATERALES DERECHOS
-    P(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 1.5, 82, 0),
+    P(17,'Gonzalo Montiel',     'DFD',29,'ARG','River Plate','Liga ARG', 4.0, 82, 0),
     P(21,'Fabricio Bustos',     'DFD',30,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
     P(8, 'Aníbal Moreno',       'MCD',27,'ARG','River Plate','Liga ARG', 8.0, 82, 0),
@@ -998,17 +995,17 @@ function buildRiver(){
     // MEDIOCAMPISTAS CENTRALES
     P(20,'Giuliano Galoppo',    'MC', 26,'ARG','River Plate','Liga ARG', 4.0, 0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
-    P(10,'Kendry Páez',         'MCO',19,'ECU','River Plate','Liga ARG', 8.0, 0, 0),
+    P(10,'Matías Galarza Fonda','MC', 24,'PAR','River Plate','Liga ARG', 4.0, 0, 0),
     P(14,'Tomás Galván',        'MCO',26,'ARG','River Plate','Liga ARG', 4.0, 0, 0),
     P(37,'Santiago Lencina',    'MCO',20,'ARG','River Plate','Liga ARG', 2.0, 0, 0),
     P(7, 'Juan Fernando Quintero','MCO',33,'COL','River Plate','Liga ARG',1.8, 82, 0),
     P(38,'Juan Cruz Meza',      'MCO',18,'ARG','River Plate','Liga ARG', 1.8, 0, 0),
     // EXTREMOS DERECHOS
-    P(11,'Ian Subiabre',        'ED', 19,'CHI','River Plate','Liga ARG', 3.5, 0, 0),
+    P(11,'Ian Subiabre',        'ED', 19,'ARG','River Plate','Liga ARG', 5.0, 0, 0),
     P(18,'Maximiliano Meza',    'ED', 33,'ARG','River Plate','Liga ARG', 0.7, 0, 0),
     // DELANTEROS
-    P(9, 'Facundo Colidio',     'DC', 26,'ARG','River Plate','Liga ARG', 5.0, 0, 0),
-    P(13,'Maximiliano Salas',   'DC', 28,'CHI','River Plate','Liga ARG', 4.5, 0, 0),
+    P(9, 'Facundo Colidio',     'DC', 26,'ARG','River Plate','Liga ARG', 7.5, 0, 0),
+    P(13,'Maximiliano Salas',   'DC', 28,'ARG','River Plate','Liga ARG', 6.5, 0, 0),
     P(32,'Sebastián Driussi',   'DC', 30,'ARG','River Plate','Liga ARG', 4.5, 0, 0),
     P(39,'Agustín Ruberto',     'DC', 20,'ARG','River Plate','Liga ARG', 1.7, 0, 0),
     P(40,'Joaquín Freitas',     'DC', 19,'ARG','River Plate','Liga ARG', 1.0, 0, 0),
@@ -1025,7 +1022,7 @@ function buildIndependiente(){
     P(25,'Joaquín Blázquez',    'ARQ',25,'ARG','Independiente','Liga ARG', 0.3,  0, 0),
     P(34,'Diego Segovia',       'ARQ',26,'ARG','Independiente','Liga ARG', 0.2,  0, 0),
     // DEFENSORES CENTRALES
-    P(2, 'Kevin Lomónaco',      'DFC',24,'ARG','Independiente','Liga ARG', 8.0,  0, 0),
+    P(2, 'Kevin Lomónaco',      'DFC',24,'ARG','Independiente','Liga ARG',11.0,  0, 0),
     P(5, 'Sebastián Valdez',    'DFC',30,'URU','Independiente','Liga ARG', 1.5,  0, 0),
     P(4, 'Juan Manuel Fedorco', 'DFC',25,'ARG','Independiente','Liga ARG', 0.7,  0, 0),
     P(19,'Nicolás Freire',      'DFC',32,'ARG','Independiente','Liga ARG', 0.3,  0, 0),
@@ -1038,13 +1035,14 @@ function buildIndependiente(){
     // MEDIOCAMPISTAS DEFENSIVOS
     P(8, 'Iván Marcone',        'MCD',36,'ARG','Independiente','Liga ARG', 0.4,  0, 0),
     // MEDIOCAMPISTAS CENTRALES
+    P(21,'Felipe Loyola',       'MC', 25,'CHI','Independiente','Liga ARG', 5.5,  0, 0),
     P(20,'Federico Mancuello',  'MC', 37,'ARG','Independiente','Liga ARG', 0.05, 0, 0),
     P(14,'Sergio Ortíz',        'MC', 25,'ARG','Independiente','Liga ARG', 0.15, 0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
-    P(10,'Luciano Cabral',      'MCO',31,'ARG','Independiente','Liga ARG', 1.0,  0, 0),
-    P(29,'Tomás Parmo',         'MCO',18,'ARG','Independiente','Liga ARG', 0.15, 0, 0),
+    P(10,'Luciano Cabral',      'MCO',31,'CHI','Independiente','Liga ARG', 1.5,  0, 0),
+    P(29,'Tomás Parmo',         'MCO',18,'ARG','Independiente','Liga ARG', 2.5,  0, 0),
     // EXTREMOS IZQUIERDOS
-    P(11,'Matías Abaldo',       'EI', 22,'ARG','Independiente','Liga ARG', 5.0,  0, 0),
+    P(11,'Matías Abaldo',       'EI', 22,'URU','Independiente','Liga ARG', 5.0,  0, 0),
     P(44,'Santiago López',      'EI', 20,'ARG','Independiente','Liga ARG', 2.0,  0, 0),
     // EXTREMOS DERECHOS
     P(13,'Santiago Montiel',    'ED', 25,'ARG','Independiente','Liga ARG', 3.8,  0, 0),
@@ -1062,11 +1060,11 @@ function buildIndependiente(){
 function buildRacing(){
   return [
     // ARQUEROS
-    P(1, 'Facundo Cambeses',    'ARQ',29,'ARG','Racing Club','Liga ARG', 5.0,  0, 0),
+    P(1, 'Facundo Cambeses',    'ARQ',29,'ARG','Racing Club','Liga ARG', 6.0,  0, 0),
     P(25,'Matías Tagliamonte',  'ARQ',28,'ARG','Racing Club','Liga ARG', 1.5,  0, 0),
     P(34,'Francisco Gómez',     'ARQ',22,'ARG','Racing Club','Liga ARG', 0.2,  0, 0),
     // DEFENSORES CENTRALES
-    P(5, 'Marco Di Césare',     'DFC',24,'ARG','Racing Club','Liga ARG', 6.0,  0, 0),
+    P(5, 'Marco Di Césare',     'DFC',24,'ARG','Racing Club','Liga ARG', 7.0,  0, 0),
     P(4, 'Nazareno Colombo',    'DFC',27,'ARG','Racing Club','Liga ARG', 2.8,  0, 0),
     P(19,'Franco Pardo',        'DFC',29,'ARG','Racing Club','Liga ARG', 2.0,  0, 0),
     P(26,'Agustín García Basso','DFC',34,'ARG','Racing Club','Liga ARG', 0.3,  0, 0),
@@ -1075,7 +1073,7 @@ function buildRacing(){
     // LATERALES IZQUIERDOS
     P(6, 'Gabriel Rojas',       'DFI',28,'ARG','Racing Club','Liga ARG', 4.0,  0, 0),
     // LATERALES DERECHOS
-    P(22,'Gastón Martirena',    'DFD',26,'URU','Racing Club','Liga ARG', 4.0,  0, 0),
+    P(22,'Gastón Martirena',    'DFD',26,'URU','Racing Club','Liga ARG', 5.5,  0, 0),
     P(2, 'Ezequiel Cannavo',    'DFD',23,'ARG','Racing Club','Liga ARG', 3.0,  0, 0),
     P(29,'Tobías Rubio',        'DFD',21,'ARG','Racing Club','Liga ARG', 0.3,  0, 0),
     // MEDIOCAMPISTAS DEFENSIVOS
@@ -1085,7 +1083,7 @@ function buildRacing(){
     // MEDIOCAMPISTAS CENTRALES
     P(14,'Ignacio Rodríguez',   'MC', 24,'ARG','Racing Club','Liga ARG', 1.0,  0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
-    P(10,'Valentín Carboni',    'MCO',21,'ARG','Racing Club','Liga ARG', 7.5,  0, 0),
+    P(10,'Juan Nardoni',        'MC', 24,'ARG','Racing Club','Liga ARG', 7.0,  0, 0),
     P(16,'Matko Miljevic',      'MCO',25,'ARG','Racing Club','Liga ARG', 4.0,  0, 0),
     P(24,'Baltasar Rodríguez',  'MCO',22,'ARG','Racing Club','Liga ARG', 4.0,  0, 0),
     P(30,'Matías Zaracho',      'MCO',28,'ARG','Racing Club','Liga ARG', 3.5,  0, 0),
@@ -1097,7 +1095,7 @@ function buildRacing(){
     // EXTREMOS DERECHOS
     P(13,'Santiago Solari',     'ED', 28,'ARG','Racing Club','Liga ARG', 3.2,  0, 0),
     // DELANTEROS
-    P(9, 'Adrián Martínez',     'DC', 33,'URU','Racing Club','Liga ARG', 2.8,  0, 0),
+    P(9, 'Adrián Martínez',     'DC', 33,'ARG','Racing Club','Liga ARG', 3.5, 80, 0),
     P(39,'Damián Pizarro',      'DC', 21,'CHI','Racing Club','Liga ARG', 2.0,  0, 0),
     P(12,'Elías Torres',        'DC', 25,'ARG','Racing Club','Liga ARG', 1.0,  0, 0),
     P(40,'Tomás Pérez',         'DC', 20,'ARG','Racing Club','Liga ARG', 0.3,  0, 0),
@@ -1110,11 +1108,11 @@ function buildRacing(){
 function buildSanLorenzo(){
   return [
     // ARQUEROS
-    P(1, 'Orlando Gill',        'ARQ',25,'ARG','San Lorenzo','Liga ARG', 6.0,  0, 0),
+    P(1, 'Orlando Gill',        'ARQ',25,'PAR','San Lorenzo','Liga ARG', 4.0,  0, 0),
     P(25,'José Devecchi',       'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0),
     P(34,'Facundo Altamirano',  'ARQ',30,'ARG','San Lorenzo','Liga ARG', 0.375,0, 0),
     // DEFENSORES CENTRALES
-    P(5, 'Jhohan Romaña',       'DFC',27,'COL','San Lorenzo','Liga ARG', 6.0,  0, 0),
+    P(5, 'Jhohan Romaña',       'DFC',27,'COL','San Lorenzo','Liga ARG', 4.5,  0, 0),
     P(4, 'Gastón Hernández',    'DFC',28,'ARG','San Lorenzo','Liga ARG', 3.5,  0, 0),
     P(29,'Lautaro Montenegro',  'DFC',21,'ARG','San Lorenzo','Liga ARG', 1.0,  0, 0),
     P(33,'Daniel Herrera',      'DFC',22,'ARG','San Lorenzo','Liga ARG', 0.9,  0, 0),
@@ -1137,7 +1135,7 @@ function buildSanLorenzo(){
     P(35,'Juan Rattalino',      'MC', 21,'ARG','San Lorenzo','Liga ARG', 0.2,  0, 0),
     P(24,'Francisco Perruzzi',  'MC', 25,'ARG','San Lorenzo','Liga ARG', 0.2,  0, 0),
     // MEDIOCAMPISTAS OFENSIVOS
-    P(10,'Facundo Gulli',       'MCO',20,'ARG','San Lorenzo','Liga ARG', 2.5,  0, 0),
+    P(10,'Facundo Gulli',       'MCO',20,'ARG','San Lorenzo','Liga ARG', 3.5,  0, 0),
     // EXTREMOS IZQUIERDOS
     P(7, 'Nahuel Barrios',      'EI', 28,'ARG','San Lorenzo','Liga ARG', 0.9,  0, 0),
     // EXTREMOS DERECHOS
@@ -1146,7 +1144,7 @@ function buildSanLorenzo(){
     P(44,'Agustín Ladstatter',  'ED', 21,'ARG','San Lorenzo','Liga ARG', 0.4,  0, 0),
     P(39,'Ezequiel Cerutti',    'ED', 34,'ARG','San Lorenzo','Liga ARG', 0.15, 0, 0),
     // DELANTEROS
-    P(9, 'Alexis Cuello',       'DC', 26,'ARG','San Lorenzo','Liga ARG', 5.0,  0, 0),
+    P(9, 'Alexis Cuello',       'DC', 26,'ARG','San Lorenzo','Liga ARG', 4.0,  0, 0),
     P(32,'Rodrigo Auzmendi',    'DC', 25,'ARG','San Lorenzo','Liga ARG', 3.0,  0, 0),
     P(12,'Luciano Vietto',      'DC', 32,'ESP','San Lorenzo','Liga ARG', 1.2,  0, 0),
     P(99,'Diego Herazo',        'DC', 30,'COL','San Lorenzo','Liga ARG', 0.4,  0, 0),
@@ -8724,6 +8722,7 @@ function submitDtReqPlayer(type, playerId){
   });
   const verb={buy:'fichar',sell:'vender',fire_player:'rescindir a'}[type];
   lg('📬',`${G.dt.name} pide ${verb} ${p.name}`);
+  addPhoneMsg('dt', G.dt.name, `📬 Pedido del DT: ${verb} <b>${p.name}</b> (${p.pos}, ${p.age}a).${reason?`<br><i>"${reason}"</i>`:''}`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
   rDtPedidos(); closeMod();
   flash(`✅ Pedido creado: ${p.name}`,'win');
 }
@@ -8738,6 +8737,7 @@ function submitDtReqUpgrade(type, upgradeId, upgradeName, upgradeCost){
     approved:false, rejected:false
   });
   lg('📬',`${G.dt.name} pide: ${upgradeName}`);
+  addPhoneMsg('dt', G.dt.name, `📬 Pedido del DT: <b>${upgradeName}</b> (costo: $${upgradeCost}M).${reason?`<br><i>"${reason}"</i>`:''}`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
   rDtPedidos(); closeMod();
   flash(`✅ Pedido creado: ${upgradeName}`,'win');
 }
