@@ -110,6 +110,8 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .fm-keybtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:rgba(255,255,255,.8);font-size:10px;padding:5px 8px;cursor:pointer;text-align:left;font-family:'Barlow',sans-serif}
 .fm-keybtn b{color:#F6D318;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em}
 .fm-keybtn:hover{border-color:#F6D318}
+.fm-spdbtn{background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.25);border-radius:6px;color:rgba(255,255,255,.7);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:800;padding:5px 10px;cursor:pointer}
+.fm-spdbtn.on{background:rgba(246,211,24,.2);border-color:#F6D318;color:#F6D318}
 .fm-hrow b{color:#F6D318;font-family:'Barlow Condensed',sans-serif;letter-spacing:.05em;white-space:nowrap}
 .fm-hrow i{color:rgba(255,255,255,.45)}
 /* VIRTUE BADGES (DLS-style) */
@@ -258,6 +260,14 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .ph-time{font-size:9px;color:var(--t3);font-family:'Barlow Condensed',sans-serif}
 .ph-acts{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
 .ph-empty{text-align:center;color:var(--t3);font-size:11px;padding:35px 16px;line-height:2}
+.ph-bub{max-width:84%;padding:7px 11px;border-radius:12px;font-size:10.5px;line-height:1.45;margin-bottom:6px;width:fit-content}
+.ph-me{margin-left:auto;background:rgba(246,211,24,.14);border:1px solid rgba(246,211,24,.3);color:#ffe9a8;border-bottom-right-radius:3px}
+.ph-them{margin-right:auto;background:rgba(9,31,60,.85);border:1px solid var(--bdr);color:var(--tx);border-bottom-left-radius:3px}
+.ph-qr{display:flex;flex-wrap:wrap;gap:4px;padding:8px 0 4px;border-top:1px solid rgba(255,255,255,.07);margin-top:6px}
+.ph-qrbtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);border-radius:14px;color:var(--t2);font-size:9.5px;padding:5px 10px;cursor:pointer;transition:all .15s}
+.ph-qrbtn:hover{border-color:var(--gold);color:var(--gold)}
+.ph-prow{display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;border-radius:8px}
+.ph-prow:hover{background:rgba(255,255,255,.05)}
 </style>
 </head>
 <body>
@@ -422,7 +432,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="hm-alts">
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">📺 RELATO</button>
           <button class="btn bo bs" onclick="simMatch(true)">⚡ SIMULAR</button>
-          <button class="btn bo bs" onclick="startFullMatch()" style="border-color:var(--green);color:var(--green)">🏟️ 11vs11</button>
+          <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 SIM TÁCTICA 11v11</button>
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
       </div>
@@ -707,16 +717,16 @@ tr:hover td{background:rgba(255,255,255,.025)}
     </div>
     <div class="ph-header">
       <div>
-        <div class="ph-appname">📲 DT COMUNICACIONES</div>
+        <div class="ph-appname">📲 OFICINA DEL PRESIDENTE</div>
         <div style="font-size:9px;color:var(--t3);margin-top:1px" id="phSubtitle">Semana 1</div>
       </div>
       <button onclick="closePhone()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2);font-size:14px;cursor:pointer;padding:5px 11px;border-radius:20px;line-height:1">✕</button>
     </div>
     <div class="ph-tabs">
-      <button class="ph-tab on" onclick="phTab('all',this)">📬 Todos</button>
-      <button class="ph-tab" onclick="phTab('dt',this)">🎯 DT</button>
-      <button class="ph-tab" onclick="phTab('agent',this)">🤝 Agentes</button>
-      <button class="ph-tab" onclick="phTab('player',this)">👤 Jugadores</button>
+      <button class="ph-tab on" onclick="phTab('all',this)">📬 Bandeja</button>
+      <button class="ph-tab" onclick="phTab('dt',this)">💬 Chat DT</button>
+      <button class="ph-tab" onclick="phTab('player',this)">👥 Plantel</button>
+      <button class="ph-tab" onclick="phTab('agent',this)">🤝 Ofertas</button>
     </div>
     <div class="ph-screen" id="phScreen"></div>
   </div>
@@ -776,8 +786,13 @@ function ageLabel(age) {
   return `<span class="age-vet">◆ Veterano</span>`;
 }
 
+// Fuerza de liga: el mismo valor de mercado en una liga más fuerte = jugador levemente mejor
+const LG_ADJ={'Premier':2,'España':2,'Italia':1,'Alemania':1,'Francia':1,'Brasil':1,'Portugal':1,
+  'Holanda':1,'Liga ARG':0,'Liga MX':0,'MLS':0,'Colombia':0,'Rusia':0,'Turquía':0,'Bélgica':0,
+  'Chile':-1,'Uruguay':-1,'Paraguay':-1,'Perú':-1,'Ecuador':-1,'Venezuela':-2,'Bolivia':-2};
 function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
-  const rat = (rat_override > 0) ? rat_override : valToRat(val, age);
+  const lgAdj=LG_ADJ[lg]||0;
+  const rat = (rat_override > 0) ? rat_override : Math.max(55,Math.min(93,valToRat(val, age)+lgAdj));
   const pot = Math.max(rat, valToPot(val, age));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
@@ -5234,6 +5249,228 @@ function buildMkt(){
   a(10,'Adolfo Gaich','DC',26,'ARG','CSKA Moscú','Rusia',4,0,0);
   a(7,'Chidera Ejuke','EI',27,'NIG','CSKA Moscú','Rusia',5,0,0);
 
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  AMÉRICA — REFUERZOS 1ras DIVISIONES          ║
+  // ╚══════════════════════════════════════════════╝
+  a(1,'Salvador Ichazo','ARQ',34,'URU','Danubio','Uruguay',0.4,0,0);
+  a(1,'Randall Rodríguez','ARQ',24,'URU','Nacional','Uruguay',1.2,0,0);
+  a(4,'Sebastián Coates','DFC',35,'URU','Nacional','Uruguay',1.5,0,0);
+  a(4,'Paolo Calione','DFD',23,'URU','Nacional','Uruguay',1.8,0,0);
+  a(8,'Christian Oliva','MCD',30,'URU','Nacional','Uruguay',1.5,0,0);
+  a(10,'Nicolás López','MCO',32,'URU','Nacional','Uruguay',2.0,0,0);
+  a(9,'Gonzalo Carneiro','DC',30,'URU','Nacional','Uruguay',1.4,0,0);
+  a(7,'Maximiliano Cantera','MCO',27,'URU','Nacional','Uruguay',1.6,0,0);
+  a(1,'Martín Campaña','ARQ',36,'URU','Peñarol','Uruguay',0.5,0,0);
+  a(4,'Nahuel Herrera','DFC',26,'URU','Peñarol','Uruguay',1.6,0,0);
+  a(3,'Maximiliano Olivera','DFI',33,'URU','Peñarol','Uruguay',0.6,0,0);
+  a(5,'Rodrigo Pérez','MCD',28,'URU','Peñarol','Uruguay',1.3,0,0);
+  a(10,'Leonardo Fernández','MCO',27,'URU','Peñarol','Uruguay',4.5,0,0);
+  a(7,'Diego García','EI',29,'URU','Peñarol','Uruguay',1.5,0,0);
+  a(9,'Maximiliano Silvera','DC',28,'URU','Peñarol','Uruguay',2.2,0,0);
+  a(11,'Javier Cabrera','ED',33,'URU','Peñarol','Uruguay',0.8,0,0);
+  a(9,'Octavio Rivero','DC',34,'URU','Barcelona SC','Ecuador',0.8,0,0);
+  a(4,'Gonzalo Viera','DFC',31,'URU','Liverpool M','Uruguay',0.9,0,0);
+  a(8,'Lucas Lemos','MC',24,'URU','Liverpool M','Uruguay',1.7,0,0);
+  a(9,'Abel Hernández','DC',35,'URU','Liverpool M','Uruguay',0.5,0,0);
+  a(10,'Alan Medina','MCO',26,'URU','Defensor','Uruguay',1.9,0,0);
+  a(9,'Álvaro Navarro','DC',24,'URU','Defensor','Uruguay',2.1,0,0);
+  a(4,'Sebastián Boselli','DFC',22,'URU','Defensor','Uruguay',2.8,0,0);
+  a(8,'Rodrigo Chagas','MC',25,'URU','Boston River','Uruguay',1.1,0,0);
+  a(9,'Miguel Merentiel Jr','DC',22,'URU','Boston River','Uruguay',0.9,0,0);
+  a(7,'Santiago Homenchenko','ED',24,'URU','Racing CM','Uruguay',1.0,0,0);
+  a(1,'Ignacio de Arruabarrena','ARQ',28,'URU','Wanderers','Uruguay',1.1,0,0);
+  a(9,'Hernán Rivero','DC',26,'URU','Wanderers','Uruguay',1.3,0,0);
+  a(4,'Agustín Sant Anna','DFD',28,'URU','Cerro Largo','Uruguay',1.0,0,0);
+  a(10,'Fabricio Díaz','MC',23,'URU','Cerro Largo','Uruguay',2.4,0,0);
+  a(1,'Alexander Domínguez','ARQ',37,'ECU','LDU Quito','Ecuador',0.4,0,0);
+  a(4,'Ricardo Adé','DFC',35,'HAI','LDU Quito','Ecuador',0.8,0,0);
+  a(3,'Leonel Quiñónez','DFI',29,'ECU','LDU Quito','Ecuador',1.2,0,0);
+  a(8,'Fernando Cornejo','MC',32,'CHI','LDU Quito','Ecuador',1.0,0,0);
+  a(10,'Alexander Alvarado','MCO',27,'ECU','LDU Quito','Ecuador',2.8,0,0);
+  a(9,'Alex Arce','DC',30,'PAR','LDU Quito','Ecuador',2.5,0,0);
+  a(7,'Jhojan Julio','EI',28,'ECU','LDU Quito','Ecuador',1.8,0,0);
+  a(1,'Guido Villar','ARQ',26,'ARG','Ind. del Valle','Ecuador',1.5,0,0);
+  a(4,'Richard Schunke','DFC',34,'ARG','Ind. del Valle','Ecuador',0.7,0,0);
+  a(4,'Mateo Carabajal','DFC',27,'ARG','Ind. del Valle','Ecuador',1.6,0,0);
+  a(8,'Cristian Pellerano','MCD',34,'ARG','Ind. del Valle','Ecuador',0.5,0,0);
+  a(10,'Junior Sornoza','MCO',32,'ECU','Ind. del Valle','Ecuador',2.2,0,0);
+  a(7,'Renato Ibarra','ED',35,'ECU','Ind. del Valle','Ecuador',0.6,0,0);
+  a(9,'Michael Hoyos','DC',33,'ECU','Ind. del Valle','Ecuador',0.8,0,0);
+  a(19,'Patrik Mercado','MC',22,'ECU','Ind. del Valle','Ecuador',3.5,0,0);
+  a(1,'Javier Burrai','ARQ',35,'ARG','Barcelona SC','Ecuador',0.5,0,0);
+  a(4,'Franklin Guerra','DFC',33,'ECU','Barcelona SC','Ecuador',0.7,0,0);
+  a(8,'Jhonny Quiñónez','MC',27,'ECU','Barcelona SC','Ecuador',1.5,0,0);
+  a(10,'Fidel Martínez','MCO',36,'ECU','Barcelona SC','Ecuador',0.4,0,0);
+  a(11,'Janner Corozo','ED',27,'ECU','Barcelona SC','Ecuador',1.6,0,0);
+  a(1,'Pedro Ortiz','ARQ',33,'ECU','Emelec','Ecuador',0.5,0,0);
+  a(8,'Jackson Rodríguez','MC',28,'ECU','Emelec','Ecuador',1.1,0,0);
+  a(9,'Jaime Ayoví','DC',37,'ECU','Emelec','Ecuador',0.3,0,0);
+  a(7,'Alejandro Cabeza','EI',25,'ECU','Emelec','Ecuador',1.4,0,0);
+  a(9,'Roberto Ordóñez','DC',40,'ECU','Aucas','Ecuador',0.2,0,0);
+  a(8,'Luis Cano','MCD',27,'ECU','Aucas','Ecuador',0.9,0,0);
+  a(10,'Ismael Díaz','MCO',29,'PAN','U. Católica E','Ecuador',1.8,0,0);
+  a(9,'Azarías Londoño','ED',26,'ECU','U. Católica E','Ecuador',1.5,0,0);
+  a(1,'Hernán Galíndez','ARQ',39,'ECU','U. Católica E','Ecuador',0.2,0,0);
+  a(8,'José Cifuentes','MC',27,'ECU','LDU Quito','Ecuador',3.2,0,0);
+  a(1,'Beycker Velásquez','ARQ',28,'VEN','Caracas FC','Venezuela',0.6,0,0);
+  a(4,'Carlos Rivero','DFC',31,'VEN','Caracas FC','Venezuela',0.5,0,0);
+  a(8,'Ricardo Andreutti','MCD',34,'VEN','Caracas FC','Venezuela',0.3,0,0);
+  a(10,'Danny Pérez','MCO',26,'VEN','Caracas FC','Venezuela',0.9,0,0);
+  a(9,'Saúl Guarirapa','DC',23,'VEN','Caracas FC','Venezuela',1.6,0,0);
+  a(7,'Anderson Contreras','MC',26,'VEN','Caracas FC','Venezuela',1.1,0,0);
+  a(1,'José Contreras','ARQ',32,'VEN','Dep. Táchira','Venezuela',0.5,0,0);
+  a(4,'Carlos Vivas','DFD',28,'VEN','Dep. Táchira','Venezuela',0.6,0,0);
+  a(8,'Yerson Chacón','ED',24,'VEN','Dep. Táchira','Venezuela',1.8,0,0);
+  a(10,'Juan Camilo Zapata','MCO',27,'COL','Dep. Táchira','Venezuela',0.8,0,0);
+  a(9,'Charlis Ortiz','DC',26,'VEN','Dep. Táchira','Venezuela',1.0,0,0);
+  a(8,'Bryant Ortega','MC',25,'VEN','Dep. Táchira','Venezuela',0.7,0,0);
+  a(9,'Jesús Hernández','EI',24,'VEN','Metropolitanos','Venezuela',0.8,0,0);
+  a(4,'Diomar Díaz','ED',25,'VEN','Metropolitanos','Venezuela',0.9,0,0);
+  a(1,'Alain Baroja','ARQ',36,'VEN','La Guaira','Venezuela',0.3,0,0);
+  a(8,'Edson Rivas','MC',27,'VEN','La Guaira','Venezuela',0.6,0,0);
+  a(9,'Jorge Echeverría','DC',28,'VEN','La Guaira','Venezuela',0.7,0,0);
+  a(10,'Ricardo Martins','MCO',29,'BRA','Estudiantes M','Venezuela',0.6,0,0);
+  a(9,'Maurice Cova','MC',30,'VEN','Estudiantes M','Venezuela',0.4,0,0);
+  a(7,'Richard Celis','EI',29,'VEN','Carabobo','Venezuela',0.7,0,0);
+  a(9,'Aquiles Ocanto','DC',27,'VEN','Carabobo','Venezuela',0.6,0,0);
+  a(4,'Alexis Flores','DFC',26,'VEN','Monagas','Venezuela',0.5,0,0);
+  a(9,'Santiago Gómez','DC',24,'VEN','Monagas','Venezuela',0.6,0,0);
+  a(8,'Franklin González','MCD',29,'VEN','Zamora FC','Venezuela',0.4,0,0);
+  a(10,'Arles Flores','MCO',23,'VEN','Zamora FC','Venezuela',0.8,0,0);
+  a(1,'Carlos Lampe','ARQ',39,'BOL','Bolívar','Bolivia',0.3,0,0);
+  a(4,'Adrián Jusino','DFC',33,'BOL','Bolívar','Bolivia',0.4,0,0);
+  a(4,'José Sagredo','DFI',31,'BOL','Bolívar','Bolivia',0.5,0,0);
+  a(8,'Leonel Justiniano','MCD',33,'BOL','Bolívar','Bolivia',0.5,0,0);
+  a(10,'Ramiro Vaca','MCO',27,'BOL','Bolívar','Bolivia',1.8,0,0);
+  a(7,'Robson Matheus','MC',26,'BRA','Bolívar','Bolivia',1.2,0,0);
+  a(9,'Francisco da Costa','DC',28,'PAR','Bolívar','Bolivia',1.4,0,0);
+  a(11,'Carlos Melgar','MC',29,'BOL','Bolívar','Bolivia',0.6,0,0);
+  a(1,'Guillermo Viscarra','ARQ',33,'BOL','The Strongest','Bolivia',0.5,0,0);
+  a(4,'Gabriel Valverde','DFC',30,'BOL','The Strongest','Bolivia',0.4,0,0);
+  a(8,'Jaime Arrascaita','MCO',28,'BOL','The Strongest','Bolivia',0.9,0,0);
+  a(9,'Enrique Triverio','DC',37,'ARG','The Strongest','Bolivia',0.3,0,0);
+  a(7,'Jeyson Chura','ED',25,'BOL','The Strongest','Bolivia',1.1,0,0);
+  a(8,'Rodrigo Ramallo','DC',35,'BOL','The Strongest','Bolivia',0.3,0,0);
+  a(1,'Alain Aguilar','ARQ',28,'BOL','Always Ready','Bolivia',0.4,0,0);
+  a(4,'Marc Enoumba','DFC',29,'CAM','Always Ready','Bolivia',0.6,0,0);
+  a(8,'Moisés Villarroel','MC',24,'BOL','Always Ready','Bolivia',0.9,0,0);
+  a(9,'Carlos Chávez','DC',27,'BOL','Always Ready','Bolivia',0.7,0,0);
+  a(7,'Dorny Romero','DC',29,'DOM','Always Ready','Bolivia',0.8,0,0);
+  a(9,'Bruno Miranda','DC',28,'BOL','Blooming','Bolivia',0.6,0,0);
+  a(8,'Gabriel Villamíl','MC',24,'BOL','Blooming','Bolivia',1.0,0,0);
+  a(10,'Joel Amoroso','MCO',31,'ARG','Oriente P','Bolivia',0.4,0,0);
+  a(9,'Rodrigo Vargas','DC',26,'BOL','Oriente P','Bolivia',0.5,0,0);
+  a(4,'Luis Haquin','DFC',28,'BOL','Wilstermann','Bolivia',0.7,0,0);
+  a(9,'Humberto Osorio','DC',31,'COL','Wilstermann','Bolivia',0.4,0,0);
+  a(1,'David Ospina','ARQ',37,'COL','Atl. Nacional','Colombia',0.6,0,0);
+  a(10,'Edwin Cardona','MCO',33,'COL','Atl. Nacional','Colombia',1.2,0,0);
+  a(9,'Alfredo Morelos','DC',29,'COL','Atl. Nacional','Colombia',3.5,0,0);
+  a(7,'Marino Hinestroza','ED',24,'COL','Atl. Nacional','Colombia',4.0,0,0);
+  a(8,'Jorman Campuzano','MCD',30,'COL','Atl. Nacional','Colombia',1.5,0,0);
+  a(1,'Álvaro Montero','ARQ',31,'COL','Millonarios','Colombia',1.5,0,0);
+  a(10,'Daniel Cataño','MCO',34,'COL','Millonarios','Colombia',0.6,0,0);
+  a(9,'Leonardo Castro','DC',33,'COL','Millonarios','Colombia',0.7,0,0);
+  a(8,'David Macalister Silva','MC',39,'COL','Millonarios','Colombia',0.2,0,0);
+  a(9,'Radamel Falcao','DC',40,'COL','Millonarios','Colombia',0.3,0,0);
+  a(1,'Joel Graterol','ARQ',29,'VEN','América Cali','Colombia',1.0,0,0);
+  a(10,'Juan Fernando Quintero','MCO',33,'COL','América Cali','Colombia',2.5,0,0);
+  a(9,'Adrián Ramos','DC',40,'COL','América Cali','Colombia',0.2,0,0);
+  a(7,'Duván Vergara','EI',29,'COL','América Cali','Colombia',2.0,0,0);
+  a(9,'Carlos Bacca','DC',39,'COL','Junior','Colombia',0.3,0,0);
+  a(10,'Yimmi Chará','MCO',35,'COL','Junior','Colombia',0.6,0,0);
+  a(4,'Emanuel Olivera','DFC',31,'ARG','Junior','Colombia',0.8,0,0);
+  a(8,'Didier Moreno','MCD',34,'COL','Junior','Colombia',0.4,0,0);
+  a(9,'Hugo Rodallega','DC',40,'COL','Santa Fe','Colombia',0.2,0,0);
+  a(1,'Andrés Mosquera Marmolejo','ARQ',34,'COL','Santa Fe','Colombia',0.4,0,0);
+  a(8,'Daniel Torres','MCD',36,'COL','Santa Fe','Colombia',0.3,0,0);
+  a(9,'Yeison Guzmán','MCO',28,'COL','Tolima','Colombia',2.2,0,0);
+  a(1,'Cristian Vargas','ARQ',35,'COL','Tolima','Colombia',0.3,0,0);
+  a(4,'Julián Quiñones','DFC',26,'COL','Tolima','Colombia',1.1,0,0);
+  a(1,'Brayan Cortés','ARQ',31,'CHI','Colo-Colo','Chile',2.0,0,0);
+  a(4,'Maximiliano Falcón','DFC',29,'URU','Colo-Colo','Chile',2.2,0,0);
+  a(10,'Claudio Aquino','MCO',35,'ARG','Colo-Colo','Chile',0.5,0,0);
+  a(9,'Javier Correa','DC',33,'ARG','Colo-Colo','Chile',1.0,0,0);
+  a(7,'Lucas Cepeda','EI',23,'CHI','Colo-Colo','Chile',5.0,0,0);
+  a(8,'Vicente Pizarro','MC',23,'CHI','Colo-Colo','Chile',3.5,0,0);
+  a(32,'Arturo Vidal','MCD',39,'CHI','Colo-Colo','Chile',0.4,0,0);
+  a(1,'Gabriel Castellón','ARQ',33,'CHI','U de Chile','Chile',0.8,0,0);
+  a(4,'Matías Zaldivia','DFC',35,'CHI','U de Chile','Chile',0.4,0,0);
+  a(8,'Charles Aránguiz','MC',37,'CHI','U de Chile','Chile',0.5,0,0);
+  a(10,'Lucas Assadi','MCO',22,'CHI','U de Chile','Chile',4.5,0,0);
+  a(9,'Leandro Fernández','DC',35,'ARG','U de Chile','Chile',0.4,0,0);
+  a(7,'Maximiliano Guerrero','EI',26,'CHI','U de Chile','Chile',2.6,0,0);
+  a(11,'Matías Sepúlveda','MI',27,'CHI','U de Chile','Chile',2.0,0,0);
+  a(1,'Vicente Bernedo','ARQ',24,'CHI','U. Católica','Chile',1.4,0,0);
+  a(4,'Gary Kagelmacher','DFC',37,'URU','U. Católica','Chile',0.3,0,0);
+  a(10,'Fernando Zampedri','DC',38,'ARG','U. Católica','Chile',0.4,0,0);
+  a(8,'Ignacio Saavedra','MCD',27,'CHI','U. Católica','Chile',1.8,0,0);
+  a(7,'Alfred Canales','MCO',24,'CHI','U. Católica','Chile',1.6,0,0);
+  a(9,'Diego Coelho','DC',27,'URU','Cobresal','Chile',0.9,0,0);
+  a(8,'Cesar Yanis','ED',28,'PAN','Cobresal','Chile',0.6,0,0);
+  a(9,'Maximiliano Rodríguez','DC',30,'ARG','Huachipato','Chile',0.8,0,0);
+  a(1,'Sebastián Britos','ARQ',34,'URU','Universitario','Perú',0.5,0,0);
+  a(4,'Williams Riveros','DFC',33,'PAR','Universitario','Perú',0.6,0,0);
+  a(8,'Rodrigo Ureña','MCD',33,'CHI','Universitario','Perú',0.7,0,0);
+  a(10,'Jairo Concha','MCO',27,'PER','Universitario','Perú',1.8,0,0);
+  a(9,'Alex Valera','DC',30,'PER','Universitario','Perú',1.5,0,0);
+  a(7,'Andy Polo','ED',31,'PER','Universitario','Perú',1.0,0,0);
+  a(1,'Guillermo Viscarra P','ARQ',33,'BOL','Alianza Lima','Perú',0.5,0,0);
+  a(4,'Renzo Garcés','DFC',29,'PER','Alianza Lima','Perú',0.9,0,0);
+  a(8,'Sergio Peña','MC',30,'PER','Alianza Lima','Perú',1.4,0,0);
+  a(10,'Piero Quispe','MCO',24,'PER','Alianza Lima','Perú',2.5,0,0);
+  a(9,'Paolo Guerrero','DC',42,'PER','Alianza Lima','Perú',0.2,0,0);
+  a(9,'Hernán Barcos','DC',41,'ARG','Alianza Lima','Perú',0.2,0,0);
+  a(7,'Eryc Castillo','EI',30,'ECU','Alianza Lima','Perú',1.2,0,0);
+  a(1,'Renato Solís','ARQ',28,'PER','Sporting Cristal','Perú',0.7,0,0);
+  a(10,'Yoshimar Yotún','MC',36,'PER','Sporting Cristal','Perú',0.4,0,0);
+  a(9,'Martín Cauteruccio','DC',39,'URU','Sporting Cristal','Perú',0.3,0,0);
+  a(7,'Santiago González S','ED',24,'URU','Sporting Cristal','Perú',1.5,0,0);
+  a(9,'Bernardo Cuesta','DC',37,'ARG','Melgar','Perú',0.3,0,0);
+  a(8,'Walter Tandazo','MC',29,'PER','Melgar','Perú',0.5,0,0);
+  a(10,'Kenji Cabrera','EI',23,'PER','Melgar','Perú',1.8,0,0);
+  a(1,'Gastón Olveira','ARQ',31,'URU','Olimpia','Paraguay',0.8,0,0);
+  a(4,'Manuel Capasso','DFC',29,'ARG','Olimpia','Paraguay',1.0,0,0);
+  a(10,'Derlis González','MCO',32,'PAR','Olimpia','Paraguay',1.2,0,0);
+  a(9,'Hugo Fernández','DC',26,'URU','Olimpia','Paraguay',1.0,0,0);
+  a(8,'Richard Ortiz','MCD',36,'PAR','Olimpia','Paraguay',0.3,0,0);
+  a(1,'Alexis Arias','ARQ',30,'PAR','Cerro Porteño','Paraguay',0.9,0,0);
+  a(10,'Cecilio Domínguez','MCO',31,'PAR','Cerro Porteño','Paraguay',1.5,0,0);
+  a(9,'Jonatan Torres','DC',29,'ARG','Cerro Porteño','Paraguay',1.6,0,0);
+  a(8,'Wilder Viera','MC',24,'PAR','Cerro Porteño','Paraguay',1.3,0,0);
+  a(4,'Lucas Quintana','DFC',26,'PAR','Cerro Porteño','Paraguay',1.0,0,0);
+  a(1,'Martín Silva','ARQ',43,'URU','Libertad','Paraguay',0.1,0,0);
+  a(9,'Óscar Cardozo','DC',43,'PAR','Libertad','Paraguay',0.1,0,0);
+  a(10,'Lorenzo Melgarejo','MCO',35,'PAR','Libertad','Paraguay',0.4,0,0);
+  a(8,'Hernesto Caballero','MC',27,'PAR','Libertad','Paraguay',1.1,0,0);
+  a(9,'Fernando Fernández','DC',33,'PAR','Guaraní','Paraguay',0.5,0,0);
+  a(8,'Matías Villasanti Jr','MC',24,'PAR','Guaraní','Paraguay',1.4,0,0);
+  a(10,'Lionel Messi','MCO',38,'ARG','Inter Miami','MLS',18,93,0);
+  a(9,'Luis Suárez','DC',39,'URU','Inter Miami','MLS',1.5,0,0);
+  a(5,'Sergio Busquets','MCD',37,'ESP','Inter Miami','MLS',1.5,0,0);
+  a(18,'Jordi Alba','DFI',37,'ESP','Inter Miami','MLS',1.0,0,0);
+  a(10,'Riqui Puig','MC',26,'ESP','LA Galaxy','MLS',9,0,0);
+  a(9,'Christian Ramírez','DC',34,'USA','LA Galaxy','MLS',0.8,0,0);
+  a(9,'Denis Bouanga','EI',31,'GAB','LAFC','MLS',8,0,0);
+  a(1,'Hugo Lloris','ARQ',39,'FRA','LAFC','MLS',0.8,0,0);
+  a(9,'Olivier Giroud','DC',39,'FRA','LAFC','MLS',0.7,0,0);
+  a(10,'Evander','MCO',27,'BRA','Cincinnati','MLS',12,0,0);
+  a(9,'Luciano Acosta','MCO',31,'ARG','Dallas','MLS',6,0,0);
+  a(10,'Thiago Almada','MCO',24,'ARG','Atlanta Utd','MLS',22,0,0);
+  a(9,'Josef Martínez','DC',32,'VEN','San José','MLS',2.5,0,0);
+  a(10,'Cucho Hernández','DC',26,'COL','Columbus','MLS',14,0,0);
+  a(8,'Darlington Nagbe','MC',35,'USA','Columbus','MLS',1.5,0,0);
+  a(9,'Christian Benteke','DC',35,'BEL','DC United','MLS',2.5,0,0);
+  a(10,'Hany Mukhtar','MCO',31,'ALE','Nashville','MLS',6,0,0);
+  a(9,'Sam Surridge','DC',27,'ING','Nashville','MLS',5,0,0);
+  a(7,'Jordan Morris','EI',31,'USA','Seattle','MLS',3,0,0);
+  a(10,'Albert Rusnák','MCO',31,'SVK','Seattle','MLS',3,0,0);
+  a(9,'Sebastián Driussi','DC',30,'ARG','Austin FC','MLS',7,0,0);
+  a(10,'Carles Gil','MCO',33,'ESP','New England','MLS',3.5,0,0);
+  a(9,'Dénis García','DC',24,'MEX','Houston','MLS',2,0,0);
+  a(10,'Santiago Rodríguez','MCO',26,'URU','NYCFC','MLS',9,0,0);
+  a(9,'Bongokuhle Hlongwane','ED',25,'SUD','Minnesota','MLS',4,0,0);
+
   // Deduplicate by name — keep ONLY the single highest-rated version
   const best={};
   m.forEach(p=>{ if(!best[p.name]||p.rat>best[p.name].rat) best[p.name]=p; });
@@ -5575,6 +5812,12 @@ const STAD_INIT = {
     {id:'hotel',name:'Hotel del Club',desc:'Ingresos turísticos todo el año.',cost:35,eff:'inc+0.9',built:false},
     {id:'highperf',name:'Centro de Alto Rendimiento',desc:'Desarrollo de élite de la cantera.',cost:30,eff:'train',built:false},
     {id:'exp4',name:'Segunda Bandeja Completa +25.000',desc:'Tu estadio entre los grandes del continente.',cost:120,eff:'cap+25000',built:false},
+    {id:'hybrid',name:'Césped Híbrido',desc:'Cancha perfecta todo el año. Menos lesiones.',cost:16,eff:'medical',built:false},
+    {id:'naming',name:'Naming Rights (venta de nombre)',desc:'Un sponsor paga por el nombre del estadio.',cost:25,eff:'inc+1.2',built:false},
+    {id:'aux',name:'Estadio Auxiliar (Reserva)',desc:'La reserva juega de local. Juveniles crecen.',cost:22,eff:'train',built:false},
+    {id:'residence',name:'Residencia de Jugadores',desc:'Concentración propia. Moral del plantel.',cost:18,eff:'rep+3',built:false},
+    {id:'lab',name:'Laboratorio de Datos y GPS',desc:'Análisis científico del rendimiento.',cost:15,eff:'train',built:false},
+    {id:'tunnel',name:'Túnel y Vestuarios Premium',desc:'Nivel Champions. Impresiona rivales. Rep +3.',cost:10,eff:'rep+3',built:false},
   ]
 };
 
@@ -5840,7 +6083,7 @@ function initGame(teamId){
   lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
   lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
   updateUI();
-  addPhoneMsg('board', 'Junta Directiva', `📋 Bienvenido a tu primera semana como Director Técnico de ${G.teamName}. Desde aquí recibirás todas las comunicaciones importantes: pedidos del DT, ofertas de agentes y mensajes de jugadores.`, '🏛️');
+  addPhoneMsg('board', 'Secretaría del Club', `📋 Presidente, quedó operativa su línea directa. Desde acá puede chatear con el DT y los jugadores, recibir ofertas de representantes y aprobar pedidos. El club es suyo.`, '🏛️');
   const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.desc}`).join('<br>');
   addPhoneMsg('board', 'Presidente', `🏛️ Como presidente del club, espero resultados esta temporada. Tus <b>objetivos</b> son:<br><br>${objList}<br><br>La confianza de la directiva depende de vos. ¡Éxitos!`, '👔');
 }
@@ -6287,6 +6530,7 @@ function openP(id, inSquad){
         <button class="btn bR bs" onclick="sellPlayer('${p.id}')">💸 Vender</button>
         <button class="btn bo bs" onclick="loanPlayer('${p.id}')">📤 Ceder</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
+        <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
         ${isForeign(p.nat) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
       ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
@@ -7604,6 +7848,8 @@ function rStaff(){
     <div class="sr"><span class="sl">Sueldo</span><span class="sv" style="color:var(--red)">$${G.dt.salary}K/sem</span></div>
     <div class="sr"><span class="sl">Especialidad</span><span class="sv">${dtTraitBadge(G.dt)}</span></div>
     <div style="font-size:10px;color:var(--green);margin-top:4px">✦ ${(DT_TRAIT_FX[G.dt.trait]||{fx:'Sin bono especial'}).fx}</div>
+    <div style="font-size:9px;color:var(--t3);margin-top:6px;font-family:'Barlow Condensed';text-transform:uppercase">Perfil táctico (se ve en la simulación)</div>
+    ${dtProfBars(G.dt)}
     <button class="btn bR bs" style="margin-top:7px" onclick="fireDT()">🚪 Despedir</button>
   `;
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
@@ -7650,6 +7896,7 @@ function rStaff(){
             <div style="font-size:9px;color:var(--t3)">${d.nat} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span></div>
             <div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${rb(d.rat)}${dtTraitBadge(d)}</div>
             <div style="font-size:9px;color:var(--green);margin-top:2px">✦ ${(DT_TRAIT_FX[d.trait]||{fx:''}).fx}</div>
+            ${dtProfBars(d)}
           </div>
           <button class="btn bg bs" onclick="hireDT('${d.name}')">Contratar</button>
         </div>
@@ -9044,6 +9291,11 @@ function matchStrengths(m){
     if(tr==='Táctico'||tr==='Analítico') tacMod+=0.015;
     if(G.dt.style==='5-3-2') tacMod-=0.02;
   }
+  // Perfil táctico del DT: presión y línea alta suman (con riesgo si el equipo es lento)
+  const myProfS=dtProfile(G.dt);
+  tacMod+=(myProfS.press-0.5)*0.05;
+  tacMod+=(myProfS.line-0.5)*(avgR>=72?0.03:-0.02);
+  if(myProfS.direct>0.65&&atkPow>=74)tacMod+=0.015;
   // Instrucciones tácticas afectan el partido
   if(G.pressure==='Alta') tacMod+=0.02;
   if(G.pressure==='Baja') tacMod-=0.015;
@@ -9251,6 +9503,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     });
   }
   weeklyOffers();
+  weeklyChats();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -10276,11 +10529,56 @@ function sitSetupAttack(W,H,oR,mainP,pool){
       ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(tx,ty);ctx.stroke();
       ctx.setLineDash([]);ctx.restore();
     }
-    sitDrawHint(ctx,W,H,s.hint);
+    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
 // ——— PENAL (vista de arco, estilo FIFA) ———
+// ═══ PUNTO DE CONTACTO: elegís DÓNDE pegarle a la pelota ═══
+// La mira barre la pelota; frenala con Z. Costado = comba, abajo = elevada,
+// centro = potencia limpia. Pegarle mal (borde) = tiro desviado.
+function sitContactTick(s,dt){
+  s.contact.t+=dt;
+  s.contact.nx=Math.sin(s.contact.t*.085);
+  s.contact.ny=Math.sin(s.contact.t*.058+1.4);
+}
+function sitContactFx(s,mainP,pw){
+  const nx=s.contact.nx||0,ny=s.contact.ny||0;
+  const cN=Math.hypot(nx,ny);
+  const sweet=cN<0.32;          // punto dulce: precisión
+  const shank=cN>0.97;          // le pegaste al borde: se va cualquier lado
+  const curve=-nx*52;           // costado → comba al lado opuesto
+  const lift=ny*30;             // abajo de la pelota → la elevás
+  const errMult=sweet?0.5:shank?2.3:1.0;
+  return {curve,lift,errMult,sweet,shank};
+}
+function sitDrawContact(ctx,W,H,s){
+  if(!s.contact||s.kicked)return;
+  const bx=W*0.80,by=H*0.72,R=34;
+  // Pelota grande
+  ctx.beginPath();ctx.arc(bx,by,R,0,Math.PI*2);
+  const g2=ctx.createRadialGradient(bx-R*.3,by-R*.3,R*.1,bx,by,R);
+  g2.addColorStop(0,'#fff');g2.addColorStop(1,'#b8b8b8');
+  ctx.fillStyle=g2;ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#222';
+  for(let i=0;i<5;i++){const a=i*Math.PI*2/5-0.5;ctx.beginPath();ctx.arc(bx+Math.cos(a)*R*.52,by+Math.sin(a)*R*.52,R*.16,0,Math.PI*2);ctx.fill();}
+  // Zona dulce
+  ctx.beginPath();ctx.arc(bx,by,R*.32,0,Math.PI*2);
+  ctx.strokeStyle='rgba(15,184,102,.75)';ctx.lineWidth=1.6;ctx.stroke();
+  // Mira
+  const mx=bx+(s.contact.nx||0)*R*.82,my=by+(s.contact.ny||0)*R*.82;
+  ctx.strokeStyle='#e84545';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(mx,my,7,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mx-11,my);ctx.lineTo(mx+11,my);ctx.moveTo(mx,my-11);ctx.lineTo(mx,my+11);ctx.stroke();
+  // Guía
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 9px "Barlow Condensed",sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('¿DÓNDE LE PEGÁS? Z para definir',bx,by+R+6);
+  ctx.fillStyle='rgba(255,255,255,.45)';ctx.font='8px sans-serif';
+  ctx.fillText('costado=comba · abajo=elevada · centro=limpio',bx,by+R+18);
+}
+
 function sitSetupPenalty(W,H,oR,mainP,isOpp){
   const s=SIT;
   const g={x1:W*.16,x2:W*.84,barY:H*.28,groundY:H*.55};
@@ -10302,9 +10600,11 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     const k=s.keys;
     if(!s.kicked){
       if(s.isOpp){
-        // Sos el arquero: movete en la línea
+        // Sos el arquero: movete libre en el área chica (línea + profundidad)
         if(k.left) s.gk.x=Math.max(g.x1+16,s.gk.x-1.7*dt);
         if(k.right)s.gk.x=Math.min(g.x2-16,s.gk.x+1.7*dt);
+        if(k.up)   s.gk.y=Math.max(g.groundY-52,s.gk.y-1.1*dt);
+        if(k.down) s.gk.y=Math.min(g.groundY-8,s.gk.y+1.1*dt);
         if(k.shoot&&!s.dove){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:0;s.diveUp=k.up?-1:0;}
         s.oppKickDelay-=dt;
         if(s.oppKickDelay<=0){
@@ -10324,30 +10624,45 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
         if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
         s.gk.swayT+=dt;
         s.gk.x=cx+Math.sin(s.gk.swayT*.045)*(g.x2-cx)*.18;
-        if(k.shoot&&!s.kicked){
+        if(s.contact){
+          // FASE 2: elegir el punto de contacto en la pelota
+          sitContactTick(s,dt);
+          if(k.shoot&&!s._cLock){
+            s._cLock=true;
+            const pw=s.pendingPw;
+            const fx=sitContactFx(s,mainP,pw);
+            const errBase=(91-mainP.rat)*.44*(pw<50?2.2:pw<85?1.3:1.0)*fx.errMult;
+            const err=errBase*(Math.random()*2-1);
+            const errY=(91-mainP.rat)*.34*(pw<50?2.0:pw<85?1.2:1.0)*fx.errMult*(Math.random()*2-1);
+            const tx=s.aim.x+err+fx.curve*0.5, ty=Math.max(g.barY-14,s.aim.y+errY-fx.lift);
+            s.target={x:tx,y:ty};s.scorer=mainP;s.curve=fx.curve;
+            s.kicked=true;s.flightT=0;s.flightDur=pw>=85?28:pw>=50?34:40;
+            s.contact=null;
+            // El arquero lee la MIRA, no la comba: la comba lo deja pagando
+            const reads=Math.random()<(0.38+(oR-62)*.010)*(pw<50?0.5:1)*(Math.abs(fx.curve)>26?0.55:1);
+            if(reads)s.gkDive={x:s.aim.x+(Math.random()*2-1)*22,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
+            else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
+            s.gkStart={x:s.gk.x,y:s.gk.y};
+            s.reach=pw<50?8+(oR-62)*.25:pw<85?13+(oR-62)*.38:17+(oR-62)*.45;
+          }
+          if(!k.shoot)s._cLock=false;
+        } else if(k.shoot&&!s.kicked){
           if(!s.charging){s.charging=true;s.power=0;}
           s.power=Math.min(100,s.power+dt*1.8);
         } else if(s.charging&&!s.kicked){
-          // Released - fire!
-          const pw=s.power;s.charging=false;
-          const errBase=(91-mainP.rat)*.44*(pw<50?2.2:pw<85?1.3:1.0);
-          const err=errBase*(Math.random()*2-1);
-          const errY=(91-mainP.rat)*.34*(pw<50?2.0:pw<85?1.2:1.0)*(Math.random()*2-1);
-          const tx=s.aim.x+err, ty=s.aim.y+errY;
-          s.target={x:tx,y:ty};s.scorer=mainP;
-          s.kicked=true;s.flightT=0;s.flightDur=pw>=85?28:pw>=50?34:40;
-          const reads=Math.random()<(0.38+(oR-62)*.010)*(pw<50?0.5:1);
-          if(reads)s.gkDive={x:tx+(Math.random()*2-1)*22,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
-          else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
-          s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=pw<50?8+(oR-62)*.25:pw<85?13+(oR-62)*.38:17+(oR-62)*.45;
+          // FASE 1 lista: ahora elegí dónde pegarle
+          s.charging=false;
+          s.pendingPw=s.power;
+          s.contact={t:0,nx:0,ny:0};
+          s._cLock=true;
+          s.hint='¡Ahora elegí DÓNDE pegarle! Z cuando la mira esté donde querés';
         }
       }
     } else {
       s.flightT+=dt;
       const f=Math.min(1,s.flightT/s.flightDur);
       // Vuelo con leve comba
-      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
+      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f+Math.sin(f*Math.PI)*(s.curve||0)*0.55;
       s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.06;
       s.ball.r=7-2.5*f;
       if(s.isOpp){
@@ -10408,7 +10723,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
       ctx.fillStyle='#e84545';ctx.font='bold 20px Barlow Condensed,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText('PATEA en '+cd,W/2,H*.72);
     }
-    sitDrawHint(ctx,W,H,s.hint);
+    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -10536,7 +10851,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
     sitDrawPlayerK(ctx,s.header.x,s.header.y,12,myKit,s.header.p.name.split(' ').pop().slice(0,6),true);
     sitDrawPlayerK(ctx,s.ballStart.x+(fromRight?-16:16),s.ballStart.y,11,myKit,mainP.name.split(' ').pop().slice(0,5),s.phase==='aim');
     sitDrawBall(ctx,s.ball);
-    sitDrawHint(ctx,W,H,s.hint);
+    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -10567,28 +10882,45 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
       s.gk.swayT+=dt;
       s.gk.x=sC(s.gk.x+Math.sin(s.gk.swayT*.04)*.3*dt,g.x1+16,g.x2-16);
-      if(k.shoot&&!s.kicked){
+      if(s.contact){
+        // FASE 2: punto de contacto — la comba puede esquivar la barrera
+        sitContactTick(s,dt);
+        if(k.shoot&&!s._cLock){
+          s._cLock=true;
+          const pw=s.pendingPw;
+          const fx=sitContactFx(s,mainP,pw);
+          const errBase=(91-mainP.rat)*.50*(pw<50?2.2:pw<85?1.3:1.0)*fx.errMult;
+          const err=errBase*(Math.random()*2-1);
+          const errY=(91-mainP.rat)*.40*(pw<50?2.0:pw<85?1.2:1.0)*fx.errMult*(Math.random()*2-1);
+          const tx=s.aim.x+err+fx.curve*0.6, ty=Math.max(g.barY-14,s.aim.y+errY-fx.lift);
+          s.target={x:tx,y:ty};s.scorer=mainP;s.curve=fx.curve;
+          s.kicked=true;s.flightT=0;s.flightDur=pw>=85?36:pw>=50?44:54;
+          s.contact=null;
+          // La barrera bloquea según por dónde PASA la pelota (la comba la esquiva)
+          const xAtWall=s.ballStart.x+(tx-s.ballStart.x)*0.42+Math.sin(0.42*Math.PI)*fx.curve*0.62;
+          const highEnough=(s.aim.y-fx.lift)<s.wallZone.topY;
+          s.willBlock=xAtWall>s.wallZone.x1&&xAtWall<s.wallZone.x2&&!highEnough&&Math.random()<(pw<50?.90:.78);
+          const reads=Math.random()<(0.28+(oR-62)*.009)*(pw<50?0.4:1)*(Math.abs(fx.curve)>26?0.5:1);
+          if(reads)s.gkDive={x:s.aim.x+(Math.random()*2-1)*40,y:Math.min(gy-12,ty+(Math.random()*2-1)*30)};
+          else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-28-Math.random()*40};
+          s.gkStart={x:s.gk.x,y:s.gk.y};
+          s.reach=pw<50?8+(oR-62)*.25:pw<85?11+(oR-62)*.38:15+(oR-62)*.45;
+        }
+        if(!k.shoot)s._cLock=false;
+      } else if(k.shoot&&!s.kicked){
         if(!s.charging){s.charging=true;s.power=0;}
         s.power=Math.min(100,s.power+dt*1.8);
       } else if(s.charging&&!s.kicked){
-        const pw=s.power;s.charging=false;
-        const errBase=(91-mainP.rat)*.50*(pw<50?2.2:pw<85?1.3:1.0);
-        const err=errBase*(Math.random()*2-1);
-        const errY=(91-mainP.rat)*.40*(pw<50?2.0:pw<85?1.2:1.0)*(Math.random()*2-1);
-        const tx=s.aim.x+err, ty=s.aim.y+errY;
-        s.target={x:tx,y:ty};s.scorer=mainP;
-        s.kicked=true;s.flightT=0;s.flightDur=pw>=85?36:pw>=50?44:54;
-        s.willBlock=tx>s.wallZone.x1&&tx<s.wallZone.x2&&ty>s.wallZone.topY&&Math.random()<(pw<50?.90:.78);
-        const reads=Math.random()<(0.28+(oR-62)*.009)*(pw<50?0.4:1);
-        if(reads)s.gkDive={x:tx+(Math.random()*2-1)*40,y:Math.min(gy-12,ty+(Math.random()*2-1)*30)};
-        else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-28-Math.random()*40};
-        s.gkStart={x:s.gk.x,y:s.gk.y};
-        s.reach=pw<50?8+(oR-62)*.25:pw<85?11+(oR-62)*.38:15+(oR-62)*.45;
+        s.charging=false;
+        s.pendingPw=s.power;
+        s.contact={t:0,nx:0,ny:0};
+        s._cLock=true;
+        s.hint='¡Elegí dónde pegarle! Con comba (costado) podés esquivar la barrera';
       }
     } else {
       s.flightT+=dt;
       const f=Math.min(1,s.flightT/s.flightDur);
-      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
+      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f+Math.sin(f*Math.PI)*(s.curve||0)*0.62;
       s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.09;
       s.ball.r=7-2.5*f;
       // Choque con la barrera a mitad de vuelo
@@ -10624,7 +10956,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       ctx.fillStyle='#fff';ctx.font='bold 9px Barlow Condensed,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText('POTENCIA '+(~~pw)+'%',W/2,by+bh+10);
     }
-    sitDrawHint(ctx,W,H,s.hint);
+    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -10745,7 +11077,7 @@ function sitSetupDefense(W,H,oR){
       ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText('⚡ TACKLE!',s.player.x,s.player.y-18);
     }
-    sitDrawHint(ctx,W,H,s.hint);
+    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -10906,6 +11238,43 @@ function unlistPlayer(id){
 
 // ——— Contract negotiation (FIFA-style: salario + duración) ———
 function renew(id){ openContract(id); }
+
+// ═══ RESCISIÓN: pagás lo que resta del contrato y el jugador queda libre ═══
+function rescindPlayer(id){
+  if(!G)return;
+  const p=G.squad.find(x=>x.id===id);
+  if(!p)return;
+  const seasons=Math.max(1,(p.contract||2026)-2026+1);
+  const cost=Math.round(p.wage*26*seasons/1000*10)/10; // medio año de sueldo por temporada restante
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🗑️ Rescindir contrato — ${p.name}</div>
+    <div class="note R" style="margin-bottom:10px">Vas a rescindir unilateralmente. El jugador queda LIBRE (no cobrás transferencia) y el club paga la indemnización de lo que resta de contrato.</div>
+    <div class="sr"><span class="sl">Contrato hasta</span><span class="sv">${p.contract}</span></div>
+    <div class="sr"><span class="sl">Sueldo</span><span class="sv">$${p.wage}K/sem</span></div>
+    <div class="sr"><span class="sl">Indemnización</span><span class="sv" style="color:var(--red)">${fv(cost)}</span></div>
+    <div class="sr"><span class="sl">Ahorro salarial anual</span><span class="sv" style="color:var(--green)">${fv(Math.round(p.wage*52/1000*10)/10)}</span></div>
+    <div class="note" style="margin:8px 0">⚠️ El plantel puede tomarse mal que eches a un compañero (moral −3). Presupuesto: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <div style="display:flex;gap:6px">
+      <button class="btn bR" onclick="confirmRescind('${p.id}',${cost})">Rescindir por ${fv(cost)}</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+}
+function confirmRescind(id,cost){
+  const p=G.squad.find(x=>x.id===id);
+  if(!p)return;
+  if(G.budget<cost){flash('❌ No te alcanza para la indemnización','loss');return;}
+  G.budget=Math.round((G.budget-cost)*10)/10;
+  G.squad=G.squad.filter(x=>x.id!==id);
+  G.bench=G.bench.filter(x=>x.id!==id);
+  Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===id)G.slots[k2]=null;});
+  G.morale=Math.max(0,G.morale-3);
+  lg('🗑️',`Contrato de ${p.name} rescindido (${fv(cost)})`);
+  addPhoneMsg('player',p.name,'Presidente, me acaban de comunicar la rescisión. No lo esperaba... le deseo lo mejor al club igualmente. Los caminos se vuelven a cruzar.','👤');
+  closeMod();updateUI();
+  flash('🗑️ '+p.name+' — contrato rescindido','draw');
+}
 function openContract(id){
   const p=G.squad.find(x=>x.id===id); if(!p) return;
   const expected=Math.max(5,Math.round(p.rat*0.55));
@@ -11162,10 +11531,11 @@ function fmMove(body,dx,dy,dt,acc){
   body.x+=body.vx*dt;body.y+=body.vy*dt;
 }
 
-function startFullMatch(){
+function startFullMatch(watch){
   if(!G)return;
   const m=G.calendar.find(x=>!x.played);
   if(!m){flash('No hay partidos pendientes','loss');return;}
+  window._fmWatch=!!watch;
   document.getElementById('fm-ov')?.remove();
   const opp=m.home===G.teamName?m.away:m.home;
   const S=matchStrengths(m);
@@ -11261,6 +11631,7 @@ function startFullMatch(){
     fmBind();fmJoySetup();fmRenderKeyCfg();
     const mb=document.getElementById('fm-mutebtn');
     if(mb)mb.textContent=FMS.muted?'🔇':'🔊';
+    if(window._fmWatch)fmSetupWatch();
     FM.raf=requestAnimationFrame(fmLoop);
   });
 }
@@ -11376,6 +11747,53 @@ function fmInit(m,W,H){
   FM.ctrl=strikerIdx>=0?strikerIdx:myXI.length-1;
   FM.my[FM.ctrl].x=VW/2-20;FM.my[FM.ctrl].y=VH/2+10;
   FM.phase='help'; // pantalla de controles antes de arrancar
+}
+
+// ═══ MODO SIMULACIÓN TÁCTICA: se mira, no se juega — los DTs dirigen ═══
+function fmSetupWatch(){
+  const f=FM;if(!f)return;
+  f.watch=true;f.speed=1;
+  // Perfiles tácticos de ambos DTs
+  f.myProf=dtProfile(G.dt);
+  const oppPool=DTS.filter(d=>d.name!==G.dt.name);
+  f.oppDT=oppPool[~~(Math.random()*oppPool.length)];
+  f.oppProf=dtProfile(f.oppDT);
+  // Ocultar controles de juego
+  ['fm-joy','fm-tactic'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  document.querySelectorAll('.fm-dlsbtn').forEach(el=>el.style.display='none');
+  document.querySelectorAll('#fm-game [ontouchstart]').forEach(el=>el.style.display='none');
+  // Saltar pantalla de controles
+  const h=document.getElementById('fm-help');
+  if(h)h.style.display='none';
+  fmSndInit();
+  f.phase='kickoff';f.phaseT=0;
+  fmSndWhistle(1);
+  fmMsg('SIMULACIÓN\n'+G.teamName+' vs '+f.oppName);
+  // Barra de simulación: velocidad + estilos de los DTs
+  const gm=document.getElementById('fm-game');
+  if(gm){
+    const bar=document.createElement('div');
+    bar.id='fm-watchbar';
+    bar.style.cssText='position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;z-index:12;flex-wrap:wrap;justify-content:center';
+    const chip=(dt,al)=>`<div style="background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;text-align:${al};max-width:200px">
+      <div style="font-family:'Barlow Condensed';font-size:11px;font-weight:800;color:#fff">${dt.name}</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.55)">${(DT_TRAIT_FX[dt.trait]||{icon:''}).icon} ${dt.trait} · ${dt.style} · ${dt.str||''}</div>
+    </div>`;
+    bar.innerHTML=chip(G.dt,'left')+
+      `<div style="display:flex;gap:3px">
+        <button class="fm-spdbtn on" onclick="fmSetSpeed(1,this)">1x</button>
+        <button class="fm-spdbtn" onclick="fmSetSpeed(2,this)">2x</button>
+        <button class="fm-spdbtn" onclick="fmSetSpeed(4,this)">4x</button>
+        <button class="fm-spdbtn" onclick="fmSetSpeed(8,this)">8x</button>
+      </div>`+chip(f.oppDT,'right');
+    gm.appendChild(bar);
+  }
+}
+function fmSetSpeed(n,btn){
+  if(!FM)return;
+  FM.speed=n;
+  document.querySelectorAll('.fm-spdbtn').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
 }
 
 function fmCloseHelp(){
@@ -11505,9 +11923,9 @@ function fmDoRestart(){
     const cxs=Math.sign(f.VW/2-b.x)||1,cys=Math.sign(f.VH/2-b.y)||1;
     taker.x=b.x-cxs*14;taker.y=b.y-cys*12;
     taker.vx=0;taker.vy=0;
-    if(r.team==='my'&&r.type!=='goalkick')f.ctrl=ti;
-    if(r.team==='opp'){
-      taker._oppRecvTick=f.ticks;
+    if(r.team==='my'&&r.type!=='goalkick'&&!f.watch)f.ctrl=ti;
+    if(r.team==='opp'||f.watch){
+      taker._recvTick=f.ticks;
       if(r.type==='corner')taker._forceCross=1;
     }
   }
@@ -11660,8 +12078,11 @@ function fmCycleTactic(){
 function fmLoop(ts){
   if(!FM||FM.phase==='done')return;
   const dt=FM.lastTs?Math.min((ts-FM.lastTs)/16.667,2.5):1;
-  FM.lastTs=ts;fmTick(dt);fmDraw();
-  FM.raf=requestAnimationFrame(fmLoop);
+  FM.lastTs=ts;
+  const steps=FM.watch?(FM.speed||1):1;
+  for(let i=0;i<steps&&FM&&FM.phase!=='done';i++)fmTick(dt);
+  if(FM&&FM.phase!=='done')fmDraw();
+  if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
 function fmTick(dt){
@@ -11705,33 +12126,32 @@ function fmTick(dt){
       if(f.minute===30||f.minute===60) fmMsg('👁 EL RIVAL\nTE ESTÁ ESTUDIANDO');
     }
   }
-  if(k.tab&&!f.tabWas){f.tabWas=1;fmSwitch();}else if(!k.tab)f.tabWas=0;
-  // Auto-switch: always control the non-GK closest to the ball
-  // (keeps current player if they have possession within kick range)
-  {
-    const cp=f.my[f.ctrl],b=f.ball;
-    const cpD=cp?Math.hypot(cp.x-b.x,cp.y-b.y):9999;
+  if(!f.watch){if(k.tab&&!f.tabWas){f.tabWas=1;fmSwitch();}else if(!k.tab)f.tabWas=0;}
+  if(!f.watch){
+    // Auto-switch: always control the non-GK closest to the ball
+    const cp=f.my[f.ctrl],b2=f.ball;
+    const cpD=cp?Math.hypot(cp.x-b2.x,cp.y-b2.y):9999;
     if(cpD>38){
       let bestI=f.ctrl,bestD=cpD;
       f.my.forEach((p,i)=>{
         if(p.isGK||i===f.ctrl)return;
-        const d=Math.hypot(p.x-b.x,p.y-b.y);
+        const d=Math.hypot(p.x-b2.x,p.y-b2.y);
         if(d<bestD-35){bestD=d;bestI=i;}
       });
       if(bestI!==f.ctrl)f.ctrl=bestI;
     }
+    fmCtrl(dt);
+    // Labels contextuales de los botones
+    if((f.ticks|0)%12===0){
+      const cp2=f.my[f.ctrl];
+      const poss=cp2&&Math.hypot(cp2.x-f.ball.x,cp2.y-f.ball.y)<=cp2.r+27&&!(f.ball.air>2);
+      const cA=document.getElementById('fm-capA'),cB=document.getElementById('fm-capB'),cC=document.getElementById('fm-capC');
+      if(cA)cA.textContent=poss?'TIRO':'BARRIDA';
+      if(cB)cB.textContent=poss?'PASE':'PRESIONAR';
+      if(cC)cC.textContent=poss?'ELEVADO':'DESPEJE';
+    }
   }
-  fmCtrl(dt);
-  // Labels contextuales de los botones (como DLS: cambian en ataque/defensa)
-  if((f.ticks|0)%12===0){
-    const cp2=f.my[f.ctrl];
-    const poss=cp2&&Math.hypot(cp2.x-f.ball.x,cp2.y-f.ball.y)<=cp2.r+27&&!(f.ball.air>2);
-    const cA=document.getElementById('fm-capA'),cB=document.getElementById('fm-capB'),cC=document.getElementById('fm-capC');
-    if(cA)cA.textContent=poss?'TIRO':'BARRIDA';
-    if(cB)cB.textContent=poss?'PASE':'PRESIONAR';
-    if(cC)cC.textContent=poss?'ELEVADO':'DESPEJE';
-  }
-  f.my.forEach((p,i)=>{if(i!==f.ctrl)fmAI(p,'my',i,dt);});
+  f.my.forEach((p,i)=>{if(f.watch||i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
   // Player-player collision: push apart any overlapping players
   const allP=[...f.my,...f.opp];
@@ -12008,59 +12428,91 @@ function fmSwitch(){
   f.ctrl=best;
 }
 
+// ═══ PERFIL TÁCTICO DEL DT: números reales que dirigen al equipo en la simulación ═══
+function dtProfile(dt){
+  const t=(dt&&dt.trait)||'Equilibrado';
+  const style=(dt&&dt.style)||'4-4-2';
+  const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5};
+  const T={
+    'Filósofo':{press:.85,line:.80,tempo:.42,direct:.15,width:.72},
+    'Heavy Metal':{press:.95,line:.75,tempo:.90,direct:.60,aggr:.80},
+    'Cholo':{press:.35,line:.20,tempo:.55,direct:.78,aggr:.92,width:.35},
+    'Defensivo':{press:.30,line:.25,direct:.62,aggr:.60},
+    'Ofensivo':{press:.60,line:.72,tempo:.70,direct:.55,width:.70},
+    'Moderno':{press:.75,line:.65,tempo:.65,direct:.38},
+    'Intenso':{press:.85,line:.60,tempo:.80,aggr:.75},
+    'Formador':{tempo:.45,direct:.35},
+    'Táctico':{press:.55,line:.50,tempo:.45,direct:.35},
+    'Analítico':{press:.60,line:.55,tempo:.50,direct:.40},
+    'Guerrero':{aggr:.85,press:.70,tempo:.75,direct:.65},
+    'Copero':{line:.38,direct:.62,aggr:.65},
+    'Maestro':{tempo:.50,direct:.45},
+    'Leyenda':{tempo:.50,direct:.50,aggr:.55},
+    'Muñeco':{press:.80,line:.70,tempo:.80,direct:.50,width:.65},
+    'Técnico':{tempo:.40,direct:.25,width:.60},
+    'Clase':{tempo:.45,direct:.30},
+    'Pragmático':{line:.35,direct:.70},
+    'Campeón':{aggr:.60},
+    'Líder':{aggr:.65,press:.60},
+    'Equilibrado':{},
+  };
+  const o=Object.assign({},base,T[t]||{});
+  if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);}
+  if(style==='4-3-3'||style==='3-4-3'){o.width=Math.min(1,o.width+.15);}
+  if(style==='4-2-3-1'){o.tempo=Math.min(1,o.tempo+.05);}
+  return o;
+}
+function dtProfBars(dt){
+  const pr=dtProfile(dt);
+  const row=(l,v)=>`<div style="display:flex;align-items:center;gap:4px;font-size:8px;color:var(--t3)"><span style="width:46px;flex-shrink:0">${l}</span><div style="flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden"><div style="width:${Math.round(v*100)}%;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),#e8b800)"></div></div><span style="width:16px;text-align:right;color:var(--t2)">${Math.round(v*10)}</span></div>`;
+  return `<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)}</div>`;
+}
+
 function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
   const players=isM?f.my:f.opp;
+  const rivals=isM?f.opp:f.my;
   const attRight=isM?f.myAttRight:!f.myAttRight;
   const fieldW=f.rightGL-f.leftGL,mid=f.VH/2;
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
+  const prof=(isM?f.myProf:f.oppProf)||{press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5};
 
-  // === GK: sweeper-keeper (fixed: only chase near own goal) ===
+  // === ARQUERO: líbero según el perfil del DT (línea alta = arquero adelantado) ===
   if(p.isGK){
     const paW=fieldW*0.175;
     const paHH=f.VH*0.33;
     const bd=Math.hypot(p.x-b.x,p.y-b.y);
     const ballGoalDist=attRight?b.x-f.leftGL:f.rightGL-b.x;
     const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
-    // Ball moving toward our goal?
     const ballThreat=attRight?(b.vx<-0.5):(b.vx>0.5);
-    // Only chase when ball is near own goal area
-    const ballNearGoal=ballGoalDist<paW*1.3;
+    const ballNearGoal=ballGoalDist<paW*(1.15+prof.line*0.5);
 
     if(ballNearGoal&&(bd<380||(ballInBox&&ballThreat))){
-      // CHASE: go directly at the ball to intercept (only when ball is near our box)
       fmMove(p,b.x-p.x,b.y-p.y,dt,0.095);
-      // PALOMITA: si la pelota viene rápido y cerca, el arquero se tira
       if(bd<170&&Math.hypot(b.vx,b.vy)>3.2&&!(p._diveT>0))p._diveT=12;
     } else {
-      // POSITION: return smoothly between posts
-      let fwdFrac=0.07;
+      let fwdFrac=0.07+(prof.line-0.5)*0.10;
       if(ballGoalDist<fieldW*0.5)
         fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
       if(ballInBox){
         const depth=1-Math.max(0,ballGoalDist)/paW;
         fwdFrac+=Math.min(0.27,depth*(1-depth*0.45)*0.60);
       }
-      fwdFrac=Math.min(0.50,fwdFrac);
-      // IA adaptativa: si tirás de lejos, el arquero rival se queda más atrás
-      if(!isM&&f.adapt) fwdFrac*=(1-f.adapt.gkDeep*0.5);
+      fwdFrac=Math.max(0.03,Math.min(0.50,fwdFrac));
+      if(!isM&&f.adapt&&!f.watch) fwdFrac*=(1-f.adapt.gkDeep*0.5);
       const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
-      // Y: fully track ball within post height (no partial tracking — avoids dodging)
       const gkTargY=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
-      // Return faster when ball is far from goal
       const returnSpd=ballNearGoal?0.065:0.09;
       fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,returnSpd);
     }
 
     if(bd<p.r+20&&!(b.air>2)){
-      // Salida en corto (45%): busca un compañero libre en su mitad; si no, pelotazo
+      // Distribución: DTs de posesión salen jugando en corto; los directos revientan
       let shortT=null;
-      if(Math.random()<0.45){
-        const mates=isM?f.my:f.opp;
-        const rivals=isM?f.opp:f.my;
+      if(Math.random()<(0.25+(1-prof.direct)*0.5)){
         let bestD=1e9;
-        mates.forEach(q=>{
+        players.forEach(q=>{
           if(q.isGK)return;
           const dGoal=attRight?q.x-f.leftGL:f.rightGL-q.x;
           if(dGoal>fieldW*0.5)return;
@@ -12073,14 +12525,16 @@ function fmAI(p,team,idx,dt){
         const dx=shortT.x-b.x,dy=shortT.y-b.y,dd=Math.hypot(dx,dy)||1;
         const pw2=3.4+dd*0.008;
         b.vx=(dx/dd)*pw2;b.vy=(dy/dd)*pw2;
+        shortT._recvTick=f.ticks;
       }else{
         const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
         b.vx=(dx/dd)*7.2+(Math.random()-.5)*0.9;
         b.vy=(dy/dd)*5.8+(Math.random()-.5)*2.2;
         b.air=22;
       }
-      f._lastTouch=isM?'my':'opp';
+      f._lastTouch=team;
       p._kickT=9;
+      fmSndKick(0.6);
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
     p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
@@ -12089,13 +12543,13 @@ function fmAI(p,team,idx,dt){
 
   const bd=Math.hypot(p.x-b.x,p.y-b.y);
   const KICK_R=p.r+7+18;
+  const activeAI=!isM||f.watch; // en modo simulación, TU equipo también juega solo
 
-  if(isM){
-    // === PELOTA DIVIDIDA: el compañero más cercano va a buscarla (no se queda mirando) ===
+  if(!activeAI){
+    // ═══ EQUIPO DEL JUGADOR (modo jugable): sostener forma + desmarques ═══
     if(!p.isGK&&bd<360&&!(b.air>2)){
       const cpX=f.my[f.ctrl];
       const ctrlD=cpX?Math.hypot(cpX.x-b.x,cpX.y-b.y):9999;
-      // Solo si la pelota está suelta (nadie del equipo la domina) y soy el más cercano
       if(ctrlD>90){
         let closest=true;
         for(let qi=0;qi<f.my.length;qi++){
@@ -12111,19 +12565,16 @@ function fmAI(p,team,idx,dt){
         }
       }
     }
-    // === MY TEAM: hold shape, push up + mentalidad + desmarques ===
     const push=FM_MENTS[f.mentality||1].push;
     const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
     const fwdShift=Math.max(-fieldW*0.07,(ballPct-0.36)*fieldW*0.24*push);
     let tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
     let ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.06));
-    // Desmarque: si yo tengo la pelota, los 2 compañeros más cercanos se abren para recibir
     const cp=f.my[f.ctrl];
     const iHaveBall=cp&&Math.hypot(cp.x-b.x,cp.y-b.y)<45;
     if(iHaveBall&&!p.isGK&&idx!==f.ctrl){
       const dCtrl=Math.hypot(p.x-cp.x,p.y-cp.y);
       if(dCtrl<420&&dCtrl>60){
-        // Moverse a un hueco adelantado respecto al que tiene la pelota
         const openX=cp.x+(attRight?170:-170);
         const openY=p.y<cp.y?Math.max(p.r+20,cp.y-190):Math.min(f.VH-p.r-20,cp.y+190);
         fmMove(p,openX-p.x,openY-p.y,dt,0.052);
@@ -12132,94 +12583,103 @@ function fmAI(p,team,idx,dt){
         return;
       }
     }
-    // Offside: can't go past last outfield opp (closest to OPP goal)
     let offX=attRight?f.leftGL:f.rightGL;
-    f.opp.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
+    rivals.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
     tx=attRight?Math.min(tx,offX+2):Math.max(tx,offX-2);
     fmMove(p,tx-p.x,ty-p.y,dt,0.038+((f.mentality===2)?0.004:0));
-  }else{
-    // === OPPONENT: IA adaptativa — presiona, corta líneas y te marca según cómo jugás ===
-    const ad=f.adapt||{laneShift:0,press:0,mark:0,gkDeep:0,aggr:0.35};
-    const dists=[];
-    players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
-    dists.sort((a,bb)=>a.d-bb.d);
-    // Más agresividad aprendida → el 4to presionador entra desde más lejos
-    const pressR=400+ad.aggr*260;
-    const isChaser=dists.length>0&&(idx===dists[0].i||(dists.length>1&&idx===dists[1].i&&dists[1].d<600)||(dists.length>2&&idx===dists[2].i&&dists[2].d<550)||(dists.length>3&&idx===dists[3].i&&dists[3].d<pressR));
-    // Interceptor: si abusás del pase, un volante se para en la línea de pase a tu compañero más cercano
-    const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
-    if(!isChaser&&isMid&&ad.press>0.45&&f._lastTouch==='my'&&dists.length>4&&idx===dists[4].i){
-      const cp2=f.my[f.ctrl];
-      if(cp2){
-        let nearMate=null,nd=Infinity;
-        f.my.forEach((t2,i2)=>{if(i2===f.ctrl||t2.isGK)return;const d2=Math.hypot(t2.x-cp2.x,t2.y-cp2.y);if(d2<nd){nd=d2;nearMate=t2;}});
-        if(nearMate){
-          const mx=(cp2.x+nearMate.x)/2,my2=(cp2.y+nearMate.y)/2;
-          fmMove(p,mx-p.x,my2-p.y,dt,0.058+ad.press*0.02);
-          p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-          p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-          return;
-        }
-      }
-    }
-    const chaseRank=isChaser?dists.findIndex(dd=>dd.i===idx):-1;
-    // Córner rival: el que saca tira el centro al área
-    if(p._forceCross&&bd<KICK_R+6&&!(b.air>2)){
-      p._forceCross=0;
-      const tx3=attRight?f.rightGL-fieldW*0.11:f.leftGL+fieldW*0.11;
-      const ty3=mid+(Math.random()*130-65);
-      const ddx=tx3-b.x,ddy=ty3-b.y,dd3=Math.hypot(ddx,ddy)||1;
-      b.vx=ddx/dd3*6.4;b.vy=ddy/dd3*6.4;
-      b.air=Math.min(80,dd3/6.4*0.7);
-      f._lastTouch='opp';p._kickT=9;
-      fmSndKick(0.6);
-    }
-    if(isChaser){
-      // Los perseguidores secundarios NO van todos a la pelota: cortan el ángulo hacia su arco
-      if(chaseRank>0&&bd>KICK_R+30){
-        const cutX=b.x+(ownGX-b.x)*(0.16+chaseRank*0.07);
-        const cutY=b.y+(mid-b.y)*0.14+(chaseRank%2?1:-1)*34;
-        fmMove(p,cutX-p.x,cutY-p.y,dt,0.078*(1+ad.aggr*0.10));
+    p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+    p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+    return;
+  }
+
+  // ═══ IA DE EQUIPO COMPLETA — el perfil táctico del DT dirige TODO ═══
+  const ad=(!isM&&f.adapt&&!f.watch)?f.adapt:{laneShift:0,press:0,mark:0,gkDeep:0,aggr:prof.aggr*0.4};
+  const dists=[];
+  players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
+  dists.sort((a,bb)=>a.d-bb.d);
+  // Presión del DT: cuántos presionan y desde qué distancia
+  const pressR=280+prof.press*400+ad.aggr*120;
+  const isChaser=dists.length>0&&(idx===dists[0].i
+    ||(dists.length>1&&idx===dists[1].i&&dists[1].d<480+prof.press*260)
+    ||(dists.length>2&&idx===dists[2].i&&dists[2].d<400+prof.press*260)
+    ||(dists.length>3&&idx===dists[3].i&&dists[3].d<pressR&&prof.press>0.4));
+  const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
+  // Interceptor de líneas de pase (solo contra el humano en modo jugable)
+  if(!f.watch&&!isM&&!isChaser&&isMid&&ad.press>0.45&&f._lastTouch==='my'&&dists.length>4&&idx===dists[4].i){
+    const cp2=f.my[f.ctrl];
+    if(cp2){
+      let nearMate=null,nd=Infinity;
+      f.my.forEach((t2,i2)=>{if(i2===f.ctrl||t2.isGK)return;const d2=Math.hypot(t2.x-cp2.x,t2.y-cp2.y);if(d2<nd){nd=d2;nearMate=t2;}});
+      if(nearMate){
+        const mx=(cp2.x+nearMate.x)/2,my2=(cp2.y+nearMate.y)/2;
+        fmMove(p,mx-p.x,my2-p.y,dt,0.058+ad.press*0.02);
         p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
         p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
         return;
       }
-      if(bd<KICK_R&&!(b.air>2)){
-        const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
-        const inBox=distGoal<fieldW*.28;
-        const canShoot=distGoal<fieldW*.55;
-        const longShot=distGoal<fieldW*.72&&distGoal>=fieldW*.55;
-        // One-touch passing: 30% chance of immediate pass when receiving ball
-        const justReceived=p._oppRecvTick&&(f.ticks-p._oppRecvTick)<8;
-        if(justReceived&&Math.random()<0.30*dt){
-          fmOppPass(idx);
-          p._oppRecvTick=0;
-        } else if(inBox&&Math.random()<0.13*dt){
-          const aimY=(Math.random()-.5)*f.GH*.55;
-          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-          const pwr=6.5+Math.random()*3.5;
-          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';p._kickT=9;
-        } else if(canShoot&&!inBox&&Math.random()<0.05*dt){
-          const aimY=(Math.random()-.5)*f.GH*.45;
-          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-          const pwr=7.0+Math.random()*2.5;
-          b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch='opp';p._kickT=9;
-        } else if(longShot&&Math.random()<0.02*dt){
-          const aimY=(Math.random()-.5)*f.GH*.35;
-          const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-          b.vx=(ddx/dd)*8.0;b.vy=(ddy/dd)*8.0;f._lastTouch='opp';p._kickT=9;
-        } else if(Math.random()<0.12*dt){
-          fmOppPass(idx);
-        } else {
-          const latWobble=(Math.sin(f.ticks*.07+idx))*55;
-          const dribX=b.x+(tgx-b.x)*.14;
-          const dribY=b.y+(mid+latWobble-b.y)*.05;
-          fmMove(p,dribX-p.x,dribY-p.y,dt,0.078);
-        }
-      }else{
-        // Marca más pegajosa si gambeteás mucho; más rápida si venís ganando fácil
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*(1+ad.mark*0.22+ad.aggr*0.10));
-        // A veces el rival te baja con falta cuando lo desbordás
+    }
+  }
+  const chaseRank=isChaser?dists.findIndex(dd=>dd.i===idx):-1;
+  // Córner: el que saca tira el centro al área
+  if(p._forceCross&&bd<KICK_R+6&&!(b.air>2)){
+    p._forceCross=0;
+    const tx3=attRight?f.rightGL-fieldW*0.11:f.leftGL+fieldW*0.11;
+    const ty3=mid+(Math.random()*130-65);
+    const ddx=tx3-b.x,ddy=ty3-b.y,dd3=Math.hypot(ddx,ddy)||1;
+    b.vx=ddx/dd3*6.4;b.vy=ddy/dd3*6.4;
+    b.air=Math.min(80,dd3/6.4*0.7);
+    f._lastTouch=team;p._kickT=9;
+    fmSndKick(0.6);
+  }
+  if(isChaser){
+    // Presionadores secundarios cortan el ángulo hacia su arco
+    if(chaseRank>0&&bd>KICK_R+30){
+      const cutX=b.x+(ownGX-b.x)*(0.16+chaseRank*0.07);
+      const cutY=b.y+(mid-b.y)*0.14+(chaseRank%2?1:-1)*34;
+      fmMove(p,cutX-p.x,cutY-p.y,dt,0.078*(1+ad.aggr*0.10+prof.aggr*0.05));
+      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+      return;
+    }
+    if(bd<KICK_R&&!(b.air>2)){
+      const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
+      const inBox=distGoal<fieldW*.28;
+      // DTs directos patean desde más lejos; los de posesión esperan
+      const canShoot=distGoal<fieldW*(0.40+prof.direct*0.20);
+      const longShot=distGoal<fieldW*.72&&!canShoot&&prof.direct>0.55;
+      const justReceived=p._recvTick&&(f.ticks-p._recvTick)<8;
+      // Tempo alto = toque rápido (tiki-taka veloz o vertical según directo)
+      const oneTouch=0.16+prof.tempo*0.24;
+      const passBase=0.06+prof.tempo*0.10;
+      if(justReceived&&Math.random()<oneTouch*dt){
+        fmTeamPass(team,idx);
+        p._recvTick=0;
+      } else if(inBox&&Math.random()<0.13*dt){
+        const aimY=(Math.random()-.5)*f.GH*.55;
+        const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+        const pwr=6.5+Math.random()*3.5;
+        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.8);
+      } else if(canShoot&&!inBox&&Math.random()<(0.028+prof.direct*0.035)*dt){
+        const aimY=(Math.random()-.5)*f.GH*.45;
+        const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+        const pwr=7.0+Math.random()*2.5;
+        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);
+      } else if(longShot&&Math.random()<0.02*dt){
+        const aimY=(Math.random()-.5)*f.GH*.35;
+        const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
+        b.vx=(ddx/dd)*8.0;b.vy=(ddy/dd)*8.0;f._lastTouch=team;p._kickT=9;fmSndKick(0.9);
+      } else if(Math.random()<passBase*dt){
+        fmTeamPass(team,idx);
+      } else {
+        const latWobble=(Math.sin(f.ticks*.07+idx))*55;
+        const dribX=b.x+(tgx-b.x)*.14;
+        const dribY=b.y+(mid+latWobble-b.y)*.05;
+        fmMove(p,dribX-p.x,dribY-p.y,dt,0.068+prof.tempo*0.016);
+      }
+    }else{
+      fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.04));
+      // Falta al gambeteador (solo vs humano)
+      if(!f.watch&&!isM){
         const cp4=f.my[f.ctrl];
         if(cp4&&Math.hypot(cp4.x-b.x,cp4.y-b.y)<42){
           const dCp=Math.hypot(p.x-cp4.x,p.y-cp4.y);
@@ -12230,69 +12690,78 @@ function fmAI(p,team,idx,dt){
           }
         }
       }
+    }
+  }else{
+    // ═══ POSICIONAMIENTO según el perfil: línea alta/baja + amplitud del DT ═══
+    const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
+    const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28));
+    const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
+    // Amplitud: el equipo se abre o se cierra según el DT
+    const spread=(p.hy-mid)*(0.72+prof.width*0.56);
+    let ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,mid+spread+(b.y-mid)*0.18));
+    const isAttacker=['DC','EI','ED','CF'].includes(p.role);
+    const isDef=['DFC','DFD','DFI','LD','LI'].includes(p.role);
+    if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
+      ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,ty+ad.laneShift*f.VH*0.11));
+    }
+    if(isAttacker&&ballPct>0.40){
+      const runDepth=90+prof.line*60;
+      const runX=attRight?Math.min(tx+runDepth,f.rightGL-p.r):Math.max(tx-runDepth,f.leftGL+p.r);
+      const runY=ty+(Math.sin(f.ticks*.04+idx*2))*35;
+      fmMove(p,runX-p.x,runY-p.y,dt,0.060);
+    }else if(isMid&&ballPct>0.30){
+      const supX=55+prof.line*35;
+      const supportX=attRight?Math.min(tx+supX,f.rightGL-p.r):Math.max(tx-supX,f.leftGL+p.r);
+      fmMove(p,supportX-p.x,ty-p.y,dt,0.055);
     }else{
-      const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-      const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*0.32);
-      const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
-      let ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.18));
-      const isAttacker=['DC','EI','ED','CF'].includes(p.role);
-      const isDef=['DFC','DFD','DFI','LD','LI'].includes(p.role);
-      // IA adaptativa: la defensa se corre hacia tu carril favorito de ataque
-      if(isDef&&Math.abs(ad.laneShift)>0.15){
-        ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,ty+ad.laneShift*f.VH*0.11));
-      }
-      if(isAttacker&&ballPct>0.40){
-        const runX=attRight?Math.min(tx+110,f.rightGL-p.r):Math.max(tx-110,f.leftGL+p.r);
-        const runY=ty+(Math.sin(f.ticks*.04+idx*2))*35;
-        fmMove(p,runX-p.x,runY-p.y,dt,0.060);
-      }else if(isMid&&ballPct>0.30){
-        const supportX=attRight?Math.min(tx+65,f.rightGL-p.r):Math.max(tx-65,f.leftGL+p.r);
-        fmMove(p,supportX-p.x,ty-p.y,dt,0.055);
-      }else{
-        fmMove(p,tx-p.x,ty-p.y,dt,0.048);
-      }
+      fmMove(p,tx-p.x,ty-p.y,dt,0.048);
     }
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
 }
 
-function fmOppPass(fromIdx){
+// Pase de equipo (cualquier lado): elige receptor según el perfil del DT
+function fmTeamPass(team,fromIdx){
   const f=FM,b=f.ball;
-  const attRight=!f.myAttRight;
+  const isM=team==='my';
+  const squad=isM?f.my:f.opp;
+  const rivals=isM?f.opp:f.my;
+  const attRight=isM?f.myAttRight:!f.myAttRight;
   const fieldW=f.rightGL-f.leftGL;
+  const prof=(isM?f.myProf:f.oppProf)||{direct:.5};
   let bestI=-1,bestScore=-Infinity;
-  f.opp.forEach((t,i)=>{
+  squad.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
     if(d<60)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
-    const blocked=f.my.some(m=>{
+    const blocked=rivals.some(m=>{
       const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;
       return Math.hypot(m.x-mx,m.y-my2)<d*0.3;
     });
-    // Receptor marcado de cerca: mal pase
-    const marked=f.my.some(m=>Math.hypot(m.x-t.x,m.y-t.y)<110);
-    // Pase hacia atrás cerca del propio arco: peligro de regalo
+    const marked=rivals.some(m=>Math.hypot(m.x-t.x,m.y-t.y)<110);
     const recvOwnDist=attRight?(t.x-f.leftGL):(f.rightGL-t.x);
     const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.28;
-    const score=fwdScore*.65-d*.08+(Math.random()*30)-(blocked?40:0)-(marked?50:0)-(suicidal?90:0);
+    // DT directo premia el pase largo hacia adelante; DT de posesión el corto seguro
+    const score=fwdScore*(0.4+prof.direct*0.5)-d*(0.14-prof.direct*0.08)+(Math.random()*30)-(blocked?40:0)-(marked?50:0)-(suicidal?90:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
-    const t=f.opp[bestI];
-    const leadX=t.x+(attRight?t.vx:t.vx)*12;
-    const leadY=t.y+t.vy*12;
+    const t=squad[bestI];
+    const leadX=t.x+(t.vx||0)*12;
+    const leadY=t.y+(t.vy||0)*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
     const pwr=5.0+Math.random()*2.6;
     b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4;
-    f._lastTouch='opp';
-    f.opp[fromIdx]._kickT=9;
+    f._lastTouch=team;
+    squad[fromIdx]._kickT=9;
     fmSndKick(0.32);
-    // Mark receiver for one-touch passing
-    t._oppRecvTick=f.ticks;
+    t._recvTick=f.ticks;
   }
 }
+// compat
+function fmOppPass(fromIdx){fmTeamPass('opp',fromIdx);}
 
 function fmBall(dt){
   const f=FM,b=f.ball;
@@ -12796,7 +13265,7 @@ function fmDraw(){
   // Dibujar por profundidad (y ascendente): lo lejano primero
   const ents=[];
   f.opp.forEach(p=>ents.push({y:p.y,fn:()=>drawP3(p,false,false)}));
-  f.my.forEach((p,i)=>ents.push({y:p.y,fn:()=>drawP3(p,i===f.ctrl,i===nextCtrl)}));
+  f.my.forEach((p,i)=>ents.push({y:p.y,fn:()=>drawP3(p,!f.watch&&i===f.ctrl,!f.watch&&i===nextCtrl)}));
   ents.push({y:b.y,fn:drawBall3});
   ents.sort((a,c)=>a.y-c.y);
   ents.forEach(e=>e.fn());
@@ -12860,7 +13329,7 @@ function fmDraw(){
   }
 
   // Chip del jugador controlado
-  if(f.phase==='play'){
+  if(f.phase==='play'&&!f.watch){
     const cp=f.my[f.ctrl];
     if(cp){
       const txt=`${cp.name.toUpperCase()}   ${cp.role}   ${cp.rat}`;
@@ -12920,7 +13389,7 @@ function fmEnd(){
   cancelAnimationFrame(f.raf);
   const m=f.pending.m,gf=f.myG,ga=f.oppG;
   // === EL BOT APRENDE: guarda tu estilo de juego para los próximos partidos ===
-  if(G.aiLearn&&f.learn){
+  if(!f.watch&&G.aiLearn&&f.learn){
     const AL=G.aiLearn,L=f.learn;
     ['shots','longShots','passes','lofted','dribbleTicks','laneTop','laneMid','laneBot'].forEach(k=>{
       AL[k]=Math.round((AL[k]*0.7+L[k]*1.0)*10)/10; // el historial decae, lo reciente pesa más
@@ -13131,9 +13600,233 @@ function phTab(tab, el){
   rPhone();
 }
 
+// ═══ CHATS DEL PRESIDENTE: hablás con el DT y los jugadores, ellos con vos ═══
+let _phPlayer=null; // jugador con chat abierto
+function ensureChats(){
+  if(!G)return;
+  if(!G.chats)G.chats={dt:[],players:{}};
+  if(!G.agentOffers)G.agentOffers=[];
+}
+function chatPush(thread,from,txt){
+  thread.push({from,txt,w:G.week||1});
+  if(thread.length>40)thread.shift();
+}
+function pPersona(p){
+  const seed=((p.id||'')+p.name).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  return ['humilde','picante','profesional','carismático'][seed%4];
+}
+// Respuestas del DT según su personalidad y el momento del equipo
+function dtReply(kind){
+  ensureChats();
+  const dt=G.dt,tr=dt.trait;
+  const played=G.calendar.filter(m=>m.played);
+  const last3=played.slice(-3).map(m=>m.result);
+  const wins3=last3.filter(r=>r==='W').length;
+  const form=wins3>=2?'buena':last3.filter(r=>r==='L').length>=2?'mala':'regular';
+  let txt='';
+  if(kind==='estado'){
+    if(form==='buena')txt=`Presidente, el grupo está enchufado. ${tr==='Defensivo'?'Estamos sólidos atrás, que es lo que importa.':tr==='Ofensivo'?'Y lo mejor: generamos mucho al frente.':'La idea se está viendo en la cancha.'} Moral del plantel: ${G.morale}%.`;
+    else if(form==='mala')txt=`No le voy a mentir, presidente: la racha es mala. ${tr==='Guerrero'||tr==='Intenso'?'Pero este grupo tiene carácter, vamos a salir con trabajo.':tr==='Táctico'||tr==='Analítico'?'Estoy ajustando cosas en el análisis, hay soluciones.':'Necesito que el club esté tranquilo, esto se revierte.'}`;
+    else txt=`Vamos partido a partido, presidente. ${dt.philosophy||''} La moral está en ${G.morale}%.`;
+  }else if(kind==='refuerzo'){
+    const pos=(dt.wantedPos&&dt.wantedPos[0])||'DC';
+    const cands=(G.market||[]).filter(p=>p.pos===pos&&p.rat>=72&&p.val<=G.budget).sort((a,b)=>b.rat-a.rat).slice(0,2);
+    txt=`Necesito un ${pos}, presidente. ${cands.length?`Le paso nombres que me gustan: ${cands.map(c=>c.name+' ('+c.club+', '+fv(c.val)+')').join(' y ')}. Si me trae alguno de esos, lo hago rendir.`:'En el mercado actual no veo nada a nuestro alcance, pero sigo mirando.'}`;
+  }else if(kind==='exigencia'){
+    G.boardConf=Math.max(5,(G.boardConf||50)-1);
+    if(tr==='Leyenda'||tr==='Maestro'||tr==='Cholo')txt='Presidente, con todo respeto: yo gané cosas que esta institución no olvida. Deme los jugadores y yo le doy los resultados.';
+    else if(tr==='Guerrero'||tr==='Intenso')txt='Lo tomo, presidente. A este grupo lo saco adelante aunque tenga que dormir en el predio.';
+    else txt='Entendido, presidente. Sé lo que es este club y lo que se exige. Los resultados van a llegar.';
+  }else if(kind==='felicitar'){
+    G.morale=Math.min(100,G.morale+2);
+    txt=`Gracias, presidente. ${tr==='Formador'?'Los pibes se lo merecen más que yo.':'Se lo transmito al grupo, esto suma mucho.'}`;
+  }
+  return txt;
+}
+function presMsgDT(kind,label){
+  ensureChats();
+  chatPush(G.chats.dt,'me',label);
+  const txt=dtReply(kind);
+  setTimeout(()=>{
+    if(!G)return;
+    chatPush(G.chats.dt,'them',txt);
+    if(_phTab==='dt')rPhone();
+    updatePhoneBadge();
+  },700+Math.random()*800);
+  rPhone();
+}
+function playerReply(p,kind){
+  const per=pPersona(p);
+  if(kind==='felicitar'){
+    p.morale=Math.min(100,(p.morale||70)+4);
+    return per==='humilde'?'Gracias presidente, yo solo trato de aportar al grupo.':per==='picante'?'¡Gracias presi! Si me siguen llegando pelotas, hay más de esto.':per==='carismático'?'¡Un abrazo presidente! Este club es mi casa.':'Se agradece, presidente. A seguir trabajando.';
+  }
+  if(kind==='exigir'){
+    const takes=Math.random()<0.5;
+    p.morale=Math.max(0,(p.morale||70)+(takes?2:-5));
+    return takes?'Tiene razón, presidente. Le voy a demostrar en la cancha por qué estoy acá.':(per==='picante'?'Presi, yo dejo todo en cada partido... si el equipo no acompaña no es solo culpa mía.':'Entiendo la exigencia, pero le pido confianza. Estoy pasando un momento difícil.');
+  }
+  if(kind==='estado'){
+    const m=p.morale||70;
+    return m>=75?'La verdad, muy bien presidente. El grupo es sano y me siento importante.':m>=50?'Bien, presidente... aunque me gustaría sumar más minutos.':(per==='picante'?'Sinceramente presi, no estoy cómodo. Quiero jugar más o hablamos de mi salida.':'No es mi mejor momento, presidente. Pero voy a pelearla.');
+  }
+  if(kind==='titular'){
+    p.morale=Math.min(100,(p.morale||70)+6);
+    return '¿En serio, presidente? No lo voy a defraudar. Cuente conmigo.';
+  }
+  return '...';
+}
+function presMsgPlayer(pid,kind,label){
+  ensureChats();
+  const p=G.squad.find(x=>x.id===pid);if(!p)return;
+  if(!G.chats.players[pid])G.chats.players[pid]=[];
+  chatPush(G.chats.players[pid],'me',label);
+  const txt=playerReply(p,kind);
+  setTimeout(()=>{
+    if(!G)return;
+    chatPush(G.chats.players[pid],'them',txt);
+    if(_phTab==='player'&&_phPlayer===pid)rPhone();
+    updatePhoneBadge();
+  },700+Math.random()*900);
+  rPhone();
+}
+// ═══ REPRESENTANTES: te ofrecen jugadores de afuera — podés consultar al DT ═══
+function genAgentOffer(){
+  ensureChats();
+  if(!isTransferWindowOpen())return;
+  if(G.agentOffers.filter(o=>o.status!=='closed').length>=3)return;
+  const cands=(G.market||[]).filter(p=>p.rat>=70&&p.val<=G.budget*1.4&&p.val>=1);
+  if(!cands.length)return;
+  // Sesgo hacia lo que pide el DT
+  const want=(G.dt.wantedPos||[]);
+  const pick=cands.filter(p=>want.includes(p.pos));
+  const pl=(pick.length&&Math.random()<0.6?pick:cands)[~~(Math.random()*(pick.length&&Math.random()<0.6?pick:cands).length)]||cands[0];
+  const agent=_negAgent(pl);
+  const off={id:'ao'+Date.now(),pid:pl.id,agent:agent.name,w:G.week,status:'new',dtVerdict:null};
+  G.agentOffers.unshift(off);
+  addPhoneMsg('agent',agent.name+' (representante)',`Presidente, tengo a <b>${pl.name}</b> (${pl.pos}, ${pl.age} años, ${pl.club}) buscando un desafío como ${G.teamName}. Valor de mercado ${fv(pl.val)}, rating ${pl.rat}. ¿Le interesa? Puedo acercarle las condiciones.`,'🤝',{agentOffer:off.id});
+}
+function askDtAboutOffer(offId){
+  ensureChats();
+  const off=G.agentOffers.find(o=>o.id===offId);if(!off)return;
+  const pl=G.market.find(p=>p.id===off.pid);
+  if(!pl){off.status='closed';rPhone();return;}
+  off.status='asked';
+  // El DT evalúa: puesto que pidió, edad, nivel vs plantel
+  const want=(G.dt.wantedPos||[]).includes(pl.pos);
+  const bestInPos=Math.max(0,...G.squad.filter(q=>q.pos===pl.pos).map(q=>q.rat));
+  const upgrade=pl.rat>bestInPos;
+  const young=pl.age<=25;
+  let verdict,score=0;
+  if(want)score+=2;if(upgrade)score+=2;if(young)score+=1;if(pl.rat>=80)score+=1;
+  if(score>=4)verdict=`¡Tráigalo ya, presidente! ${pl.name} es exactamente lo que pedí${upgrade?' y es mejor que todo lo que tengo en ese puesto':''}. Cierre esa operación.`;
+  else if(score>=2)verdict=`${pl.name} me sirve, presidente. ${want?'Es el puesto que le pedí. ':''}${upgrade?'Mejora lo que hay. ':''}Si el precio es razonable, avancemos.`;
+  else verdict=`Sinceramente, presidente: ${pl.name} no me mueve la aguja. ${!want?'No es el puesto que necesito. ':''}${!upgrade?'Tengo cosas iguales o mejores en el plantel. ':''}Yo usaría ese dinero en otra cosa.`;
+  off.dtVerdict={txt:verdict,score};
+  off.status='dtReplied';
+  chatPush(G.chats.dt,'me',`¿Qué opinás de ${pl.name} (${pl.pos}, ${pl.club})? Me lo ofreció ${off.agent}.`);
+  setTimeout(()=>{
+    if(!G)return;
+    chatPush(G.chats.dt,'them',verdict);
+    addPhoneMsg('agent','DT '+G.dt.name,`Sobre ${pl.name}: ${verdict}`,'🎯',{agentOffer:off.id});
+    rPhone();updatePhoneBadge();
+  },900+Math.random()*900);
+  rPhone();
+}
+function rejectAgentOffer(offId){
+  const off=G.agentOffers.find(o=>o.id===offId);
+  if(off)off.status='closed';
+  rPhone();
+}
+function negotiateAgentOffer(offId){
+  const off=G.agentOffers.find(o=>o.id===offId);if(!off)return;
+  off.status='closed';
+  closePhone();
+  openNeg(off.pid);
+}
+// Mensajes semanales entrantes (jugadores/DT le escriben al presidente)
+function weeklyChats(){
+  ensureChats();
+  // Jugador descontento
+  const unhappy=G.squad.filter(p=>(p.morale||70)<45);
+  if(unhappy.length&&Math.random()<0.5){
+    const p=unhappy[~~(Math.random()*unhappy.length)];
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them','Presidente, ¿tiene un minuto? No estoy pasando un buen momento en el club y quería hablarlo con usted directamente.');
+    addPhoneMsg('player',p.name,'Le escribió por privado — revisá su chat en la pestaña Plantel.','👤');
+  }
+  // Goleador contento
+  const scorer=G.squad.filter(p=>p.goals>=3&&(p.morale||70)>=70);
+  if(scorer.length&&Math.random()<0.3){
+    const p=scorer[~~(Math.random()*scorer.length)];
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them',`¡Presidente! Quería agradecerle la confianza. Van ${p.goals} goles y esto recién empieza. ¡Vamos por todo!`);
+    addPhoneMsg('player',p.name,'Te mandó un mensaje — está encendido. Pestaña Plantel.','👤');
+  }
+  // Representante ofrece jugador
+  if(Math.random()<0.55)genAgentOffer();
+}
+
 function rPhone(){
   const scr = document.getElementById('phScreen');
   if(!scr||!G) return;
+  ensureChats();
+  // ═══ CHAT CON EL DT ═══
+  if(_phTab==='dt'){
+    const th=G.chats.dt;
+    scr.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-size:16px">🎯</div>
+        <div><div style="font-size:12px;font-weight:700">${G.dt.name}</div><div style="font-size:9px;color:var(--t3)">Director Técnico · ${G.dt.trait}</div></div>
+      </div>
+      ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Todavía no hablaste con tu DT.<br>Usá los botones de abajo.</div>'}
+      <div class="ph-qr">
+        <button class="ph-qrbtn" onclick="presMsgDT('estado','¿Cómo ves al equipo?')">¿Cómo ves al equipo?</button>
+        <button class="ph-qrbtn" onclick="presMsgDT('refuerzo','¿Qué refuerzo necesitás?')">¿Qué refuerzo necesitás?</button>
+        <button class="ph-qrbtn" onclick="presMsgDT('felicitar','Buen trabajo, seguí así.')">👏 Felicitar</button>
+        <button class="ph-qrbtn" onclick="presMsgDT('exigencia','Te exijo resultados ya.')">⚠️ Exigir resultados</button>
+      </div>`;
+    scr.scrollTop=scr.scrollHeight;
+    return;
+  }
+  // ═══ CHATS CON JUGADORES ═══
+  if(_phTab==='player'){
+    if(_phPlayer){
+      const p=G.squad.find(x=>x.id===_phPlayer);
+      if(!p){_phPlayer=null;rPhone();return;}
+      const th=G.chats.players[p.id]||[];
+      scr.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
+          <button onclick="_phPlayer=null;rPhone()" style="background:none;border:none;color:var(--gold);font-size:14px;cursor:pointer">←</button>
+          <div>${rb(p.rat)}</div>
+          <div><div style="font-size:12px;font-weight:700">${p.name}</div><div style="font-size:9px;color:var(--t3)">${p.pos} · Moral ${p.morale||70}%</div></div>
+        </div>
+        ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Sin mensajes con este jugador.</div>'}
+        <div class="ph-qr">
+          <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','felicitar','Felicitaciones por tu nivel, seguí así.')">👏 Felicitar</button>
+          <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','estado','¿Cómo te sentís en el club?')">¿Cómo te sentís?</button>
+          <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','titular','Vas a tener más minutos, confío en vos.')">⭐ Prometer minutos</button>
+          <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','exigir','Espero mucho más de vos.')">⚠️ Exigir</button>
+        </div>`;
+      scr.scrollTop=scr.scrollHeight;
+      return;
+    }
+    scr.innerHTML='<div style="font-size:9px;color:var(--t3);padding:2px 2px 8px">Elegí un jugador para chatear:</div>'+
+      G.squad.slice(0,30).map(p=>{
+        const th=G.chats.players[p.id]||[];
+        const last=th.length?th[th.length-1]:null;
+        return `<div class="ph-prow" onclick="_phPlayer='${p.id}';rPhone()">
+          ${rb(p.rat)}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:600">${p.name}</div>
+            <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?(last.from==='me'?'Vos: ':'')+last.txt:p.pos+' · Moral '+(p.morale||70)+'%'}</div>
+          </div>
+          ${th.length?`<span style="font-size:8px;color:var(--gold)">${th.length}💬</span>`:''}
+        </div>`;
+      }).join('');
+    return;
+  }
+  // ═══ BANDEJA / OFERTAS ═══
   const msgs = (G.phoneMsgs||[]).filter(m=>_phTab==='all'||m.type===_phTab);
   if(!msgs.length){
     const labels={all:'📭',dt:'🎯',agent:'🤝',player:'👤'};
@@ -13156,6 +13849,21 @@ function rPhone(){
         }
       } else if(d.gotoTab){
         actHtml=`<div class="ph-acts"><button class="btn bo bs" onclick="closePhone();gTab('${d.gotoTab}',document.querySelectorAll('.nb')[${d.tabIdx||0}])" style="font-size:9px;padding:3px 9px">Ver detalles →</button></div>`;
+      } else if(d.agentOffer){
+        const off=(G.agentOffers||[]).find(o=>o.id===d.agentOffer);
+        if(off&&off.status!=='closed'){
+          const pl=G.market.find(p=>p.id===off.pid);
+          if(pl){
+            const verdictHtml=off.dtVerdict?`<div style="font-size:9.5px;color:${off.dtVerdict.score>=2?'var(--green)':'var(--red)'};margin-top:4px;padding:5px 7px;background:rgba(255,255,255,.04);border-radius:6px">🎯 <b>DT:</b> ${off.dtVerdict.txt}</div>`:'';
+            actHtml=verdictHtml+`<div class="ph-acts">
+              ${off.status==='new'?`<button class="btn bo bs" onclick="askDtAboutOffer('${off.id}')" style="font-size:9px;padding:3px 9px">🎯 Preguntar al DT</button>`:''}
+              <button class="btn bG bs" onclick="negotiateAgentOffer('${off.id}')" style="font-size:9px;padding:3px 9px">🤝 Negociar</button>
+              <button class="btn bR bs" onclick="rejectAgentOffer('${off.id}')" style="font-size:9px;padding:3px 9px">✗ No me interesa</button>
+            </div>`;
+          }
+        } else if(off){
+          actHtml='<div style="font-size:9px;color:var(--t3);margin-top:4px">Oferta cerrada</div>';
+        }
       }
     }
     return `<div class="ph-msg${m.read?'':' unread'}">
