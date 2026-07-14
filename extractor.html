@@ -35,6 +35,9 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 <div class="panel">
   <label>API Key (SportDB)</label>
   <input type="text" id="apiKey" placeholder="Pegá tu API key acá">
+  <label>Worker de Cloudflare (opcional — cachea las respuestas y ahorra créditos)</label>
+  <input type="text" id="cfWorker" placeholder="https://sportdb-cache.TUCUENTA.workers.dev" oninput="localStorage.setItem('cf_worker',this.value.trim())">
+  <div style="font-size:10px;color:#5a7aaa;margin-top:-8px;margin-bottom:10px">Si está vacío usa el proxy de Netlify (sin caché). Con el Worker, las consultas repetidas <b style="color:#0fb866">no gastan créditos</b> de SportDB.</div>
   <label>API a usar:</label>
   <div class="api-select">
     <label><input type="radio" name="apiChoice" value="transfermarkt" checked> TransferMarkt (planteles + valores)</label>
@@ -109,14 +112,24 @@ function getApiChoice() {
   return document.querySelector('input[name="apiChoice"]:checked').value;
 }
 
+let cacheHits = 0;
 async function apiGet(path, apiType) {
   apiType = apiType || getApiChoice();
   reqCount++;
-  document.getElementById('sReqs').textContent = reqCount;
-  if (reqCount % 3 === 0) await sleep(1100);
-  const fnUrl = '/.netlify/functions/sportdb?api=' + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+  document.getElementById('sReqs').textContent = reqCount + (cacheHits ? ` (${cacheHits} de caché)` : '');
+  const cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
+  // Con Worker cacheado no hace falta frenar tanto entre requests
+  if (reqCount % 3 === 0) await sleep(cfW ? 250 : 1100);
+  const base = cfW
+    ? cfW.replace(/\/+$/,'') + '/?api='
+    : '/.netlify/functions/sportdb?api=';
+  const fnUrl = base + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
   try {
     const res = await fetch(fnUrl);
+    if (res.headers.get('x-cache') === 'HIT') {
+      cacheHits++;
+      document.getElementById('sReqs').textContent = reqCount + ` (${cacheHits} de caché)`;
+    }
     if (!res.ok) {
       log(`ERROR ${res.status} en ${path}`);
       return null;
@@ -127,6 +140,11 @@ async function apiGet(path, apiType) {
     return null;
   }
 }
+// Restaurar la URL del Worker guardada
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('cf_worker');
+  if (saved) document.getElementById('cfWorker').value = saved;
+});
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
