@@ -12151,6 +12151,14 @@ function fmTick(dt){
       if(cC)cC.textContent=poss?'ELEVADO':'DESPEJE';
     }
   }
+  // ¿Qué equipo tiene la pelota? (la IA juega por estados: ataque/defensa/dividida)
+  f.poss=null;f.possSide=null;
+  {
+    let bd0=36;
+    f.my.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='my';}});
+    f.opp.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='opp';}});
+    if(f.ball.air>2){f.poss=null;f.possSide=null;}
+  }
   f.my.forEach((p,i)=>{if(f.watch||i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
   // Player-player collision: push apart any overlapping players
@@ -12592,34 +12600,30 @@ function fmAI(p,team,idx,dt){
     return;
   }
 
-  // ═══ IA DE EQUIPO COMPLETA — el perfil táctico del DT dirige TODO ═══
+  // ═══ IA DE EQUIPO POR ESTADOS: atacamos / defendemos / pelota dividida ═══
   const ad=(!isM&&f.adapt&&!f.watch)?f.adapt:{laneShift:0,press:0,mark:0,gkDeep:0,aggr:prof.aggr*0.4};
+  const iHave=f.poss===p;
+  const weHave=f.possSide===team&&!iHave;
+  const theyHave=!!f.possSide&&f.possSide!==team;
+  const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
+  const isAttacker=['DC','EI','ED','CF'].includes(p.role);
+  const isDef=['DFC','DFD','DFI','LD','LI'].includes(p.role);
+
+  // Ranking de cercanía a la pelota (para decidir QUIÉN presiona — no todos)
   const dists=[];
   players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
   dists.sort((a,bb)=>a.d-bb.d);
-  // Presión del DT: cuántos presionan y desde qué distancia
-  const pressR=280+prof.press*400+ad.aggr*120;
-  const isChaser=dists.length>0&&(idx===dists[0].i
-    ||(dists.length>1&&idx===dists[1].i&&dists[1].d<480+prof.press*260)
-    ||(dists.length>2&&idx===dists[2].i&&dists[2].d<400+prof.press*260)
-    ||(dists.length>3&&idx===dists[3].i&&dists[3].d<pressR&&prof.press>0.4));
-  const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
-  // Interceptor de líneas de pase (solo contra el humano en modo jugable)
-  if(!f.watch&&!isM&&!isChaser&&isMid&&ad.press>0.45&&f._lastTouch==='my'&&dists.length>4&&idx===dists[4].i){
-    const cp2=f.my[f.ctrl];
-    if(cp2){
-      let nearMate=null,nd=Infinity;
-      f.my.forEach((t2,i2)=>{if(i2===f.ctrl||t2.isGK)return;const d2=Math.hypot(t2.x-cp2.x,t2.y-cp2.y);if(d2<nd){nd=d2;nearMate=t2;}});
-      if(nearMate){
-        const mx=(cp2.x+nearMate.x)/2,my2=(cp2.y+nearMate.y)/2;
-        fmMove(p,mx-p.x,my2-p.y,dt,0.058+ad.press*0.02);
-        p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-        p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-        return;
-      }
-    }
+  const myRank=dists.findIndex(dd=>dd.i===idx);
+
+  // SEPARACIÓN: repulsión suave entre compañeros — nadie se amontona
+  const sepR=100;
+  let sepX=0,sepY=0;
+  for(const q of players){
+    if(q===p||q.isGK)continue;
+    const dx2=p.x-q.x,dy2=p.y-q.y,d2=Math.hypot(dx2,dy2);
+    if(d2>0.1&&d2<sepR){sepX+=dx2/d2*(sepR-d2);sepY+=dy2/d2*(sepR-d2);}
   }
-  const chaseRank=isChaser?dists.findIndex(dd=>dd.i===idx):-1;
+
   // Córner: el que saca tira el centro al área
   if(p._forceCross&&bd<KICK_R+6&&!(b.air>2)){
     p._forceCross=0;
@@ -12631,24 +12635,25 @@ function fmAI(p,team,idx,dt){
     f._lastTouch=team;p._kickT=9;
     fmSndKick(0.6);
   }
-  if(isChaser){
-    // Presionadores secundarios cortan el ángulo hacia su arco
-    if(chaseRank>0&&bd>KICK_R+30){
-      const cutX=b.x+(ownGX-b.x)*(0.16+chaseRank*0.07);
-      const cutY=b.y+(mid-b.y)*0.14+(chaseRank%2?1:-1)*34;
-      fmMove(p,cutX-p.x,cutY-p.y,dt,0.078*(1+ad.aggr*0.10+prof.aggr*0.05));
-      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
-      p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
-      return;
-    }
+
+  // POSICIÓN BASE según el perfil del DT (línea + amplitud), sin salirse del campo
+  const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
+  const atkPush=(weHave||iHave)?1.25:theyHave?0.7:1.0;
+  const fwdShift=Math.max(-fieldW*.08,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28)*atkPush);
+  const homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,p.hx+(attRight?fwdShift:-fwdShift)));
+  let spread=(p.hy-mid)*(0.70+prof.width*0.5*(weHave?1.1:0.8));
+  spread=Math.max(-f.VH*0.43,Math.min(f.VH*0.43,spread));
+  let homeY=mid+spread+(b.y-mid)*(theyHave?0.22:0.10);
+  homeY=Math.max(40,Math.min(f.VH-40,homeY));
+
+  if(iHave){
+    // ═══ TENGO LA PELOTA: definir, pasar o conducir ═══
     if(bd<KICK_R&&!(b.air>2)){
       const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
       const inBox=distGoal<fieldW*.28;
-      // DTs directos patean desde más lejos; los de posesión esperan
       const canShoot=distGoal<fieldW*(0.40+prof.direct*0.20);
       const longShot=distGoal<fieldW*.72&&!canShoot&&prof.direct>0.55;
       const justReceived=p._recvTick&&(f.ticks-p._recvTick)<8;
-      // Tempo alto = toque rápido (tiki-taka veloz o vertical según directo)
       const oneTouch=0.16+prof.tempo*0.24;
       const passBase=0.06+prof.tempo*0.10;
       if(justReceived&&Math.random()<oneTouch*dt){
@@ -12677,50 +12682,91 @@ function fmAI(p,team,idx,dt){
         fmMove(p,dribX-p.x,dribY-p.y,dt,0.068+prof.tempo*0.016);
       }
     }else{
-      fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.04));
-      // Falta al gambeteador (solo vs humano)
-      if(!f.watch&&!isM){
-        const cp4=f.my[f.ctrl];
-        if(cp4&&Math.hypot(cp4.x-b.x,cp4.y-b.y)<42){
-          const dCp=Math.hypot(p.x-cp4.x,p.y-cp4.y);
-          if(dCp<p.r+cp4.r+4&&Math.random()<0.005*dt*(1+ad.aggr)){
-            p._slideT=10;
-            fmFoul('opp',p,cp4);
-            return;
+      // La tenía pero se me escapó un toque: la recupero
+      fmMove(p,b.x-p.x,b.y-p.y,dt,0.080);
+    }
+  } else if(theyHave||!f.possSide){
+    // ═══ DEFENSA / PELOTA DIVIDIDA: presionan SOLO los designados ═══
+    // Pelota dividida: va únicamente el más cercano. Con rival en posesión:
+    // presionan 1-3 según el perfil de presión del DT; el resto mantiene el bloque.
+    const nChasers=!f.possSide?1:(prof.press>0.65?3:prof.press>0.35?2:1);
+    const chaseOk=myRank===0?dists[0].d<950:(myRank<nChasers&&dists[myRank].d<300+prof.press*320);
+    if(myRank>=0&&myRank<Math.max(1,nChasers)&&chaseOk){
+      if(myRank===0){
+        // Presionador principal: va al portador
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
+        // Falta al gambeteador (solo vs humano)
+        if(!f.watch&&!isM){
+          const cp4=f.my[f.ctrl];
+          if(cp4&&Math.hypot(cp4.x-b.x,cp4.y-b.y)<42){
+            const dCp=Math.hypot(p.x-cp4.x,p.y-cp4.y);
+            if(dCp<p.r+cp4.r+4&&Math.random()<0.005*dt*(1+ad.aggr)){
+              p._slideT=10;
+              fmFoul('opp',p,cp4);
+              return;
+            }
           }
         }
+        // Quite: si llego a la pelota, la toco hacia mi arco/afuera del rival
+        if(bd<KICK_R&&!(b.air>2)&&theyHave){
+          const awayX=ownGX-b.x,awayY=(b.y<mid?-1:1)*120;
+          const dd4=Math.hypot(awayX,awayY)||1;
+          b.vx=awayX/dd4*3.2;b.vy=awayY/dd4*3.2;
+          f._lastTouch=team;
+        }
+      } else {
+        // Presionadores secundarios: cortan el ángulo hacia su arco (no van a la pelota)
+        const cutX=b.x+(ownGX-b.x)*(0.15+myRank*0.08);
+        const cutY=b.y+(mid-b.y)*0.14+(myRank%2?1:-1)*40;
+        fmMove(p,cutX-p.x+sepX*0.4,cutY-p.y+sepY*0.4,dt,0.075*(1+prof.aggr*0.06));
       }
+    } else {
+      // BLOQUE DEFENSIVO: mantener forma, compactar hacia el centro y la pelota
+      let tx=homeX,ty=homeY;
+      if(theyHave)ty=mid+(ty-mid)*0.88; // el bloque se cierra
+      if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
+        ty=Math.max(40,Math.min(f.VH-40,ty+ad.laneShift*f.VH*0.11));
+      }
+      fmMove(p,tx-p.x+sepX*0.55,ty-p.y+sepY*0.55,dt,0.048);
     }
-  }else{
-    // ═══ POSICIONAMIENTO según el perfil: línea alta/baja + amplitud del DT ═══
-    const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-    const fwdShift=Math.max(-fieldW*.06,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28));
-    const tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
-    // Amplitud: el equipo se abre o se cierra según el DT
-    const spread=(p.hy-mid)*(0.72+prof.width*0.56);
-    let ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,mid+spread+(b.y-mid)*0.18));
-    const isAttacker=['DC','EI','ED','CF'].includes(p.role);
-    const isDef=['DFC','DFD','DFI','LD','LI'].includes(p.role);
-    if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
-      ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,ty+ad.laneShift*f.VH*0.11));
+  } else if(weHave){
+    // ═══ MI EQUIPO LA TIENE: NADIE persigue — abrirse y dar opciones de pase ═══
+    const carrier=f.poss;
+    let supRank=-1;
+    if(carrier){
+      const ds=[];
+      players.forEach((q,i)=>{if(q.isGK||q===carrier)return;ds.push({i,d:Math.hypot(q.x-carrier.x,q.y-carrier.y)});});
+      ds.sort((a,bb)=>a.d-bb.d);
+      supRank=ds.findIndex(dd=>dd.i===idx);
     }
-    if(isAttacker&&ballPct>0.40){
-      const runDepth=90+prof.line*60;
-      const runX=attRight?Math.min(tx+runDepth,f.rightGL-p.r):Math.max(tx-runDepth,f.leftGL+p.r);
-      const runY=ty+(Math.sin(f.ticks*.04+idx*2))*35;
-      fmMove(p,runX-p.x,runY-p.y,dt,0.060);
-    }else if(isMid&&ballPct>0.30){
+    let tx=homeX,ty=homeY,acc2=0.050;
+    if(carrier&&supRank>=0&&supRank<2){
+      // Apoyo cercano: diagonal adelantada respecto al portador
+      const dc=Math.hypot(p.x-carrier.x,p.y-carrier.y);
+      if(dc>120){
+        tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,carrier.x+(attRight?150:-150)));
+        ty=Math.max(40,Math.min(f.VH-40,carrier.y+(p.hy<carrier.y?-200:200)));
+        acc2=0.056;
+      }
+    } else if(isAttacker){
+      // Delanteros: pinchar la última línea (al filo del offside)
+      let offX=attRight?f.leftGL:f.rightGL;
+      rivals.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
+      tx=attRight?Math.min(Math.max(homeX,offX-130),offX-10):Math.max(Math.min(homeX,offX+130),offX+10);
+      tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,tx));
+      ty=homeY+Math.sin(f.ticks*.03+idx*2)*45;
+      acc2=0.054;
+    } else if(isMid&&ballPct>0.30){
+      // Volantes acompañan la jugada
       const supX=55+prof.line*35;
-      const supportX=attRight?Math.min(tx+supX,f.rightGL-p.r):Math.max(tx-supX,f.leftGL+p.r);
-      fmMove(p,supportX-p.x,ty-p.y,dt,0.055);
-    }else{
-      fmMove(p,tx-p.x,ty-p.y,dt,0.048);
+      tx=attRight?Math.min(homeX+supX,f.rightGL-40):Math.max(homeX-supX,f.leftGL+40);
     }
+    ty=Math.max(40,Math.min(f.VH-40,ty));
+    fmMove(p,tx-p.x+sepX*0.6,ty-p.y+sepY*0.6,dt,acc2);
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
 }
-
 // Pase de equipo (cualquier lado): elige receptor según el perfil del DT
 function fmTeamPass(team,fromIdx){
   const f=FM,b=f.ball;
