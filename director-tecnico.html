@@ -12857,10 +12857,189 @@ function fmFlip(){
   f.myAttRight=!f.myAttRight;
 }
 
+// ═══ VISTA DE SIMULACIÓN (estilo haxball / sim de EA FC): cancha completa cenital, fichas circulares ═══
+function fmDrawSim(cv,ctx){
+  const f=FM,W=cv.width,H=cv.height;
+  const{VW,VH,GH,leftGL,rightGL}=f;
+  const mid=VH/2,cx=VW/2;
+  const gy1=mid-GH,gy2=mid+GH;
+  // Cancha completa en pantalla (cámara fija)
+  const pad=90;
+  const s=Math.min(W/(VW+pad*2),(H-88)/(VH+pad*2));
+  const ox=(W-VW*s)/2,oy=(H-56-VH*s)/2+14;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0a0e18';ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(ox,oy);ctx.scale(s,s);
+
+  // Piso alrededor
+  ctx.fillStyle='#12351d';
+  ctx.fillRect(-pad,-pad,VW+pad*2,VH+pad*2);
+  // Césped con franjas verticales suaves
+  const sw=(rightGL-leftGL)/12;
+  for(let i=0;i<14;i++){
+    ctx.fillStyle=i%2?'#2c6e3c':'#2f7642';
+    ctx.fillRect(leftGL-sw+i*sw,-30,sw,VH+60);
+  }
+  // Líneas
+  ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=3.4;
+  ctx.strokeRect(leftGL,10,rightGL-leftGL,VH-20);
+  ctx.beginPath();ctx.moveTo(cx,10);ctx.lineTo(cx,VH-10);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,mid,148,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(cx,mid,6,0,Math.PI*2);ctx.fill();
+  const paW=(rightGL-leftGL)*.175,paH=VH*.66,sbW=(rightGL-leftGL)*.08,sbH=VH*.34;
+  ctx.lineWidth=3;
+  ctx.strokeRect(leftGL,mid-paH/2,paW,paH);ctx.strokeRect(leftGL,mid-sbH/2,sbW,sbH);
+  ctx.strokeRect(rightGL-paW,mid-paH/2,paW,paH);ctx.strokeRect(rightGL-sbW,mid-sbH/2,sbW,sbH);
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,6,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,6,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(leftGL+paW*.78,mid,120,-Math.PI*.26,Math.PI*.26);ctx.stroke();
+  ctx.beginPath();ctx.arc(rightGL-paW*.78,mid,120,Math.PI*.74,Math.PI*1.26);ctx.stroke();
+  // Arcos con red simple
+  const netW=64;
+  [[leftGL,-1],[rightGL,1]].forEach(([gx,dir])=>{
+    ctx.fillStyle='rgba(220,235,220,.10)';
+    ctx.fillRect(dir<0?gx-netW:gx,gy1,netW,GH*2);
+    ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1;
+    for(let yy=gy1;yy<=gy2;yy+=16){ctx.beginPath();ctx.moveTo(gx,yy);ctx.lineTo(gx+dir*netW,yy);ctx.stroke();}
+    for(let i=0;i<=netW;i+=16){ctx.beginPath();ctx.moveTo(gx+dir*i,gy1);ctx.lineTo(gx+dir*i,gy2);ctx.stroke();}
+    ctx.strokeStyle='#f0f0f0';ctx.lineWidth=5;
+    ctx.beginPath();ctx.moveTo(gx,gy1);ctx.lineTo(gx,gy2);ctx.stroke();
+  });
+  // Línea de offside (tenue)
+  if(f.phase==='play'){
+    let offX=f.myAttRight?f.leftGL:f.rightGL;
+    f.opp.forEach(q=>{if(!q.isGK)offX=f.myAttRight?Math.max(offX,q.x):Math.min(offX,q.x);});
+    ctx.save();ctx.setLineDash([10,10]);ctx.strokeStyle='rgba(255,90,90,.25)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(offX,10);ctx.lineTo(offX,VH-10);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  const b=f.ball;
+  // Estela de la pelota
+  if(!f._trail)f._trail=[];
+  f._trail.push({x:b.x,y:b.y});
+  if(f._trail.length>10)f._trail.shift();
+  f._trail.forEach((t,i)=>{
+    ctx.beginPath();ctx.arc(t.x,t.y,3+i*0.5,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${0.02+i*0.02})`;ctx.fill();
+  });
+
+  // ¿Quién tiene la pelota? (anillo de posesión)
+  let possP=null,possD=34;
+  [...f.my,...f.opp].forEach(p=>{
+    const d=Math.hypot(p.x-b.x,p.y-b.y);
+    if(d<possD){possD=d;possP=p;}
+  });
+
+  // ═══ FICHAS (estilo haxball / EA FC sim): círculo con color de camiseta y número ═══
+  const drawToken=(p,isMy)=>{
+    const R=17;
+    const kit=p.isGK?{c1:'#15181c',c2:'#c8d420'}:p.kit;
+    // sombra
+    ctx.beginPath();ctx.ellipse(p.x+2,p.y+3,R*.95,R*.5,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fill();
+    // posesión
+    if(possP===p){
+      ctx.beginPath();ctx.arc(p.x,p.y,R+6,0,Math.PI*2);
+      ctx.strokeStyle='rgba(246,211,24,.9)';ctx.lineWidth=3;ctx.stroke();
+    }
+    // ficha
+    ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);
+    ctx.fillStyle=kit.c1;ctx.fill();
+    // media luna con el color secundario (look haxball)
+    ctx.save();
+    ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);ctx.clip();
+    ctx.fillStyle=kit.c2;
+    ctx.fillRect(p.x-R,p.y+R*0.35,R*2,R*0.65);
+    ctx.restore();
+    ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);
+    ctx.strokeStyle=isMy?'rgba(255,255,255,.9)':'rgba(0,0,0,.65)';
+    ctx.lineWidth=2.2;ctx.stroke();
+    // número
+    if(p.num){
+      ctx.fillStyle='#fff';
+      ctx.strokeStyle='rgba(0,0,0,.6)';ctx.lineWidth=2.6;
+      ctx.font='bold 15px "Barlow Condensed",sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.strokeText(p.num,p.x,p.y+1);
+      ctx.fillText(p.num,p.x,p.y+1);
+    }
+    // nombre chico debajo
+    ctx.font='600 11px "Barlow Condensed",sans-serif';
+    ctx.strokeStyle='rgba(0,0,0,.7)';ctx.lineWidth=2.4;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.strokeText(p.name,p.x,p.y+R+3);
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.fillText(p.name,p.x,p.y+R+3);
+  };
+  f.opp.forEach(p=>drawToken(p,false));
+  f.my.forEach(p=>drawToken(p,true));
+
+  // PELOTA
+  const airH=b.air>0?Math.sin(Math.min(1,b.air/60)*Math.PI)*30:0;
+  ctx.beginPath();ctx.ellipse(b.x+airH*.2,b.y+6,7,3,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.fill();
+  ctx.beginPath();ctx.arc(b.x,b.y-airH,9,0,Math.PI*2);
+  const bg=ctx.createRadialGradient(b.x-3,b.y-airH-3,1,b.x,b.y-airH,9);
+  bg.addColorStop(0,'#fff');bg.addColorStop(1,'#bbb');
+  ctx.fillStyle=bg;ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=1.4;ctx.stroke();
+  ctx.fillStyle='#222';
+  const rot=f._ballRot||0;
+  for(let i=0;i<5;i++){const a=rot+i*Math.PI*2/5;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*4.5,b.y-airH+Math.sin(a)*4.5,2.2,0,Math.PI*2);ctx.fill();}
+
+  ctx.restore();
+
+  // ═══ HUD ═══
+  if(f.phase!=='play'&&f.phase!=='kickoff'&&f.phase!=='restart'){
+    ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,W,H);
+  }
+  // Marcador (mismo estilo broadcast)
+  {
+    const ab3=t=>t.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,3).toUpperCase()||t.slice(0,3).toUpperCase();
+    const myAb=ab3(G.teamName),opAb=ab3(f.oppName||'RIV');
+    const sbX=16,sbY=12,sbH2=25;
+    ctx.fillStyle='rgba(6,8,14,.92)';
+    ctx.fillRect(sbX,sbY,44,sbH2);
+    ctx.fillStyle='#e8e8e8';ctx.font='600 12px "Barlow Condensed",sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`${f.minute}'`,sbX+22,sbY+sbH2/2+1);
+    ctx.fillStyle=f.myKit.c1;ctx.fillRect(sbX+44,sbY,5,sbH2);
+    ctx.fillStyle='rgba(16,20,32,.92)';ctx.fillRect(sbX+49,sbY,44,sbH2);
+    ctx.fillStyle='#fff';ctx.font='700 12.5px "Barlow Condensed",sans-serif';
+    ctx.fillText(myAb,sbX+71,sbY+sbH2/2+1);
+    ctx.fillStyle='rgba(240,240,240,.96)';ctx.fillRect(sbX+93,sbY,46,sbH2);
+    ctx.fillStyle='#0a0c14';ctx.font='800 14px "Barlow Condensed",sans-serif';
+    ctx.fillText(`${f.myG} - ${f.oppG}`,sbX+116,sbY+sbH2/2+1);
+    ctx.fillStyle='rgba(16,20,32,.92)';ctx.fillRect(sbX+139,sbY,44,sbH2);
+    ctx.fillStyle='#fff';ctx.font='700 12.5px "Barlow Condensed",sans-serif';
+    ctx.fillText(opAb,sbX+161,sbY+sbH2/2+1);
+    ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+183,sbY,5,sbH2);
+    ctx.fillStyle='rgba(246,211,24,.65)';ctx.fillRect(sbX,sbY+sbH2,188,2);
+  }
+  // Posesión de pelota (equipo) arriba a la derecha
+  if(possP){
+    const isMyPoss=f.my.includes(possP);
+    const txt=(isMyPoss?G.teamName:f.oppName||'Rival').slice(0,16).toUpperCase()+' · '+possP.name.toUpperCase();
+    ctx.font='600 10px "Barlow Condensed",sans-serif';
+    const tw=ctx.measureText(txt).width+16;
+    ctx.fillStyle='rgba(6,8,14,.85)';
+    ctx.fillRect(W-tw-14,12,tw,20);
+    ctx.fillStyle=isMyPoss?f.myKit.c1:f.oppKit.c1;
+    ctx.fillRect(W-tw-14,12,4,20);
+    ctx.fillStyle='rgba(255,255,255,.9)';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(txt,W-tw/2-14+2,22);
+  }
+}
+
 function fmDraw(){
   const f=FM,cv=document.getElementById('fm-cv');if(!cv)return;
   cv.width=cv.offsetWidth||cv.width;cv.height=cv.offsetHeight||cv.height;
   const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  // MODO SIMULACIÓN: vista cenital de fichas (estilo haxball / sim EA FC)
+  if(f.watch){fmDrawSim(cv,ctx);return;}
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2,netW=80;
   const gy1=mid-GH,gy2=mid+GH;
