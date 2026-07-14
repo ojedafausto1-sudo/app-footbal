@@ -11775,20 +11775,74 @@ function fmSetupWatch(){
     const bar=document.createElement('div');
     bar.id='fm-watchbar';
     bar.style.cssText='position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;z-index:12;flex-wrap:wrap;justify-content:center';
-    const chip=(dt,al)=>`<div style="background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;text-align:${al};max-width:200px">
+    const chip=(dt,al,modeId)=>`<div style="background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;text-align:${al};max-width:210px">
       <div style="font-family:'Barlow Condensed';font-size:11px;font-weight:800;color:#fff">${dt.name}</div>
       <div style="font-size:8.5px;color:rgba(255,255,255,.55)">${(DT_TRAIT_FX[dt.trait]||{icon:''}).icon} ${dt.trait} · ${dt.style} · ${dt.str||''}</div>
+      <div id="${modeId}" style="font-size:8.5px;color:#F6D318;font-weight:700"></div>
     </div>`;
-    bar.innerHTML=chip(G.dt,'left')+
+    bar.innerHTML=chip(G.dt,'left','fm-mode-my')+
       `<div style="display:flex;gap:3px">
         <button class="fm-spdbtn on" onclick="fmSetSpeed(1,this)">1x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(2,this)">2x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(4,this)">4x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(8,this)">8x</button>
-      </div>`+chip(f.oppDT,'right');
+      </div>`+chip(f.oppDT,'right','fm-mode-opp');
     gm.appendChild(bar);
   }
 }
+// ═══ GESTIÓN DEL PARTIDO: el DT ajusta según resultado y minuto (como en la vida real) ═══
+function fmAdjustProfile(base,dt,diff,minute){
+  const o=Object.assign({},base);
+  o._mode='normal';
+  const late=minute>=58?Math.min(1,(minute-58)/28):0;
+  const bold=['Ofensivo','Guerrero','Intenso','Muñeco','Heavy Metal','Filósofo'].includes(dt&&dt.trait);
+  const cauto=['Defensivo','Cholo','Pragmático','Copero'].includes(dt&&dt.trait);
+  if(diff<0&&late>0){
+    // PERDIENDO en el final: adelanta líneas y arriesga (más si va por 2+)
+    const urg=Math.min(1,late*(0.8+(diff<=-2?0.4:0))*(bold?1.2:1));
+    o.line=Math.min(1,o.line+0.38*urg);
+    o.press=Math.min(1,o.press+0.32*urg);
+    o.direct=Math.min(1,o.direct+0.28*urg);
+    o.tempo=Math.min(1,o.tempo+0.22*urg);
+    o.counter=Math.max(0.2,o.counter-0.2*urg);
+    o._mode=urg>0.55?'allout':'push';
+  }else if(diff>0&&minute>=62){
+    // GANANDO: duerme el partido según su oficio/cinismo
+    const hold=Math.min(1,late)*(0.35+o.cyn*0.65);
+    o.line=Math.max(0.05,o.line-0.32*hold);
+    o.press=Math.max(0.12,o.press-0.28*hold);
+    o.tempo=Math.max(0.12,o.tempo-0.38*hold);
+    o.counter=Math.min(1,o.counter+0.25*hold);
+    o._mode=hold>0.4?'hold':'normal';
+  }else if(diff===0&&minute>=74){
+    // EMPATE en el final: los valientes van por la victoria, los cautos la aseguran
+    if(bold){o.line=Math.min(1,o.line+0.22);o.press=Math.min(1,o.press+0.18);o._mode='push';}
+    else if(cauto){o.line=Math.max(0.05,o.line-0.18);o.press=Math.max(0.15,o.press-0.12);o._mode='settle';}
+  }
+  return o;
+}
+function fmUpdateTactics(){
+  const f=FM;if(!f||!f.myProf)return;
+  const prevMy=f.myProfEff?f.myProfEff._mode:'normal';
+  const prevOpp=f.oppProfEff?f.oppProfEff._mode:'normal';
+  f.myProfEff=fmAdjustProfile(f.myProf,G.dt,f.myG-f.oppG,f.minute);
+  f.oppProfEff=fmAdjustProfile(f.oppProf,f.oppDT,f.oppG-f.myG,f.minute);
+  // Anunciar cambios de plan (y reflejarlos en los chips de los DTs)
+  const MODES={allout:'🔥 TODO AL ATAQUE',push:'📈 ADELANTA LÍNEAS',hold:'🧊 DUERME EL PARTIDO',settle:'🔒 ASEGURA EL PUNTO',normal:''};
+  const upd=(id,dt,mode)=>{
+    const el=document.getElementById(id);
+    if(el)el.textContent=MODES[mode]||'';
+  };
+  upd('fm-mode-my',G.dt,f.myProfEff._mode);
+  upd('fm-mode-opp',f.oppDT,f.oppProfEff._mode);
+  if(f.watch){
+    if(f.myProfEff._mode!==prevMy&&f.myProfEff._mode!=='normal')
+      fmMsg(G.dt.name.split(' ').pop().toUpperCase()+'\n'+MODES[f.myProfEff._mode]);
+    else if(f.oppProfEff._mode!==prevOpp&&f.oppProfEff._mode!=='normal')
+      fmMsg((f.oppDT?f.oppDT.name.split(' ').pop().toUpperCase():'RIVAL')+'\n'+MODES[f.oppProfEff._mode]);
+  }
+}
+
 function fmSetSpeed(n,btn){
   if(!FM)return;
   FM.speed=n;
@@ -12107,6 +12161,7 @@ function fmTick(dt){
   f.ticks+=dt;
   if(f.ticks>=f.tpm){
     f.ticks-=f.tpm;f.minute++;fmHUD();
+    if(f.minute%2===0)fmUpdateTactics();
     if(f.minute===45&&f.half===1){f.phase='half';f.phaseT=0;fmSndWhistle(2);fmMsg('MEDIO\nTIEMPO');return;}
     if(f.minute>=90){f.phase='done';fmSndWhistle(3);setTimeout(fmEnd,400);return;}
     // === EL BOT APRENDE EN VIVO: cada 10' re-lee tu forma de jugar este partido ===
@@ -12158,6 +12213,9 @@ function fmTick(dt){
     f.my.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='my';}});
     f.opp.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='opp';}});
     if(f.ball.air>2){f.poss=null;f.possSide=null;}
+    // Transición: ¿acabamos de recuperar la pelota? (dispara contragolpes)
+    if(f.possSide&&f.possSide!==f._prevPoss){f._transSide=f.possSide;f._transT=f.ticks;}
+    if(f.possSide)f._prevPoss=f.possSide;
   }
   f.my.forEach((p,i)=>{if(f.watch||i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
@@ -12440,40 +12498,40 @@ function fmSwitch(){
 function dtProfile(dt){
   const t=(dt&&dt.trait)||'Equilibrado';
   const style=(dt&&dt.style)||'4-4-2';
-  const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5};
+  const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5,counter:.5,flank:.5,cyn:.5,disc:.5};
   const T={
-    'Filósofo':{press:.85,line:.80,tempo:.42,direct:.15,width:.72},
-    'Heavy Metal':{press:.95,line:.75,tempo:.90,direct:.60,aggr:.80},
-    'Cholo':{press:.35,line:.20,tempo:.55,direct:.78,aggr:.92,width:.35},
-    'Defensivo':{press:.30,line:.25,direct:.62,aggr:.60},
-    'Ofensivo':{press:.60,line:.72,tempo:.70,direct:.55,width:.70},
-    'Moderno':{press:.75,line:.65,tempo:.65,direct:.38},
-    'Intenso':{press:.85,line:.60,tempo:.80,aggr:.75},
-    'Formador':{tempo:.45,direct:.35},
-    'Táctico':{press:.55,line:.50,tempo:.45,direct:.35},
-    'Analítico':{press:.60,line:.55,tempo:.50,direct:.40},
-    'Guerrero':{aggr:.85,press:.70,tempo:.75,direct:.65},
-    'Copero':{line:.38,direct:.62,aggr:.65},
-    'Maestro':{tempo:.50,direct:.45},
-    'Leyenda':{tempo:.50,direct:.50,aggr:.55},
-    'Muñeco':{press:.80,line:.70,tempo:.80,direct:.50,width:.65},
-    'Técnico':{tempo:.40,direct:.25,width:.60},
-    'Clase':{tempo:.45,direct:.30},
-    'Pragmático':{line:.35,direct:.70},
-    'Campeón':{aggr:.60},
-    'Líder':{aggr:.65,press:.60},
+    'Filósofo':{press:.85,line:.80,tempo:.42,direct:.15,width:.72,counter:.20,flank:.60,cyn:.40,disc:.85},
+    'Heavy Metal':{press:.95,line:.75,tempo:.90,direct:.60,aggr:.80,counter:.85,flank:.55,cyn:.35,disc:.60},
+    'Cholo':{press:.35,line:.20,tempo:.55,direct:.78,aggr:.92,width:.35,counter:.90,flank:.45,cyn:.95,disc:.88},
+    'Defensivo':{press:.30,line:.25,direct:.62,aggr:.60,counter:.70,cyn:.80,disc:.80},
+    'Ofensivo':{press:.60,line:.72,tempo:.70,direct:.55,width:.70,counter:.60,flank:.80,cyn:.35},
+    'Moderno':{press:.75,line:.65,tempo:.65,direct:.38,counter:.60,disc:.72},
+    'Intenso':{press:.85,line:.60,tempo:.80,aggr:.75,counter:.70,cyn:.45},
+    'Formador':{tempo:.45,direct:.35,counter:.40,cyn:.35},
+    'Táctico':{press:.55,line:.50,tempo:.45,direct:.35,disc:.85,cyn:.60},
+    'Analítico':{press:.60,line:.55,tempo:.50,direct:.40,disc:.85,cyn:.55},
+    'Guerrero':{aggr:.85,press:.70,tempo:.75,direct:.65,counter:.70,cyn:.60},
+    'Copero':{line:.38,direct:.62,aggr:.65,counter:.65,cyn:.85,disc:.75},
+    'Maestro':{tempo:.50,direct:.45,cyn:.80,disc:.70},
+    'Leyenda':{tempo:.50,direct:.50,aggr:.55,cyn:.85,disc:.70},
+    'Muñeco':{press:.80,line:.70,tempo:.80,direct:.50,width:.65,counter:.75,flank:.70,cyn:.55},
+    'Técnico':{tempo:.40,direct:.25,width:.60,flank:.55,counter:.40},
+    'Clase':{tempo:.45,direct:.30,flank:.55,counter:.40,cyn:.55},
+    'Pragmático':{line:.35,direct:.70,counter:.80,cyn:.85},
+    'Campeón':{aggr:.60,cyn:.70},
+    'Líder':{aggr:.65,press:.60,cyn:.70},
     'Equilibrado':{},
   };
   const o=Object.assign({},base,T[t]||{});
-  if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);}
-  if(style==='4-3-3'||style==='3-4-3'){o.width=Math.min(1,o.width+.15);}
+  if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);o.counter=Math.min(1,o.counter+.10);}
+  if(style==='4-3-3'||style==='3-4-3'){o.width=Math.min(1,o.width+.15);o.flank=Math.min(1,o.flank+.10);}
   if(style==='4-2-3-1'){o.tempo=Math.min(1,o.tempo+.05);}
   return o;
 }
 function dtProfBars(dt){
   const pr=dtProfile(dt);
   const row=(l,v)=>`<div style="display:flex;align-items:center;gap:4px;font-size:8px;color:var(--t3)"><span style="width:46px;flex-shrink:0">${l}</span><div style="flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden"><div style="width:${Math.round(v*100)}%;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),#e8b800)"></div></div><span style="width:16px;text-align:right;color:var(--t2)">${Math.round(v*10)}</span></div>`;
-  return `<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)}</div>`;
+  return `<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)+row('Contragolpe',pr.counter)+row('Bandas',pr.flank)+row('Oficio',pr.cyn)+row('Disciplina',pr.disc)}</div>`;
 }
 
 function fmAI(p,team,idx,dt){
@@ -12484,7 +12542,7 @@ function fmAI(p,team,idx,dt){
   const fieldW=f.rightGL-f.leftGL,mid=f.VH/2;
   const tgx=attRight?f.rightGL+5:f.leftGL-5;
   const ownGX=attRight?f.leftGL:f.rightGL;
-  const prof=(isM?f.myProf:f.oppProf)||{press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5};
+  const prof=(isM?(f.myProfEff||f.myProf):(f.oppProfEff||f.oppProf))||{press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5,counter:.5,flank:.5,cyn:.5,disc:.5};
 
   // === ARQUERO: líbero según el perfil del DT (línea alta = arquero adelantado) ===
   if(p.isGK){
@@ -12654,9 +12712,23 @@ function fmAI(p,team,idx,dt){
       const canShoot=distGoal<fieldW*(0.40+prof.direct*0.20);
       const longShot=distGoal<fieldW*.72&&!canShoot&&prof.direct>0.55;
       const justReceived=p._recvTick&&(f.ticks-p._recvTick)<8;
-      const oneTouch=0.16+prof.tempo*0.24;
-      const passBase=0.06+prof.tempo*0.10;
-      if(justReceived&&Math.random()<oneTouch*dt){
+      // CONTRAGOLPE: recién recuperada, los equipos de contra salen como flecha
+      const inTransition=f._transSide===team&&(f.ticks-(f._transT||0))<110;
+      const counterBoost=inTransition?(prof.counter||0.5):0;
+      const holding=prof._mode==='hold';
+      const oneTouch=(0.16+prof.tempo*0.24+counterBoost*0.18)*(holding?0.5:1);
+      const passBase=holding?0.15:(0.06+prof.tempo*0.10+counterBoost*0.06);
+      // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
+      const wide=Math.abs(b.y-mid)>f.VH*0.27;
+      const nearByline=distGoal<fieldW*0.22;
+      if(wide&&nearByline&&(prof.flank||0.5)>0.45&&Math.random()<(0.05+prof.flank*0.06)*dt){
+        const tx5=attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09;
+        const ty5=mid+(Math.random()*120-60);
+        const ddx5=tx5-b.x,ddy5=ty5-b.y,dd5=Math.hypot(ddx5,ddy5)||1;
+        b.vx=ddx5/dd5*6.2;b.vy=ddy5/dd5*6.2;
+        b.air=Math.min(70,dd5/6.2*0.7);
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
+      } else if(justReceived&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
       } else if(inBox&&Math.random()<0.13*dt){
@@ -12677,9 +12749,11 @@ function fmAI(p,team,idx,dt){
         fmTeamPass(team,idx);
       } else {
         const latWobble=(Math.sin(f.ticks*.07+idx))*55;
-        const dribX=b.x+(tgx-b.x)*.14;
+        // Durmiendo el partido: la lleva hacia atrás/costado sin apuro
+        const vert=holding?-0.06:(0.14+counterBoost*0.10);
+        const dribX=b.x+(tgx-b.x)*vert;
         const dribY=b.y+(mid+latWobble-b.y)*.05;
-        fmMove(p,dribX-p.x,dribY-p.y,dt,0.068+prof.tempo*0.016);
+        fmMove(p,dribX-p.x,dribY-p.y,dt,(0.068+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
       }
     }else{
       // La tenía pero se me escapó un toque: la recupero
@@ -12723,7 +12797,11 @@ function fmAI(p,team,idx,dt){
     } else {
       // BLOQUE DEFENSIVO: mantener forma, compactar hacia el centro y la pelota
       let tx=homeX,ty=homeY;
-      if(theyHave)ty=mid+(ty-mid)*0.88; // el bloque se cierra
+      if(theyHave)ty=mid+(ty-mid)*(0.95-(prof.disc||0.5)*0.14); // más disciplina = bloque más cerrado
+      // Trampa del offside: defensas disciplinadas suben EN BLOQUE cuando la pelota está lejos
+      if(isDef&&theyHave&&ballPct>0.55&&(prof.disc||0.5)>0.6){
+        tx=attRight?Math.min(f.rightGL-40,tx+(prof.disc-0.5)*120):Math.max(f.leftGL+40,tx-(prof.disc-0.5)*120);
+      }
       if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
         ty=Math.max(40,Math.min(f.VH-40,ty+ad.laneShift*f.VH*0.11));
       }
@@ -12775,7 +12853,10 @@ function fmTeamPass(team,fromIdx){
   const rivals=isM?f.opp:f.my;
   const attRight=isM?f.myAttRight:!f.myAttRight;
   const fieldW=f.rightGL-f.leftGL;
-  const prof=(isM?f.myProf:f.oppProf)||{direct:.5};
+  const prof=(isM?(f.myProfEff||f.myProf):(f.oppProfEff||f.oppProf))||{direct:.5,flank:.5,counter:.5};
+  const mid5=f.VH/2;
+  const inTrans=f._transSide===team&&(f.ticks-(f._transT||0))<110;
+  const holding=prof._mode==='hold';
   let bestI=-1,bestScore=-Infinity;
   squad.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
@@ -12789,8 +12870,13 @@ function fmTeamPass(team,fromIdx){
     const marked=rivals.some(m=>Math.hypot(m.x-t.x,m.y-t.y)<110);
     const recvOwnDist=attRight?(t.x-f.leftGL):(f.rightGL-t.x);
     const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.28;
-    // DT directo premia el pase largo hacia adelante; DT de posesión el corto seguro
-    const score=fwdScore*(0.4+prof.direct*0.5)-d*(0.14-prof.direct*0.08)+(Math.random()*30)-(blocked?40:0)-(marked?50:0)-(suicidal?90:0);
+    // Peso vertical: directo (perfil) + contragolpe (transición); durmiendo, pase seguro corto
+    let fwdW=(0.4+prof.direct*0.5)+(inTrans?(prof.counter||0.5)*0.4:0);
+    if(holding)fwdW=0.12;
+    // Bandas: DTs de bandas buscan receptores abiertos; los de centro, por adentro
+    const wideness=Math.abs(t.y-mid5)/(f.VH/2);
+    const flankBias=((prof.flank||0.5)-0.5)*70*wideness-((0.5-(prof.flank||0.5))*40*wideness);
+    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
