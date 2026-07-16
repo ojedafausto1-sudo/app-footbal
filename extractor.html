@@ -245,6 +245,21 @@ function getLeagueTier(name, country) {
   if (c.includes('urugua') || c.includes('paragua')) {
     if (/(apertura|clausura|primera divisi)/.test(n) && !/(intermedia|segunda)/.test(n)) return 1;
   }
+  if (c.includes('italy')) {
+    if (/serie a/.test(n)) return 1;
+    if (/serie b/.test(n)) return 2;
+  }
+  if (c.includes('turkey')) {
+    if (/s[uü]per ?lig/.test(n)) return 1;
+    if (/1\.? ?lig/.test(n)) return 2;
+  }
+  if (c.includes('bolivia')) {
+    if (/(divisi[oó]n profesional|liga.*profesional|primera divisi)/.test(n)) return 1;
+  }
+  if (c.includes('russia')) {
+    if (/premier|premjer/.test(n)) return 1;
+    if (/(fnl|first league|pervaja|1 division)/.test(n)) return 2;
+  }
 
   // Known first divisions (tier 1)
   const tier1 = [

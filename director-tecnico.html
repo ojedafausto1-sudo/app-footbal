@@ -788,8 +788,9 @@ function ageLabel(age) {
 const LG_ADJ={'Premier':2,'España':2,'Italia':1,'Alemania':1,'Francia':1,'Brasil':1,'Portugal':1,
   'Holanda':1,'Liga ARG':0,'Liga MX':0,'MLS':0,'Colombia':0,'Rusia':0,'Turquía':0,'Bélgica':0,
   'Chile':-1,'Uruguay':-1,'Paraguay':-1,'Perú':-1,'Ecuador':-1,'Venezuela':-2,'Bolivia':-2};
+const POS_ADJ={ARQ:1}; // los arqueros cotizan más bajo en el mercado a igual nivel
 function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
-  const lgAdj=LG_ADJ[lg]||0;
+  const lgAdj=(LG_ADJ[lg]||0)+(POS_ADJ[pos]||0);
   const rat = (rat_override > 0) ? rat_override : Math.max(55,Math.min(93,valToRat(val, age)+lgAdj));
   const pot = Math.max(rat, valToPot(val, age));
   return {
@@ -6731,6 +6732,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   weeklyOffers();
   weeklyChats();
+  weeklyAITransfers();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -7357,6 +7359,22 @@ function startSituation(ev){
        keys:{up:false,down:false,left:false,right:false,shoot:false,pass:false},
        mainP,scorer:null,shootCharging:false,shootCharge:0,passLocked:false};
   sitKeyBind();
+  // Tocar la pelota grande con mouse/dedo dispara el tiro en esa dirección
+  if(!cv._sitClickBound){
+    cv._sitClickBound=true;
+    cv.addEventListener('pointerdown',e=>{
+      const s=SIT;if(!s||!s.contact||s.kicked||s.ended)return;
+      const r=cv.getBoundingClientRect();
+      const x=(e.clientX-r.left)*(cv.width/r.width);
+      const y=(e.clientY-r.top)*(cv.height/r.height);
+      const bx=s.W*0.80,by=s.H*0.72,R=42;
+      const nx=(x-bx)/R,ny=(y-by)/R;
+      if(Math.hypot(nx,ny)<=1.3){
+        s._clickPt={nx:Math.max(-1,Math.min(1,nx)),ny:Math.max(-1,Math.min(1,ny))};
+        s._clickFire=true;
+      }
+    });
+  }
   const oR=LM.S.oppRat;
   if     (ev.type==='attack')    sitSetupAttack(W,H,oR,mainP,pool);
   else if(ev.type==='penalty'||ev.side==='opp_penalty') sitSetupPenalty(W,H,oR,mainP,ev.side==='opp_penalty');
@@ -7781,7 +7799,7 @@ function sitContactFx(s,mainP,pw){
 }
 function sitDrawContact(ctx,W,H,s){
   if(!s.contact||s.kicked)return;
-  const bx=W*0.80,by=H*0.72,R=34;
+  const bx=W*0.80,by=H*0.72,R=42;
   // Pelota grande
   ctx.beginPath();ctx.arc(bx,by,R,0,Math.PI*2);
   const g2=ctx.createRadialGradient(bx-R*.3,by-R*.3,R*.1,bx,by,R);
@@ -7799,11 +7817,24 @@ function sitDrawContact(ctx,W,H,s){
   ctx.beginPath();ctx.arc(mx,my,7,0,Math.PI*2);ctx.stroke();
   ctx.beginPath();ctx.moveTo(mx-11,my);ctx.lineTo(mx+11,my);ctx.moveTo(mx,my-11);ctx.lineTo(mx,my+11);ctx.stroke();
   // Guía
-  ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 9px "Barlow Condensed",sans-serif';
+  // Flecha de dirección resultante (opuesta al punto de contacto)
+  const dx=-(s.contact.nx||0),dy=-(s.contact.ny||0);
+  if(Math.hypot(dx,dy)>0.08){
+    ctx.strokeStyle='rgba(246,211,24,.85)';ctx.lineWidth=2.5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+dx*R*1.5,by+dy*R*1.5);ctx.stroke();
+    const ang=Math.atan2(dy,dx);
+    ctx.beginPath();
+    ctx.moveTo(bx+dx*R*1.5,by+dy*R*1.5);
+    ctx.lineTo(bx+dx*R*1.5-Math.cos(ang-0.4)*9,by+dy*R*1.5-Math.sin(ang-0.4)*9);
+    ctx.moveTo(bx+dx*R*1.5,by+dy*R*1.5);
+    ctx.lineTo(bx+dx*R*1.5-Math.cos(ang+0.4)*9,by+dy*R*1.5-Math.sin(ang+0.4)*9);
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 10px "Barlow Condensed",sans-serif';
   ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText('¿DÓNDE LE PEGÁS? Z para definir',bx,by+R+6);
-  ctx.fillStyle='rgba(255,255,255,.45)';ctx.font='8px sans-serif';
-  ctx.fillText('costado=comba · abajo=elevada · centro=limpio',bx,by+R+18);
+  ctx.fillText('TOCÁ LA PELOTA (o Z con la mira)',bx,by+R+8);
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='8.5px sans-serif';
+  ctx.fillText('abajo=alta · costado=cruzada · borde=riesgo',bx,by+R+21);
 }
 
 function sitSetupPenalty(W,H,oR,mainP,isOpp){
@@ -7822,7 +7853,8 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   s.kicked=false;s.dove=false;s.diveDir=0;
   s.oppKickDelay=isOpp?115:0;
   s.power=0;s.charging=false;
-  s.hint=isOpp?'← →↑: movete · Z: ¡tirate a atajar!':'Flechas: apuntá · mantené Z para cargar potencia, soltá para patear';
+  if(!isOpp)s.contact={t:0,nx:0,ny:0};
+  s.hint=isOpp?'← →↑↓: movete · Z: ¡tirate a atajar!':'TOCÁ la pelota grande donde quieras pegarle (o Z con la mira): abajo=alta · costado=cruzada';
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
@@ -7844,46 +7876,32 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
           s.kicked=true;s.flightT=0;s.flightDur=34;
         }
       } else {
-        // Apuntás con la mira a todo el arco
-        if(k.left) s.aim.x=Math.max(g.x1+10,s.aim.x-2.2*dt);
-        if(k.right)s.aim.x=Math.min(g.x2-10,s.aim.x+2.2*dt);
-        if(k.up)   s.aim.y=Math.max(g.barY+9,s.aim.y-1.8*dt);
-        if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
+        // TOCÁ LA PELOTA: el punto de contacto define la dirección del tiro.
+        // Abajo de la pelota = la elevás · costado = va cruzada al palo opuesto · centro = fuerte al medio
         s.gk.swayT+=dt;
         s.gk.x=cx+Math.sin(s.gk.swayT*.045)*(g.x2-cx)*.18;
-        if(s.contact){
-          // FASE 2: elegir el punto de contacto en la pelota
-          sitContactTick(s,dt);
-          if(k.shoot&&!s._cLock){
-            s._cLock=true;
-            const pw=s.pendingPw;
-            const fx=sitContactFx(s,mainP,pw);
-            const errBase=(91-mainP.rat)*.44*(pw<50?2.2:pw<85?1.3:1.0)*fx.errMult;
-            const err=errBase*(Math.random()*2-1);
-            const errY=(91-mainP.rat)*.34*(pw<50?2.0:pw<85?1.2:1.0)*fx.errMult*(Math.random()*2-1);
-            const tx=s.aim.x+err+fx.curve*0.5, ty=Math.max(g.barY-14,s.aim.y+errY-fx.lift);
-            s.target={x:tx,y:ty};s.scorer=mainP;s.curve=fx.curve;
-            s.kicked=true;s.flightT=0;s.flightDur=pw>=85?28:pw>=50?34:40;
-            s.contact=null;
-            // El arquero lee la MIRA, no la comba: la comba lo deja pagando
-            const reads=Math.random()<(0.38+(oR-62)*.010)*(pw<50?0.5:1)*(Math.abs(fx.curve)>26?0.55:1);
-            if(reads)s.gkDive={x:s.aim.x+(Math.random()*2-1)*22,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
-            else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
-            s.gkStart={x:s.gk.x,y:s.gk.y};
-            s.reach=pw<50?8+(oR-62)*.25:pw<85?13+(oR-62)*.38:17+(oR-62)*.45;
-          }
-          if(!k.shoot)s._cLock=false;
-        } else if(k.shoot&&!s.kicked){
-          if(!s.charging){s.charging=true;s.power=0;}
-          s.power=Math.min(100,s.power+dt*1.8);
-        } else if(s.charging&&!s.kicked){
-          // FASE 1 lista: ahora elegí dónde pegarle
-          s.charging=false;
-          s.pendingPw=s.power;
-          s.contact={t:0,nx:0,ny:0};
-          s._cLock=true;
-          s.hint='¡Ahora elegí DÓNDE pegarle! Z cuando la mira esté donde querés';
-        }
+        sitContactTick(s,dt);
+        const fire=(nx,ny)=>{
+          const gw=g.x2-cx;
+          const edge=Math.hypot(nx,ny)>0.95?1.8:1.0; // pegarle al borde = riesgo
+          const err=(91-mainP.rat)*0.38*edge*(Math.random()*2-1);
+          const errY=(91-mainP.rat)*0.30*edge*(Math.random()*2-1);
+          const tx=cx-nx*gw*0.98+err;
+          const ty=gy-((ny+1)/2)*(gy-g.barY)*1.06+errY;
+          s.curve=-nx*34;
+          s.target={x:tx,y:ty};s.scorer=mainP;
+          s.kicked=true;s.flightT=0;s.flightDur=30;
+          s.contact=null;
+          // El arquero adivina un palo; la comba fuerte lo complica
+          const reads=Math.random()<(0.38+(oR-62)*.010)*(Math.abs(nx)>0.55?0.75:1);
+          if(reads)s.gkDive={x:cx-nx*gw*0.9+(Math.random()*2-1)*24,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
+          else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
+          s.gkStart={x:s.gk.x,y:s.gk.y};
+          s.reach=13+(oR-62)*.38;
+        };
+        if(s._clickFire){s._clickFire=false;fire(s._clickPt.nx,s._clickPt.ny);}
+        else if(k.shoot&&!s._cLock){s._cLock=true;fire(s.contact.nx,s.contact.ny);}
+        if(!k.shoot)s._cLock=false;
       }
     } else {
       s.flightT+=dt;
@@ -8099,7 +8117,8 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   s.aim={x:cx,y:(g.barY+gy)/2};
   s.gk={x:cx+(Math.random()*30-15),y:gy-22,swayT:0};
   s.kicked=false;s.power=0;s.charging=false;
-  s.hint='Flechas: apuntá (esquivá la barrera) · mantené Z para cargar, soltá para patear';
+  s.contact={t:0,nx:0,ny:0};
+  s.hint='TOCÁ la pelota grande (o Z con la mira): abajo=por sobre la barrera · costado=comba';
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
@@ -8109,41 +8128,33 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       if(k.down) s.aim.y=Math.min(gy-6,s.aim.y+1.8*dt);
       s.gk.swayT+=dt;
       s.gk.x=sC(s.gk.x+Math.sin(s.gk.swayT*.04)*.3*dt,g.x1+16,g.x2-16);
-      if(s.contact){
-        // FASE 2: punto de contacto — la comba puede esquivar la barrera
-        sitContactTick(s,dt);
-        if(k.shoot&&!s._cLock){
-          s._cLock=true;
-          const pw=s.pendingPw;
-          const fx=sitContactFx(s,mainP,pw);
-          const errBase=(91-mainP.rat)*.50*(pw<50?2.2:pw<85?1.3:1.0)*fx.errMult;
-          const err=errBase*(Math.random()*2-1);
-          const errY=(91-mainP.rat)*.40*(pw<50?2.0:pw<85?1.2:1.0)*fx.errMult*(Math.random()*2-1);
-          const tx=s.aim.x+err+fx.curve*0.6, ty=Math.max(g.barY-14,s.aim.y+errY-fx.lift);
-          s.target={x:tx,y:ty};s.scorer=mainP;s.curve=fx.curve;
-          s.kicked=true;s.flightT=0;s.flightDur=pw>=85?36:pw>=50?44:54;
-          s.contact=null;
-          // La barrera bloquea según por dónde PASA la pelota (la comba la esquiva)
-          const xAtWall=s.ballStart.x+(tx-s.ballStart.x)*0.42+Math.sin(0.42*Math.PI)*fx.curve*0.62;
-          const highEnough=(s.aim.y-fx.lift)<s.wallZone.topY;
-          s.willBlock=xAtWall>s.wallZone.x1&&xAtWall<s.wallZone.x2&&!highEnough&&Math.random()<(pw<50?.90:.78);
-          const reads=Math.random()<(0.28+(oR-62)*.009)*(pw<50?0.4:1)*(Math.abs(fx.curve)>26?0.5:1);
-          if(reads)s.gkDive={x:s.aim.x+(Math.random()*2-1)*40,y:Math.min(gy-12,ty+(Math.random()*2-1)*30)};
-          else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-28-Math.random()*40};
-          s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=pw<50?8+(oR-62)*.25:pw<85?11+(oR-62)*.38:15+(oR-62)*.45;
-        }
-        if(!k.shoot)s._cLock=false;
-      } else if(k.shoot&&!s.kicked){
-        if(!s.charging){s.charging=true;s.power=0;}
-        s.power=Math.min(100,s.power+dt*1.8);
-      } else if(s.charging&&!s.kicked){
-        s.charging=false;
-        s.pendingPw=s.power;
-        s.contact={t:0,nx:0,ny:0};
-        s._cLock=true;
-        s.hint='¡Elegí dónde pegarle! Con comba (costado) podés esquivar la barrera';
-      }
+      // TOCÁ LA PELOTA: dirección por punto de contacto (abajo=alta, costado=comba)
+      sitContactTick(s,dt);
+      const fireFk=(nx,ny)=>{
+        const gw=g.x2-cx;
+        const edge=Math.hypot(nx,ny)>0.95?1.9:1.0;
+        const err=(91-mainP.rat)*0.42*edge*(Math.random()*2-1);
+        const errY=(91-mainP.rat)*0.34*edge*(Math.random()*2-1);
+        const tx=cx-nx*gw*0.95+err;
+        const ty=gy-((ny+1)/2)*(gy-g.barY)*1.06+errY;
+        s.curve=-nx*40;
+        s.target={x:tx,y:ty};s.scorer=mainP;
+        s.kicked=true;s.flightT=0;s.flightDur=40;
+        s.contact=null;
+        // La barrera bloquea según por dónde PASA la pelota: la comba la rodea,
+        // pegarle abajo (ny>0.35) la levanta por encima
+        const xAtWall=s.ballStart.x+(tx-s.ballStart.x)*0.42+Math.sin(0.42*Math.PI)*s.curve*0.62;
+        const highEnough=ny>0.35;
+        s.willBlock=xAtWall>s.wallZone.x1&&xAtWall<s.wallZone.x2&&!highEnough&&Math.random()<0.82;
+        const reads=Math.random()<(0.28+(oR-62)*.009)*(Math.abs(nx)>0.55?0.5:1);
+        if(reads)s.gkDive={x:cx-nx*gw*0.85+(Math.random()*2-1)*40,y:Math.min(gy-12,ty+(Math.random()*2-1)*30)};
+        else s.gkDive={x:cx-(tx-cx)*(0.3+Math.random()*0.8),y:gy-28-Math.random()*40};
+        s.gkStart={x:s.gk.x,y:s.gk.y};
+        s.reach=11+(oR-62)*.38;
+      };
+      if(s._clickFire){s._clickFire=false;fireFk(s._clickPt.nx,s._clickPt.ny);}
+      else if(k.shoot&&!s._cLock){s._cLock=true;fireFk(s.contact.nx,s.contact.ny);}
+      if(!k.shoot)s._cLock=false;
     } else {
       s.flightT+=dt;
       const f=Math.min(1,s.flightT/s.flightDur);
@@ -8980,8 +8991,14 @@ function fmInit(m,W,H){
 function fmSetupWatch(){
   const f=FM;if(!f)return;
   f.watch=true;f.speed=1;
-  // Perfiles tácticos de ambos DTs
+  // Perfiles tácticos de ambos DTs (el tuyo incorpora TUS instrucciones de la pestaña Tácticas)
   f.myProf=dtProfile(G.dt);
+  if(G.pressure==='Alta')f.myProf.press=Math.min(1,f.myProf.press+0.15);
+  if(G.pressure==='Baja')f.myProf.press=Math.max(0,f.myProf.press-0.15);
+  if(G.tempo==='Rápido')f.myProf.tempo=Math.min(1,f.myProf.tempo+0.15);
+  if(G.tempo==='Lento')f.myProf.tempo=Math.max(0,f.myProf.tempo-0.15);
+  if(G.width==='Amplio')f.myProf.width=Math.min(1,f.myProf.width+0.15);
+  if(G.width==='Estrecho')f.myProf.width=Math.max(0,f.myProf.width-0.15);
   const oppPool=DTS.filter(d=>d.name!==G.dt.name);
   f.oppDT=oppPool[~~(Math.random()*oppPool.length)];
   f.oppProf=dtProfile(f.oppDT);
@@ -9440,6 +9457,9 @@ function fmTick(dt){
     f.my.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='my';}});
     f.opp.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='opp';}});
     if(f.ball.air>2){f.poss=null;f.possSide=null;}
+    // Posesión acumulada (para el % en pantalla)
+    if(!f.possT)f.possT={my:1,opp:1};
+    if(f.possSide)f.possT[f.possSide]+=dt;
     // Transición: ¿acabamos de recuperar la pelota? (dispara contragolpes)
     if(f.possSide&&f.possSide!==f._prevPoss){f._transSide=f.possSide;f._transT=f.ticks;}
     if(f.possSide)f._prevPoss=f.possSide;
@@ -10377,6 +10397,15 @@ function fmDrawSim(cv,ctx){
     ctx.fillText(opAb,sbX+161,sbY+sbH2/2+1);
     ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+183,sbY,5,sbH2);
     ctx.fillStyle='rgba(246,211,24,.65)';ctx.fillRect(sbX,sbY+sbH2,188,2);
+    // % de posesión al lado del marcador
+    if(f.possT){
+      const tot=f.possT.my+f.possT.opp;
+      const pm=Math.round(f.possT.my/tot*100);
+      ctx.fillStyle='rgba(6,8,14,.92)';ctx.fillRect(sbX+194,sbY,74,sbH2);
+      ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='600 11px "Barlow Condensed",sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`POS ${pm}% - ${100-pm}%`,sbX+231,sbY+sbH2/2+1);
+    }
   }
   // Posesión de pelota (equipo) arriba a la derecha
   if(possP){
@@ -11282,6 +11311,43 @@ function negotiateAgentOffer(offId){
   closePhone();
   openNeg(off.pid);
 }
+// ═══ MERCADO VIVO: los demás clubes fichan entre sí (realista) ═══
+function weeklyAITransfers(){
+  if(!isTransferWindowOpen())return;
+  if(!G.market||G.market.length<100)return;
+  // Poder de compra por liga: los grandes compran a los chicos
+  const LG_POW={'Premier':5,'España':4.5,'Italia':4,'Alemania':4,'Francia':3.5,'Brasil':2.5,
+    'Portugal':2.5,'Holanda':2.2,'MLS':2.2,'Liga MX':2,'Rusia':2,'Turquía':2,'Bélgica':1.8,
+    'Liga ARG':1.5,'Colombia':1,'Chile':1,'Uruguay':0.8,'Paraguay':0.7,'Perú':0.7,'Ecuador':0.7};
+  const n=1+~~(Math.random()*3); // 1-3 pases por semana de ventana
+  for(let i=0;i<n;i++){
+    // Comprador: liga elegida por poder; club al azar dentro de ella
+    const lgs=Object.keys(LG_POW);
+    const tot=lgs.reduce((a,l)=>a+LG_POW[l],0);
+    let r=Math.random()*tot,buyLg=lgs[0];
+    for(const l of lgs){r-=LG_POW[l];if(r<=0){buyLg=l;break;}}
+    const buyClubs=[...new Set(G.market.filter(p=>p.lg===buyLg).map(p=>p.club))];
+    if(!buyClubs.length)continue;
+    const buyClub=buyClubs[~~(Math.random()*buyClubs.length)];
+    // Objetivo: joven o rendidor de una liga de menor poder, valor acorde al comprador
+    const maxVal=LG_POW[buyLg]*12;
+    const cands=G.market.filter(p=>
+      p.club!==buyClub&&p.lg!==buyLg&&
+      (LG_POW[p.lg]||0.5)<=LG_POW[buyLg]&&
+      p.val>=0.8&&p.val<=maxVal&&p.rat>=70&&p.age<=30&&!p.listed);
+    if(!cands.length)continue;
+    // Preferencia: jóvenes con rating alto
+    cands.sort((a,b)=>(b.rat+(28-b.age))-(a.rat+(28-a.age)));
+    const p=cands[~~(Math.random()*Math.min(25,cands.length))];
+    const oldClub=p.club,oldLg=p.lg;
+    const fee=Math.round(p.val*(1.1+Math.random()*0.6)*10)/10;
+    p.club=buyClub;p.lg=buyLg;
+    p.val=Math.round(p.val*1.12*10)/10; // el pase lo revaloriza
+    lg('💸',`${buyClub} fichó a ${p.name} (${oldClub}) por ${fv(fee)}`);
+    if(fee>=12)addPhoneMsg('agent','Mercado de pases',`💸 Bomba del mercado: <b>${buyClub}</b> se llevó a <b>${p.name}</b> desde ${oldClub} por <b style="color:var(--gold)">${fv(fee)}</b>.`,'📰');
+  }
+}
+
 // Mensajes semanales entrantes (jugadores/DT le escriben al presidente)
 function weeklyChats(){
   ensureChats();
