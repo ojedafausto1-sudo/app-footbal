@@ -599,7 +599,7 @@ async function extractTM(selected) {
         const name = String(p.name || p.playerName || p.fullName || '');
         if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
-        let natRaw = p.nationality || p.nationalities || p.country || '';
+        let natRaw = p.nationality || p.nationalities || p.citizenship || p.citizenships || p.country || '';
         if (Array.isArray(natRaw)) natRaw = natRaw[0] || '';
         const nat = typeof natRaw === 'object' ? (natRaw.name || natRaw.code || JSON.stringify(natRaw)) : String(natRaw);
         const posRaw = p.position || p.mainPosition || p.pos || '';
@@ -741,13 +741,14 @@ async function extractFS(selected) {
 // Parse market value strings like "€25.00m", "€500k", or numeric values
 function parseMarketVal(val) {
   if (!val) return 0;
-  if (typeof val === 'number') return val >= 100000 ? Math.round(val / 100000) / 10 : val;
+  // Números crudos en euros (>= 1000) → millones; menores se asumen ya en millones
+  if (typeof val === 'number') return val >= 1000 ? Math.round(val / 1000) / 1000 : val;
   const s = String(val).toLowerCase().replace(/[€$£,\s]/g, '');
   let num = parseFloat(s);
   if (isNaN(num)) return 0;
   if (s.includes('m') || s.includes('mil')) return num;
   if (s.includes('k') || s.includes('thou')) return num / 1000;
-  if (num >= 100000) return Math.round(num / 100000) / 10;
+  if (num >= 1000) return Math.round(num / 1000) / 1000;
   return num;
 }
 
@@ -758,8 +759,8 @@ function mapPos(pos) {
   if (p.includes('centre-back') || p.includes('center-back') || p.includes('central defender') || p === 'cb' || p.includes('innenverteidiger')) return 'DFC';
   if (p.includes('left-back') || p.includes('left back') || p === 'lb' || p.includes('linker verteidiger')) return 'DFI';
   if (p.includes('right-back') || p.includes('right back') || p === 'rb' || p.includes('rechter verteidiger')) return 'DFD';
-  if (p.includes('defen')) return 'DFC';
   if (p.includes('defensive mid') || p === 'cdm' || p === 'dm' || p.includes('defensives mittelfeld')) return 'MCD';
+  if (p.includes('defen')) return 'DFC';
   if (p.includes('central mid') || p === 'cm' || p.includes('zentrales mittelfeld')) return 'MC';
   if (p.includes('attacking mid') || p === 'cam' || p === 'am' || p.includes('offensives mittelfeld')) return 'MCO';
   if (p.includes('left mid') || p.includes('left wing') || p === 'lw' || p === 'lm' || p.includes('linksaussen') || p.includes('left forward')) return 'EI';
