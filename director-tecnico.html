@@ -1155,7 +1155,40 @@ function buildSanLorenzo(){
   ];
 }
 
+// ═══ PLANTELES DESDE LA BASE EXTRAÍDA (TransferMarkt actual) ═══
+// Ratings curados para las figuras de los 5 equipos jugables
+const SQUAD_OVERRIDES={
+  boca:{'Agustín Marchesín':78,'Leandro Paredes':82,'Carlos Palacios':81,'Kevin Zenón':81,'Exequiel Zeballos':79,'Miguel Merentiel':79},
+  river:{'Franco Armani':79,'Lucas Martínez Quarta':82,'Paulo Díaz':81,'Germán Pezzella':79,'Matías Viña':79,'Marcos Acuña':79,'Gonzalo Montiel':82,'Aníbal Moreno':82,'Juan Fernando Quintero':82,'Sebastián Driussi':80},
+  racing:{'Adrián Martínez':80,'Santiago Sosa':79},
+  indep:{'Kevin Lomónaco':79},
+  sanlo:{},
+};
+function squadFromDB(clubName, fallbackFn, overrides){
+  if(!window.PLAYERS_DB||!Array.isArray(PLAYERS_DB)) return fallbackFn();
+  // Filtrar por club Y liga: hay 'Racing Club' e 'Independiente' en otros países
+  const rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]==='Liga ARG');
+  if(rows.length<15) return fallbackFn(); // datos insuficientes → plantel manual
+  const OV=overrides||{};
+  const used=new Set();
+  return rows.map(r=>{
+    let num=r[0];
+    while(used.has(num)&&num<50)num++;
+    used.add(num);
+    return P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0);
+  });
+}
+
 function buildSquad(teamId){
+  const MAP={
+    boca:['Boca Juniors',buildBoca],
+    river:['River Plate',buildRiver],
+    indep:['Independiente',buildIndependiente],
+    racing:['Racing Club',buildRacing],
+    sanlo:['San Lorenzo',buildSanLorenzo],
+  };
+  const cfg=MAP[teamId];
+  if(cfg) return squadFromDB(cfg[0],cfg[1],SQUAD_OVERRIDES[teamId]);
   if(teamId==='river')  return buildRiver();
   if(teamId==='indep')  return buildIndependiente();
   if(teamId==='racing') return buildRacing();
