@@ -87,7 +87,8 @@ const TARGET_COUNTRIES_TM = {
   'Venezuela':true,'Bolivia':true,'Mexico':true,'USA':true,
   'United States':true,'England':true,'Spain':true,'France':true,
   'Germany':true,'Italy':true,'Netherlands':true,'Russia':true,
-  'Belgium':true,'Portugal':true,'Turkey':true
+  'Belgium':true,'Portugal':true,'Turkey':true,
+  'Türkiye':true,'Turkiye':true,'Greece':true
 };
 
 function log(msg) {
@@ -202,6 +203,42 @@ function getLeagueTier(name, country) {
   const n = name.toLowerCase();
   const c = (country||'').toLowerCase();
 
+  // ═══ REGLAS POR PAÍS (corren ANTES de la blacklist): sponsors y nombres locales ═══
+  if (c.includes('argentin')) {
+    if (/(betano|binance|liga profesional|torneo apertura|torneo clausura|torneo de la liga|superliga|primera divisi)/.test(n)) return 1;
+    if (/(primera nacional|nacional b)/.test(n)) return 2;
+  }
+  if (c.includes('brazil') || c.includes('brasil')) {
+    if (/s[ée]rie a/.test(n)) return 1;
+    if (/s[ée]rie b/.test(n)) return 2;
+  }
+  if (c.includes('mexic')) {
+    if (/(liga mx|apertura|clausura)/.test(n) && !/expansi/.test(n)) return 1;
+    if (/expansi/.test(n)) return 2;
+  }
+  if (c.includes('urugua') || c.includes('paragua')) {
+    if (/(apertura|clausura|primera divisi)/.test(n) && !/(intermedia|segunda)/.test(n)) return 1;
+  }
+  if (c.includes('italy')) {
+    if (/serie a/.test(n)) return 1;
+    if (/serie b/.test(n)) return 2;
+  }
+  if (c.includes('turkey') || c.includes('türkiye') || c.includes('turkiye')) {
+    if (/s[uü]per ?lig/.test(n)) return 1;
+    if (/1\.? ?lig/.test(n)) return 2;
+  }
+  if (c.includes('greece') || c.includes('grecia') || c.includes('hellas')) {
+    if (/(super ?league ?2|football league|beta ethniki)/.test(n)) return 2;
+    if (/(super ?league|stoiximan|alpha ethniki)/.test(n)) return 1;
+  }
+  if (c.includes('bolivia')) {
+    if (/(divisi[oó]n profesional|liga.*profesional|primera divisi)/.test(n)) return 1;
+  }
+  if (c.includes('russia')) {
+    if (/premier|premjer/.test(n)) return 1;
+    if (/(fnl|first league|pervaja|1 division)/.test(n)) return 2;
+  }
+
   // Blacklist: cups, youth, women, reserves, amateur, regional, etc.
   const blacklist = [
     'cup','copa','pokal','coupe','coppa','taca','taça',
@@ -227,39 +264,7 @@ function getLeagueTier(name, country) {
   ];
   if (blacklist.some(b => n.includes(b))) return 0;
 
-  // ═══ AJUSTES POR PAÍS: nombres con sponsor que cambian cada temporada ═══
-  // TransferMarkt llama a la 1ra división argentina "Torneo Betano" (antes
-  // Binance, antes Superliga) — por eso no matcheaba y solo salía la Nacional.
-  if (c.includes('argentin')) {
-    if (/(betano|binance|liga profesional|torneo apertura|torneo clausura|torneo de la liga|superliga|primera divisi)/.test(n)) return 1;
-    if (/(primera nacional|nacional b)/.test(n)) return 2;
-  }
-  if (c.includes('brazil') || c.includes('brasil')) {
-    if (/s[ée]rie a/.test(n)) return 1;
-    if (/s[ée]rie b/.test(n)) return 2;
-  }
-  if (c.includes('mexic')) {
-    if (/(liga mx|apertura|clausura)/.test(n) && !/expansi/.test(n)) return 1;
-    if (/expansi/.test(n)) return 2;
-  }
-  if (c.includes('urugua') || c.includes('paragua')) {
-    if (/(apertura|clausura|primera divisi)/.test(n) && !/(intermedia|segunda)/.test(n)) return 1;
-  }
-  if (c.includes('italy')) {
-    if (/serie a/.test(n)) return 1;
-    if (/serie b/.test(n)) return 2;
-  }
-  if (c.includes('turkey')) {
-    if (/s[uü]per ?lig/.test(n)) return 1;
-    if (/1\.? ?lig/.test(n)) return 2;
-  }
-  if (c.includes('bolivia')) {
-    if (/(divisi[oó]n profesional|liga.*profesional|primera divisi)/.test(n)) return 1;
-  }
-  if (c.includes('russia')) {
-    if (/premier|premjer/.test(n)) return 1;
-    if (/(fnl|first league|pervaja|1 division)/.test(n)) return 2;
-  }
+
 
   // Known first divisions (tier 1)
   const tier1 = [
@@ -845,7 +850,8 @@ function mapLeague(country, league) {
   if (c.includes('russia')) return 'Rusia';
   if (c.includes('belgium')) return 'Bélgica';
   if (c.includes('portugal')) return 'Portugal';
-  if (c.includes('turkey')) return 'Turquía';
+  if (c.includes('turkey') || c.includes('türkiye') || c.includes('turkiye')) return 'Turquía';
+  if (c.includes('greece') || c.includes('hellas')) return 'Grecia';
   return league || country || 'Otro';
 }
 
