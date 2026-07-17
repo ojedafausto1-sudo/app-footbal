@@ -1166,7 +1166,9 @@ function squadFromDB(clubName, fallbackFn, overrides){
     let num=r[0];
     while(used.has(num)&&num<50)num++;
     used.add(num);
-    return P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0);
+    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0);
+    if(r[8])pl.foot=r[8];
+    return pl;
   });
 }
 
@@ -1191,9 +1193,13 @@ function buildMkt(){
   let m = [];
   const a = (...x) => m.push(P(...x));
 
-  // ═══ BASE DE DATOS EXTRAÍDA (players-db.js): 11.000 jugadores reales ═══
+  // ═══ BASE DE DATOS EXTRAÍDA (players-db.js): 15.000 jugadores reales de 23 ligas ═══
   if(window.PLAYERS_DB && Array.isArray(PLAYERS_DB)){
-    for(const r of PLAYERS_DB){ a(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0); }
+    for(const r of PLAYERS_DB){
+      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0);
+      if(r[8])pl.foot=r[8];
+      m.push(pl);
+    }
   }
   // ╔══════════════════════════════════════════════╗
   // ║  BRASILEIRÃO — PLANTELES COMPLETOS           ║
@@ -3783,7 +3789,7 @@ function openP(id, inSquad){
       </div>
       <div style="flex:1">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;letter-spacing:.5px">${p.name}</div>
-        <div style="font-size:11px;color:var(--t2);margin-top:2px">${p.pos} · ${p.nat} · ${p.age} años ${ageLabel(p.age)}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${p.pos} · ${p.nat} · ${p.age} años ${ageLabel(p.age)}${p.foot?` · ${p.foot==='izq'?'🦶 Zurdo':p.foot==='ambi'?'🦶 Ambidiestro':'🦶 Diestro'}`:''}</div>
         <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.club} · ${p.lg}</div>
         ${vb?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">${vb}</div>`:''}
       </div>
