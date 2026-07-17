@@ -774,6 +774,11 @@ function ratToVal(rat, age, pos) {
   const pts=Math.max(0,Math.min(36,rat-55-ageAdj(age)-ratPosMod(pos||'MC')));
   return Math.max(0.1,Math.round(0.1*Math.exp(pts/36*RAT_LNR)*10)/10);
 }
+// Valor efectivo = calculadora × rendimiento de la temporada
+// (así un 28/29 en gran nivel NO se desploma: el rendimiento lo sostiene)
+function calcVal(p){
+  return Math.max(0.1,Math.round(ratToVal(p.rat,p.age,p.pos)*(p.perf||1)*10)/10);
+}
 
 function ageLabel(age) {
   if (age <= 23) return `<span class="age-young">◆ Joven</span>`;
@@ -788,6 +793,7 @@ function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
     val, rat, wage:wage||~~(rat*.4), pot,
+    perf:1, // multiplicador de rendimiento sobre el valor (0.75–1.30)
     morale:65+~~(Math.random()*25),
     contract:2026+~~(Math.random()*3),
     goals:0, assists:0, apps:0,
@@ -3569,13 +3575,43 @@ function weeklyOffers(){
   }
 }
 
+// Penalización por jugar fuera de puesto (0 = posición natural)
+function posPenalty(pos, slotPos){
+  if(pos===slotPos) return 0;
+  const P={
+    'DFI':{'DFD':4,'MI':5,'DFC':8,'EI':8},
+    'DFD':{'DFI':4,'MD':5,'DFC':8,'ED':8},
+    'DFC':{'MCD':6,'DFI':9,'DFD':9},
+    'MCD':{'MC':2,'DFC':6,'MCO':5},
+    'MC':{'MCD':2,'MCO':2,'MI':4,'MD':4},
+    'MCO':{'MC':2,'EI':4,'ED':4,'DC':5,'MCD':7},
+    'MI':{'EI':2,'MC':4,'MD':6,'DFI':6},
+    'MD':{'ED':2,'MC':4,'MI':6,'DFD':6},
+    'EI':{'MI':2,'ED':4,'MCO':4,'DC':6},
+    'ED':{'MD':2,'EI':4,'MCO':4,'DC':6},
+    'DC':{'MCO':5,'EI':7,'ED':7},
+    'ARQ':{},
+  };
+  const m=P[pos]||{};
+  if(slotPos in m) return m[slotPos];
+  // Mismo grupo sin listar: castigo alto · distinto grupo: prohibitivo
+  return pgr(pos)===pgr(slotPos)?9:25;
+}
 function autoFill(){
   G.slots = {};
   const sl = FORMS[G.formation];
   const used = new Set();
+  // El DT arma el 11 respetando puestos: mejor score = rating − penalización
   sl.forEach((s,i) => {
-    const cands = G.squad.filter(p=>!used.has(p.id)&&pgr(p.pos)===pgr(s.pos)).sort((a,b)=>b.rat-a.rat);
-    if(cands[0]){ G.slots[i]=cands[0].id; used.add(cands[0].id); }
+    let best=null,bestScore=-1e9;
+    for(const p of G.squad){
+      if(used.has(p.id)||p.injured)continue;
+      if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
+      if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
+      const sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
+      if(sc>bestScore){bestScore=sc;best=p;}
+    }
+    if(best){G.slots[i]=best.id;used.add(best.id);}
     else G.slots[i]=null;
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
@@ -3711,7 +3747,7 @@ function rSq(f){
   el.innerHTML = pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ 50%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -4246,6 +4282,8 @@ function negLoanOffer(id){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn bg" onclick="submitLoanOffer('${id}',${cost},${rejectChance},${buyOption})">📩 Enviar solicitud</button>
       <button class="btn bo" onclick="openNeg('${id}')">🤝 Negociar compra</button>
+      <button class="btn bo" onclick="buyHalfPass('${id}')">➗ 50% del pase</button>
+      <button class="btn bo" onclick="openSwap('${id}')">🔄 Canje</button>
       <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
     </div>
   `);
@@ -4818,7 +4856,7 @@ function trAttr(id, attr){
   p.attrs[attr] = Math.min(99, p.attrs[attr]+3);
   G.budget = Math.round((G.budget-.1)*10)/10;
   const avg = Math.round(Object.values(p.attrs).reduce((a,b)=>a+b,0)/Object.values(p.attrs).length);
-  if(avg>p.rat){ p.rat = Math.min(p.pot,p.rat+1); p.val = ratToVal(p.rat, p.age, p.pos); }
+  if(avg>p.rat){ p.rat = Math.min(p.pot,p.rat+1); p.val = calcVal(p); }
   lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]}`);
   closeMod(); updateUI();
   flash(`✅ ${p.name}: ${attr} ${p.attrs[attr]}`,'win');
@@ -6441,7 +6479,7 @@ function nextSeason(){
     else if(p.age <= 30) p.rat = Math.max(55, p.rat + (Math.random() > 0.6 ? 0 : -1));
     else if(p.age <= 33) p.rat = Math.max(55, p.rat - (Math.random() > 0.5 ? 0 : 1));
     else p.rat = Math.max(55, p.rat - ~~(Math.random()*2));
-    if(p.rat !== oldRat) p.val = ratToVal(p.rat, p.age, p.pos);
+    if(p.rat !== oldRat) p.val = calcVal(p);
     p.goals = 0; p.apps = 0;
     p.contract--;
   });
@@ -6450,7 +6488,7 @@ function nextSeason(){
     const oldRat = p.rat;
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*2));
     else if(p.age >= 35) p.rat = Math.max(55, p.rat - (Math.random()>0.4?1:0));
-    if(p.rat !== oldRat) p.val = ratToVal(p.rat, p.age, p.pos);
+    if(p.rat !== oldRat) p.val = calcVal(p);
   });
   G.calendar = buildCal(G.teamName);
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
@@ -6617,6 +6655,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
       }
     }
   }
+  // RENDIMIENTO → VALOR: goles y resultados mueven el multiplicador perf
+  xiPlayers.forEach(p=>{
+    if(p.perf===undefined)p.perf=1;
+    p.perf+=(res==='W'?0.004:res==='L'?-0.005:0);
+  });
+  scorersList.forEach(s2=>{
+    const sp2=G.squad.find(x=>x.name===s2.name);
+    if(sp2){sp2.perf=(sp2.perf||1)+0.025;}
+  });
+  xiPlayers.forEach(p=>{
+    p.perf=Math.max(0.75,Math.min(1.30,p.perf));
+    p.val=calcVal(p);
+  });
   scorersList.sort((a,b)=>a.min-b.min);
   // Match stats
   const goalsAdv = gf - ga;
@@ -6661,7 +6712,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
       if(G.dt&&G.dt.trait==='Formador'&&p.age<=23&&ageFac>0) ageFac*=1.35;
       if(p.formPts>1.0 && ageFac>0 && potGap>=2){
         if(Math.random()<Math.min(0.75,ageFac*(0.3+potGap/40))){
-          p.rat=Math.min(pot,p.rat+1); p.val=ratToVal(p.rat,p.age,p.pos); lg('📈',`${p.name} mejora → ${p.rat}`);
+          p.rat=Math.min(pot,p.rat+1); p.val=calcVal(p); lg('📈',`${p.name} mejora → ${p.rat}`);
           // Su mejor atributo también crece
           ensureAttrs(p);
           const bestK=Object.entries(p.attrs).sort((a,b)=>b[1]-a[1])[0][0];
@@ -6669,7 +6720,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
         }
       } else if(p.formPts<-1.2 || ageFac<0){
         if(Math.random()<(ageFac<0?0.35:0.12)){
-          p.rat=Math.max(52,p.rat-1); p.val=ratToVal(p.rat,p.age,p.pos); lg('📉',`${p.name} baja → ${p.rat}`);
+          p.rat=Math.max(52,p.rat-1); p.val=calcVal(p); lg('📉',`${p.name} baja → ${p.rat}`);
         }
       }
       p.formPts=0;
@@ -6718,7 +6769,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     return sum+(r.levels.find(l=>l.lv===lv)||{salary:0}).salary;
   },0);
   if(staffSal>0) G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
-  G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); p.val=ratToVal(p.rat,p.age,p.pos); p.progress=0; } });
+  G.youth.players.forEach(p=>{ p.progress=Math.min(100,p.progress+(G.youth.level+1)); if(p.progress>=100&&p.rat<p.pot){ p.rat=Math.min(p.pot,p.rat+2); p.val=calcVal(p); p.progress=0; } });
   // Injury (reduced by physio level and medical center)
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
   const physioLv = G.staffLevels.physio||1;
@@ -7995,7 +8046,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   const s=SIT,gh=Math.min(92,W*.22),glY=24;
   s.gh=gh;s.glY=glY;
   s.label=`⚑ <span style="color:var(--gold)">¡CÓRNER!</span> ${mainP.name.split(' ').pop()} va a cobrar`;
-  s.hint='Joystick/Flechas: elegí el punto de caída ✕ · Z: ¡TIRÁ EL CENTRO!';
+  s.hint='Flechas: punto de caída ✕ · Z: ¡CENTRO! · Luego X: cambiar cabeceador';
   // Aleatoriamente desde la izquierda o la derecha
   const fromRight=Math.random()>.5;
   const bsx=fromRight?W-14:14,bsy=H-22;
@@ -8041,6 +8092,14 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       const dx=(k.right?1:0)-(k.left?1:0),dy=(k.down?1:0)-(k.up?1:0);
       sitMove(s.header,dx,dy,dt,.090);
       s.header.x=sC(s.header.x,10,W-10);s.header.y=sC(s.header.y,glY+22,glY+H*.42);
+      // X: cambiar de cabeceador (controlás al mejor ubicado)
+      if(k.pass&&!s._swLock&&s.mate2){
+        s._swLock=true;
+        const tmp={p:s.header.p,x:s.header.x,y:s.header.y,vx:s.header.vx,vy:s.header.vy,r:s.header.r,spd:s.header.spd};
+        s.header.p=s.mate2.p;s.header.x=s.mate2.x;s.header.y=s.mate2.y;s.header.vx=s.mate2.vx;s.header.vy=s.mate2.vy;s.header.spd=s.mate2.spd;
+        s.mate2.p=tmp.p;s.mate2.x=tmp.x;s.mate2.y=tmp.y;s.mate2.vx=tmp.vx;s.mate2.vy=tmp.vy;s.mate2.spd=tmp.spd;
+      }
+      if(!k.pass)s._swLock=false;
       // Compañeros AI: van a posiciones cerca del target
       s.defs.forEach(d=>{sitMove(d,s.target.x-d.x,s.target.y-d.y,dt,.045);d.x=sC(d.x,8,W-8);d.y=sC(d.y,glY+20,H-8);});
       if(s.mate2){sitMove(s.mate2,s.target.x+22-s.mate2.x,s.target.y+10-s.mate2.y,dt,.05);s.mate2.x=sC(s.mate2.x,8,W-8);}
@@ -8425,6 +8484,104 @@ function rStats(){
 // =============================================
 function loanIn(id){negLoanOffer(id);}
 
+// ═══ COMPRA DEL 50% DEL PASE: pagás el 55% del valor, cobrás la mitad al revenderlo ═══
+function buyHalfPass(id){
+  if(!G)return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p){flash('Jugador no disponible','draw');return;}
+  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  const cost=Math.round(p.val*0.55*10)/10;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">➗ Comprar el 50% del pase — ${p.name}</div>
+    <div class="sr"><span class="sl">Valor total</span><span class="sv">${fv(p.val)}</span></div>
+    <div class="sr"><span class="sl">Pagás ahora (55%)</span><span class="sv" style="color:var(--gold)">${fv(cost)}</span></div>
+    <div class="note" style="margin:8px 0">El jugador se suma a tu plantel, pero el club vendedor conserva el 50% de la ficha: <b>si lo revendés, cobrás solo la mitad</b> de la transferencia. Ideal para fichar caro pagando menos hoy.</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn bg" onclick="confirmHalfPass('${p.id}',${cost})">Comprar 50% por ${fv(cost)}</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+}
+function confirmHalfPass(id,cost){
+  const p=G.market.find(x=>x.id===id);
+  if(!p)return;
+  if(G.budget<cost){flash('❌ Presupuesto insuficiente','loss');return;}
+  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
+  G.budget=Math.round((G.budget-cost)*10)/10;
+  G.market=G.market.filter(x=>x.id!==id);
+  p.club=G.teamName;p.lg='Liga ARG';p.ownedPct=0.5;
+  G.squad.push(p);G.bench.push(p);
+  lg('➗',`${p.name} llega con el 50% del pase (${fv(cost)})`);
+  addPhoneMsg('player',p.name,'¡Presidente, gracias por la apuesta! Voy a demostrar que valgo el pase entero.','👤');
+  closeMod();updateUI();
+  flash('➗ '+p.name+' — 50% del pase','win');
+}
+
+// ═══ CANJE: tu jugador + diferencia en efectivo ═══
+function openSwap(id){
+  if(!G)return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p){flash('Jugador no disponible','draw');return;}
+  if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  const opts=G.squad.filter(q=>!q.injured).sort((a,b)=>b.val-a.val).slice(0,25);
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🔄 Canje por ${p.name} <span style="font-size:11px;color:var(--t3)">(${fv(p.val)})</span></div>
+    <div class="note" style="margin-bottom:8px">Elegí a quién entregás. Tu jugador se valora al 85% y pagás la diferencia. Al club le interesa más si el canje juega en otra posición que la de su estrella.</div>
+    <select class="sb" id="swapSel" onchange="updSwapInfo('${p.id}')">
+      ${opts.map(q=>`<option value="${q.id}">${q.name} — ${q.pos} · ${q.rat} · ${fv(q.val)}</option>`).join('')}
+    </select>
+    <div id="swapInfo"></div>
+  `);
+  updSwapInfo(p.id);
+}
+function updSwapInfo(targetId){
+  const p=G.market.find(x=>x.id===targetId);
+  const sel=document.getElementById('swapSel');
+  const mine=G.squad.find(q=>q.id===sel.value);
+  if(!p||!mine)return;
+  const credit=Math.round(mine.val*0.85*10)/10;
+  const diff=Math.max(0,Math.round((p.val-credit)*10)/10);
+  const interest=mine.pos!==p.pos?0.62:0.38; // no quieren un doble de su figura
+  document.getElementById('swapInfo').innerHTML=`
+    <div class="sr"><span class="sl">Tu jugador (85%)</span><span class="sv" style="color:var(--green)">${fv(credit)}</span></div>
+    <div class="sr"><span class="sl">Pagás además</span><span class="sv" style="color:var(--gold)">${fv(diff)}</span></div>
+    <div class="sr"><span class="sl">Prob. de que acepten</span><span class="sv">${Math.round(interest*100)}%</span></div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="btn bg" onclick="confirmSwap('${p.id}','${mine.id}',${diff},${interest})">Proponer canje</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>`;
+}
+function confirmSwap(targetId,mineId,diff,interest){
+  const p=G.market.find(x=>x.id===targetId);
+  const mine=G.squad.find(q=>q.id===mineId);
+  if(!p||!mine)return;
+  if(G.budget<diff){flash('❌ No te alcanza para la diferencia','loss');return;}
+  if(Math.random()>interest){
+    lg('🔄',`${p.club} rechazó el canje ${mine.name} por ${p.name}`);
+    closeMod();
+    flash('❌ Rechazaron el canje','loss');
+    return;
+  }
+  G.budget=Math.round((G.budget-diff)*10)/10;
+  // Tu jugador se va al club vendedor
+  const oldClub=p.club;
+  G.squad=G.squad.filter(q=>q.id!==mineId);
+  G.bench=G.bench.filter(q=>q.id!==mineId);
+  Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===mineId)G.slots[k2]=null;});
+  mine.club=oldClub;mine.lg=p.lg;
+  G.market.push(mine);
+  // El objetivo llega
+  G.market=G.market.filter(x=>x.id!==targetId);
+  p.club=G.teamName;p.lg='Liga ARG';
+  G.squad.push(p);G.bench.push(p);
+  lg('🔄',`Canje: llegó ${p.name}, se fue ${mine.name} + ${fv(diff)}`);
+  addPhoneMsg('player',p.name,'¡Presidente! Llegué con toda la ilusión. Gracias por buscarme.','👤');
+  closeMod();updateUI();
+  flash('🔄 Canje cerrado: '+p.name,'win');
+}
+
 // ——— Transfer listing (poner en venta) ———
 function sellPlayer(id){
   if(!G) return;
@@ -8595,11 +8752,20 @@ function submitContract(id,expected){
   updateUI(); closeMod(); flash('✅ '+p.name+' renovó hasta '+p.contract,'win');
 }
 
+function resolveWantsOut(p){
+  if(p&&p.wantsOut){p.wantsOut=false;}
+}
 function accOff(i){ if(!G) return; accOffAt(i,G.offers[i].amount); }
 function accOffAt(i, val){
   if(!G||!G.offers[i]) return;
   const o = G.offers[i];
   const p = o.player;
+  // Si tenés solo el 50% del pase, cobrás la mitad de la venta
+  if(o.type!=='préstamo'&&p.ownedPct&&p.ownedPct<1){
+    val=Math.round(val*p.ownedPct*10)/10;
+    lg('➗',`Venta de ${p.name}: cobrás el ${Math.round(p.ownedPct*100)}% (${fv(val)})`);
+  }
+  resolveWantsOut(p);
   // Remove from active squad either way
   G.budget=Math.round((G.budget+val)*10)/10;
   G.squad=G.squad.filter(x=>x.id!==p.id);
@@ -9932,9 +10098,17 @@ function fmAI(p,team,idx,dt){
   const isAttacker=['DC','EI','ED','CF'].includes(p.role);
   const isDef=['DFC','DFD','DFI','LD','LI'].includes(p.role);
 
-  // Ranking de cercanía a la pelota (para decidir QUIÉN presiona — no todos)
+  // Ranking de cercanía PONDERADO por rol: presionan los que tienen que presionar
+  // (defensores y volantes primero; los delanteros solo si el DT presiona muy alto)
   const dists=[];
-  players.forEach((q,i)=>{if(!q.isGK)dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)});});
+  players.forEach((q,i)=>{
+    if(q.isGK)return;
+    const w=['DC','CF'].includes(q.role)?(1.35-prof.press*0.25)
+          :['EI','ED'].includes(q.role)?(1.2-prof.press*0.2)
+          :['DFC','DFI','DFD','LD','LI'].includes(q.role)?0.92
+          :1.0;
+    dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)*w});
+  });
   dists.sort((a,bb)=>a.d-bb.d);
   const myRank=dists.findIndex(dd=>dd.i===idx);
 
@@ -10092,13 +10266,28 @@ function fmAI(p,team,idx,dt){
         acc2=0.056;
       }
     } else if(isAttacker){
-      // Delanteros: pinchar la última línea (al filo del offside)
+      // Delanteros VIVOS: ciclan entre pinchar la línea, venir a recibir al pie
+      // y tirar diagonales — nunca clavados en el offside
       let offX=attRight?f.leftGL:f.rightGL;
       rivals.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
-      tx=attRight?Math.min(Math.max(homeX,offX-130),offX-10):Math.max(Math.min(homeX,offX+130),offX+10);
+      const cyc=Math.sin(f.ticks*0.018+idx*2.1);
+      if(cyc>0.25&&ballPct>0.35){
+        // Desmarque al espacio: al filo del offside
+        tx=attRight?Math.min(Math.max(homeX,offX-120),offX-12):Math.max(Math.min(homeX,offX+120),offX+12);
+        ty=homeY+Math.sin(f.ticks*.045+idx*3)*60;
+        acc2=0.058;
+      }else if(cyc<-0.3&&f.poss){
+        // Viene a recibir al pie (descarga)
+        tx=f.poss.x+(attRight?120:-120);
+        ty=f.poss.y+(idx%2?110:-110);
+        acc2=0.056;
+      }else{
+        // Diagonal: cruzar hacia el otro carril
+        tx=homeX+(attRight?60:-60);
+        ty=mid+(homeY-mid)*-0.4+Math.sin(f.ticks*.03+idx)*50;
+        acc2=0.052;
+      }
       tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,tx));
-      ty=homeY+Math.sin(f.ticks*.03+idx*2)*45;
-      acc2=0.054;
     } else if(isMid&&ballPct>0.30){
       // Volantes acompañan la jugada
       const supX=55+prof.line*35;
@@ -10138,10 +10327,12 @@ function fmTeamPass(team,fromIdx){
     // Peso vertical: directo (perfil) + contragolpe (transición); durmiendo, pase seguro corto
     let fwdW=(0.4+prof.direct*0.5)+(inTrans?(prof.counter||0.5)*0.4:0);
     if(holding)fwdW=0.12;
+    // PARED: devolvérsela al que me la dio (asociación uno-dos)
+    const isWall=f._lastPasser&&f._lastPasser.team===team&&f._lastPasser.i===i&&d<280;
     // Bandas: DTs de bandas buscan receptores abiertos; los de centro, por adentro
     const wideness=Math.abs(t.y-mid5)/(f.VH/2);
     const flankBias=((prof.flank||0.5)-0.5)*70*wideness-((0.5-(prof.flank||0.5))*40*wideness);
-    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
+    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+(isWall?30+((prof.tempo||0.5)*25):0)+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
@@ -10152,6 +10343,7 @@ function fmTeamPass(team,fromIdx){
     const pwr=5.0+Math.random()*2.6;
     b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4;
     f._lastTouch=team;
+    f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
     squad[fromIdx]._kickT=9;
     fmSndKick(0.32);
     t._recvTick=f.ticks;
@@ -11257,6 +11449,7 @@ function playerReply(p,kind){
   }
   if(kind==='titular'){
     p.morale=Math.min(100,(p.morale||70)+6);
+    if(p.wantsOut){p.wantsOut=false;return 'Presidente... si usted me da ese lugar, me quedo y peleo. Retiro lo dicho: cuente conmigo.';}
     return '¿En serio, presidente? No lo voy a defraudar. Cuente conmigo.';
   }
   return '...';
@@ -11370,13 +11563,31 @@ function weeklyAITransfers(){
 function weeklyChats(){
   ensureChats();
   // Jugador descontento
-  const unhappy=G.squad.filter(p=>(p.morale||70)<45);
+  const unhappy=G.squad.filter(p=>(p.morale||70)<45&&!p.wantsOut);
   if(unhappy.length&&Math.random()<0.5){
     const p=unhappy[~~(Math.random()*unhappy.length)];
     if(!G.chats.players[p.id])G.chats.players[p.id]=[];
     chatPush(G.chats.players[p.id],'them','Presidente, ¿tiene un minuto? No estoy pasando un buen momento en el club y quería hablarlo con usted directamente.');
     addPhoneMsg('player',p.name,'Le escribió por privado — revisá su chat en la pestaña Plantel.','👤');
   }
+  // SE PLANTA: moral muy baja o figura tentada por un grande → exige salir
+  const rebels=G.squad.filter(p=>!p.wantsOut&&(((p.morale||70)<32)||((p.rat>=80)&&isTransferWindowOpen()&&Math.random()<0.06)));
+  if(rebels.length&&Math.random()<0.6){
+    const p=rebels[~~(Math.random()*rebels.length)];
+    p.wantsOut=true;
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them','Presidente, voy a ser directo: quiero irme del club. Le pido que escuche ofertas por mí. Prefiero que esto termine bien para los dos.');
+    addPhoneMsg('player',p.name,`⚠️ <b>${p.name} SE PLANTÓ</b>: exige salir del club. Su moral y rendimiento van a caer mientras siga sin resolución. Opciones: venderlo, cederlo o recuperar su confianza.`,'🚫');
+    lg('🚫',`${p.name} se plantó: quiere irse del club`);
+  }
+  // Los plantados rinden y valen menos hasta que se resuelva
+  G.squad.forEach(p=>{
+    if(p.wantsOut){
+      p.morale=Math.max(0,(p.morale||70)-2);
+      p.perf=Math.max(0.75,(p.perf||1)-0.01);
+      p.val=calcVal(p);
+    }
+  });
   // Goleador contento
   const scorer=G.squad.filter(p=>p.goals>=3&&(p.morale||70)>=70);
   if(scorer.length&&Math.random()<0.3){

@@ -605,7 +605,7 @@ async function extractTM(selected) {
       }
 
       if (ci < 2 && li < 1 && playerList.length > 0) {
-        log('    Jugador ejemplo: ' + JSON.stringify(playerList[0]).slice(0, 500));
+        log('    Jugador ejemplo COMPLETO: ' + JSON.stringify(playerList[0]));
         log('    Jugador keys: ' + JSON.stringify(Object.keys(playerList[0])));
       }
 
@@ -614,7 +614,9 @@ async function extractTM(selected) {
         const name = String(p.name || p.playerName || p.fullName || '');
         if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
-        let natRaw = p.nationality || p.nationalities || p.citizenship || p.citizenships || p.country || '';
+        let natRaw = p.nationality || p.nationalities || p.citizenship || p.citizenships || p.nationalityName || p.birthCountry || p.country || '';
+        let footRaw = p.foot || p.preferredFoot || p.strongFoot || '';
+        if (typeof footRaw === 'object') footRaw = footRaw.name || '';
         if (Array.isArray(natRaw)) natRaw = natRaw[0] || '';
         const nat = typeof natRaw === 'object' ? (natRaw.name || natRaw.code || JSON.stringify(natRaw)) : String(natRaw);
         const posRaw = p.position || p.mainPosition || p.pos || '';
@@ -633,6 +635,7 @@ async function extractTM(selected) {
           apps: parseInt(p.appearances || p.matches) || 0,
           marketVal: parseMarketVal(p.marketValue || p.value || p.currentMarketValue || ''),
           number: parseInt(p.shirtNumber || p.number || p.jerseyNumber) || 0,
+          foot: String(footRaw||'').toLowerCase().includes('izq')||String(footRaw||'').toLowerCase().includes('left')?'izq':String(footRaw||'').toLowerCase().includes('der')||String(footRaw||'').toLowerCase().includes('right')?'der':String(footRaw||'').toLowerCase().includes('both')||String(footRaw||'').toLowerCase().includes('ambi')?'ambi':'',
           playerId: p.id || p.playerId || ''
         });
         added++;
@@ -863,7 +866,7 @@ function generateOutput() {
       }
     }
 
-    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
     let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
     for (const p of unique) {
@@ -876,7 +879,7 @@ function generateOutput() {
       const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
 
       js += `  a(${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},0,0);\n`;
-      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
+      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
     }
 
     js += `  // Total: ${unique.length} jugadores extraidos\n`;
