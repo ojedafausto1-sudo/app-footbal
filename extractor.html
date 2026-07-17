@@ -43,6 +43,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
     <label><input type="radio" name="apiChoice" value="transfermarkt" checked> TransferMarkt (planteles + valores)</label>
     <label><input type="radio" name="apiChoice" value="flashscore"> Flashscore (equipos + stats)</label>
   </div>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="extractDTs" checked style="width:auto;margin:0"> Extraer también los DTs de cada club (+1 request por club)</label><br>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
 </div>
@@ -71,6 +72,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <button class="secondary" onclick="copyOutput()">Copiar al portapapeles</button>
   <button class="secondary" onclick="downloadOutput()">Descargar .js</button>
   <button class="secondary" onclick="downloadCSV()">Descargar .csv</button>
+  <button class="secondary" onclick="downloadDTs()">Descargar DTs (.js)</button>
   <br><br>
   <textarea id="output" readonly placeholder="El código generado aparecerá acá..."></textarea>
 </div>
@@ -78,6 +80,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 <script>
 let API_KEY = '';
 let allPlayers = [];
+let allCoaches = [];
 let discoveredLeagues = [];
 let reqCount = 0;
 
@@ -328,9 +331,50 @@ function getLeagueTier(name, country) {
   return 0;
 }
 
+// Mapa id→nombre de país (para resolver nacionalidades que vienen como bandera/ID)
+window._tmCountries = window._tmCountries || {};
+function storeCountries(list){
+  (list||[]).forEach(c=>{
+    const id=c.id||c.ID, nm=c.name||c.NAME;
+    if(id!==undefined&&nm) window._tmCountries[String(id)]=nm;
+  });
+}
+// Busca la nacionalidad en CUALQUIER campo del jugador: nombre, ID de país o URL de bandera
+function resolveNat(p){
+  // 1) Campos con ID numérico de país
+  for(const k of Object.keys(p)){
+    const lk=k.toLowerCase();
+    if(/(countr|nation|citizen)/.test(lk)){
+      const v=p[k];
+      if(typeof v==='number'&&window._tmCountries[String(v)]) return window._tmCountries[String(v)];
+      if(typeof v==='string'&&/^\d+$/.test(v)&&window._tmCountries[v]) return window._tmCountries[v];
+      if(v&&typeof v==='object'&&v.id!==undefined&&window._tmCountries[String(v.id)]) return window._tmCountries[String(v.id)];
+    }
+  }
+  // 2) URLs de bandera tipo .../flagge/.../123.png (el número es el ID de país de TM)
+  for(const k of Object.keys(p)){
+    const v=p[k];
+    if(typeof v==='string'&&/flagge|flag/i.test(v)){
+      const m=v.match(/(\d+)\.(png|jpg|gif|svg)/);
+      if(m&&window._tmCountries[m[1]]) return window._tmCountries[m[1]];
+    }
+    if(Array.isArray(v)){
+      for(const it of v){
+        if(typeof it==='string'&&/flagge|flag/i.test(it)){
+          const m=it.match(/(\d+)\.(png|jpg|gif|svg)/);
+          if(m&&window._tmCountries[m[1]]) return window._tmCountries[m[1]];
+        }
+        if(it&&typeof it==='object'&&it.id!==undefined&&window._tmCountries[String(it.id)]) return window._tmCountries[String(it.id)];
+      }
+    }
+  }
+  return '';
+}
+
 async function discoverTM() {
   const countries = await apiGet('/countries', 'transfermarkt');
   if (!countries) { log('No se pudieron obtener países'); return; }
+  storeCountries(Array.isArray(countries)?countries:Object.values(countries).find(v=>Array.isArray(v))||[]);
 
   // countries could be array or object
   let countryList = Array.isArray(countries) ? countries : [];
@@ -467,6 +511,13 @@ async function extractAll() {
 // TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
 async function extractTM(selected) {
   let totalTeams = 0, totalPlayers = 0;
+  if(!Object.keys(window._tmCountries||{}).length){
+    const cs=await apiGet('/countries','transfermarkt');
+    if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
+    log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
+  }
+  allCoaches = [];
+  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
@@ -591,6 +642,33 @@ async function extractTM(selected) {
 
       const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
       if (!playersData) { log(`    ✗ Sin datos`); continue; }
+      // DT del club (perfil): buscamos campos tipo coach/trainer/manager
+      if (wantDTs) {
+        const clubProf = await apiGet(`/clubs/${clubId}`, 'transfermarkt');
+        if (clubProf) {
+          if (ci===0 && li===0) log('    CLUB COMPLETO: '+JSON.stringify(clubProf).slice(0,900));
+          let coach=null;
+          const scan=(o)=>{
+            if(!o||typeof o!=='object')return;
+            for(const k of Object.keys(o)){
+              const lk=k.toLowerCase(), v=o[k];
+              if(/(coach|trainer|manager|entrenador|tecnico|técnico)/.test(lk)){
+                if(typeof v==='string'&&v.length>3&&!/^http/.test(v)){coach=coach||{name:v};}
+                else if(v&&typeof v==='object'){
+                  const nm=v.name||v.fullName||v.coachName;
+                  if(nm)coach=coach||{name:String(nm),age:parseInt(v.age)||0,nat:(typeof v.nationality==='string'?v.nationality:'')||resolveNat(v)};
+                }
+              }
+            }
+          };
+          scan(clubProf);
+          if(!coach&&clubProf.staff)scan(clubProf.staff);
+          if(coach&&coach.name){
+            allCoaches.push({name:coach.name,age:coach.age||0,nat:coach.nat||'',club:clubName,league:lg.name,country:lg.country});
+            log(`    🎩 DT: ${coach.name}`);
+          }
+        }
+      }
 
       if (ci < 2 && li < 1) {
         log('    Players response keys: ' + JSON.stringify(Object.keys(playersData)));
@@ -620,6 +698,7 @@ async function extractTM(selected) {
         if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
         let natRaw = p.nationality || p.nationalities || p.citizenship || p.citizenships || p.nationalityName || p.birthCountry || p.country || '';
+        if (!natRaw || (Array.isArray(natRaw)&&!natRaw.length)) natRaw = resolveNat(p);
         let footRaw = p.foot || p.preferredFoot || p.strongFoot || '';
         if (typeof footRaw === 'object') footRaw = footRaw.name || '';
         if (Array.isArray(natRaw)) natRaw = natRaw[0] || '';
@@ -913,6 +992,19 @@ function downloadOutput() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'players_sportdb.js';
+  a.click();
+}
+
+function downloadDTs() {
+  if (!allCoaches.length) { alert('No se extrajeron DTs (activá el checkbox y extraé)'); return; }
+  const seen = new Set();
+  const rows = allCoaches.filter(c=>{const k=c.name.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
+  const js = '// DTs extraídos de TransferMarkt — [nombre,edad,nac,club,liga]\nwindow.DTS_DB=[\n'+
+    rows.map(c=>JSON.stringify([c.name,c.age||0,c.nat||'',c.club,mapLeague(c.country,c.league)])).join(',\n')+'\n];\n';
+  const blob = new Blob([js], {type:'text/javascript'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dts_sportdb.js';
   a.click();
 }
 

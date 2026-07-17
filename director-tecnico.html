@@ -163,6 +163,7 @@ body{font-family:'Barlow',sans-serif;background:var(--dark);color:var(--tx);min-
 .pcircle.empty{border-style:dashed;border-color:rgba(246,211,24,.35);background:rgba(3,23,46,.4)}
 .pcircle:hover{border-color:#fff;transform:scale(1.1)}
 .pcircle.sel-slot{border-color:var(--gold);background:rgba(246,211,24,.12);transform:scale(1.12);box-shadow:0 0 14px rgba(246,211,24,.3)}
+.pcircle.edit-slot{border-color:var(--pur);border-style:dashed;background:rgba(176,110,245,.12)}
 .pslot-lbl{font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap;font-family:'Barlow Condensed',sans-serif}
 .ps-name{font-size:8px;color:var(--t2);max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .ps-pos{font-size:9px;font-family:'Barlow Condensed',sans-serif;color:var(--gold);font-weight:700}
@@ -270,6 +271,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .ph-prow:hover{background:rgba(255,255,255,.05)}
 </style>
 <script src="players-db.js" onerror="window.PLAYERS_DB=window.PLAYERS_DB||[]"></script>
+<script src="dts-db.js" onerror="window.DTS_DB=window.DTS_DB||[]"></script>
 </head>
 <body>
 
@@ -516,7 +518,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
       </div>
     </div>
     <!-- hidden pitch elements needed by rFormation/autoFill -->
-    <div style="display:none"><div id="pitchSlots"></div><div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div></div>
+    <div style="display:none"><div id="pitchSlots"></div><div id="roleBox"></div>
+      <div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div></div>
 
     <!-- MERCADO -->
     <div id="tab-mkt" class="tc">
@@ -2751,6 +2754,11 @@ const FORMS = {
   '4-5-1':[{x:50,y:90,pos:'ARQ',lbl:'ARQ'},{x:14,y:70,pos:'DFD',lbl:'LD'},{x:36,y:74,pos:'DFC',lbl:'DFC'},{x:64,y:74,pos:'DFC',lbl:'DFC'},{x:86,y:70,pos:'DFI',lbl:'LI'},{x:10,y:40,pos:'MI',lbl:'MI'},{x:31,y:46,pos:'MC',lbl:'MC'},{x:50,y:51,pos:'MCD',lbl:'MCD'},{x:69,y:46,pos:'MC',lbl:'MC'},{x:90,y:40,pos:'MD',lbl:'MD'},{x:50,y:12,pos:'DC',lbl:'DC'}],
   '5-4-1':[{x:50,y:90,pos:'ARQ',lbl:'ARQ'},{x:9,y:69,pos:'DFD',lbl:'LD'},{x:28,y:73,pos:'DFC',lbl:'DFC'},{x:50,y:75,pos:'DFC',lbl:'DFC'},{x:72,y:73,pos:'DFC',lbl:'DFC'},{x:91,y:69,pos:'DFI',lbl:'LI'},{x:13,y:42,pos:'MI',lbl:'MI'},{x:38,y:46,pos:'MC',lbl:'MC'},{x:62,y:46,pos:'MC',lbl:'MC'},{x:87,y:42,pos:'MD',lbl:'MD'},{x:50,y:13,pos:'DC',lbl:'DC'}],
 };
+// Formación activa (soporta la Personalizada del editor)
+function getForm(){
+  if(G&&G.formation==='Personalizada'&&G.customForm&&G.customForm.length===11) return G.customForm;
+  return FORMS[G&&G.formation]||FORMS['4-3-3'];
+}
 // Sesgo táctico de cada formación (afecta la sim)
 const FORM_BIAS = {
   '4-2-3-1':{atk:0.01,def:0.01},'4-3-3':{atk:0.03,def:-0.01},'4-4-2':{atk:0,def:0},
@@ -2785,6 +2793,45 @@ const DT_TRAIT_FX = {
   'Líder':      {icon:'💪', fx:'Moral del plantel más estable'},
   'Técnico':    {icon:'🎩', fx:'Juego vistoso, más goles'},
 };
+// ═══ POOL MUNDIAL DE DTs: los curados (libres) + los extraídos (con club y contrato) ═══
+function ensureDtPool(){
+  if(!G)return;
+  if(G.dtPool&&G.dtPool.length)return;
+  const seedN=s=>s.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const TR=['Ofensivo','Defensivo','Equilibrado','Moderno','Táctico','Intenso','Formador','Copero','Guerrero','Analítico','Pragmático','Técnico'];
+  const ST=['4-3-3','4-4-2','4-2-3-1','3-5-2','5-3-2','4-3-1-2'];
+  const POSL=['DC','MCD','DFC','EI','MCO','ED','MC'];
+  G.dtPool=[];
+  DTS.forEach(d=>G.dtPool.push(Object.assign({},d,{club:null,until:0})));
+  (window.DTS_DB||[]).forEach(r=>{
+    const [name,age,nat,club,league]=r;
+    if(G.dtPool.some(d=>d.name===name))return;
+    const s=seedN(name);
+    const lgPow={'Premier':12,'España':11,'Italia':10,'Alemania':10,'Francia':9,'Brasil':7,'Portugal':7,'Turquía':6,'Grecia':5,'Holanda':6,'MLS':5,'Liga MX':5,'Liga ARG':5}[league]||3;
+    G.dtPool.push({
+      name,age:age||45+s%20,nat:nat||'—',
+      rat:Math.min(90,64+lgPow+s%8),
+      style:ST[s%ST.length],trait:TR[s%TR.length],
+      str:'DT de '+club,salary:Math.round((30+lgPow*12+s%30)),
+      wantedPos:[POSL[s%POSL.length],POSL[(s+3)%POSL.length]],
+      philosophy:'Su libreto en '+club,
+      club,league,until:2026+1+s%2,
+    });
+  });
+}
+// Exigencias del DT al negociar (lo que él te pide)
+function dtDemands(d){
+  const dem=[];
+  (d.wantedPos||[]).slice(0,2).forEach(p=>dem.push(`Fichar un ${p} de jerarquía`));
+  if(d.trait==='Formador')dem.push('Inversión fuerte en juveniles');
+  else if(d.trait==='Copero')dem.push('Plantel largo para jugar las copas');
+  else if(d.trait==='Ofensivo'||d.trait==='Moderno')dem.push('Jugadores rápidos por las bandas');
+  else if(d.trait==='Defensivo'||d.trait==='Pragmático')dem.push('Un líder de experiencia atrás');
+  else dem.push('Respaldo público del presidente');
+  return dem;
+}
+const DT_OBJECTIVES=['Ganar la Liga','Ganar una Copa','Terminar Top 4','Promover 2 juveniles','Juego ofensivo'];
+
 function dtTraitBadge(dt){
   const t = DT_TRAIT_FX[dt.trait]||{icon:'🎯',fx:''};
   return `<span class="vbadge" title="${t.fx}">${t.icon} ${dt.trait}</span>`;
@@ -3605,7 +3652,7 @@ function posPenalty(pos, slotPos){
 }
 function autoFill(){
   G.slots = {};
-  const sl = FORMS[G.formation];
+  const sl = getForm();
   const used = new Set();
   // El DT arma el 11 respetando puestos: mejor score = rating − penalización
   sl.forEach((s,i) => {
@@ -4540,22 +4587,36 @@ function subNegSellInput(i){ subNegSellI(i); }function subNegSell(){}
 function rFormation(){
   const el = document.getElementById('pitchSlots');
   if(!el||!G) return;
-  const sl = FORMS[G.formation]||FORMS['4-3-3'];
+  const sl = getForm();
+  const edit=G.editMode;
   el.innerHTML = sl.map((s,i) => {
     const p = G.slots[i] ? G.squad.find(x=>x.id===G.slots[i]) : null;
     const isSel = selSlot===i;
+    const role=(G.slotRoles||{})[i];
     return `
-      <div class="pslot" style="left:${s.x}%;top:${s.y}%" onclick="clickSlot(${i})">
-        <div class="pcircle ${p?'':'empty'}${isSel?' sel-slot':''}">
-          ${p
+      <div class="pslot" style="left:${s.x}%;top:${s.y}%;${edit?'cursor:grab;':''}"
+        ${edit?`onpointerdown="startDragSlot(event,${i})" ondblclick="cyclePosSlot(${i})"`:`onclick="clickSlot(${i})"`}>
+        <div class="pcircle ${p?'':'empty'}${isSel?' sel-slot':''}${edit?' edit-slot':''}">
+          ${p&&!edit
             ? `<div class="ps-rat" style="color:${p.rat>=85?'var(--pur)':p.rat>=80?'var(--green)':p.rat>=75?'var(--gold)':p.rat>=70?'var(--ora)':'var(--t2)'}">${p.rat}</div><div class="ps-name">${p.name.split(' ').pop().substr(0,7)}</div>`
             : `<div class="ps-pos">${s.lbl}</div>`
           }
         </div>
-        <div class="pslot-lbl">${s.lbl}</div>
+        <div class="pslot-lbl">${s.lbl}${role?` · <span style="color:var(--pur)">${role}</span>`:''}</div>
       </div>
     `;
   }).join('');
+  // Selector de rol para el slot seleccionado
+  const roleBox=document.getElementById('roleBox');
+  if(roleBox){
+    if(typeof selSlot==='number'&&sl[selSlot]){
+      const grp=pgr(sl[selSlot].pos);
+      const opts=SLOT_ROLES[grp]||[];
+      const cur=(G.slotRoles||{})[selSlot];
+      roleBox.innerHTML=`<div style="font-size:10px;color:var(--t3);margin:6px 0 4px">🎭 ROL del puesto ${sl[selSlot].lbl}:</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${opts.map(r=>`<button class="btn bs ${cur===r?'bg':'bo'}" onclick="setSlotRole(${selSlot},'${r}')" style="font-size:10px">${r}</button>`).join('')}</div>`;
+    }else roleBox.innerHTML='';
+  }
   rBench();
 }
 
@@ -4612,7 +4673,7 @@ function clickSlot(idx){
 
 function openSubPicker(idx){
   if(!G) return;
-  const s = FORMS[G.formation][idx];
+  const s = getForm()[idx];
   const cur = G.squad.find(x=>x.id===G.slots[idx]);
   if(!cur) return;
   const bench = G.bench.slice().sort((a,b)=>{
@@ -4685,7 +4746,7 @@ function clickBench(pid){
 function openSlotPicker(idx){
   if(!G) return;
   selSlot = null;
-  const s = FORMS[G.formation][idx];
+  const s = getForm()[idx];
   const avail = G.squad.filter(p=>!Object.values(G.slots).includes(p.id)).sort((a,b)=>b.rat-a.rat);
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
@@ -4714,7 +4775,7 @@ function assignSlot(idx, pid){
 function rXI(){
   const el = document.getElementById('xi');
   if(!el||!G) return;
-  const sl = FORMS[G.formation]||FORMS['4-3-3'];
+  const sl = getForm();
   el.innerHTML = sl.map((s,i) => {
     const p = G.slots[i] ? G.squad.find(x=>x.id===G.slots[i]) : null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
@@ -4730,7 +4791,78 @@ function rFBtns(){
   if(!el||!G) return;
   el.innerHTML = Object.keys(FORMS).map(f=>`
     <button class="btn bs ${G.formation===f?'bg':'bo'}" onclick="setForm('${f}')">${f}</button>
-  `).join('');
+  `).join('')
+  +(G.customForm?`<button class="btn bs ${G.formation==='Personalizada'?'bg':'bo'}" onclick="setForm('Personalizada')">⭐ Personalizada</button>`:'')
+  +`<button class="btn bs ${G.editMode?'bG':'bo'}" onclick="toggleFormEditor()" style="border-color:var(--pur);color:${G.editMode?'#fff':'var(--pur)'}">${G.editMode?'💾 GUARDAR':'✏️ EDITOR LIBRE'}</button>`;
+}
+
+// ═══ EDITOR DE FORMACIÓN LIBRE: arrastrá cada posición donde quieras ═══
+const EDIT_POS_CYCLE=['DFC','DFI','DFD','MCD','MC','MCO','MI','MD','EI','ED','DC'];
+function toggleFormEditor(){
+  if(!G)return;
+  if(G.editMode){
+    // GUARDAR: la formación editada queda como "Personalizada"
+    G.editMode=false;
+    G.formation='Personalizada';
+    autoFill();
+    flash('💾 Formación personalizada guardada','win');
+  }else{
+    // Entrar al editor partiendo de la formación actual
+    G.customForm=JSON.parse(JSON.stringify(getForm()));
+    G.customForm.forEach(s=>{if(!s.lbl)s.lbl=s.pos;});
+    G.formation='Personalizada';
+    G.editMode=true;
+    flash('✏️ EDITOR: arrastrá las fichas · doble click cambia la posición','draw');
+  }
+  rFBtns();rFormation();rXI();
+}
+function cyclePosSlot(idx){
+  if(!G||!G.editMode||idx===0)return; // el arquero no cambia
+  const s=G.customForm[idx];
+  const cur=EDIT_POS_CYCLE.indexOf(s.pos);
+  s.pos=EDIT_POS_CYCLE[(cur+1)%EDIT_POS_CYCLE.length];
+  s.lbl=s.pos;
+  rFormation();
+}
+let _dragSlot=null;
+function startDragSlot(e,idx){
+  if(!G||!G.editMode||idx===0)return;
+  e.preventDefault();
+  _dragSlot=idx;
+  const pitch=document.getElementById('pitchSlots');
+  const move=ev=>{
+    if(_dragSlot===null)return;
+    const r=pitch.getBoundingClientRect();
+    const x=Math.max(4,Math.min(96,((ev.clientX-r.left)/r.width)*100));
+    const y=Math.max(4,Math.min(84,((ev.clientY-r.top)/r.height)*100));
+    G.customForm[_dragSlot].x=Math.round(x);
+    G.customForm[_dragSlot].y=Math.round(y);
+    const el=pitch.children[_dragSlot];
+    if(el){el.style.left=x+'%';el.style.top=y+'%';}
+  };
+  const up=()=>{
+    _dragSlot=null;
+    document.removeEventListener('pointermove',move);
+    document.removeEventListener('pointerup',up);
+    rFormation();
+  };
+  document.addEventListener('pointermove',move);
+  document.addEventListener('pointerup',up);
+}
+
+// ═══ ROLES POR JUGADOR (para los tácticos) ═══
+const SLOT_ROLES={
+  ARQ:['Clásico','Líbero'],
+  DEF:['Marcador','Salida limpia','Lateral ofensivo'],
+  MED:['Organizador','Destructor','Box-to-box','Enganche libre'],
+  DEL:['Punta fija','Móvil','Falso 9'],
+};
+function setSlotRole(idx,role){
+  if(!G)return;
+  if(!G.slotRoles)G.slotRoles={};
+  G.slotRoles[idx]=role;
+  rFormation();
+  flash('🎭 Rol: '+role,'draw');
 }
 
 function setForm(f){
@@ -5134,6 +5266,9 @@ function rStaff(){
       <div style="font-size:10px;color:var(--t3)">${G.dt.str}</div></div>
     </div>
     <div class="sr"><span class="sl">Sueldo</span><span class="sv" style="color:var(--red)">$${G.dt.salary}K/sem</span></div>
+    ${G.dt.contract?`<div class="sr"><span class="sl">Contrato hasta</span><span class="sv">${G.dt.contract.until}</span></div>
+    <div class="sr"><span class="sl">Cláusula</span><span class="sv">${G.dt.contract.clause}</span></div>
+    <div class="sr"><span class="sl">Objetivos</span><span class="sv" style="font-size:9px">${(G.dt.contract.objectives||[]).join(' · ')||'—'}</span></div>`:''}
     <div class="sr"><span class="sl">Especialidad</span><span class="sv">${dtTraitBadge(G.dt)}</span></div>
     <div style="font-size:10px;color:var(--green);margin-top:4px">✦ ${(DT_TRAIT_FX[G.dt.trait]||{fx:'Sin bono especial'}).fx}</div>
     <div style="font-size:9px;color:var(--t3);margin-top:6px;font-family:'Barlow Condensed';text-transform:uppercase">Perfil táctico (se ve en la simulación)</div>
@@ -5176,33 +5311,131 @@ function rStaff(){
     '<div style="font-size:9px;color:var(--t3)">Creá tu propio perfil de DT con tus preferencias</div></div>' +
     '<button class="btn bg bs" onclick="openCustomDTModal()">Crear</button>' +
     '</div></div>' +
-    DTS.filter(d=>d.name!==G.dt.name).map(d=>`
+    (ensureDtPool(),G.dtPool).filter(d=>d.name!==G.dt.name).sort((a,b)=>b.rat-a.rat).slice(0,40).map(d=>`
       <div class="card" style="margin-bottom:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
           <div>
             <div style="font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:13px">${d.name}</div>
-            <div style="font-size:9px;color:var(--t3)">${d.nat} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span></div>
+            <div style="font-size:9px;color:var(--t3)">${d.nat} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span> · ${d.club?`<span style="color:var(--ora)">📍 ${d.club}</span>`:'<span style="color:var(--green)">LIBRE</span>'}</div>
             <div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${rb(d.rat)}${dtTraitBadge(d)}</div>
             <div style="font-size:9px;color:var(--green);margin-top:2px">✦ ${(DT_TRAIT_FX[d.trait]||{fx:''}).fx}</div>
             ${dtProfBars(d)}
           </div>
-          <button class="btn bg bs" onclick="hireDT('${d.name}')">Contratar</button>
+          <button class="btn bg bs" onclick="openDtNeg('${d.name.replace(/'/g,"\\'")}')">🤝 Negociar</button>
         </div>
       </div>
     `).join('');
 }
 
-function fireDT(){ if(!G) return; lg('🚪','DT '+G.dt.name+' despedido'); G.dt=DTS[1]; rStaff(); updateUI(); flash('DT despedido','draw'); }
-function hireDT(name){
-  if(!G) return;
-  const d = DTS.find(x=>x.name===name);
-  if(!d) return;
-  G.budget = Math.round((G.budget - Math.round(d.salary*4/1000*10)/10)*10)/10;
-  G.dt = d;
-  if(FORMS[d.style]){ G.formation=d.style; autoFill(); }
-  lg('🤝','DT: '+d.name);
-  rStaff(); updateUI();
-  flash('✅ '+d.name+' contratado!','win');
+function fireDT(){
+  if(!G)return;
+  const cl=(G.dt.contract&&G.dt.contract.clause)||'media';
+  const weeks=cl==='baja'?10:cl==='alta'?35:20;
+  const cost=Math.round(G.dt.salary*weeks/1000*10)/10;
+  const pj=G.wins+G.draws+G.losses;
+  const ppg=pj?(G.wins*3+G.draws)/pj:1.5;
+  const justified=ppg<1.2&&pj>=5;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🚪 Despedir a ${G.dt.name}</div>
+    <div class="sr"><span class="sl">Cláusula (${cl})</span><span class="sv" style="color:var(--red)">${fv(cost)}</span></div>
+    <div class="sr"><span class="sl">Rendimiento</span><span class="sv">${ppg.toFixed(2)} pts/partido en ${pj} PJ</span></div>
+    <div class="note ${justified?'G':'R'}" style="margin:8px 0">${justified?'📉 Los números lo condenan: la Junta va a respaldar el despido por bajos resultados.':'⚠️ Sus números no son malos — despedirlo sin causa va a caer pésimo en la Junta (confianza −5).'}</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn bR" onclick="confirmFireDT(${cost},${justified})">Despedir por ${fv(cost)}</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>
+  `);
+}
+function confirmFireDT(cost,justified){
+  if(G.budget<cost){flash('❌ No podés pagar la cláusula','loss');return;}
+  G.budget=Math.round((G.budget-cost)*10)/10;
+  ensureDtPool();
+  const old=G.dtPool.find(x=>x.name===G.dt.name);
+  if(old){old.club=null;old.until=0;}
+  G.boardConf=Math.max(5,(G.boardConf||50)+(justified?1:-5));
+  lg('🚪',`${G.dt.name} despedido (${fv(cost)})${justified?' por bajos resultados':''}`);
+  G.dt={name:'DT Interino',nat:'ARG',age:52,rat:62,style:G.formation||'4-4-2',str:'Interinato hasta contratar',salary:15,trait:'Equilibrado',wantedPos:['DC'],philosophy:'Aguantar el barco'};
+  closeMod();rStaff();updateUI();
+  flash('🚪 DT despedido — contratá un reemplazo','draw');
+}
+function hireDT(name){ openDtNeg(name); }
+
+// ═══ NEGOCIACIÓN DE CONTRATO CON EL DT ═══
+let _dtNeg=null;
+function openDtNeg(name){
+  if(!G)return;
+  ensureDtPool();
+  const d=G.dtPool.find(x=>x.name===name)||DTS.find(x=>x.name===name);
+  if(!d)return;
+  const buyout=d.club?Math.round(d.salary*22/1000*10)/10:0;
+  _dtNeg={name:d.name,offer:d.salary,years:2,clause:'media',objs:[]};
+  const dem=dtDemands(d);
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🤝 Negociar con ${d.name}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      ${rb(d.rat)}
+      <div><div style="font-weight:700;font-family:'Barlow Condensed';font-size:14px">${d.name}</div>
+      <div style="font-size:10px;color:var(--t2)">${d.nat} · ${d.style} · ${dtTraitBadge(d)}</div></div>
+    </div>
+    ${d.club?`<div class="note R" style="margin-bottom:8px">⚠️ Tiene contrato vigente con <b>${d.club}</b> hasta ${d.until||2027}. Para liberarlo hay que pagarle al club una compensación de <b>${fv(buyout)}</b>.</div>`:'<div class="note G" style="margin-bottom:8px">✅ Está LIBRE — no hay que pagarle a ningún club.</div>'}
+    ${dtProfBars(d)}
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin:10px 0 4px">📋 LO QUE ÉL TE PIDE</div>
+    ${dem.map(x=>`<div style="font-size:10.5px;color:var(--t2);padding:2px 0">• ${x}</div>`).join('')}
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin:10px 0 4px">💰 SUELDO SEMANAL — pide $${d.salary}K</div>
+    <input type="range" class="neg-slider" min="${Math.round(d.salary*0.6)}" max="${Math.round(d.salary*1.6)}" value="${d.salary}" oninput="_dtNeg.offer=+this.value;document.getElementById('dtOffV').textContent='$'+this.value+'K'">
+    <div class="neg-val" id="dtOffV" style="font-size:20px;padding:2px">$${d.salary}K</div>
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin:8px 0 4px">📅 DURACIÓN</div>
+    <div style="display:flex;gap:4px">${[1,2,3].map(y=>`<button class="btn bs ${y===2?'bg':'bo'} dtYearBtn" onclick="_dtNeg.years=${y};document.querySelectorAll('.dtYearBtn').forEach(b=>b.className='btn bs bo dtYearBtn');this.className='btn bs bg dtYearBtn'">${y} año${y>1?'s':''}</button>`).join('')}</div>
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin:8px 0 4px">📜 CLÁUSULA DE RESCISIÓN (lo que te cuesta echarlo)</div>
+    <div style="display:flex;gap:4px">
+      ${[['baja','Baja (10 sem)'],['media','Media (20 sem)'],['alta','Alta (35 sem)']].map(([k,l])=>`<button class="btn bs ${k==='media'?'bg':'bo'} dtClaBtn" onclick="_dtNeg.clause='${k}';document.querySelectorAll('.dtClaBtn').forEach(b=>b.className='btn bs bo dtClaBtn');this.className='btn bs bg dtClaBtn'">${l}</button>`).join('')}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Barlow Condensed';margin:8px 0 4px">🎯 OBJETIVOS DEL CLUB (elegí hasta 2 — vos se los imponés)</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      ${DT_OBJECTIVES.map(o=>`<button class="btn bs bo dtObjBtn" onclick="toggleDtObj(this,'${o}')">${o}</button>`).join('')}
+    </div>
+    <div class="note" style="margin:10px 0 8px">Compensación al club: <b style="color:var(--red)">${fv(buyout)}</b> · Presupuesto: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <button class="btn bg" onclick="confirmDtNeg(${buyout})">📩 Presentar oferta</button>
+  `);
+}
+function toggleDtObj(btn,o){
+  if(_dtNeg.objs.includes(o)){_dtNeg.objs=_dtNeg.objs.filter(x=>x!==o);btn.className='btn bs bo dtObjBtn';}
+  else if(_dtNeg.objs.length<2){_dtNeg.objs.push(o);btn.className='btn bs bg dtObjBtn';}
+  else flash('Máximo 2 objetivos','draw');
+}
+function confirmDtNeg(buyout){
+  const d=G.dtPool.find(x=>x.name===_dtNeg.name);
+  if(!d)return;
+  const total=buyout;
+  if(G.budget<total){flash('❌ No te alcanza para la compensación','loss');return;}
+  // Probabilidad: sueldo vs pedido + prestigio + cláusula alta lo seduce + objetivos duros lo asustan
+  const ratio=_dtNeg.offer/d.salary;
+  const hard=_dtNeg.objs.filter(o=>o==='Ganar la Liga'||o==='Ganar una Copa').length;
+  let prob=0.35+(ratio-1)*1.1+(G.rep>=80?0.12:G.rep>=70?0.05:0)+(_dtNeg.clause==='alta'?0.10:_dtNeg.clause==='baja'?-0.08:0)-hard*0.06+(d.club?-0.10:0.05);
+  prob=Math.max(0.05,Math.min(0.95,prob));
+  if(Math.random()>prob){
+    const counter=Math.round(d.salary*(1.05+Math.random()*0.25));
+    lg('🤝',`${d.name} rechazó la oferta (pide ~$${counter}K)`);
+    flash(`❌ ${d.name} rechazó — quiere ~$${counter}K y menos presión`,'loss');
+    closeMod();
+    return;
+  }
+  // ACEPTA: pagar compensación, liberar clubes, firmar contrato completo
+  G.budget=Math.round((G.budget-total)*10)/10;
+  if(G.dt&&G.dt.name&&!G.dt.custom){
+    const old=G.dtPool.find(x=>x.name===G.dt.name);
+    if(old){old.club=null;old.until=0;}
+  }
+  if(d.club)lg('💸',`Compensación de ${fv(buyout)} pagada a ${d.club}`);
+  d.club=G.teamName;d.until=2026+_dtNeg.years;
+  G.dt=Object.assign({},d,{salary:_dtNeg.offer,contract:{salary:_dtNeg.offer,until:2026+_dtNeg.years,clause:_dtNeg.clause,objectives:[..._dtNeg.objs],demands:dtDemands(d)}});
+  if(FORMS[d.style]){G.formation=d.style;autoFill();}
+  lg('🤝',`${d.name} firmó hasta ${2026+_dtNeg.years} ($${_dtNeg.offer}K/sem, cláusula ${_dtNeg.clause})`);
+  addPhoneMsg('dt',d.name,`Presidente, acepto el desafío. Mis pedidos quedan sobre la mesa: ${dtDemands(d).join(', ')}. Y asumo sus objetivos: ${_dtNeg.objs.join(' y ')||'los que marque el club'}. A trabajar.`,'🤝');
+  closeMod();rStaff();updateUI();
+  flash('✅ '+d.name+' firmó por '+_dtNeg.years+' año(s)','win');
 }
 
 let _cdtPos = [];
@@ -5234,6 +5467,17 @@ function openCustomDTModal(){
         ${traits.map(t=>`<option${t===curTrait?' selected':''}>${t}</option>`).join('')}
       </select>
     </div>
+    <div style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t2);margin-bottom:4px">🎛️ TU IDEA DE JUEGO (perfil táctico manual — se ve en la simulación)</div>
+      ${[['press','Presión'],['line','Línea alta'],['width','Amplitud'],['tempo','Tempo'],['direct','Juego directo'],['counter','Contragolpe']].map(([k,l])=>{
+        const cur=editing&&G.dt.customProf?Math.round((G.dt.customProf[k]||0.5)*100):50;
+        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="width:88px;font-size:10px;color:var(--t2)">${l}</span>
+          <input type="range" min="0" max="100" value="${cur}" class="neg-slider cdtProf" data-k="${k}" style="flex:1;margin:0" oninput="this.nextElementSibling.textContent=this.value">
+          <span style="width:24px;text-align:right;font-size:10px;color:var(--gold)">${cur}</span>
+        </div>`;
+      }).join('')}
+    </div>
     <div style="margin-bottom:14px">
       <div style="font-size:10px;color:var(--t2);margin-bottom:4px">POSICIONES A REFORZAR (hasta 3)</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap" id="cdtPosGrid">
@@ -5255,7 +5499,9 @@ function confirmCustomDT(){
   const wantedPos=_cdtPos.length?[..._cdtPos]:['MCD','DC','DFC'];
   _cdtPos=[];
   const editing = G && G.dt && G.dt.custom;
-  G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true};
+  const customProf={};
+  document.querySelectorAll('.cdtProf').forEach(sl=>{customProf[sl.dataset.k]=(+sl.value)/100;});
+  G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true,customProf};
   if(FORMS[style]){ G.formation=style; autoFill(); }
   rStaff(); closeMod(); updateUI();
   flash(editing ? '💾 DT actualizado: '+name : '✅ DT Personalizado: '+name,'win');
@@ -5324,7 +5570,7 @@ function rDtXI(){
   const el=document.getElementById('dtXiList');
   if(!el||!G) return;
   autoFill();
-  const sl=FORMS[G.formation]||FORMS['4-3-3'];
+  const sl=getForm();
   const tc=TEAMS[G.teamId||'boca'];
   const clr=tc?.color||'#003087';
   // Mini pitch SVG
@@ -6808,6 +7054,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyOffers();
   weeklyChats();
   weeklyAITransfers();
+  weeklyDtMoves();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -9078,7 +9325,7 @@ function fmInit(m,W,H){
   // Use actual formation from G.formation — convert FORMS % positions to canvas coords
   // FORMS: x=width%, y=depth% (y=100 = own goal, y=0 = opponent goal)
   // Canvas: x=left→right (depth), y=top→bottom (width)
-  const form=(FORMS[G.formation]||FORMS['4-3-3']).slice(0,11);
+  const form=(getForm()).slice(0,11);
   while(form.length<11)form.push({x:50,y:50,pos:'MC',lbl:'MC'});
   // Full-field home positions (for AI drift-back target during play)
   const toMyXY=s=>[leftGL+((100-s.y)/100)*fw, (s.x/100)*VH];
@@ -9153,7 +9400,11 @@ function fmInit(m,W,H){
     phase:'kickoff',phaseT:0,
     raf:0,lastTs:0,
     ball:{x:VW/2,y:VH/2,vx:0,vy:0,air:0},
-    my:myXI.map((p,i)=>mkP(myPos[i],fullMyPos[i],form[i].pos,p.name,p.rat||72,myKit,true,p)),
+    my:myXI.map((p,i)=>{
+      const pl=mkP(myPos[i],fullMyPos[i],form[i].pos,p.name,p.rat||72,myKit,true,p);
+      if(G.slotRoles&&G.slotRoles[i])pl.roleStyle=G.slotRoles[i];
+      return pl;
+    }),
     opp:oNms.map((n,i)=>mkP(oppPos[i],fullOppPos[i],form[i].pos,n,S.oppRat+(Math.random()*10-5),oppKit,false,null,i+1)),
     ctrl:10,
     charging:false,power:0,
@@ -9933,6 +10184,11 @@ function fmSwitch(){
 
 // ═══ PERFIL TÁCTICO DEL DT: números reales que dirigen al equipo en la simulación ═══
 function dtProfile(dt){
+  // DT personalizado con perfil manual: TU idea de juego manda
+  if(dt&&dt.customProf){
+    const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5,counter:.5,flank:.5,cyn:.5,disc:.5};
+    return Object.assign(base,dt.customProf);
+  }
   const t=(dt&&dt.trait)||'Equilibrado';
   const style=(dt&&dt.style)||'4-4-2';
   const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5,counter:.5,flank:.5,cyn:.5,disc:.5};
@@ -9995,7 +10251,7 @@ function fmAI(p,team,idx,dt){
       fmMove(p,b.x-p.x,b.y-p.y,dt,0.095);
       if(bd<170&&Math.hypot(b.vx,b.vy)>3.2&&!(p._diveT>0))p._diveT=12;
     } else {
-      let fwdFrac=0.07+(prof.line-0.5)*0.10;
+      let fwdFrac=0.07+(prof.line-0.5)*0.10+(p.roleStyle==='Líbero'?0.08:0);
       if(ballGoalDist<fieldW*0.5)
         fwdFrac+=Math.max(0,1-ballGoalDist/(fieldW*0.5))*0.14;
       if(ballInBox){
@@ -10109,10 +10365,11 @@ function fmAI(p,team,idx,dt){
   const dists=[];
   players.forEach((q,i)=>{
     if(q.isGK)return;
-    const w=['DC','CF'].includes(q.role)?(1.35-prof.press*0.25)
+    let w=['DC','CF'].includes(q.role)?(1.35-prof.press*0.25)
           :['EI','ED'].includes(q.role)?(1.2-prof.press*0.2)
           :['DFC','DFI','DFD','LD','LI'].includes(q.role)?0.92
           :1.0;
+    if(q.roleStyle==='Destructor')w*=0.82;
     dists.push({i,d:Math.hypot(q.x-b.x,q.y-b.y)*w});
   });
   dists.sort((a,bb)=>a.d-bb.d);
@@ -10142,7 +10399,9 @@ function fmAI(p,team,idx,dt){
   // POSICIÓN BASE según el perfil del DT (línea + amplitud), sin salirse del campo
   const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
   const atkPush=(weHave||iHave)?1.25:theyHave?0.7:1.0;
-  const fwdShift=Math.max(-fieldW*.08,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28)*atkPush);
+  let fwdShift=Math.max(-fieldW*.08,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28)*atkPush);
+  if(p.roleStyle==='Lateral ofensivo'&&(weHave||iHave))fwdShift+=fieldW*0.06;
+  if(p.roleStyle==='Box-to-box')fwdShift*=1.25;
   const homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,p.hx+(attRight?fwdShift:-fwdShift)));
   let spread=(p.hy-mid)*(0.70+prof.width*0.5*(weHave?1.1:0.8));
   spread=Math.max(-f.VH*0.43,Math.min(f.VH*0.43,spread));
@@ -10212,8 +10471,9 @@ function fmAI(p,team,idx,dt){
     const chaseOk=myRank===0?dists[0].d<950:(myRank<nChasers&&dists[myRank].d<300+prof.press*320);
     if(myRank>=0&&myRank<Math.max(1,nChasers)&&chaseOk){
       if(myRank===0){
-        // Presionador principal: va al portador
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
+        // Presionador principal: va al portador (Marcador/Destructor más intensos)
+        const roleAcc=(p.roleStyle==='Marcador'||p.roleStyle==='Destructor')?1.08:1;
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*roleAcc*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
         // Falta al gambeteador (solo vs humano)
         if(!f.watch&&!isM){
           const cp4=f.my[f.ctrl];
@@ -10276,7 +10536,9 @@ function fmAI(p,team,idx,dt){
       // y tirar diagonales — nunca clavados en el offside
       let offX=attRight?f.leftGL:f.rightGL;
       rivals.forEach(q=>{if(!q.isGK)offX=attRight?Math.max(offX,q.x):Math.min(offX,q.x);});
-      const cyc=Math.sin(f.ticks*0.018+idx*2.1);
+      let cyc=Math.sin(f.ticks*0.018+idx*2.1);
+      if(p.roleStyle==='Punta fija')cyc+=0.35;
+      if(p.roleStyle==='Móvil'||p.roleStyle==='Falso 9')cyc-=0.4;
       if(cyc>0.25&&ballPct>0.35){
         // Desmarque al espacio: al filo del offside
         tx=attRight?Math.min(Math.max(homeX,offX-120),offX-12):Math.max(Math.min(homeX,offX+120),offX+12);
@@ -10338,7 +10600,8 @@ function fmTeamPass(team,fromIdx){
     // Bandas: DTs de bandas buscan receptores abiertos; los de centro, por adentro
     const wideness=Math.abs(t.y-mid5)/(f.VH/2);
     const flankBias=((prof.flank||0.5)-0.5)*70*wideness-((0.5-(prof.flank||0.5))*40*wideness);
-    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+(isWall?30+((prof.tempo||0.5)*25):0)+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
+    const roleBonus=(t.roleStyle==='Organizador')?20:(t.roleStyle==='Salida limpia'&&recvOwnDist<fieldW*0.4)?12:0;
+    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+roleBonus+(isWall?30+((prof.tempo||0.5)*25):0)+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
     if(score>bestScore){bestScore=score;bestI=i;}
   });
   if(bestI>=0){
@@ -11562,6 +11825,33 @@ function weeklyAITransfers(){
     p.val=Math.round(p.val*1.12*10)/10; // el pase lo revaloriza
     lg('💸',`${buyClub} fichó a ${p.name} (${oldClub}) por ${fv(fee)}`);
     if(fee>=12)addPhoneMsg('agent','Mercado de pases',`💸 Bomba del mercado: <b>${buyClub}</b> se llevó a <b>${p.name}</b> desde ${oldClub} por <b style="color:var(--gold)">${fv(fee)}</b>.`,'📰');
+  }
+}
+
+// ═══ CARRUSEL DE DTs: los otros clubes también despiden y contratan ═══
+function weeklyDtMoves(){
+  ensureDtPool();
+  if(!G.dtPool||G.dtPool.length<4)return;
+  // Un club echa a su DT por resultados
+  if(Math.random()<0.10){
+    const emp=G.dtPool.filter(d=>d.club&&d.club!==G.teamName);
+    if(emp.length){
+      const d=emp[~~(Math.random()*emp.length)];
+      lg('🚪',`${d.club} despidió a ${d.name} por malos resultados`);
+      if(Math.random()<0.4)addPhoneMsg('agent','Mercado de DTs',`🚪 <b>${d.club}</b> despidió a <b>${d.name}</b>. Queda libre — puede ser una oportunidad.`,'📰');
+      d.club=null;d.until=0;
+    }
+  }
+  // Un club contrata a un DT libre
+  if(Math.random()<0.10){
+    const free=G.dtPool.filter(d=>!d.club&&d.name!==(G.dt&&G.dt.name));
+    const clubs=[...new Set((window.PLAYERS_DB||[]).map(r=>r[5]))].filter(c=>c!==G.teamName);
+    if(free.length&&clubs.length){
+      const d=free[~~(Math.random()*free.length)];
+      const c=clubs[~~(Math.random()*clubs.length)];
+      d.club=c;d.until=2027+~~(Math.random()*2);
+      lg('🤝',`${c} contrató a ${d.name} como nuevo DT`);
+    }
   }
 }
 
