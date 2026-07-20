@@ -9863,7 +9863,7 @@ function fmTick(dt){
         f.adapt.mark=Math.min(1,((L.dribbleTicks/60)/acts)*1.5)*0.6+f.adapt.mark*0.4;
       }
       if(L.shots>=3) f.adapt.gkDeep=Math.min(1,L.longShots/L.shots)*0.6+f.adapt.gkDeep*0.4;
-      if(f.minute===30||f.minute===60) fmMsg('👁 EL RIVAL\nTE ESTÁ ESTUDIANDO');
+      if(!f.watch&&(f.minute===30||f.minute===60)) fmMsg('👁 EL RIVAL\nTE ESTÁ ESTUDIANDO');
     }
   }
   if(!f.watch){if(k.tab&&!f.tabWas){f.tabWas=1;fmSwitch();}else if(!k.tab)f.tabWas=0;}
@@ -10396,13 +10396,22 @@ function fmAI(p,team,idx,dt){
     fmSndKick(0.6);
   }
 
-  // POSICIÓN BASE según el perfil del DT (línea + amplitud), sin salirse del campo
+  // ═══ BLOQUE COMPACTO REAL: el equipo ENTERO se mueve con la pelota ═══
+  // Un equipo de verdad ocupa ~35-40% de la cancha y el bloque se desplaza junto:
+  // los delanteros bajan a defender, los defensores suben al atacar.
   const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-  const atkPush=(weHave||iHave)?1.25:theyHave?0.7:1.0;
-  let fwdShift=Math.max(-fieldW*.08,(ballPct-0.38)*fieldW*(0.18+prof.line*0.28)*atkPush);
-  if(p.roleStyle==='Lateral ofensivo'&&(weHave||iHave))fwdShift+=fieldW*0.06;
-  if(p.roleStyle==='Box-to-box')fwdShift*=1.25;
-  const homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,p.hx+(attRight?fwdShift:-fwdShift)));
+  const dirF=attRight?1:-1;
+  // Profundidad del jugador DENTRO del bloque (0=último defensor, 1=punta)
+  const depth01=Math.max(0.06,Math.min(0.97,attRight?(p.hx-f.leftGL)/fieldW:(f.rightGL-p.hx)/fieldW));
+  // Largo del bloque: compacto sin pelota, estirado con pelota o línea alta
+  const blockLen=fieldW*(0.32+prof.line*0.10+((weHave||iHave)?0.10:theyHave?0:0.04));
+  // Centro del bloque: pegado a la pelota — adelantado si la tenemos, replegado si no
+  let bCen=b.x+dirF*((weHave||iHave)?fieldW*0.06:theyHave?-fieldW*0.09:-fieldW*0.02);
+  bCen=Math.max(f.leftGL+blockLen*0.45+26,Math.min(f.rightGL-blockLen*0.45-26,bCen));
+  let hx2=bCen+dirF*(depth01-0.5)*blockLen;
+  if(p.roleStyle==='Lateral ofensivo'&&(weHave||iHave))hx2+=dirF*fieldW*0.05;
+  if(p.roleStyle==='Box-to-box')hx2+=dirF*(depth01-0.5)*blockLen*0.35;
+  const homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,hx2));
   let spread=(p.hy-mid)*(0.70+prof.width*0.5*(weHave?1.1:0.8));
   spread=Math.max(-f.VH*0.43,Math.min(f.VH*0.43,spread));
   let homeY=mid+spread+(b.y-mid)*(theyHave?0.22:0.10);
@@ -10510,7 +10519,7 @@ function fmAI(p,team,idx,dt){
       if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
         ty=Math.max(40,Math.min(f.VH-40,ty+ad.laneShift*f.VH*0.11));
       }
-      fmMove(p,tx-p.x+sepX*0.55,ty-p.y+sepY*0.55,dt,0.048);
+      fmMove(p,tx-p.x+sepX*0.55,ty-p.y+sepY*0.55,dt,0.058);
     }
   } else if(weHave){
     // ═══ MI EQUIPO LA TIENE: NADIE persigue — abrirse y dar opciones de pase ═══
@@ -10522,7 +10531,7 @@ function fmAI(p,team,idx,dt){
       ds.sort((a,bb)=>a.d-bb.d);
       supRank=ds.findIndex(dd=>dd.i===idx);
     }
-    let tx=homeX,ty=homeY,acc2=0.050;
+    let tx=homeX,ty=homeY,acc2=0.058;
     if(carrier&&supRank>=0&&supRank<2){
       // Apoyo cercano: diagonal adelantada respecto al portador
       const dc=Math.hypot(p.x-carrier.x,p.y-carrier.y);
@@ -10540,8 +10549,9 @@ function fmAI(p,team,idx,dt){
       if(p.roleStyle==='Punta fija')cyc+=0.35;
       if(p.roleStyle==='Móvil'||p.roleStyle==='Falso 9')cyc-=0.4;
       if(cyc>0.25&&ballPct>0.35){
-        // Desmarque al espacio: al filo del offside
-        tx=attRight?Math.min(Math.max(homeX,offX-120),offX-12):Math.max(Math.min(homeX,offX+120),offX+12);
+        // Desmarque al espacio: al filo del offside, pero sin divorciarse del bloque
+        const maxAhead=homeX+dirF*fieldW*0.10;
+        tx=attRight?Math.min(offX-12,Math.max(homeX,Math.min(maxAhead,offX-12))):Math.max(offX+12,Math.min(homeX,Math.max(maxAhead,offX+12)));
         ty=homeY+Math.sin(f.ticks*.045+idx*3)*60;
         acc2=0.058;
       }else if(cyc<-0.3&&f.poss){
