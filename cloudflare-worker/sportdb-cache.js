@@ -21,6 +21,10 @@
 //
 // api=tmapi → proxy a transfermarkt-api.fly.dev (API LIBRE, sin key,
 // no gasta créditos de SportDB). Sirve para completar nacionalidades.
+//
+// api=tmcoach&path=/verein/131 → baja la página del club en
+// transfermarkt.com y extrae el DT del HTML. Gratis, sin key.
+// Devuelve {coach:{name,id}} o {coach:null}.
 // ═══════════════════════════════════════════════════════════════
 
 const DEFAULT_TTL = 60 * 60 * 24 * 30; // 30 días — los valores TM cambian pocas veces por temporada
@@ -44,11 +48,11 @@ export default {
     const ttl = Math.max(300, parseInt(u.searchParams.get('ttl') || DEFAULT_TTL, 10));
     const fresh = u.searchParams.get('fresh') === '1';
 
-    if (!key && api !== 'tmapi') {
+    if (!key && api !== 'tmapi' && api !== 'tmcoach') {
       return json({ error: 'Missing API key' }, 400);
     }
-    if (api !== 'transfermarkt' && api !== 'flashscore' && api !== 'tmapi') {
-      return json({ error: 'api debe ser transfermarkt, flashscore o tmapi' }, 400);
+    if (!['transfermarkt', 'flashscore', 'tmapi', 'tmcoach'].includes(api)) {
+      return json({ error: 'api debe ser transfermarkt, flashscore, tmapi o tmcoach' }, 400);
     }
 
     // La clave de caché NO incluye la API key: si cambiás de cuenta
@@ -69,21 +73,60 @@ export default {
     // 2. No está: consultar el upstream
     //    - transfermarkt/flashscore → SportDB (gasta 1 crédito)
     //    - tmapi → transfermarkt-api.fly.dev (gratis, sin key)
-    const upstream = api === 'tmapi'
-      ? `https://transfermarkt-api.fly.dev${path}`
-      : `https://api.sportdb.dev/api/${api}${path}`;
-    let res;
-    try {
-      res = await fetch(upstream, {
-        headers: api === 'tmapi'
-          ? { 'Accept': 'application/json' }
-          : { 'X-API-Key': key, 'Accept': 'application/json' },
-      });
-    } catch (e) {
-      return json({ error: 'Upstream: ' + e.message }, 502);
-    }
+    //    - tmcoach → transfermarkt.com (HTML del club, gratis, sin key)
+    let res, text;
 
-    const text = await res.text();
+    if (api === 'tmcoach') {
+      const idm = path.match(/(\d+)/);
+      if (!idm) return json({ error: 'path debe incluir el id del club' }, 400);
+      try {
+        res = await fetch(`https://www.transfermarkt.com/-/startseite/verein/${idm[1]}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        });
+      } catch (e) {
+        return json({ error: 'Upstream: ' + e.message }, 502);
+      }
+      if (res.status !== 200) {
+        return json({ error: 'TM devolvió ' + res.status, coach: null }, res.status === 404 ? 404 : 502);
+      }
+      const html = await res.text();
+      // El DT actual: primer link a /profil/trainer/{id} de la página
+      const m = html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"[^>]*>([^<]{3,60})</) ||
+                html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"/);
+      let coach = null;
+      if (m) {
+        const fromSlug = m[1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const name = (m[3] || '').trim() || fromSlug;
+        coach = { name, id: m[2] };
+      }
+      if (!coach) {
+        // No cachear los fallos: si TM bloqueó el fetch, reintentar después
+        return new Response(JSON.stringify({ coach: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'x-cache': 'MISS', ...CORS },
+        });
+      }
+      text = JSON.stringify({ coach });
+      res = { status: 200 }; // para el guardado en caché de abajo
+    } else {
+      const upstream = api === 'tmapi'
+        ? `https://transfermarkt-api.fly.dev${path}`
+        : `https://api.sportdb.dev/api/${api}${path}`;
+      try {
+        res = await fetch(upstream, {
+          headers: api === 'tmapi'
+            ? { 'Accept': 'application/json' }
+            : { 'X-API-Key': key, 'Accept': 'application/json' },
+        });
+      } catch (e) {
+        return json({ error: 'Upstream: ' + e.message }, 502);
+      }
+      text = await res.text();
+    }
 
     // 3. Guardar en KV solo respuestas exitosas y que parezcan JSON válido
     if (res.status === 200 && env.CACHE && text && text.length > 2) {

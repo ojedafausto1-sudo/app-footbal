@@ -44,6 +44,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
     <label><input type="radio" name="apiChoice" value="flashscore"> Flashscore (equipos + stats)</label>
   </div>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="fillNats" checked style="width:auto;margin:0"> Completar nacionalidades con TM-API libre (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="extractDTs" checked style="width:auto;margin:0"> Extraer DTs desde la web de Transfermarkt (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
 </div>
@@ -72,6 +73,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <button class="secondary" onclick="copyOutput()">Copiar al portapapeles</button>
   <button class="secondary" onclick="downloadOutput()">Descargar .js</button>
   <button class="secondary" onclick="downloadCSV()">Descargar .csv</button>
+  <button class="secondary" onclick="downloadDTs()">Descargar DTs (dts-db.js)</button>
   <br><br>
   <textarea id="output" readonly placeholder="El código generado aparecerá acá..."></textarea>
 </div>
@@ -79,6 +81,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 <script>
 let API_KEY = '';
 let allPlayers = [];
+let allCoaches = [];
 let discoveredLeagues = [];
 let reqCount = 0;
 
@@ -523,6 +526,8 @@ async function extractTM(selected) {
     log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
   }
   const wantNats = (document.getElementById('fillNats')||{}).checked;
+  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
+  allCoaches = [];
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
@@ -665,6 +670,18 @@ async function extractTM(selected) {
           log('    TM-API libre ejemplo: ' + JSON.stringify(list[0]).slice(0, 500));
         }
         if (!list.length) log('    (TM-API libre sin datos para este club)');
+      }
+
+      // DT: la web de Transfermarkt muestra al entrenador en la página del
+      // club — el Worker (api=tmcoach) la baja y lo extrae. Gratis.
+      if (wantDTs) {
+        const dtRes = await apiGet(`/verein/${clubId}`, 'tmcoach');
+        if (dtRes && dtRes.coach && dtRes.coach.name) {
+          allCoaches.push({ name: dtRes.coach.name, club: clubName, league: lg.name, country: lg.country });
+          log(`    🎩 DT: ${dtRes.coach.name}`);
+        } else if (ci === 0 && li === 0) {
+          log('    (sin DT: ¿Worker actualizado? ¿TM bloqueó el fetch?)');
+        }
       }
 
       if (ci < 2 && li < 1) {
@@ -1010,9 +1027,25 @@ function downloadOutput() {
   a.click();
 }
 
-// NOTA: la API de SportDB no expone datos de entrenadores en ningún endpoint
-// (confirmado contra el código fuente de transfermarkt-api en que se basa).
-// Los DTs reales viven en dts-db.js del repo, curados a mano por temporada.
+// Los DTs salen de la web de Transfermarkt vía el Worker (api=tmcoach).
+// Se descargan en el formato de dts-db.js: [nombre, edad, nac, club, liga]
+// (edad y nacionalidad no vienen de la página del club: el juego las
+// completa solo; si querés precisión, editá el archivo a mano).
+function downloadDTs() {
+  if (!allCoaches.length) { alert('No se extrajeron DTs (activá el checkbox, actualizá el Worker y extraé)'); return; }
+  const seen = new Set();
+  const rows = allCoaches.filter(c => {
+    const k = c.name.toLowerCase() + '|' + c.club;
+    if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  const js = '// DTs extraídos de la web de Transfermarkt — [nombre,edad,nac,club,liga]\nwindow.DTS_DB=[\n' +
+    rows.map(c => JSON.stringify([c.name, 0, '', c.club, mapLeague(c.country, c.league)])).join(',\n') + '\n];\n';
+  const blob = new Blob([js], { type: 'text/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dts-db.js';
+  a.click();
+}
 
 function downloadCSV() {
   if (!window._csvData) { alert('Primero extraé los jugadores'); return; }
