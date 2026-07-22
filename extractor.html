@@ -898,7 +898,24 @@ function mapNat(nat) {
     'iran':'IRN','north macedonia':'MKD','albania':'ALB','montenegro':'MNE',
     'bosnia and herzegovina':'BIH','bosnia-herzegovina':'BIH','kosovo':'KOS',
     'finland':'FIN','iceland':'ISL','israel':'ISR','jamaica':'JAM',
-    'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV'
+    'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV',
+    // ═══ Alias en ALEMÁN (Transfermarkt resuelve los IDs de bandera en alemán) ═══
+    'argentinien':'ARG','brasilien':'BRA','spanien':'ESP','frankreich':'FRA',
+    'italien':'ITA','deutschland':'ALE','niederlande':'HOL','russland':'RUS',
+    'belgien':'BEL','türkei':'TUR','tuerkei':'TUR','griechenland':'GRE',
+    'mexiko':'MEX','vereinigte staaten':'USA','kolumbien':'COL','bolivien':'BOL',
+    'japan':'JAP','südkorea':'COR','suedkorea':'COR','kamerun':'CAM',
+    'elfenbeinküste':'CIV','elfenbeinkueste':'CIV','marokko':'MAR','ägypten':'EGI',
+    'aegypten':'EGI','kroatien':'CRO','serbien':'SER','dänemark':'DIN',
+    'daenemark':'DIN','schweden':'SUE','norwegen':'NOR','österreich':'AUT',
+    'oesterreich':'AUT','schweiz':'SUI','polen':'POL','tschechien':'CZE',
+    'schottland':'ESC','irland':'IRL','kanada':'CAN','australien':'AUS',
+    'neuseeland':'NZL','algerien':'ARG_DZ','tunesien':'TUN','slowenien':'SVN',
+    'slowakei':'SVK','ungarn':'HUN','rumänien':'RUM','rumaenien':'RUM',
+    'georgien':'GEO','nordmazedonien':'MKD','albanien':'ALB',
+    'bosnien-herzegowina':'BIH','bosnien und herzegowina':'BIH',
+    'finnland':'FIN','katar':'QAT','saudi-arabien':'ARB','island':'ISL',
+    'kap verde':'CPV','dominikanische republik':'DOM','wales':'GAL'
   };
   for (const [key, val] of Object.entries(map)) {
     if (n === key || n.includes(key)) return val;
