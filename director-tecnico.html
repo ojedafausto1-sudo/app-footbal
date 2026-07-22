@@ -1076,7 +1076,11 @@ function ensureDtPool(){
   DTS.forEach(d=>G.dtPool.push(Object.assign({},d,{club:null,until:0})));
   (window.DTS_DB||[]).forEach(r=>{
     const [name,age,nat,club,league]=r;
-    if(G.dtPool.some(d=>d.name===name))return;
+    const ya=G.dtPool.find(d=>d.name===name);
+    if(ya){ // el curado existe pero la base dice que HOY tiene club: se lo asignamos
+      if(club&&!ya.club){ya.club=club;ya.league=league;ya.until=2027+seedN(name)%2;}
+      return;
+    }
     const s=seedN(name);
     const lgPow={'Premier':12,'España':11,'Italia':10,'Alemania':10,'Francia':9,'Brasil':7,'Portugal':7,'Turquía':6,'Grecia':5,'Holanda':6,'MLS':5,'Liga MX':5,'Liga ARG':5}[league]||3;
     G.dtPool.push({

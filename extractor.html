@@ -43,7 +43,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
     <label><input type="radio" name="apiChoice" value="transfermarkt" checked> TransferMarkt (planteles + valores)</label>
     <label><input type="radio" name="apiChoice" value="flashscore"> Flashscore (equipos + stats)</label>
   </div>
-  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="extractDTs" checked style="width:auto;margin:0"> Extraer también los DTs de cada club (+1 request por club)</label><br>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="fillNats" checked style="width:auto;margin:0"> Completar nacionalidades con TM-API libre (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
 </div>
@@ -72,7 +72,6 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <button class="secondary" onclick="copyOutput()">Copiar al portapapeles</button>
   <button class="secondary" onclick="downloadOutput()">Descargar .js</button>
   <button class="secondary" onclick="downloadCSV()">Descargar .csv</button>
-  <button class="secondary" onclick="downloadDTs()">Descargar DTs (.js)</button>
   <br><br>
   <textarea id="output" readonly placeholder="El código generado aparecerá acá..."></textarea>
 </div>
@@ -80,7 +79,6 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 <script>
 let API_KEY = '';
 let allPlayers = [];
-let allCoaches = [];
 let discoveredLeagues = [];
 let reqCount = 0;
 
@@ -128,21 +126,29 @@ async function apiGet(path, apiType) {
     ? cfW.replace(/\/+$/,'') + '/?api='
     : '/.netlify/functions/sportdb?api=';
   const fnUrl = base + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
-  try {
-    const res = await fetch(fnUrl);
-    if (res.headers.get('x-cache') === 'HIT') {
-      cacheHits++;
-      document.getElementById('sReqs').textContent = reqCount + ` (${cacheHits} de caché)`;
-    }
-    if (!res.ok) {
-      log(`ERROR ${res.status} en ${path}`);
+  for (let intento = 0; intento < 3; intento++) {
+    try {
+      const res = await fetch(fnUrl);
+      if (res.headers.get('x-cache') === 'HIT') {
+        cacheHits++;
+        document.getElementById('sReqs').textContent = reqCount + ` (${cacheHits} de caché)`;
+      }
+      // La TM-API libre limita velocidad: en 429/503 esperamos y reintentamos
+      if ((res.status === 429 || res.status === 503) && intento < 2) {
+        await sleep(4000 * (intento + 1));
+        continue;
+      }
+      if (!res.ok) {
+        log(`ERROR ${res.status} en ${path}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      log(`FETCH ERROR: ${e.message} — ${path}`);
       return null;
     }
-    return await res.json();
-  } catch (e) {
-    log(`FETCH ERROR: ${e.message} — ${path}`);
-    return null;
   }
+  return null;
 }
 // Restaurar la URL del Worker guardada
 window.addEventListener('DOMContentLoaded', () => {
@@ -516,8 +522,7 @@ async function extractTM(selected) {
     if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
     log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
   }
-  allCoaches = [];
-  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
+  const wantNats = (document.getElementById('fillNats')||{}).checked;
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
@@ -642,32 +647,24 @@ async function extractTM(selected) {
 
       const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
       if (!playersData) { log(`    ✗ Sin datos`); continue; }
-      // DT del club (perfil): buscamos campos tipo coach/trainer/manager
-      if (wantDTs) {
-        const clubProf = await apiGet(`/clubs/${clubId}`, 'transfermarkt');
-        if (clubProf) {
-          if (ci===0 && li===0) log('    CLUB COMPLETO: '+JSON.stringify(clubProf).slice(0,900));
-          let coach=null;
-          const scan=(o)=>{
-            if(!o||typeof o!=='object')return;
-            for(const k of Object.keys(o)){
-              const lk=k.toLowerCase(), v=o[k];
-              if(/(coach|trainer|manager|entrenador|tecnico|técnico)/.test(lk)){
-                if(typeof v==='string'&&v.length>3&&!/^http/.test(v)){coach=coach||{name:v};}
-                else if(v&&typeof v==='object'){
-                  const nm=v.name||v.fullName||v.coachName;
-                  if(nm)coach=coach||{name:String(nm),age:parseInt(v.age)||0,nat:(typeof v.nationality==='string'?v.nationality:'')||resolveNat(v)};
-                }
-              }
-            }
-          };
-          scan(clubProf);
-          if(!coach&&clubProf.staff)scan(clubProf.staff);
-          if(coach&&coach.name){
-            allCoaches.push({name:coach.name,age:coach.age||0,nat:coach.nat||'',club:clubName,league:lg.name,country:lg.country});
-            log(`    🎩 DT: ${coach.name}`);
-          }
+
+      // NACIONALIDADES: SportDB las devuelve vacías, pero la TM-API libre
+      // (transfermarkt-api.fly.dev, gratis vía Worker api=tmapi) sí las trae.
+      // Armamos un mapa nombre→nacionalidad y lo usamos al parsear.
+      let natByName = {};
+      if (wantNats) {
+        const free = await apiGet(`/clubs/${clubId}/players`, 'tmapi');
+        const list = free && Array.isArray(free.players) ? free.players : [];
+        for (const fp of list) {
+          const nm = String(fp.name || '').toLowerCase();
+          let nn = fp.nationality;
+          if (Array.isArray(nn)) nn = nn[0] || '';
+          if (nm && nn) natByName[nm] = String(nn);
         }
+        if (ci === 0 && li === 0 && list.length) {
+          log('    TM-API libre ejemplo: ' + JSON.stringify(list[0]).slice(0, 500));
+        }
+        if (!list.length) log('    (TM-API libre sin datos para este club)');
       }
 
       if (ci < 2 && li < 1) {
@@ -698,7 +695,8 @@ async function extractTM(selected) {
         if (!name || name === 'undefined' || name === 'null' || /^\d+$/.test(name)) continue;
 
         let natRaw = p.nationality || p.nationalities || p.citizenship || p.citizenships || p.nationalityName || p.birthCountry || p.country || '';
-        if (!natRaw || (Array.isArray(natRaw)&&!natRaw.length)) natRaw = resolveNat(p);
+        if (!natRaw || (Array.isArray(natRaw)&&!natRaw.length)) natRaw = natByName[name.toLowerCase()] || '';
+        if (!natRaw) natRaw = resolveNat(p);
         let footRaw = p.foot || p.preferredFoot || p.strongFoot || '';
         if (typeof footRaw === 'object') footRaw = footRaw.name || '';
         if (Array.isArray(natRaw)) natRaw = natRaw[0] || '';
@@ -1012,18 +1010,9 @@ function downloadOutput() {
   a.click();
 }
 
-function downloadDTs() {
-  if (!allCoaches.length) { alert('No se extrajeron DTs (activá el checkbox y extraé)'); return; }
-  const seen = new Set();
-  const rows = allCoaches.filter(c=>{const k=c.name.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
-  const js = '// DTs extraídos de TransferMarkt — [nombre,edad,nac,club,liga]\nwindow.DTS_DB=[\n'+
-    rows.map(c=>JSON.stringify([c.name,c.age||0,c.nat||'',c.club,mapLeague(c.country,c.league)])).join(',\n')+'\n];\n';
-  const blob = new Blob([js], {type:'text/javascript'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'dts_sportdb.js';
-  a.click();
-}
+// NOTA: la API de SportDB no expone datos de entrenadores en ningún endpoint
+// (confirmado contra el código fuente de transfermarkt-api en que se basa).
+// Los DTs reales viven en dts-db.js del repo, curados a mano por temporada.
 
 function downloadCSV() {
   if (!window._csvData) { alert('Primero extraé los jugadores'); return; }

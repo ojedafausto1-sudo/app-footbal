@@ -18,6 +18,9 @@
 //   - &ttl=SEGUNDOS  (opcional, default 30 días)
 //   - &fresh=1       (opcional, ignora el caché y fuerza consulta real)
 // Respuestas con header  x-cache: HIT | MISS
+//
+// api=tmapi → proxy a transfermarkt-api.fly.dev (API LIBRE, sin key,
+// no gasta créditos de SportDB). Sirve para completar nacionalidades.
 // ═══════════════════════════════════════════════════════════════
 
 const DEFAULT_TTL = 60 * 60 * 24 * 30; // 30 días — los valores TM cambian pocas veces por temporada
@@ -41,11 +44,11 @@ export default {
     const ttl = Math.max(300, parseInt(u.searchParams.get('ttl') || DEFAULT_TTL, 10));
     const fresh = u.searchParams.get('fresh') === '1';
 
-    if (!key) {
+    if (!key && api !== 'tmapi') {
       return json({ error: 'Missing API key' }, 400);
     }
-    if (api !== 'transfermarkt' && api !== 'flashscore') {
-      return json({ error: 'api debe ser transfermarkt o flashscore' }, 400);
+    if (api !== 'transfermarkt' && api !== 'flashscore' && api !== 'tmapi') {
+      return json({ error: 'api debe ser transfermarkt, flashscore o tmapi' }, 400);
     }
 
     // La clave de caché NO incluye la API key: si cambiás de cuenta
@@ -63,12 +66,18 @@ export default {
       }
     }
 
-    // 2. No está: consultar SportDB (esto sí gasta 1 crédito)
-    const upstream = `https://api.sportdb.dev/api/${api}${path}`;
+    // 2. No está: consultar el upstream
+    //    - transfermarkt/flashscore → SportDB (gasta 1 crédito)
+    //    - tmapi → transfermarkt-api.fly.dev (gratis, sin key)
+    const upstream = api === 'tmapi'
+      ? `https://transfermarkt-api.fly.dev${path}`
+      : `https://api.sportdb.dev/api/${api}${path}`;
     let res;
     try {
       res = await fetch(upstream, {
-        headers: { 'X-API-Key': key, 'Accept': 'application/json' },
+        headers: api === 'tmapi'
+          ? { 'Accept': 'application/json' }
+          : { 'X-API-Key': key, 'Accept': 'application/json' },
       });
     } catch (e) {
       return json({ error: 'Upstream: ' + e.message }, 502);
