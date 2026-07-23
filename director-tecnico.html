@@ -1453,9 +1453,26 @@ function buildYouth(){
     players: positions.map((pos,i) => ({
       id:'y'+(i+1), name:fnames[i]+' '+lnames[i], pos, age:16+~~(Math.random()*3),
       rat:54+~~(Math.random()*14), pot:72+~~(Math.random()*20),
-      progress:~~(Math.random()*55), val:Math.round((0.2+Math.random()*.7)*10)/10
+      progress:~~(Math.random()*55), val:Math.round((0.2+Math.random()*.7)*10)/10,
+      person:randPerson()
     }))
   };
+}
+// ═══ PERSONALIDAD DE JUVENILES (afecta su desarrollo y conducta) ═══
+const YOUTH_PERSONS={
+  profesional:{e:'💼',t:'Profesional',desc:'Se entrena al máximo. Desarrollo +25%.',dev:1.25},
+  lider:{e:'🧢',t:'Líder',desc:'Arrastra al grupo. Desarrollo +10% y sube moral del plantel.',dev:1.10},
+  ambicioso:{e:'🚀',t:'Ambicioso',desc:'Quiere comerse el mundo. Desarrollo +15%, pero se va si no juega.',dev:1.15},
+  talentoso:{e:'✨',t:'Talentoso',desc:'Don natural, algo irregular. Techo más alto.',dev:1.0},
+  rebelde:{e:'😤',t:'Rebelde',desc:'Talento puro pero indisciplinado. Desarrollo −20% si no lo cuidás.',dev:0.8},
+  humilde:{e:'🙏',t:'Humilde',desc:'Trabajador silencioso. Desarrollo estable.',dev:1.05},
+};
+function randPerson(){
+  const ks=Object.keys(YOUTH_PERSONS);
+  const w={profesional:18,lider:12,ambicioso:16,talentoso:18,rebelde:14,humilde:22};
+  let r=Math.random()*Object.values(w).reduce((a,b)=>a+b,0);
+  for(const k of ks){r-=w[k];if(r<=0)return k;}
+  return 'humilde';
 }
 
 // ═══ INFERIORES VIVAS: desarrollo, camadas, joyas, partidos y reportes ═══
@@ -1464,10 +1481,12 @@ function weeklyYouth(){
   const lvl=y.level||1;
   const hasStaff=y.upgrades.some(u=>u.id==='yt'&&u.built);
   const hasScouts=y.upgrades.some(u=>u.id==='ys'&&u.built);
-  // Desarrollo semanal (staff especializado acelera)
+  // Desarrollo semanal (staff especializado acelera; la personalidad modula)
   const spd=lvl+1+(hasStaff?1:0);
   y.players.forEach(p=>{
-    p.progress=Math.min(100,p.progress+spd);
+    if(!p.person)p.person=randPerson();
+    const pm=(YOUTH_PERSONS[p.person]||{dev:1}).dev;
+    p.progress=Math.min(100,p.progress+spd*pm);
     if(p.progress>=100&&p.rat<p.pot){p.rat=Math.min(p.pot,p.rat+2);p.val=calcVal(p);p.progress=0;}
   });
   // Partido de inferiores cada 4 semanas: la figura crece más
@@ -1491,7 +1510,7 @@ function weeklyYouth(){
       const pot=gem?85+~~(Math.random()*10):70+~~(Math.random()*16);
       const np={id:'y'+Date.now()+i,name:fn[~~(Math.random()*fn.length)]+' '+ln[~~(Math.random()*ln.length)],
         pos:poss[~~(Math.random()*poss.length)],age:15+~~(Math.random()*3),
-        rat:52+~~(Math.random()*12)+lvl,pot,progress:0,val:Math.round((0.1+Math.random()*0.6)*10)/10};
+        rat:52+~~(Math.random()*12)+lvl,pot,progress:0,val:Math.round((0.1+Math.random()*0.6)*10)/10,person:randPerson()};
       y.players.push(np);
       if(gem)joya=np;
     }
@@ -1747,6 +1766,7 @@ function initGame(teamId){
   G.offers = genOffers();
   autoFill();
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
+  setBoardTarget();
   document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
@@ -2169,7 +2189,7 @@ function rSq(f){
   el.innerHTML = pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span></div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -3668,6 +3688,7 @@ function rJuv(){
           <div>
             <div style="font-weight:600;font-size:12px">${p.name} <span style="font-size:9px;color:var(--t3)">${p.age}a · ${p.pos}</span></div>
             <div style="margin-top:2px;display:flex;align-items:center;gap:5px">${rb(p.rat)}<span style="font-size:9px;color:var(--t3)">→</span>${rb(p.pot)}<span style="font-size:9px;color:var(--pur)">pot</span></div>
+            ${p.person?`<div style="font-size:9px;color:var(--t2);margin-top:3px" title="${(YOUTH_PERSONS[p.person]||{}).desc||''}">${(YOUTH_PERSONS[p.person]||{}).e||''} ${(YOUTH_PERSONS[p.person]||{}).t||''}</div>`:''}
           </div>
           <button class="btn bg bs" onclick="promOne('${p.id}')">⬆️ Subir</button>
         </div>
@@ -5489,6 +5510,163 @@ function showSeasonSummary(){
   `);
 }
 
+// ═══ MERCADO DE FIN DE TEMPORADA: ofertas grandes por tus figuras ═══
+function endSeasonMarket(){
+  G.endSeasonOffers=[];
+  // Los grandes de Europa tientan a tus mejores jugadores
+  const figuras=G.squad.filter(p=>p.rat>=76&&!(p.club||'').includes('prést')).sort((a,b)=>b.rat-a.rat).slice(0,4);
+  const bigClubs=['Real Madrid','Barcelona','Man City','Bayern Munich','PSG','Liverpool','Arsenal','Inter','Juventus','Chelsea'];
+  figuras.forEach(p=>{
+    if(Math.random()<(p.rat>=82?0.75:p.rat>=79?0.5:0.3)){
+      const club=bigClubs[~~(Math.random()*bigClubs.length)];
+      const fee=Math.round(p.val*(1.3+Math.random()*0.7)*10)/10;
+      G.endSeasonOffers.push({playerId:p.id,name:p.name,club,fee});
+    }
+  });
+  if(G.endSeasonOffers.length){
+    const o=G.endSeasonOffers[0];
+    addPhoneMsg('agent','Mercado de pases',`💰 Fin de temporada movido: <b>${o.club}</b> llegó con una oferta formal de <b style="color:var(--gold)">${fv(o.fee)}</b> por <b>${o.name}</b>. Hay ${G.endSeasonOffers.length} oferta(s) sobre la mesa. Revisá el Mercado.`,'📰');
+  }
+  // Renovaciones urgentes: contratos que vencen el año próximo
+  const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season+1&&p.rat>=72);
+  porVencer.slice(0,3).forEach(p=>{
+    addPhoneMsg('player',p.name,`📄 Presidente, mi contrato termina pronto. Si me quiere en el club, necesitamos sentarnos a renovar antes de que lleguen ofertas.`,'📝');
+  });
+  // Generar ofertas de carrera (otros clubes te quieren) según logros
+  genCareerOffers();
+}
+function acceptEndOffer(pid){
+  const o=(G.endSeasonOffers||[]).find(x=>x.playerId===pid);
+  const p=G.squad.find(x=>x.id===pid);
+  if(!o||!p)return;
+  const cobro=Math.round(o.fee*(p.ownedPct||1)*10)/10;
+  G.budget=Math.round((G.budget+cobro)*10)/10;
+  G.squad=G.squad.filter(x=>x.id!==pid);
+  G.bench=(G.bench||[]).filter(x=>x.id!==pid);
+  Object.keys(G.slots).forEach(k=>{if(G.slots[k]===pid)G.slots[k]=null;});
+  p.club=o.club;p.lg=({'Real Madrid':'España','Barcelona':'España','Man City':'Premier','Bayern Munich':'Alemania','PSG':'Francia','Liverpool':'Premier','Arsenal':'Premier','Inter':'Italia','Juventus':'Italia','Chelsea':'Premier'})[o.club]||'España';
+  G.market.push(p);
+  G.endSeasonOffers=G.endSeasonOffers.filter(x=>x.playerId!==pid);
+  lg('💸',`${p.name} vendido a ${o.club} por ${fv(cobro)}`);
+  addPhoneMsg('agent','Mercado de pases',`✅ Operación cerrada: <b>${p.name}</b> al <b>${o.club}</b> por <b style="color:var(--gold)">${fv(cobro)}</b>. Gran venta para las arcas.`,'💰');
+  updateUI();rPresTab();
+}
+function rejectEndOffer(pid){
+  const p=G.squad.find(x=>x.id===pid);
+  G.endSeasonOffers=(G.endSeasonOffers||[]).filter(x=>x.playerId!==pid);
+  if(p){p.morale=Math.max(5,(p.morale||70)-4);addPhoneMsg('player',p.name,'😕 Me hubiese gustado dar el salto... pero respeto la decisión del club. Sigo dando todo.','⚽');}
+  updateUI();rPresTab();
+}
+// ═══ CARRERA: otros clubes te ofrecen dirigirlos según tus logros ═══
+function genCareerOffers(){
+  G.careerOffers=G.careerOffers||[];
+  const titulos=(G.history||[]).filter(h=>h.champion).length;
+  const lastPos=(G.history||[]).slice(-1)[0];
+  const rep=G.rep||50;
+  // Cuanto mejor te va, más y mejores clubes te tientan
+  const prob=titulos>=1?0.6:lastPos&&lastPos.pos<=4?0.4:rep>=65?0.25:0.1;
+  if(Math.random()>prob)return;
+  const POOL=[
+    {club:'Palmeiras',liga:'Brasil',rep:82},{club:'Flamengo',liga:'Brasil',rep:84},
+    {club:'Sevilla FC',liga:'España',rep:80},{club:'Benfica',liga:'Portugal',rep:82},
+    {club:'Olympique Lyon',liga:'Francia',rep:79},{club:'Ajax',liga:'Holanda',rep:81},
+    {club:'Galatasaray',liga:'Turquía',rep:80},{club:'Monterrey',liga:'Liga MX',rep:78},
+    {club:'River Plate',liga:'Liga ARG',rep:85},{club:'Boca Juniors',liga:'Liga ARG',rep:85},
+  ];
+  const opts=POOL.filter(c=>c.club!==G.teamName&&c.rep<=rep+15&&c.rep>=rep-20);
+  if(!opts.length)return;
+  const pick=opts[~~(Math.random()*opts.length)];
+  if(G.careerOffers.some(o=>o.club===pick.club))return;
+  G.careerOffers.push({club:pick.club,liga:pick.liga,rep:pick.rep,season:G.season});
+  addPhoneMsg('agent','Tu representante',`📨 Presidente, <b>${pick.club}</b> se comunicó: quieren que asuma la conducción del club. Es un proyecto de mayor peso. La decisión es suya — está en la pestaña Presidente.`,'🤝');
+}
+// Aceptar dirigir a otro club: cambiás de club, mantenés tu carrera/historial
+function acceptCareerOffer(club){
+  const off=(G.careerOffers||[]).find(o=>o.club===club);
+  if(!off)return;
+  const teamId=Object.keys(TEAMS).find(k=>TEAMS[k].name===club);
+  const hist=G.history||[];const career=G.career||[];
+  career.push({club:G.teamName,seasons:G.season-2025,titulos:hist.filter(h=>h.champion).length});
+  if(teamId){
+    const keepHist=hist,keepCareer=career;
+    initGame(teamId);
+    G.history=keepHist;G.career=keepCareer;
+  }else{
+    // Club sin plantel jugable propio: reusar estructura pero cambiar identidad
+    G.teamName=club;G.careerOffers=[];
+    G.career=career;
+    flash('Asumiste en '+club,'win');
+  }
+  addPhoneMsg('board','Nueva etapa',`🎉 Bienvenido a ${club}, presidente. Un nuevo desafío arranca. Su prestigio lo precede.`,'🏛️');
+  closeMod();updateUI();
+}
+
+// ═══ OBJETIVO DE LA ASAMBLEA / COMISIÓN DIRECTIVA ═══
+// La dirigencia fija una meta según la reputación del club. Si terminás
+// muy por debajo y con la confianza por el piso, te piden la renuncia.
+function setBoardTarget(){
+  const rep=G.rep||50;
+  const nClubs=(G.league&&G.league.clubs.length)||19;
+  let maxPos,desc;
+  if(rep>=78){maxPos=Math.min(2,nClubs);desc='pelear el campeonato (terminar 1º o 2º)';}
+  else if(rep>=68){maxPos=4;desc='clasificar a la Libertadores (Top 4)';}
+  else if(rep>=58){maxPos=8;desc='terminar en la mitad de arriba (Top 8)';}
+  else if(rep>=48){maxPos=Math.max(10,nClubs-6);desc='pelear una copa internacional';}
+  else{maxPos=nClubs-3;desc='mantener la categoría con comodidad';}
+  G.boardTarget={maxPos,desc,reviewed:false};
+  addPhoneMsg('board','Comisión Directiva',`📋 Presidente, el objetivo de la dirigencia para esta temporada es <b>${desc}</b>. Confiamos en su gestión.`,'🏛️');
+}
+function midSeasonReview(){
+  if(!G.boardTarget||G.boardTarget.reviewed)return;
+  G.boardTarget.reviewed=true;
+  ensureLeague();
+  const pos=myLeaguePos()||10;
+  const meta=G.boardTarget.maxPos;
+  const bien=pos<=meta;
+  const cerca=pos<=meta+3;
+  if(bien){G.boardConf=Math.min(100,(G.boardConf||50)+8);
+    addPhoneMsg('board','Comisión Directiva',`✅ Revisión de mitad de temporada: vamos <b>${pos}º</b>, en línea con el objetivo (${G.boardTarget.desc}). La dirigencia está conforme.`,'🏛️');}
+  else if(cerca){
+    addPhoneMsg('board','Comisión Directiva',`⚠️ Revisión de mitad de temporada: vamos <b>${pos}º</b> y el objetivo es <b>${G.boardTarget.desc}</b>. Hay que mejorar en la segunda rueda.`,'🏛️');}
+  else{G.boardConf=Math.max(0,(G.boardConf||50)-12);
+    addPhoneMsg('board','Comisión Directiva',`🚨 Revisión de mitad de temporada: vamos <b>${pos}º</b>, MUY lejos del objetivo (${G.boardTarget.desc}). La dirigencia está preocupada. Si esto no cambia, su continuidad peligra.`,'🏛️');}
+}
+function checkFired(pos){
+  const meta=G.boardTarget?G.boardTarget.maxPos:99;
+  const nClubs=(G.league&&G.league.clubs.length)||19;
+  const conf=G.boardConf||50;
+  // Te echan si: descendiste, o quedaste muy lejos del objetivo con confianza baja
+  const descendio=pos>=nClubs;
+  const fracaso=pos>meta+4&&conf<30;
+  if(descendio||fracaso){
+    showFiredModal(pos,descendio);
+    return true;
+  }
+  if(pos>meta+2&&conf<45){
+    addPhoneMsg('board','Comisión Directiva',`⚠️ Presidente, terminamos ${pos}º y no cumplimos el objetivo. Le damos una temporada más, pero la próxima no hay margen de error.`,'🏛️');
+  }
+  return false;
+}
+function showFiredModal(pos,descendio){
+  G._fired=true;
+  showMod(`
+    <div class="mtitle" style="color:var(--red)">🚪 Fin del ciclo</div>
+    <div style="text-align:center;margin:14px 0">
+      <div style="font-size:44px;margin-bottom:8px">${descendio?'📉':'😔'}</div>
+      <div style="font-size:13px;color:var(--t2);line-height:1.5">
+        ${descendio?`<b>${G.teamName}</b> descendió de categoría.`:`Terminamos <b>${pos}º</b>, lejos del objetivo.`}<br>
+        La asamblea de socios te pidió la <b>renuncia</b> tras ${G.season-2025} temporada(s) al mando.
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:10px">Palmarés: ${(G.history||[]).filter(h=>h.champion).length} título(s) de liga.</div>
+    </div>
+    ${(G.careerOffers&&G.careerOffers.length)?`
+      <div class="note" style="margin-bottom:8px">Pero tu nombre suena en otros clubes. Tenés propuestas para dirigir en otro lado.</div>
+      <button class="btn bg" style="width:100%;margin-bottom:6px" onclick="closeMod();gTab('pres',document.querySelectorAll('.nb')[12]||document.querySelector('.nb'));rPresTab();flash('Revisá las ofertas de otros clubes','draw')">📨 Ver ofertas de otros clubes</button>
+    `:''}
+    <button class="btn bo" style="width:100%" onclick="location.reload()">🔄 Empezar una nueva carrera</button>
+  `);
+}
+
 // Cierra la temporada: guarda historia y aplica descenso/ascenso real
 function archiveSeason(){
   ensureLeague();
@@ -5544,7 +5722,10 @@ function archiveSeason(){
 }
 
 function nextSeason(){
+  const finalPos=myLeaguePos()||10;
   archiveSeason();
+  endSeasonMarket();
+  if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   G.season++;
   G.week = 1;
   G.wins = 0; G.draws = 0; G.losses = 0;
@@ -5589,6 +5770,8 @@ function nextSeason(){
   G.trainedWeek = 0;
   if(!G.news)G.news=[];
   autoFill();
+  G.league=null;ensureLeague();
+  setBoardTarget();
   lg('🏁', 'Temporada '+G.season+' iniciada!');
   closeMod();
   updateUI();
@@ -5686,6 +5869,9 @@ function matchStrengths(m){
   tacMod += fb.atk*.5 + fb.def*.5;
   // Charla técnica pre-partido
   if(G._talkBonus)tacMod+=G._talkBonus;
+  // Estado de forma promedio del XI (jugadores calientes rinden más)
+  const formMod=xi.reduce((a,p)=>a+formInfo(p).mod,0)/Math.max(1,xi.length);
+  tacMod+=formMod;
   return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
 }
 
@@ -5806,6 +5992,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
       G._lastMVP={name:mvp.name,pos:mvp.pos,goals:scorersList.filter(s=>s.name===mvp.name).length};
     }
   } else G._lastMVP=null;
+  // Estado de forma del XI según su aporte
+  updateForm(xiPlayers,scorersList,res);
   // Mis goleadores también cuentan para la tabla de goleadores de la liga
   if(m.comp==='Liga Profesional'&&G.league){
     scorersList.forEach(s3=>{
@@ -5971,6 +6159,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   processInstallments();
   processScouts();
   checkPromises();
+  if(G.week>=19&&G.boardTarget&&!G.boardTarget.reviewed)midSeasonReview();
   // ═══ BALANCE MENSUAL: sueldos vs TV/socios (finanzas estilo FM) ═══
   if(G.week%4===0){
     const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
@@ -6412,6 +6601,32 @@ function updateFans(res,derby,gf){
   G.budget=Math.round((G.budget+gate)*10)/10;
   if(res==='W'&&G.fanMood>=85&&Math.random()<0.4)addPhoneMsg('board','Prensa',`📣 La hinchada explota de alegría. ${G.socios.toLocaleString('es')} socios y creciendo. ¡La ciudad es una fiesta!`,'🎉');
   if(res==='L'&&G.fanMood<=20)addPhoneMsg('board','Seguridad',`⚠️ Presidente, la hinchada está caliente. Hubo silbidos y reclamos en la salida. Urgen resultados.`,'📣');
+}
+
+// ═══ ESTADO DE FORMA (caliente / frío) ═══
+// p.form: -3 (helado) .. +3 (en llamas). Afecta rendimiento y se muestra.
+function formInfo(p){
+  const f=p.form||0;
+  if(f>=3)return{e:'🔥',t:'En llamas',c:'var(--red)',mod:0.06};
+  if(f>=2)return{e:'📈',t:'Caliente',c:'var(--ora)',mod:0.04};
+  if(f>=1)return{e:'↗️',t:'En alza',c:'var(--gold)',mod:0.02};
+  if(f<=-3)return{e:'🧊',t:'Helado',c:'#5aa9e6',mod:-0.06};
+  if(f<=-2)return{e:'📉',t:'Frío',c:'#7bb',mod:-0.04};
+  if(f<=-1)return{e:'↘️',t:'En baja',c:'var(--t3)',mod:-0.02};
+  return{e:'➖',t:'Normal',c:'var(--t3)',mod:0};
+}
+// Actualiza la forma del XI tras el partido según su aporte
+function updateForm(xiPlayers,scorersList,res){
+  const scorerNames=new Set(scorersList.map(s=>s.name));
+  xiPlayers.forEach(p=>{
+    if(p.form===undefined)p.form=0;
+    let d=res==='W'?0.6:res==='D'?0:-0.5;
+    if(scorerNames.has(p.name))d+=1.2;      // marcó: se enciende
+    if(p===(G._lastMVP&&G.squad.find(x=>x.name===G._lastMVP.name)))d+=0.6;
+    p.form=Math.max(-3,Math.min(3,p.form+d));
+  });
+  // Los que no jugaron se enfrían suavemente hacia 0
+  G.squad.forEach(p=>{if(!xiPlayers.includes(p)&&p.form){p.form*=0.7;if(Math.abs(p.form)<0.3)p.form=0;}});
 }
 
 // ═══ PARTE MÉDICO ═══
@@ -10695,6 +10910,19 @@ function rPresTab(){
       </div>
       ${conf<25?'<div class="note R">La directiva esta muy disconforme. Si no mejoran los resultados, tu puesto peligra.</div>':''}
       ${conf>=85?'<div class="note G">La directiva esta encantada con tu gestion. Segui asi.</div>':''}
+      ${G.boardTarget?`<div class="note" style="margin-top:6px">🎯 <b>Objetivo de la dirigencia:</b> ${G.boardTarget.desc}.</div>`:''}
+      ${(G.careerOffers&&G.careerOffers.length)?`
+        <div class="ctitle" style="margin-top:10px">📨 Ofertas de otros clubes</div>
+        ${G.careerOffers.map(o=>`<div class="card" style="padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-weight:700;font-size:12px">${o.club}</div><div style="font-size:9px;color:var(--t3)">${o.liga} · prestigio ${o.rep}</div></div>
+          <button class="btn bg bs" onclick="acceptCareerOffer('${o.club.replace(/'/g,"\\'")}')">Aceptar</button>
+        </div>`).join('')}`:''}
+      ${(G.endSeasonOffers&&G.endSeasonOffers.length)?`
+        <div class="ctitle" style="margin-top:10px">💰 Ofertas por tus figuras</div>
+        ${G.endSeasonOffers.map(o=>`<div class="card" style="padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-weight:700;font-size:12px">${o.name}</div><div style="font-size:9px;color:var(--t3)">${o.club} ofrece <b style="color:var(--gold)">${fv(o.fee)}</b></div></div>
+          <div style="display:flex;gap:4px"><button class="btn bg bs" onclick="acceptEndOffer('${o.playerId}')">Vender</button><button class="btn bR bs" onclick="rejectEndOffer('${o.playerId}')">Rechazar</button></div>
+        </div>`).join('')}`:''}
     `;
   }
   const objEl=document.getElementById('presObjList');
