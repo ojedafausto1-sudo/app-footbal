@@ -528,6 +528,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab on" onclick="mkTab('buy',this)">Comprar</button>
         <button class="tab" onclick="mkTab('sell',this)">Vender / Ceder</button>
         <button class="tab" onclick="mkTab('offs',this)">Ofertas (<span id="offCnt">0</span>)</button>
+        <button class="tab" onclick="openScouting()">🔭 Ojeadores</button>
       </div>
       <div id="mk-buy" class="tc on">
         <input class="sb" type="text" id="mkQ" placeholder="🔍 Buscar nombre, club o liga..." oninput="renderMkt()">
@@ -1477,10 +1478,12 @@ function weeklyYouth(){
 function buildCal(teamName, teamId){
   teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
   function shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+  // Nombres EXACTOS de la base extraída (players-db.js) para que la liga
+  // simulada encuentre planteles y goleadores reales de cada club
   const all18 = ['Racing Club','San Lorenzo','River Plate','Independiente','Boca Juniors',
-    'Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán',
-    'Belgrano','Lanús','Newell\'s','Defensa y Justicia','Godoy Cruz',
-    'Platense','Argentinos Jrs','Barracas Central','Gimnasia LP'];
+    'Estudiantes LP','Rosario Central','CA Talleres','Vélez Sarsfield','Huracán',
+    'Belgrano','Lanús','Newell\'s','Defensa','Godoy Cruz',
+    'Platense','Argentinos Jrs.','Barracas C.','Gimnasia'];
   const lr = shuf(all18.filter(t => t !== teamName).slice(0, 18));
   const libPool=[
     ['Flamengo','BRA'],['Palmeiras','BRA'],['Atlético Mineiro','BRA'],['Botafogo','BRA'],
@@ -2130,7 +2133,7 @@ function rSq(f){
   el.innerHTML = pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span></div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -4951,7 +4954,41 @@ function rCal(){
       <div style="font-size:13px;font-weight:700">${played}/${total}</div>
     </div>
   </div>`;
-  el.innerHTML=banner+Object.entries(byC).map(([c,ms])=>`
+  // ═══ TABLA DE POSICIONES (liga simulada completa) ═══
+  ensureLeague();
+  const rows=leagueSorted();
+  const scor=Object.entries(G.league.scorers).sort((a,b)=>b[1].goals-a[1].goals).slice(0,8);
+  const lastR=G.league.lastRound||[];
+  const tableHtml=`
+  <div class="card" style="margin-bottom:9px">
+    <div class="ctitle">🏆 Tabla de posiciones — Liga Profesional</div>
+    <div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
+      <span>#</span><span>Club</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>DIF</span><span>PTS</span>
+    </div>
+    ${rows.map(r=>{
+      const mine=r.club===tn;
+      const zone=r.pos===1?'var(--gold)':r.pos<=4?'var(--green)':r.pos>=rows.length-1?'var(--red)':'transparent';
+      return `<div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${zone};${mine?'background:rgba(246,211,24,.10);font-weight:700;color:var(--gold)':''}">
+        <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.club}</span>
+        <span>${r.pj}</span><span style="color:var(--green)">${r.g}</span><span>${r.e}</span><span style="color:var(--red)">${r.p}</span>
+        <span>${r.gf-r.gc>=0?'+':''}${r.gf-r.gc}</span><span style="font-weight:700">${r.pts}</span>
+      </div>`;
+    }).join('')}
+    <div style="font-size:8px;color:var(--t3);margin-top:4px">🟡 Campeón · 🟢 Copas · 🔴 Descenso</div>
+  </div>
+  ${scor.length?`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">⚽ Goleadores de la Liga</div>
+    ${scor.map(([nm,s],i)=>`<div style="display:flex;gap:6px;font-size:10px;padding:3px 4px;${s.club===tn?'color:var(--gold);font-weight:700':''}">
+      <span style="min-width:16px;color:var(--t3)">${i+1}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nm} <span style="color:var(--t3);font-weight:400">(${s.club})</span></span><span style="font-weight:700">${s.goals}</span>
+    </div>`).join('')}
+  </div>`:''}
+  ${lastR.length?`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">📋 Última fecha — otros resultados</div>
+    ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
+      <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${r.h}</span><span style="color:var(--gold);font-weight:700;min-width:26px;text-align:center">${r.s}</span><span style="flex:1;overflow:hidden;white-space:nowrap">${r.a}</span>
+    </div>`).join('')}
+  </div>`:''}`;
+  el.innerHTML=banner+tableHtml+Object.entries(byC).map(([c,ms])=>`
     <div class="card" style="margin-bottom:9px">
       <div class="ctitle">${c}</div>
       ${ms.map(m=>{
@@ -4973,6 +5010,163 @@ function rCal(){
       }).join('')}
     </div>
   `).join('');
+}
+
+// =============================================
+// CONDICIÓN FÍSICA: jugar cansa, descansar recupera (rotación real)
+// =============================================
+function fitOf(p){return p.fit===undefined?100:Math.round(p.fit);}
+function applyFatigue(xiPlayers){
+  const benchIds=new Set((G.bench||[]).map(b=>b.id));
+  G.squad.forEach(p=>{
+    if(p.fit===undefined)p.fit=100;
+    if(xiPlayers.includes(p))p.fit=Math.max(15,p.fit-(17+~~(Math.random()*9)));       // 90 minutos
+    else if(benchIds.has(p.id))p.fit=Math.min(100,Math.max(15,p.fit-4)+8);            // entró un rato
+    else p.fit=Math.min(100,p.fit+14);                                                // descansó
+    if(p.injured)p.fit=Math.min(p.fit,55);
+  });
+}
+
+// =============================================
+// OJEADORES (estilo Football Manager)
+// Misiones por liga y enfoque; el informe llega a las 2 semanas.
+// =============================================
+const SCOUT_FOCUS={
+  promesas:{label:'🌱 Jóvenes promesas',desc:'Sub-21 con mayor potencial'},
+  gangas:{label:'💎 Gangas',desc:'Rendimiento por encima de su precio'},
+  cracks:{label:'⭐ Cracks',desc:'Los mejores que tu presupuesto banque'},
+};
+function openScouting(){
+  if(!G)return;
+  G.scoutMissions=G.scoutMissions||[];G.scoutReports=G.scoutReports||[];
+  const ligas=[...new Set(G.market.map(p=>p.lg))].sort();
+  const activas=G.scoutMissions.map(ms=>`<div class="sr"><span class="sl">🔭 ${ms.liga} — ${SCOUT_FOCUS[ms.focus].label}</span><span class="sv">informe en ${Math.max(0,ms.doneWeek-G.week)} sem</span></div>`).join('');
+  const reports=G.scoutReports.slice(0,5).map((r,ri)=>`
+    <div class="card" style="margin-bottom:6px">
+      <div class="ctitle">📋 ${r.liga} — ${SCOUT_FOCUS[r.focus].label} <span style="font-weight:400;color:var(--t3)">(sem ${r.week})</span></div>
+      ${r.picks.map(id=>{
+        const p=G.market.find(x=>x.id===id);
+        if(!p)return '';
+        const stars='★'.repeat(Math.max(1,Math.min(5,Math.round((p.pot-62)/6))))||'★';
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:3px 2px">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name} <span style="color:var(--t3)">· ${p.pos} · ${p.age}a · ${p.club}</span></span>
+          <span style="color:var(--gold);font-size:9px">${stars}</span>
+          <span style="color:var(--t2);min-width:34px;text-align:right">${rb(p.rat)}</span>
+          <span style="color:var(--green);min-width:44px;text-align:right">${fv(p.val)}</span>
+          <button class="btn bo bs" style="font-size:9px;padding:2px 6px" onclick="closeMod();openNeg('${p.id}')">🤝</button>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🔭 Red de ojeadores</div>
+    <div class="note" style="margin-bottom:8px">Mandá un ojeador a recorrer una liga. El informe llega en <b>2 semanas</b> con los mejores hallazgos según el enfoque. Costo: <b style="color:var(--gold)">$0.5M</b> por misión (máx. 3 activas).</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <select class="sb" id="scLiga" style="flex:1">${ligas.map(l=>`<option>${l}</option>`).join('')}</select>
+      <select class="sb" id="scFocus" style="flex:1">${Object.entries(SCOUT_FOCUS).map(([k,f])=>`<option value="${k}">${f.label}</option>`).join('')}</select>
+    </div>
+    <button class="btn bg" style="width:100%" onclick="sendScout()">🔭 Enviar ojeador ($0.5M)</button>
+    ${activas?`<div style="margin-top:10px"><div class="ctitle">Misiones en curso</div>${activas}</div>`:''}
+    ${reports?`<div style="margin-top:10px"><div class="ctitle">Informes recibidos</div>${reports}</div>`:'<div style="margin-top:10px;font-size:10px;color:var(--t3);text-align:center">Todavía no hay informes.</div>'}
+  `);
+}
+function sendScout(){
+  const liga=document.getElementById('scLiga').value;
+  const focus=document.getElementById('scFocus').value;
+  G.scoutMissions=G.scoutMissions||[];
+  if(G.scoutMissions.length>=3){flash('❌ Máximo 3 misiones activas','loss');return;}
+  if(G.budget<0.5){flash('❌ Presupuesto insuficiente','loss');return;}
+  G.budget=Math.round((G.budget-0.5)*10)/10;
+  G.scoutMissions.push({liga,focus,doneWeek:(G.week||1)+2});
+  lg('🔭',`Ojeador enviado a ${liga} (${SCOUT_FOCUS[focus].label})`);
+  openScouting();
+}
+function processScouts(){
+  if(!G.scoutMissions||!G.scoutMissions.length)return;
+  const due=G.scoutMissions.filter(ms=>G.week>=ms.doneWeek);
+  if(!due.length)return;
+  G.scoutReports=G.scoutReports||[];
+  for(const ms of due){
+    const pool=G.market.filter(p=>p.lg===ms.liga);
+    let picks=[];
+    if(ms.focus==='promesas')picks=pool.filter(p=>p.age<=21).sort((a,b)=>b.pot-a.pot).slice(0,5);
+    else if(ms.focus==='gangas')picks=pool.filter(p=>p.val<=G.budget).sort((a,b)=>(b.rat/Math.max(0.3,b.val))-(a.rat/Math.max(0.3,a.val))).slice(0,5);
+    else picks=pool.filter(p=>p.val<=G.budget*1.5).sort((a,b)=>b.rat-a.rat).slice(0,5);
+    G.scoutReports.unshift({liga:ms.liga,focus:ms.focus,week:G.week,picks:picks.map(p=>p.id)});
+    const top=picks[0];
+    addPhoneMsg('board','Jefe de Ojeadores',`🔭 Presidente, llegó el informe de <b>${ms.liga}</b> (${SCOUT_FOCUS[ms.focus].label}). ${top?`Lo más destacado: <b>${top.name}</b> (${top.pos}, ${top.age} años, ${fv(top.val)}).`:'No encontramos nada destacable.'} Revíselo en Mercado → Ojeadores.`,'🔭');
+  }
+  G.scoutMissions=G.scoutMissions.filter(ms=>!due.includes(ms));
+}
+
+// =============================================
+// LIGA SIMULADA COMPLETA (estilo Football Manager)
+// Todos los clubes juegan cada fecha; tabla y goleadores reales.
+// =============================================
+function clubPower(club){
+  G._clubPow=G._clubPow||{};
+  if(G._clubPow[club])return G._clubPow[club];
+  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club)).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  const pow=rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
+  G._clubPow[club]=pow;
+  return pow;
+}
+function ensureLeague(){
+  if(G.league&&G.league.season===G.season)return;
+  const tn=G.teamName||'Boca Juniors';
+  const rivals=[...new Set(G.calendar.filter(m=>m.comp==='Liga Profesional').map(m=>m.home===tn?m.away:m.home))];
+  G.league={season:G.season,clubs:[tn,...rivals],table:{},scorers:{},lastRound:[]};
+  G.league.clubs.forEach(c=>G.league.table[c]={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0});
+}
+function tallyLeague(A,B,ga,gb){
+  const T=G.league.table;
+  if(!T[A]||!T[B])return;
+  T[A].pj++;T[B].pj++;T[A].gf+=ga;T[A].gc+=gb;T[B].gf+=gb;T[B].gc+=ga;
+  if(ga>gb){T[A].g++;T[A].pts+=3;T[B].p++;}
+  else if(ga<gb){T[B].g++;T[B].pts+=3;T[A].p++;}
+  else{T[A].e++;T[B].e++;T[A].pts++;T[B].pts++;}
+}
+function creditScorers(club,n){
+  if(!n)return;
+  const cand=G.market.filter(p=>p.club===club&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
+  for(let i=0;i<n;i++){
+    const p=cand.length?cand[~~(Math.random()*cand.length)]:null;
+    const nm=p?p.name:club+' (varios)';
+    if(!G.league.scorers[nm])G.league.scorers[nm]={club,goals:0};
+    G.league.scorers[nm].goals++;
+    if(p)p.goals=(p.goals||0)+1;
+  }
+}
+// Simula la fecha completa: los otros 18 clubes juegan entre sí
+function simLeagueRound(rivalPlayed){
+  ensureLeague();
+  const others=G.league.clubs.filter(c=>c!==G.teamName&&c!==rivalPlayed);
+  const sh=[...others].sort(()=>Math.random()-0.5);
+  const results=[];
+  for(let i=0;i+1<sh.length;i+=2){
+    const A=sh[i],B=sh[i+1];
+    const d=((clubPower(A)+2)-clubPower(B))/14; // leve localía para A
+    const pWin=Math.max(0.15,Math.min(0.75,0.37+d));
+    const r=Math.random();
+    let ga,gb;
+    if(r<pWin){ga=1+~~(Math.random()*3);gb=~~(Math.random()*ga);}
+    else if(r<pWin+0.28){ga=gb=~~(Math.random()*3);}
+    else{gb=1+~~(Math.random()*3);ga=~~(Math.random()*gb);}
+    tallyLeague(A,B,ga,gb);
+    creditScorers(A,ga);creditScorers(B,gb);
+    results.push({h:A,a:B,s:ga+'-'+gb});
+  }
+  G.league.lastRound=results;
+}
+function leagueSorted(){
+  ensureLeague();
+  return Object.entries(G.league.table)
+    .sort((a,b)=>b[1].pts-a[1].pts||( b[1].gf-b[1].gc)-(a[1].gf-a[1].gc)||b[1].gf-a[1].gf)
+    .map(([club,row],i)=>({pos:i+1,club,...row}));
+}
+function myLeaguePos(){
+  const t=leagueSorted().find(r=>r.club===G.teamName);
+  return t?t.pos:0;
 }
 
 // =============================================
@@ -5000,8 +5194,13 @@ function showSeasonSummary(){
   const topApp = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps)[0];
   const wageM = (G.squad.reduce((a,p)=>a+p.wage,0)/1000).toFixed(1);
   const t=G.tourney||{liga:{pts:0,gf:0,ga:0,pj:0},lib:{pts:0,gf:0,ga:0,pj:0},copa:{pts:0,gf:0,ga:0,pj:0}};
-  const ligaRank=Math.max(1,Math.min(20,Math.round(20-pts/3)));
-  const resultLabel=pts>=54?'🏆 CAMPEÓN':pts>=45?'🥇 Top 3 — ¡Temporada excelente!':pts>=36?'✅ Top 8 — Buena temporada':pts>=24?'⚽ Temporada regular':pts>=15?'😤 Zona de riesgo':'💔 Temporada difícil';
+  const ligaRank=myLeaguePos()||Math.max(1,Math.min(20,Math.round(20-pts/3)));
+  const nClubs=(G.league&&G.league.clubs.length)||19;
+  const resultLabel=ligaRank===1?'🏆 ¡CAMPEÓN DE LA LIGA!':ligaRank<=3?`🥇 ${ligaRank}º puesto — ¡Temporada excelente!`:ligaRank<=8?`✅ ${ligaRank}º puesto — Buena temporada`:ligaRank<=13?`⚽ ${ligaRank}º puesto — Temporada regular`:ligaRank<nClubs-1?`😤 ${ligaRank}º puesto — Zona de riesgo`:`💔 ${ligaRank}º puesto — Temporada para el olvido`;
+  if(ligaRank===1){
+    G.boardConf=Math.min(100,(G.boardConf||50)+25);
+    addPhoneMsg('board','Secretaría del Club',`🏆 ¡CAMPEONES, presidente! La comisión directiva está eufórica. Su gestión queda en la historia del club.`,'🏛️');
+  }
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="text-align:center;margin-bottom:12px;padding:10px;background:linear-gradient(135deg,rgba(9,31,60,.8),rgba(246,211,24,.05));border-radius:8px">
@@ -5144,10 +5343,12 @@ function matchStrengths(m){
   const myTeam = G.teamName||'Boca Juniors';
   const oppName = m.home===myTeam ? m.away : m.home;
   const BIG5 = ['Boca Juniors','River Plate','Racing Club','Independiente','San Lorenzo'];
-  const MID   = ['Estudiantes LP','Rosario Central','Talleres','Vélez Sarsfield','Huracán','Newell\'s','Lanús'];
+  const MID   = ['Estudiantes LP','Rosario Central','CA Talleres','Vélez Sarsfield','Huracán','Newell\'s','Lanús'];
   const LIB_HARD = ['Flamengo','Palmeiras','Botafogo','Atlético MG','Fluminense'];
   let oppRat = 65;
-  if(BIG5.includes(oppName))       oppRat = 75;
+  const dbPow = (m.comp==='Liga Profesional'&&G.market&&G.market.some(p=>p.club===oppName))?clubPower(oppName):0;
+  if(dbPow)                        oppRat = Math.round(dbPow); // fuerza real del plantel (base TM)
+  else if(BIG5.includes(oppName))  oppRat = 75;
   else if(MID.includes(oppName))   oppRat = 70;
   else if(LIB_HARD.includes(oppName)) oppRat = 77;
   else if(m.comp.includes('Libertadores')) oppRat = 73;
@@ -5160,7 +5361,10 @@ function matchStrengths(m){
 
   // Compute my strength and opponent strength on same scale
   // Los atributos DLS pesan: ataque y defensa reales del XI
-  const myS  = avgR/100*.38 + atkPow/100*.09 + defPow/100*.08 + (G.dt.rat/100+asstBonus)*.2 + G.morale/100*.25;
+  // La condición física del XI pesa: un equipo fundido rinde hasta 12% menos
+  const avgFit = xi.length ? xi.reduce((a,p)=>a+(p.fit===undefined?100:p.fit),0)/xi.length : 100;
+  const fitMod = 0.88 + 0.12*(avgFit/100);
+  const myS  = (avgR/100*.38 + atkPow/100*.09 + defPow/100*.08 + (G.dt.rat/100+asstBonus)*.2 + G.morale/100*.25)*fitMod;
   const oppMorale = 55+~~(Math.random()*35);
   const oppS = oppRat/100*.75 + oppMorale/100*.25;
 
@@ -5219,6 +5423,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const _isHome=m.home===G.teamName;
   m.score=_isHome?(gf+'-'+ga):(ga+'-'+gf);
 
+  // === LIGA COMPLETA: mi resultado a la tabla + se juega la fecha entera ===
+  if(m.comp==='Liga Profesional'){
+    ensureLeague();
+    if(_isHome)tallyLeague(m.home,m.away,gf,ga);else tallyLeague(m.home,m.away,ga,gf);
+    const rival=_isHome?m.away:m.home;
+    creditScorers(rival,ga);
+    simLeagueRound(rival);
+  }
+
   // Check Libertadores group stage completion
   const gsPlayed = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos'&&x.played).length;
   if(gsPlayed===8) genLibKO();
@@ -5231,6 +5444,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const usedMins = new Set();
   // Track apps for all XI
   xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  applyFatigue(xiPlayers);
   if(providedScorers && providedScorers.length){
     // Goles anotados por el jugador en el modo jugable
     providedScorers.forEach(s=>{
@@ -5277,6 +5491,13 @@ function applyMatchResult(m, gf, ga, providedScorers){
     p.val=calcVal(p);
   });
   scorersList.sort((a,b)=>a.min-b.min);
+  // Mis goleadores también cuentan para la tabla de goleadores de la liga
+  if(m.comp==='Liga Profesional'&&G.league){
+    scorersList.forEach(s3=>{
+      if(!G.league.scorers[s3.name])G.league.scorers[s3.name]={club:G.teamName,goals:0};
+      G.league.scorers[s3.name].goals++;
+    });
+  }
   // Match stats
   const goalsAdv = gf - ga;
   const possPct = Math.max(30, Math.min(70, Math.round(50 + goalsAdv*4 + (Math.random()*12-6))));
@@ -5383,8 +5604,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const physioLv = G.staffLevels.physio||1;
   let injChance = G.medicalCenter ? 0.07 : 0.12;
   if(physioLv>=3) injChance*=0.6; else if(physioLv>=2) injChance*=0.75;
+  // Jugadores fundidos se lesionan más (y son los que más chance tienen de caer)
+  const tired=G.squad.filter(p=>fitOf(p)<60&&!p.injured);
+  if(tired.length>=3) injChance*=1.5;
   if(Math.random()<injChance){
-    const ip=G.squad[~~(Math.random()*G.squad.length)];
+    const ip=(tired.length&&Math.random()<0.6)?tired[~~(Math.random()*tired.length)]:G.squad[~~(Math.random()*G.squad.length)];
     const doctorLv = G.staffLevels.doctor||0;
     const durMult = doctorLv>=2?0.6:doctorLv>=1?0.8:1.0;
     ip.injured=true;
@@ -5412,6 +5636,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyAITransfers();
   weeklyDtMoves();
   processInstallments();
+  processScouts();
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
