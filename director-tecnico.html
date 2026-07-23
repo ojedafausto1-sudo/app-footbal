@@ -451,7 +451,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="tc2">
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">📰 Novedades</div><div id="newsLog"></div></div>
-
+          <div class="card" style="margin-bottom:8px" id="medCard"><div class="ctitle">⚕️ Parte médico</div><div id="medReport"></div></div>
+          <div class="card" style="margin-bottom:8px" id="fanCard"><div class="ctitle">📣 Hinchada</div><div id="fanReport"></div></div>
         </div>
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">💰 Finanzas</div>
@@ -2100,10 +2101,12 @@ function updateUI(){
   if($('morV'))$('morV').textContent=G.morale;
   if($('morBar'))$('morBar').style.width=G.morale+'%';
   updateBoard($);
+  rMedReport();rFanReport();
   const nm = G.calendar.find(m=>!m.played);
   if(nm){
     if($('nH'))$('nH').textContent=nm.home; if($('nA'))$('nA').textContent=nm.away;
-    if($('nMeta'))$('nMeta').textContent='Semana '+nm.week+(nm.home===G.teamName?' · Local':' · Visitante');
+    const derby=isDerby(nm);
+    if($('nMeta'))$('nMeta').innerHTML='Semana '+nm.week+(nm.home===G.teamName?' · Local':' · Visitante')+(derby?` · <span style="color:var(--red);font-weight:800">🔥 ${derby.toUpperCase()} — ¡VALE DOBLE!</span>`:'');
     if($('nComp'))$('nComp').textContent=nm.comp;
     const ini=t=>t.split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
     if($('nHBadge'))$('nHBadge').textContent=ini(nm.home);
@@ -2629,6 +2632,10 @@ function submitNegTerms(id){
   if(roleDiff<=0) score+=2; else if(roleDiff===1) score+=1; else score-=1;
   if(bonus>=2) score+=1; else if(bonus>=1) score+=0.5;
   if(years>=4) score+=0.5; else if(years<=1) score-=1;
+  // REPUTACIÓN: los cracks quieren un club a su altura
+  const repGap=(p.rat)-(G.rep||50);
+  if(repGap>=25) score-=3; else if(repGap>=15) score-=1.5; else if(repGap>=8) score-=0.7;
+  else if(repGap<=-10) score+=0.5; // a un club grande le sobran argumentos
   const accept=score>=3.5||(score>=2&&Math.random()>0.35)||(score>=0.5&&Math.random()>0.7);
   const roles=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
   if(accept){
@@ -2646,7 +2653,7 @@ function submitNegTerms(id){
     addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
     negStep4(p,nd.agreedFee,wage,years,roles[role]);
   } else {
-    const hint=wageRatio<0.7?'El salario es una falta de respeto. No voy a regalar mi talento.':wageRatio<0.85?'Necesito un salario acorde a mi nivel. Estoy ganando más donde estoy.':roleDiff>=2?'No vine a calentar el banco. Si no soy titular, no me interesa.':years<=1?'¿Un año? Necesito estabilidad, no un contrato de prueba.':'Las condiciones no me convencen. Esperaba una oferta más ambiciosa.';
+    const hint=repGap>=15?`Con todo respeto, ${G.teamName} todavía no es un club a mi altura. Necesito un proyecto más grande.`:wageRatio<0.7?'El salario es una falta de respeto. No voy a regalar mi talento.':wageRatio<0.85?'Necesito un salario acorde a mi nivel. Estoy ganando más donde estoy.':roleDiff>=2?'No vine a calentar el banco. Si no soy titular, no me interesa.':years<=1?'¿Un año? Necesito estabilidad, no un contrato de prueba.':'Las condiciones no me convencen. Esperaba una oferta más ambiciosa.';
     addPhoneMsg('player',p.name,`❌ ${hint}`,'😤');
     flash('❌ '+p.name+' rechazó los términos — '+hint,'loss');
     showMod(`
@@ -4843,6 +4850,7 @@ function rStand(){
   let myPts=0,myGF=0,myGA=0,myW=0,myD=0,myL=0;
   myPlayed.forEach(m=>{
     const mine=m.home===tn;
+    if(!m.score)return;
     const [gf,ga]=m.score.split('-').map(Number);
     myGF+=mine?gf:ga; myGA+=mine?ga:gf;
     if(m.result==='W'){myPts+=3;myW++;}
@@ -5488,11 +5496,23 @@ function archiveSeason(){
   const pos=myLeaguePos();
   const sc=Object.entries(G.league.scorers).sort((a,b)=>b[1].goals-a[1].goals)[0];
   const myTop=G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
+  // Figura del año: el que más MVPs juntó
+  const figura=G.squad.filter(p=>p.mvpCount).sort((a,b)=>b.mvpCount-a.mvpCount)[0];
   G.history=G.history||[];
   G.history.push({season:G.season,pos,clubs:t.length,pts:G.wins*3+G.draws,w:G.wins,d:G.draws,l:G.losses,
     gf:G.gf,ga:G.ga,champion:pos===1,
     topScorerLiga:sc?sc[0]+' — '+sc[1].goals:'—',
-    myTopScorer:myTop?myTop.name+' — '+myTop.goals:'—'});
+    myTopScorer:myTop?myTop.name+' — '+myTop.goals:'—',
+    figura:figura?figura.name+' ('+figura.mvpCount+' MVP)':'—'});
+  if(figura){
+    addPhoneMsg('board','Prensa',`🌟 <b>${figura.name}</b> fue elegido la FIGURA DEL AÑO de ${G.teamName} con ${figura.mvpCount} premios al mejor en cancha. ¡Un ídolo!`,'🏅');
+    figura.morale=Math.min(99,(figura.morale||70)+6);
+  }
+  G.squad.forEach(p=>p.mvpCount=0); // se reinicia cada temporada
+  // La reputación del club crece con los logros deportivos
+  const repGain=pos===1?8:pos<=4?4:pos<=8?1:pos>=t.length-1?-4:0;
+  if(repGain){G.rep=Math.max(20,Math.min(100,(G.rep||50)+repGain));
+    if(repGain>0)lg('⭐',`La reputación del club sube a ${G.rep} por la campaña`);}
   // Descenso del último (IA) y ascenso del mejor club de la Nacional (base real)
   const tail=[...t].reverse().find(r=>r.club!==G.teamName);
   const inLeague=new Set(t.map(r=>r.club));
@@ -5674,8 +5694,10 @@ function matchStrengths(m){
 function applyMatchResult(m, gf, ga, providedScorers){
   const psychLv = (G.staffLevels&&G.staffLevels.psych)||0;
   const res = gf>ga?'W':gf===ga?'D':'L';
+  const derby=isDerby(m);
+  const dMul=derby?2:1; // los clásicos valen doble en moral/rep/confianza
   if(res==='W'){
-    G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)); G.rep=Math.min(100,G.rep+1);
+    G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); G.rep=Math.min(100,G.rep+1*dMul);
     G.budget=Math.round((G.budget+G.stadium.income)*10)/10;
     // Bonos de sponsors por victoria
     const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0);
@@ -5684,9 +5706,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
     G.budget=Math.round((G.budget+G.stadium.income*.6)*10)/10;
   } else {
-    G.losses++; G.morale=Math.max(0,G.morale-(psychLv>=2?2:psychLv>=1?3:4)); G.rep=Math.max(0,G.rep-1);
+    G.losses++; G.morale=Math.max(0,G.morale-(psychLv>=2?2:psychLv>=1?3:4)*dMul); G.rep=Math.max(0,G.rep-1*dMul);
     G.budget=Math.round((G.budget+G.stadium.income*.3)*10)/10;
   }
+  if(derby){
+    G.boardConf=Math.max(0,Math.min(100,(G.boardConf||50)+(res==='W'?10:res==='L'?-8:2)));
+    addPhoneMsg('board','Secretaría del Club',`${res==='W'?'🔥 ¡GANAMOS EL '+derby.toUpperCase()+'! La hinchada está en la gloria.':res==='L'?'😔 Perdimos el '+derby+'. La hinchada está dolida, presidente.':'🤝 Empate en el '+derby+'. Un punto que sabe a poco.'}`,'🏛️');
+    lg(res==='W'?'🔥':res==='L'?'😔':'🤝',`${derby}: ${res==='W'?'victoria':res==='L'?'derrota':'empate'} (vale doble)`);
+  }
+  updateFans(res,derby,gf);
   G.gf+=gf; G.ga+=ga;
   m.played=true; m.result=res;
   G._talkBonus=0; // el efecto de la charla dura solo este partido
@@ -5762,6 +5790,22 @@ function applyMatchResult(m, gf, ga, providedScorers){
     p.val=calcVal(p);
   });
   scorersList.sort((a,b)=>a.min-b.min);
+  // ═══ MVP del partido: goleador destacado o mejor del XI ═══
+  if(res!=='L'||scorersList.length){
+    let mvp=null;
+    if(scorersList.length){
+      // el que más goles hizo
+      const cnt={};scorersList.forEach(s=>cnt[s.name]=(cnt[s.name]||0)+1);
+      const topName=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
+      mvp=G.squad.find(p=>p.name===topName);
+    }
+    if(!mvp)mvp=xiPlayers.slice().sort((a,b)=>b.rat-a.rat)[0];
+    if(mvp){
+      mvp.mvpCount=(mvp.mvpCount||0)+1;
+      mvp.perf=Math.min(1.30,(mvp.perf||1)+0.02);
+      G._lastMVP={name:mvp.name,pos:mvp.pos,goals:scorersList.filter(s=>s.name===mvp.name).length};
+    }
+  } else G._lastMVP=null;
   // Mis goleadores también cuentan para la tabla de goleadores de la liga
   if(m.comp==='Liga Profesional'&&G.league){
     scorersList.forEach(s3=>{
@@ -5886,10 +5930,24 @@ function applyMatchResult(m, gf, ga, providedScorers){
     const ip=(tired.length&&Math.random()<0.6)?tired[~~(Math.random()*tired.length)]:G.squad[~~(Math.random()*G.squad.length)];
     const doctorLv = G.staffLevels.doctor||0;
     const durMult = doctorLv>=2?0.6:doctorLv>=1?0.8:1.0;
+    // Tipo de lesión con severidad realista
+    const INJ_TYPES=[
+      {t:'Golpe / contractura',emo:'🤕',min:1,max:2,w:38},
+      {t:'Desgarro muscular',emo:'🦵',min:2,max:4,w:28},
+      {t:'Esguince de tobillo',emo:'🦶',min:3,max:6,w:18},
+      {t:'Distensión de ligamentos',emo:'🩹',min:5,max:9,w:10},
+      {t:'Rotura de ligamentos (grave)',emo:'🚑',min:12,max:22,w:6},
+    ];
+    let rw=Math.random()*INJ_TYPES.reduce((a,x)=>a+x.w,0),it=INJ_TYPES[0];
+    for(const x of INJ_TYPES){rw-=x.w;if(rw<=0){it=x;break;}}
     ip.injured=true;
-    ip.injuredWeeks = Math.max(1,Math.round((1+~~(Math.random()*4))*durMult));
-    lg('🏥',`${ip.name} lesionado (${ip.injuredWeeks} sem)`);
-    addPhoneMsg('player', ip.name, `🏥 Me lesioné durante el entrenamiento. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.`, '🏥');
+    ip.injType=it.t;ip.injEmo=it.emo;
+    ip.injuredWeeks=Math.max(1,Math.round((it.min+~~(Math.random()*(it.max-it.min+1)))*durMult));
+    ip.injTotal=ip.injuredWeeks;
+    const grave=ip.injuredWeeks>=8;
+    lg(it.emo,`${ip.name}: ${it.t} (${ip.injuredWeeks} sem)`);
+    addPhoneMsg('player', ip.name, `${it.emo} Parte médico: <b>${it.t}</b>. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.${grave?' Voy a pelearla para volver lo antes posible.':''}`, it.emo);
+    if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
   }
   // Heal injured players
   G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
@@ -6158,7 +6216,9 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
   const resLabel = res==='W'?'VICTORIA':res==='D'?'EMPATE':'DERROTA';
   const scoreStr = gf+'-'+ga;
   const xl = Object.values(G.slots).filter(Boolean).map(id => G.squad.find(p=>p.id===id)).filter(Boolean);
-  const motm = xl.length ? xl.sort((a,b)=>(b.rat+(res==='W'?Math.random()*5:0))-(a.rat+(res==='W'?Math.random()*5:0)))[0] : null;
+  // Usar el MVP ya calculado (que acumula para la Figura del Año)
+  const motm = (G._lastMVP&&G.squad.find(p=>p.name===G._lastMVP.name))
+    || (xl.length ? xl.sort((a,b)=>(b.rat+(res==='W'?Math.random()*5:0))-(a.rat+(res==='W'?Math.random()*5:0)))[0] : null);
 
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
@@ -6317,6 +6377,80 @@ function initPads(){
   });
   initJoystick();
 }
+
+// ═══ HUMOR DE LA HINCHADA Y SOCIOS ═══
+function fanMoodLabel(v){
+  return v>=80?{t:'Eufórica',e:'🤩',c:'var(--green)'}:v>=60?{t:'Contenta',e:'😀',c:'var(--green)'}:
+    v>=40?{t:'Expectante',e:'😐',c:'var(--gold)'}:v>=22?{t:'Molesta',e:'😠',c:'var(--ora)'}:
+    {t:'En rebeldía',e:'🤬',c:'var(--red)'};
+}
+function rFanReport(){
+  const el=document.getElementById('fanReport');if(!el||!G)return;
+  if(G.fanMood===undefined)G.fanMood=55;
+  if(G.socios===undefined)G.socios=Math.round((G.stadium?G.stadium.capacity:50000)*0.35);
+  const m=fanMoodLabel(G.fanMood);
+  el.innerHTML=`
+    <div class="sr"><span class="sl">Humor</span><span class="sv" style="color:${m.c}">${m.e} ${m.t} (${G.fanMood}%)</span></div>
+    <div class="prog"><div class="pf" style="width:${G.fanMood}%;background:${m.c}"></div></div>
+    <div class="sr" style="margin-top:6px"><span class="sl">Socios</span><span class="sv">${G.socios.toLocaleString('es')}</span></div>
+    <div style="font-size:9px;color:var(--t3);margin-top:4px">${G.fanMood>=60?'La gente llena la cancha: más recaudación por partido.':G.fanMood<30?'La hinchada silba: baja la recaudación y crece la presión.':'La hinchada espera resultados.'}</div>`;
+}
+// Actualiza humor/socios tras cada partido
+function updateFans(res,derby,gf){
+  if(G.fanMood===undefined)G.fanMood=55;
+  if(G.socios===undefined)G.socios=Math.round((G.stadium?G.stadium.capacity:50000)*0.35);
+  let d=res==='W'?6:res==='D'?-1:-6;
+  if(derby)d*=2;
+  if(res==='W'&&gf>=3)d+=2; // goleada entusiasma
+  G.fanMood=Math.max(0,Math.min(100,G.fanMood+d));
+  // Los socios siguen el humor y la reputación
+  const cap=G.stadium?G.stadium.capacity:50000;
+  const target=Math.round(cap*(0.28+G.fanMood/100*0.5+(G.rep||50)/100*0.15));
+  G.socios=Math.round(G.socios*0.8+target*0.2);
+  // Recaudación de socios/entradas ligada al humor
+  const gate=Math.round((G.socios/10000)*(0.6+G.fanMood/100*0.8)*10)/10;
+  G.budget=Math.round((G.budget+gate)*10)/10;
+  if(res==='W'&&G.fanMood>=85&&Math.random()<0.4)addPhoneMsg('board','Prensa',`📣 La hinchada explota de alegría. ${G.socios.toLocaleString('es')} socios y creciendo. ¡La ciudad es una fiesta!`,'🎉');
+  if(res==='L'&&G.fanMood<=20)addPhoneMsg('board','Seguridad',`⚠️ Presidente, la hinchada está caliente. Hubo silbidos y reclamos en la salida. Urgen resultados.`,'📣');
+}
+
+// ═══ PARTE MÉDICO ═══
+function rMedReport(){
+  const el=document.getElementById('medReport');const card=document.getElementById('medCard');
+  if(!el||!G)return;
+  const inj=G.squad.filter(p=>p.injured);
+  if(!inj.length){if(card)card.style.display='none';return;}
+  if(card)card.style.display='';
+  el.innerHTML=inj.sort((a,b)=>b.injuredWeeks-a.injuredWeeks).map(p=>{
+    const tot=p.injTotal||p.injuredWeeks;const prog=Math.round((1-p.injuredWeeks/Math.max(1,tot))*100);
+    return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="display:flex;justify-content:space-between;font-size:11px"><span>${p.injEmo||'🏥'} <b>${p.name}</b> <span style="color:var(--t3)">${p.pos}</span></span><span style="color:var(--red)">${p.injuredWeeks} sem</span></div>
+      <div style="font-size:9px;color:var(--t3)">${p.injType||'Lesión'}</div>
+      <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:2px;overflow:hidden"><div style="width:${prog}%;height:100%;background:var(--ora)"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ═══ CLÁSICOS Y RIVALIDADES ═══
+const DERBIES=[
+  ['Boca Juniors','River Plate','Superclásico'],
+  ['Racing Club','Independiente','Clásico de Avellaneda'],
+  ['San Lorenzo','Huracán','Clásico de Boedo/Parque'],
+  ['Estudiantes LP','Gimnasia','Clásico Platense'],
+  ['Newell\'s','Rosario Central','Clásico Rosarino'],
+  ['CA Talleres','Belgrano','Clásico Cordobés'],
+  ['Vélez Sarsfield','Ferro','Clásico del Oeste'],
+  ['Boca Juniors','Racing Club','Clásico histórico'],
+  ['River Plate','Racing Club','Clásico histórico'],
+  ['Boca Juniors','San Lorenzo','Clásico histórico'],
+  ['River Plate','San Lorenzo','Clásico histórico'],
+  ['Boca Juniors','Independiente','Clásico histórico'],
+];
+function derbyOf(a,b){
+  const d=DERBIES.find(x=>(x[0]===a&&x[1]===b)||(x[0]===b&&x[1]===a));
+  return d?d[2]:null;
+}
+function isDerby(m){return m&&derbyOf(m.home,m.away);}
 
 // ═══ CHARLA TÉCNICA PRE-PARTIDO (estilo FM): elegí el tono ═══
 function askTeamTalk(then){
@@ -7590,14 +7724,15 @@ function rStats(){
   window._histHtml=hist.length?`
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">📜 Historial del club ${titulos?`· 🏆×${titulos}`:''}</div>
-    <div style="display:grid;grid-template-columns:44px 34px 1fr 60px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
-      <span>Temp.</span><span>Pos</span><span>Récord</span><span>Goleador</span>
+    <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
+      <span>Temp.</span><span>Pos</span><span>Récord</span><span>Goleador</span><span>Figura</span>
     </div>
     ${hist.slice().reverse().map(h=>`
-      <div style="display:grid;grid-template-columns:44px 34px 1fr 60px;gap:2px;font-size:10px;padding:3px 4px;${h.champion?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
+      <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:10px;padding:3px 4px;${h.champion?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
         <span>${h.season}</span><span>${h.champion?'🏆':h.pos+'º'}</span>
-        <span>${h.w}V ${h.d}E ${h.l}P · ${h.pts}pts · ${h.gf}:${h.ga}</span>
+        <span>${h.w}V ${h.d}E ${h.l}P · ${h.pts}pts</span>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.myTopScorer}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.figura||'—'}</span>
       </div>`).join('')}
   </div>`:'';
 
