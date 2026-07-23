@@ -431,10 +431,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button onclick="setTacticM('Equilibrado',this)" id="tac-eq" class="btn bg bs" style="font-size:9px;padding:2px 6px">⚖️ EQ</button>
           <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
         </div>
-        <button class="hm-play" onclick="playMatch()">▶ JUGAR PARTIDO</button>
+        <button class="hm-play" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
         <div class="hm-alts">
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">📺 RELATO</button>
-          <button class="btn bo bs" onclick="simMatch(true)">⚡ SIMULAR</button>
+          <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
           <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 SIM TÁCTICA 11v11</button>
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
@@ -554,6 +554,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <!-- ENTRENO -->
     <div id="tab-trn" class="tc">
       <div class="stitle">🏋️ Entrenamiento</div>
+      <div class="card" style="margin-bottom:10px" id="trainIntensity"></div>
+      <div class="card" style="margin-bottom:10px" id="trainFocusBox"></div>
+      <div class="ctitle">⚡ Sesión extra de la semana</div>
       <div class="g3" style="margin-bottom:12px" id="trainOpts"></div>
       <div class="card"><div class="ctitle">Entrenamiento individual</div><div class="note">$0.1M por sesión · +3 al atributo elegido</div><div id="indTrain"></div></div>
     </div>
@@ -1291,6 +1294,24 @@ const STAFF_ROLES = [
       {lv:2, name:'Esp. Deportivo',  salary:12, cost:5,   tag:'Nivel 2'},
     ]
   },
+  {
+    id:'sportdir', role:'Director Deportivo', icon:'💼',
+    desc:'Mejora las valuaciones de fichajes: los clubes rivales aceptan ofertas más bajas y baja la comisión de los agentes.',
+    levels:[
+      {lv:0, name:'No contratado',   salary:0,  cost:0,   tag:'No contratado'},
+      {lv:1, name:'Gestor',          salary:8,  cost:3.5, tag:'Contratar'},
+      {lv:2, name:'Ejecutivo Top',   salary:16, cost:7,   tag:'Nivel 2'},
+    ]
+  },
+  {
+    id:'youthcoach', role:'Entrenador de Juveniles', icon:'🌱',
+    desc:'Acelera el desarrollo de los jugadores Sub-21 en los entrenamientos (+20% por nivel).',
+    levels:[
+      {lv:0, name:'No contratado',   salary:0,  cost:0,   tag:'No contratado'},
+      {lv:1, name:'Formador',        salary:6,  cost:2.5, tag:'Contratar'},
+      {lv:2, name:'Ex-cantera Elite',salary:12, cost:5,   tag:'Nivel 2'},
+    ]
+  },
 ];
 
 function rSponsors(){
@@ -1313,7 +1334,8 @@ function rSponsors(){
           <div style="font-size:22px">${s.icon}</div>
           <div style="flex:1">
             <div style="font-weight:700;font-size:12px;font-family:'Barlow Condensed',sans-serif">${s.name}</div>
-            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span></div>
+            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span>${s.winBonus?` · <span style="color:var(--gold)">🏆 +$${s.winBonus}M/victoria</span>`:''}</div>
+            ${s.obj?`<div style="font-size:9px;color:${s.obj.done?'var(--green)':'var(--t3)'};margin-top:2px">🎯 ${s.obj.desc} → <b>+${fv(s.obj.bonus)}</b>${s.obj.done?' ✅':''}</div>`:''}
           </div>
           <div style="text-align:right;font-size:9px;color:var(--t3)">${s.weeksLeft}s restantes</div>
         </div>
@@ -1362,8 +1384,16 @@ function signSponsor(id){
   if(G.rep<sp.reqRep){flash('❌ Reputación insuficiente (necesitás '+sp.reqRep+')','loss');return;}
   const activeCats=new Set(G.sponsors.map(s=>s.cat));
   if(activeCats.has(sp.cat)){flash('❌ Ya tenés un contrato en '+sp.cat,'loss');return;}
-  G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks});
-  lg('✍️',`Patrocinio: ${sp.name} (+$${sp.income}M/sem x${sp.weeks}sem)`);
+  // Bonos por rendimiento: cada sponsor paga por victoria y por cumplir un objetivo
+  const winBonus=Math.round(sp.income*3.5*100)/100;
+  const OBJS=[
+    {id:'champ',desc:'Salir campeón de la Liga',bonus:Math.round(sp.income*30*10)/10},
+    {id:'top4',desc:'Terminar en el Top 4',bonus:Math.round(sp.income*18*10)/10},
+    {id:'top8',desc:'Terminar en el Top 8',bonus:Math.round(sp.income*10*10)/10},
+  ];
+  const obj=OBJS[~~(Math.random()*OBJS.length)];
+  G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks,winBonus,obj});
+  lg('✍️',`Patrocinio: ${sp.name} (+$${sp.income}M/sem + $${winBonus}M/victoria)`);
   flash('✅ ¡'+sp.name+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
   rSponsors();
   if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
@@ -1672,7 +1702,7 @@ function initGame(teamId){
     pressure:'Media', tempo:'Normal', width:'Normal',
     dt: DTS[tc.dtIdx] || DTS[0],
     staff: [{role:'Preparador físico',name:'H. García',rat:70},{role:'Asistente',name:'M. Torres',rat:68}],
-    staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0},
+    staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0, sportdir:0, youthcoach:0},
     squad: buildSquad(teamId),
     market: (function(){ const sq=buildSquad(teamId); const sqNames=new Set(sq.map(p=>p.name)); return buildMkt().filter(p=>!sqNames.has(p.name)); })(),
     calendar: buildCal(tc.name, teamId),
@@ -2225,7 +2255,10 @@ function _negAgent(p){
 function _negDemand(p){
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
   const prestige=topClubs.some(c=>p.club.includes(c))?1.18:1.0;
-  return Math.round(p.val*(1.1+Math.random()*.2)*prestige*10)/10;
+  // El Director Deportivo consigue mejores precios (clubes piden menos)
+  const sd=(G&&G.staffLevels&&G.staffLevels.sportdir)||0;
+  const sdDisc=sd>=2?0.86:sd>=1?0.93:1.0;
+  return Math.round(p.val*(1.1+Math.random()*.2)*prestige*sdDisc*10)/10;
 }
 function _negWageExpect(p){return Math.max(5,Math.round(p.rat*0.55));}
 function _negStepBar(step){
@@ -2298,7 +2331,8 @@ function negStep2(){
   const p=G.market.find(x=>x.id===nd.id);
   if(!p){flash('Jugador no disponible','draw');return;}
   const suggest=Math.round(nd.demand*0.88*10)/10;
-  const agentFee=Math.round(nd.demand*(nd.agent.style==='ambicioso'?0.08:0.04)*10)/10;
+  const sdLv=(G.staffLevels&&G.staffLevels.sportdir)||0;
+  const agentFee=Math.round(nd.demand*(nd.agent.style==='ambicioso'?0.08:0.04)*(sdLv>=2?0.6:sdLv>=1?0.8:1)*10)/10;
   const roundTxt=nd.round>1?` (Ronda ${nd.round}/${nd.maxRounds})`:'';
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
@@ -3285,9 +3319,72 @@ function rTacOpts(){
 function setTac(k,v){ if(!G) return; G[k]=v; rTacOpts(); }
 
 // =============================================
-// TRAINING
+// TRAINING (estilo FM: intensidad + foco + desarrollo semanal)
 // =============================================
+const TRAIN_INTENSITY={
+  suave:{label:'🟢 Suave',desc:'Menos desarrollo, recupera condición física. Cero riesgo.',dev:0.6,fit:+6,inj:0.5},
+  normal:{label:'🟡 Normal',desc:'Balance entre desarrollo y descanso.',dev:1.0,fit:0,inj:1.0},
+  intensa:{label:'🔴 Intensa',desc:'Máximo desarrollo, pero cansa y sube el riesgo de lesión.',dev:1.7,fit:-8,inj:1.9},
+};
+const TRAIN_FOCI={
+  general:{label:'⚖️ General',desc:'Desarrollo parejo de todos los atributos',attr:null},
+  fis:{label:'⚡ Físico',desc:'VEL y FIS',attr:['VEL','FIS']},
+  tec:{label:'🪄 Técnica',desc:'REG y PAS',attr:['REG','PAS']},
+  ofe:{label:'🎯 Ofensivo',desc:'TIR y REG',attr:['TIR','REG']},
+  def:{label:'🧱 Defensivo',desc:'DEF y FIS',attr:['DEF','FIS']},
+};
+function rTrainMeta(){
+  const int=document.getElementById('trainIntensity');
+  const foc=document.getElementById('trainFocusBox');
+  if(!int||!G)return;
+  G.trainIntensity=G.trainIntensity||'normal';
+  G.trainFocus=G.trainFocus||'general';
+  const ycLv=(G.staffLevels&&G.staffLevels.youthcoach)||0;
+  const hasCtr=G.stadium&&G.stadium.upgrades?false:(G.youth&&G.youth.upgrades&&G.youth.upgrades.some(u=>u.id==='yt'&&u.built));
+  int.innerHTML=`<div class="ctitle">🔥 Intensidad semanal</div>
+    <div style="display:flex;gap:4px;margin-bottom:5px">${Object.entries(TRAIN_INTENSITY).map(([k,t])=>`<button class="btn ${G.trainIntensity===k?'bg':'bo'} bs" style="flex:1" onclick="setTrainIntensity('${k}')">${t.label}</button>`).join('')}</div>
+    <div class="note">${TRAIN_INTENSITY[G.trainIntensity].desc}</div>`;
+  foc.innerHTML=`<div class="ctitle">🎯 Foco de desarrollo ${ycLv?`<span style="color:var(--green);font-size:9px">· Entrenador juvenil N${ycLv} (+${ycLv*20}% jóvenes)</span>`:''}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">${Object.entries(TRAIN_FOCI).map(([k,t])=>`<button class="btn ${G.trainFocus===k?'bg':'bo'} bs" onclick="setTrainFocus('${k}')" style="flex:1;min-width:70px">${t.label}</button>`).join('')}</div>
+    <div class="note">${TRAIN_FOCI[G.trainFocus].desc}. El plantel se desarrolla hacia su potencial cada semana según edad, intensidad y cuerpo técnico.</div>`;
+}
+function setTrainIntensity(k){G.trainIntensity=k;rTrainMeta();flash('🔥 Intensidad: '+TRAIN_INTENSITY[k].label,'win');}
+function setTrainFocus(k){G.trainFocus=k;rTrainMeta();flash('🎯 Foco: '+TRAIN_FOCI[k].label,'win');}
+
+// Desarrollo automático semanal de TODO el plantel hacia su potencial
+function weeklyTraining(){
+  const intK=G.trainIntensity||'normal';
+  const foc=TRAIN_FOCI[G.trainFocus||'general'];
+  const intMul=TRAIN_INTENSITY[intK].dev;
+  const ycLv=(G.staffLevels&&G.staffLevels.youthcoach)||0;
+  const asstLv=(G.staffLevels&&G.staffLevels.asst)||1;
+  const ctr=G.youth&&G.youth.upgrades&&G.youth.upgrades.some(u=>u.id==='yt'&&u.built)?1.15:1;
+  G.squad.forEach(p=>{
+    ensureAttrs(p);
+    if(p.dev===undefined)p.dev=0;
+    // Los jóvenes con margen (pot>rat) crecen; los veteranos casi no
+    const gap=Math.max(0,(p.pot||p.rat)-p.rat);
+    if(gap<=0)return;
+    let ageMul=p.age<=20?1.6:p.age<=23?1.25:p.age<=27?0.7:p.age<=31?0.35:0.12;
+    if(p.age<=21&&ycLv)ageMul*=(1+ycLv*0.2);
+    const gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr;
+    p.dev+=gain;
+    // Subir un punto de foco al atributo elegido cuando acumula
+    if(foc.attr&&p.dev>=6){
+      const a=foc.attr[~~(Math.random()*foc.attr.length)];
+      if(p.attrs[a]!==undefined)p.attrs[a]=Math.min(99,p.attrs[a]+1);
+    }
+    if(p.dev>=10){
+      p.rat=Math.min(p.pot,p.rat+1);
+      p.val=calcVal(p);
+      p.dev=0;
+      if(p.rat>=78&&p.age<=21&&!p._breakout){p._breakout=true;addPhoneMsg('board','Coordinador Deportivo',`📈 Presidente, <b>${p.name}</b> dio un salto de calidad en los entrenamientos: ya es rating <b>${p.rat}</b>. La apuesta rinde.`,'📈');}
+    }
+  });
+}
+
 function rTrain(){
+  rTrainMeta();
   const el = document.getElementById('trainOpts');
   if(!el||!G) return;
   const types = [
@@ -3653,7 +3750,7 @@ function rStaff(){
     ${dtProfBars(G.dt)}
     <button class="btn bR bs" style="margin-top:7px" onclick="fireDT()">🚪 Despedir</button>
   `;
-  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
+  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const sl = G.staffLevels;
   const staffSalTotal = STAFF_ROLES.reduce((s,r)=>{
     const lv=sl[r.id]||0; if(!lv) return s;
@@ -3888,7 +3985,7 @@ function confirmCustomDT(){
 
 function upgradeStaff(id){
   if(!G) return;
-  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
+  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const role = STAFF_ROLES.find(r=>r.id===id);
   if(!role) return;
   const curLv = G.staffLevels[id]||0;
@@ -5412,6 +5509,17 @@ function archiveSeason(){
     G.boardConf=Math.max(0,(G.boardConf||50)-40);
     addPhoneMsg('board','Secretaría del Club',`🚨 Presidente, terminamos ÚLTIMOS. Nos salvó la reestructuración de la AFA, pero la confianza de la comisión quedó por el piso. Otra así y le piden la renuncia.`,'🏛️');
   }
+  // Bonos de sponsors por objetivos de temporada
+  (G.sponsors||[]).forEach(s=>{
+    if(!s.obj||s.obj.done)return;
+    const ok=(s.obj.id==='champ'&&pos===1)||(s.obj.id==='top4'&&pos<=4)||(s.obj.id==='top8'&&pos<=8);
+    if(ok){
+      s.obj.done=true;
+      G.budget=Math.round((G.budget+s.obj.bonus)*10)/10;
+      lg('🎯',`${s.name} paga el objetivo cumplido: +${fv(s.obj.bonus)}`);
+      addPhoneMsg('board','Marketing',`🎯 <b>${s.name}</b> liberó el bono por objetivo (${s.obj.desc}): <b style="color:var(--gold)">+${fv(s.obj.bonus)}</b>. ¡Gran temporada comercial!`,'💼');
+    }
+  });
   G._clubPow=null; // las fuerzas se recalculan con los planteles nuevos
 }
 
@@ -5473,7 +5581,7 @@ function nextSeason(){
 // =============================================
 // Fuerzas de ambos equipos para un partido (compartido por simMatch y playMatch)
 function matchStrengths(m){
-  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
+  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const asstBonus = (G.staffLevels.asst>=3?8:G.staffLevels.asst>=2?4:0)/100*.2;
 
   // Use XI average from slots, fall back to top 11 sorted by rating
@@ -5556,6 +5664,8 @@ function matchStrengths(m){
   // Sesgo de la formación elegida
   const fb = FORM_BIAS[G.formation]||{atk:0,def:0};
   tacMod += fb.atk*.5 + fb.def*.5;
+  // Charla técnica pre-partido
+  if(G._talkBonus)tacMod+=G._talkBonus;
   return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
 }
 
@@ -5567,6 +5677,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(res==='W'){
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)); G.rep=Math.min(100,G.rep+1);
     G.budget=Math.round((G.budget+G.stadium.income)*10)/10;
+    // Bonos de sponsors por victoria
+    const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0);
+    if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
   } else if(res==='D'){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
     G.budget=Math.round((G.budget+G.stadium.income*.6)*10)/10;
@@ -5576,6 +5689,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   G.gf+=gf; G.ga+=ga;
   m.played=true; m.result=res;
+  G._talkBonus=0; // el efecto de la charla dura solo este partido
   // Always store score as home_goals-away_goals so table reads correctly
   const _isHome=m.home===G.teamName;
   m.score=_isHome?(gf+'-'+ga):(ga+'-'+gf);
@@ -5749,17 +5863,21 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
   }
   // Staff salary deduction
-  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
+  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const staffSal = STAFF_ROLES.reduce((sum,r)=>{
     const lv=G.staffLevels[r.id]||0; if(!lv) return sum;
     return sum+(r.levels.find(l=>l.lv===lv)||{salary:0}).salary;
   },0);
   if(staffSal>0) G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
   weeklyYouth();
+  weeklyTraining();
+  // La intensidad del entrenamiento ajusta la condición física del plantel
+  const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
+  if(intCfg.fit){G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.max(15,Math.min(100,p.fit+intCfg.fit));});}
   // Injury (reduced by physio level and medical center)
-  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0};
+  if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const physioLv = G.staffLevels.physio||1;
-  let injChance = G.medicalCenter ? 0.07 : 0.12;
+  let injChance = (G.medicalCenter ? 0.07 : 0.12)*(intCfg.inj||1);
   if(physioLv>=3) injChance*=0.6; else if(physioLv>=2) injChance*=0.75;
   // Jugadores fundidos se lesionan más (y son los que más chance tienen de caer)
   const tired=G.squad.filter(p=>fitOf(p)<60&&!p.injured);
@@ -6198,6 +6316,53 @@ function initPads(){
     b.addEventListener('pointercancel',off);
   });
   initJoystick();
+}
+
+// ═══ CHARLA TÉCNICA PRE-PARTIDO (estilo FM): elegí el tono ═══
+function askTeamTalk(then){
+  if(!G){then&&then();return;}
+  const m=G.calendar.find(x=>!x.played);
+  if(!m){then&&then();return;}
+  if(G._talkWeek===G.week){then&&then();return;} // ya diste la charla
+  const S=matchStrengths(m);
+  const fav=(S.myS-S.oppS+S.homeBonus);
+  const ctx=fav>0.08?'favorito':fav<-0.08?'underdog':'parejo';
+  const rival=m.home===G.teamName?m.away:m.home;
+  const last=G.calendar.filter(x=>x.played).slice(-3).map(x=>x.result);
+  const buenaRacha=last.length>=2&&last.every(r=>r==='W');
+  const malaRacha=last.length>=2&&last.every(r=>r==='L');
+  // Cada tono funciona distinto según el contexto
+  const tones=[
+    {id:'motivar',label:'🔥 Motivar',line:`"¡Esta es nuestra cancha, dejen todo!"`,
+      good:ctx!=='favorito'||malaRacha},
+    {id:'calma',label:'🧊 Calma',line:`"Tranquilos, jueguen a lo nuestro, con paciencia."`,
+      good:ctx==='favorito'||buenaRacha},
+    {id:'presion',label:'😤 Exigir',line:`"No acepto menos que ganar. A la cancha."`,
+      good:ctx==='favorito'&&!malaRacha},
+  ];
+  showMod(`
+    <button class="mclose" onclick="closeMod();(${then?'window._talkThen':'null'})&&window._talkThen()"></button>
+    <div class="mtitle">🎙️ Charla técnica</div>
+    <div class="note" style="margin-bottom:8px">Antes de salir a jugar con <b>${rival}</b> (sos <b>${ctx}</b>${buenaRacha?', en racha 🔥':malaRacha?', en mala racha 📉':''}), ¿qué les decís al plantel? El tono correcto sube la moral; el equivocado la baja.</div>
+    ${tones.map(t=>`<button class="btn bo" style="width:100%;margin-bottom:6px;text-align:left" onclick="doTeamTalk('${t.id}',${t.good})">
+      <div style="font-weight:700">${t.label}</div><div style="font-size:9px;color:var(--t3)">${t.line}</div></button>`).join('')}
+    <button class="btn bR bs" style="width:100%" onclick="doTeamTalk('nada',null)">Sin charla</button>
+  `);
+  window._talkThen=then||null;
+}
+function doTeamTalk(id,good){
+  const then=window._talkThen;
+  G._talkWeek=G.week;
+  let delta=0,msg='';
+  if(id==='nada'){delta=0;msg='Salís sin dar charla.';}
+  else if(good===true){delta=+5;msg='✅ El vestuario respondió — moral +5';}
+  else if(good===false){delta=-4;msg='❌ No cayó bien — moral −4';}
+  else{delta=0;msg='Charla neutra.';}
+  G.morale=Math.max(5,Math.min(100,G.morale+delta));
+  G._talkBonus=delta>0?0.03:delta<0?-0.03:0; // pequeño empujón en el partido
+  if(delta)lg('🎙️',msg);
+  closeMod();
+  if(then)then();
 }
 
 function playMatch(){
