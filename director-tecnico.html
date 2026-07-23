@@ -2835,7 +2835,7 @@ function renderMkt(){
   let pl = G.market.filter(p => {
     if(q && !p.name.toLowerCase().includes(q) && !p.club.toLowerCase().includes(q) && !p.lg.toLowerCase().includes(q)) return false;
     if(pos && p.pos!==pos) return false;
-    if(lg2 && !p.lg.toLowerCase().includes(lg2.toLowerCase().split(' ')[0].toLowerCase())) return false;
+    if(lg2 && (lg2==='Otras' ? ['Liga ARG','Brasil','Uruguay','Colombia','Chile','Paraguay','Ecuador','Perú','Bolivia','Venezuela','Premier','Italia','España','Alemania','Francia','Turquía','Grecia','Portugal','Holanda','MLS','Liga MX'].includes(p.lg) : p.lg!==lg2)) return false;
     if(nat && p.nat!==nat) return false;
     if(p.val>mv) return false;
     if(p.age>maxAge) return false;
@@ -5324,7 +5324,7 @@ function processScouts(){
 function clubPower(club){
   G._clubPow=G._clubPow||{};
   if(G._clubPow[club])return G._clubPow[club];
-  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club)).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club&&p.lg==='Liga ARG')).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
   const pow=rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
   G._clubPow[club]=pow;
   return pow;
@@ -5346,7 +5346,7 @@ function tallyLeague(A,B,ga,gb){
 }
 function creditScorers(club,n){
   if(!n)return;
-  const cand=G.market.filter(p=>p.club===club&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
+  const cand=G.market.filter(p=>p.club===club&&p.lg==='Liga ARG'&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
   for(let i=0;i<n;i++){
     const p=cand.length?cand[~~(Math.random()*cand.length)]:null;
     const nm=p?p.name:club+' (varios)';
