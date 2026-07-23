@@ -1484,7 +1484,9 @@ function buildCal(teamName, teamId){
     'Estudiantes LP','Rosario Central','CA Talleres','Vélez Sarsfield','Huracán',
     'Belgrano','Lanús','Newell\'s','Defensa','Godoy Cruz',
     'Platense','Argentinos Jrs.','Barracas C.','Gimnasia'];
-  const lr = shuf(all18.filter(t => t !== teamName).slice(0, 18));
+  // Si hubo descensos/ascensos, la liga usa la lista actualizada
+  const base=(typeof G==='object'&&G&&G.leagueClubs&&G.leagueClubs.length>=18)?[...G.leagueClubs]:all18;
+  const lr = shuf(base.filter(t => t !== teamName).slice(0, 18));
   const libPool=[
     ['Flamengo','BRA'],['Palmeiras','BRA'],['Atlético Mineiro','BRA'],['Botafogo','BRA'],
     ['Nacional (URU)','URU'],['Peñarol','URU'],['LDU Quito','ECU'],['Olimpia','PAR'],
@@ -1713,6 +1715,7 @@ function initGame(teamId){
   G.tourney = buildTourney();
   G.offers = genOffers();
   autoFill();
+  G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
@@ -2153,7 +2156,10 @@ function openP(id, inSquad){
   if(!p) return;
   const sq = G.squad.some(x=>x.id===id);
   ensureAttrs(p);
-  const attrs = attrChips(p);
+  const known = sq || isKnown(p);
+  const attrs = known ? attrChips(p)
+    : `<div class="note" style="text-align:center">🔎 Jugador sin scoutear: rating estimado <b>${ratRangeTxt(p)}</b>. Atributos desconocidos.<br>
+       <button class="btn bo bs" style="margin-top:6px" onclick="scoutOne('${p.id}')">🔎 Pedir informe individual ($0.1M)</button></div>`;
   const vb = vbadges(p);
   // Barra de valor TM: log-scale 0.05M=0% ... 200M=100%
   const tmPct = Math.min(100, Math.round(Math.log10(Math.max(0.05,p.val)*100)/Math.log10(20000)*100));
@@ -2162,9 +2168,9 @@ function openP(id, inSquad){
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
       <div style="text-align:center;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px">
-        ${rb(p.rat)}
+        ${known?rb(p.rat):rbK(p)}
         <div style="font-size:9px;color:var(--t3)">RAT</div>
-        ${rb(p.pot)}
+        ${known?rb(p.pot):'<span class="badge bau" style="font-size:9px">??</span>'}
         <div style="font-size:9px;color:var(--t3)">POT</div>
       </div>
       <div style="flex:1">
@@ -2185,8 +2191,8 @@ function openP(id, inSquad){
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">
-      <div class="card" style="text-align:center;padding:8px">${rb(p.rat)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Rating</div></div>
-      <div class="card" style="text-align:center;padding:8px">${rb(p.pot)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Potencial</div></div>
+      <div class="card" style="text-align:center;padding:8px">${known?rb(p.rat):rbK(p)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Rating</div></div>
+      <div class="card" style="text-align:center;padding:8px">${known?rb(p.pot):'<span class="badge bau" style="font-size:9px">??</span>'}<div style="font-size:9px;color:var(--t3);margin-top:3px">Potencial</div></div>
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;color:var(--green);font-family:'Barlow Condensed',sans-serif">${p.morale}%</div><div style="font-size:9px;color:var(--t3)">Moral</div></div>
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;font-family:'Barlow Condensed',sans-serif">${p.contract}</div><div style="font-size:9px;color:var(--t3)">Contrato</div></div>
     </div>
@@ -2195,6 +2201,7 @@ function openP(id, inSquad){
       ${sq ? `
         <button class="btn bR bs" onclick="sellPlayer('${p.id}')">💸 Vender</button>
         <button class="btn bo bs" onclick="loanPlayer('${p.id}')">📤 Ceder</button>
+        <button class="btn bo bs" onclick="openPromises('${p.id}')">🤝 Promesas</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
         ${isForeign(p.nat) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
@@ -2353,10 +2360,16 @@ function updNegI(demand, budget){
   rx.textContent=txt; rx.style.color=col; rx.style.background=bg; rx.style.padding='7px'; rx.style.borderRadius='6px';
 }
 
+// Fair Play Financiero: club en rojo = sin fichajes
+function ffpOk(){
+  if(G.budget<0){flash('❌ Fair Play Financiero: el club está en rojo, la CD no autoriza fichajes','loss');return false;}
+  return true;
+}
 function subNegI(id, demand){
   const inp=document.getElementById('negInp');
   if(!inp||!G){flash('Error','loss');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(!ffpOk())return;
   const offer=Math.round(parseFloat(inp.value)*10)/10;
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
@@ -2568,6 +2581,12 @@ function submitNegTerms(id){
   const cuota=Math.round(feeTot/plan*10)/10;
   const payNow=Math.round((cuota+bonus)*10)/10;
   if(G.budget<payNow){flash('❌ Sin presupuesto para la primera cuota + bono ('+fv(payNow)+')','loss');return;}
+  // Tope salarial fijado por la CD
+  const curWages=G.squad.reduce((a,q)=>a+(q.wage||0),0);
+  if(G.wageCap&&curWages+wage>G.wageCap){
+    flash(`❌ La CD no autoriza: tope salarial ${G.wageCap}k/sem (hoy ${curWages}k + ${wage}k). Vendé o bajá la oferta.`,'loss');
+    return;
+  }
   const wageRatio=wage/wageExp;
   const roleExpect=wageExp>=47?0:wageExp>=44?1:wageExp>=41?2:3;
   const roleDiff=role-roleExpect;
@@ -2797,7 +2816,7 @@ function renderMkt(){
     const vb = vbadges(p);
     return `
     <div class="mkrow" onclick="openP('${p.id}',false)">
-      <div>${rb(p.rat)}</div>
+      <div>${rbK(p)}</div>
       <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="font-size:9px;color:var(--t2)">${p.lg.split(' ')[0]}</div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
@@ -5013,6 +5032,99 @@ function rCal(){
 }
 
 // =============================================
+// PROMESAS A JUGADORES (estilo FM): cumplilas o se pudre el vestuario
+// =============================================
+const PROMISE_TYPES={
+  titular:{label:'🏟️ "Vas a ser titular"',desc:'Debe jugar 5+ partidos en las próximas 8 semanas',weeks:8},
+  refuerzo:{label:'⭐ "Vamos a traer un refuerzo top"',desc:'Fichar un jugador de 80+ en 12 semanas',weeks:12},
+  sueldo:{label:'💰 "Te subo el sueldo a fin de temporada"',desc:'+15% automático al cerrar la temporada',weeks:0},
+};
+function openPromises(id){
+  const p=G.squad.find(x=>x.id===id);
+  if(!p)return;
+  G.promises=G.promises||[];
+  const active=G.promises.find(pr=>pr.playerId===id&&!pr.resolved);
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🤝 Promesas a ${p.name}</div>
+    ${active?`<div class="note R" style="margin-bottom:8px">Ya le prometiste: <b>${PROMISE_TYPES[active.type].label}</b>. Cumplila antes de prometer otra cosa.</div>`:`
+    <div class="note" style="margin-bottom:8px">Una promesa levanta la moral YA (+10)… pero si no la cumplís, se derrumba (−18) y puede pedir el pase. Los presidentes serios cumplen.</div>
+    ${Object.entries(PROMISE_TYPES).map(([k,t])=>`
+      <button class="btn bo" style="width:100%;margin-bottom:6px;text-align:left" onclick="makePromise('${id}','${k}')">
+        <div style="font-weight:700">${t.label}</div>
+        <div style="font-size:9px;color:var(--t3)">${t.desc}</div>
+      </button>`).join('')}`}
+    <button class="btn bR bs" style="width:100%" onclick="closeMod()">Cerrar</button>
+  `);
+}
+function makePromise(id,type){
+  const p=G.squad.find(x=>x.id===id);
+  if(!p)return;
+  G.promises=G.promises||[];
+  const t=PROMISE_TYPES[type];
+  G.promises.push({playerId:id,type,made:G.week,deadline:t.weeks?G.week+t.weeks:0,apps0:p.apps||0,
+    squadIds:type==='refuerzo'?G.squad.map(q=>q.id):null});
+  p.morale=Math.min(99,(p.morale||70)+10);
+  addPhoneMsg('player',p.name,`🤝 Gracias por la charla, presidente. Me quedo con su palabra: <b>${t.label.replace(/"/g,'')}</b>. Confío en usted.`,'🤝');
+  lg('🤝',`Promesa a ${p.name}: ${t.label}`);
+  closeMod();updateUI();
+}
+function checkPromises(){
+  if(!G.promises||!G.promises.length)return;
+  for(const pr of G.promises){
+    if(pr.resolved||pr.type==='sueldo')continue;
+    const p=G.squad.find(x=>x.id===pr.playerId);
+    if(!p){pr.resolved=true;continue;}
+    if(pr.type==='titular'){
+      if((p.apps||0)-pr.apps0>=5){
+        pr.resolved=true;p.morale=Math.min(99,p.morale+8);
+        addPhoneMsg('player',p.name,'✅ Presidente, cumplió: estoy jugando. Se lo agradezco con goles.','🤝');
+      } else if(G.week>=pr.deadline){
+        pr.resolved=true;pr.broken=true;
+      }
+    } else if(pr.type==='refuerzo'){
+      const nuevo=G.squad.find(q=>q.rat>=80&&pr.squadIds&&!pr.squadIds.includes(q.id));
+      if(nuevo){
+        pr.resolved=true;p.morale=Math.min(99,p.morale+8);
+        addPhoneMsg('player',p.name,`✅ ¡Qué fichaje trajo, presidente! Con ${nuevo.name} vamos por todo. Palabra cumplida.`,'🤝');
+      } else if(G.week>=pr.deadline){
+        pr.resolved=true;pr.broken=true;
+      }
+    }
+    if(pr.broken){
+      p.morale=Math.max(5,(p.morale||70)-18);
+      if(Math.random()<0.4)p.wantsOut=true;
+      addPhoneMsg('player',p.name,`😡 Me falló, presidente. Me prometió ${PROMISE_TYPES[pr.type].label.replace(/"/g,'')} y no pasó nada.${p.wantsOut?' <b>Quiero irme del club.</b>':' No sé si puedo confiar de nuevo.'}`,'😡');
+      lg('💔',`Promesa incumplida con ${p.name}`);
+    }
+  }
+}
+
+// =============================================
+// CONOCIMIENTO DE JUGADORES (estilo FM): fuera de tu liga, el rating
+// exacto está oculto hasta que un ojeador lo siga.
+// =============================================
+function isKnown(p){
+  return p.lg==='Liga ARG'||p.scouted||p.club===G.teamName;
+}
+function ratRangeTxt(p){
+  const s=3+((p.name.length*7+p.age*3)%4); // margen estable por jugador
+  return Math.max(55,p.rat-s)+'–'+Math.min(94,p.rat+s);
+}
+function rbK(p){
+  return isKnown(p)?rb(p.rat):`<span class="badge bau" style="font-size:9px" title="Rating estimado — mandá un ojeador">${ratRangeTxt(p)}?</span>`;
+}
+function scoutOne(id){
+  const p=G.market.find(x=>x.id===id);
+  if(!p)return;
+  if(G.budget<0.1){flash('❌ Presupuesto insuficiente','loss');return;}
+  G.budget=Math.round((G.budget-0.1)*10)/10;
+  p.scouted=true;
+  lg('🔎',`Informe individual: ${p.name} (rating real ${p.rat})`);
+  closeMod();openP(id,false);
+}
+
+// =============================================
 // CONDICIÓN FÍSICA: jugar cansa, descansar recupera (rotación real)
 // =============================================
 function fitOf(p){return p.fit===undefined?100:Math.round(p.fit);}
@@ -5092,6 +5204,7 @@ function processScouts(){
     if(ms.focus==='promesas')picks=pool.filter(p=>p.age<=21).sort((a,b)=>b.pot-a.pot).slice(0,5);
     else if(ms.focus==='gangas')picks=pool.filter(p=>p.val<=G.budget).sort((a,b)=>(b.rat/Math.max(0.3,b.val))-(a.rat/Math.max(0.3,a.val))).slice(0,5);
     else picks=pool.filter(p=>p.val<=G.budget*1.5).sort((a,b)=>b.rat-a.rat).slice(0,5);
+    picks.forEach(p=>p.scouted=true); // el informe revela su nivel real
     G.scoutReports.unshift({liga:ms.liga,focus:ms.focus,week:G.week,picks:picks.map(p=>p.id)});
     const top=picks[0];
     addPhoneMsg('board','Jefe de Ojeadores',`🔭 Presidente, llegó el informe de <b>${ms.liga}</b> (${SCOUT_FOCUS[ms.focus].label}). ${top?`Lo más destacado: <b>${top.name}</b> (${top.pos}, ${top.age} años, ${fv(top.val)}).`:'No encontramos nada destacable.'} Revíselo en Mercado → Ojeadores.`,'🔭');
@@ -5271,7 +5384,39 @@ function showSeasonSummary(){
   `);
 }
 
+// Cierra la temporada: guarda historia y aplica descenso/ascenso real
+function archiveSeason(){
+  ensureLeague();
+  const t=leagueSorted();
+  const pos=myLeaguePos();
+  const sc=Object.entries(G.league.scorers).sort((a,b)=>b[1].goals-a[1].goals)[0];
+  const myTop=G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
+  G.history=G.history||[];
+  G.history.push({season:G.season,pos,clubs:t.length,pts:G.wins*3+G.draws,w:G.wins,d:G.draws,l:G.losses,
+    gf:G.gf,ga:G.ga,champion:pos===1,
+    topScorerLiga:sc?sc[0]+' — '+sc[1].goals:'—',
+    myTopScorer:myTop?myTop.name+' — '+myTop.goals:'—'});
+  // Descenso del último (IA) y ascenso del mejor club de la Nacional (base real)
+  const tail=[...t].reverse().find(r=>r.club!==G.teamName);
+  const inLeague=new Set(t.map(r=>r.club));
+  const cands=[...new Set(G.market.filter(p=>p.lg==='Liga ARG').map(p=>p.club))].filter(c=>!inLeague.has(c)&&c!==G.teamName);
+  if(tail&&cands.length){
+    cands.sort((a,b)=>clubPower(b)-clubPower(a));
+    const up=cands[~~(Math.random()*Math.min(4,cands.length))];
+    G.leagueClubs=t.map(r=>r.club).filter(c=>c!==tail.club&&c!==G.teamName);
+    G.leagueClubs.push(up);
+    lg('🔻',`${tail.club} descendió — asciende ${up}`);
+    addPhoneMsg('agent','Mercado de pases',`📉 <b>${tail.club}</b> se fue al descenso. Desde la Primera Nacional asciende <b>${up}</b>.`,'📰');
+  }
+  if(pos===t.length&&t.length){
+    G.boardConf=Math.max(0,(G.boardConf||50)-40);
+    addPhoneMsg('board','Secretaría del Club',`🚨 Presidente, terminamos ÚLTIMOS. Nos salvó la reestructuración de la AFA, pero la confianza de la comisión quedó por el piso. Otra así y le piden la renuncia.`,'🏛️');
+  }
+  G._clubPow=null; // las fuerzas se recalculan con los planteles nuevos
+}
+
 function nextSeason(){
+  archiveSeason();
   G.season++;
   G.week = 1;
   G.wins = 0; G.draws = 0; G.losses = 0;
@@ -5297,6 +5442,18 @@ function nextSeason(){
     else if(p.age >= 35) p.rat = Math.max(55, p.rat - (Math.random()>0.4?1:0));
     if(p.rat !== oldRat) p.val = calcVal(p);
   });
+  // Promesas de aumento se cumplen a fin de temporada
+  (G.promises||[]).forEach(pr=>{
+    if(pr.type==='sueldo'&&!pr.resolved){
+      const p=G.squad.find(x=>x.id===pr.playerId);
+      if(p){p.wage=Math.round((p.wage||30)*1.15);p.morale=Math.min(99,(p.morale||70)+8);
+        addPhoneMsg('player',p.name,'💰 Gracias por cumplir con el aumento prometido, presidente. Palabra es palabra.','🤝');}
+      pr.resolved=true;
+    }
+  });
+  G.promises=(G.promises||[]).filter(pr=>!pr.resolved);
+  // La CD fija el tope salarial de la nueva temporada
+  G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   G.calendar = buildCal(G.teamName);
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
   G.offers = genOffers();
@@ -5637,6 +5794,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyDtMoves();
   processInstallments();
   processScouts();
+  checkPromises();
+  // ═══ BALANCE MENSUAL: sueldos vs TV/socios (finanzas estilo FM) ═══
+  if(G.week%4===0){
+    const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
+    const wages=Math.round(wk*4/1000*10)/10;                    // M/mes
+    const tv=Math.round((3+(G.rep||50)*0.03+(G.stadium.income||0)*0.4)*10)/10; // TV + socios
+    G.budget=Math.round((G.budget-wages+tv)*10)/10;
+    const neto=Math.round((tv-wages)*10)/10;
+    G.finLast={wages,tv,neto,wk};
+    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · TV y socios <b style="color:var(--green)">+${fv(tv)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
+  }
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${gf}-${ga} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -7239,6 +7407,35 @@ function rStats(){
   if(!el||!G) return;
   if(!G.tourney) G.tourney = buildTourney();
 
+  // ═══ FINANZAS (estilo FM) ═══
+  const curWages=G.squad.reduce((a,p)=>a+(p.wage||0),0);
+  const cuotasPend=(G.installments||[]).reduce((a,c)=>a+c.amount,0);
+  const fin=G.finLast;
+  window._finHtml=`
+  <div class="card" style="margin-bottom:9px">
+    <div class="ctitle">💰 Finanzas del club</div>
+    <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${G.budget>=0?'var(--green)':'var(--red)'}">$${G.budget}M${G.budget<0?' ⚠️ FFP: fichajes bloqueados':''}</span></div>
+    <div class="sr"><span class="sl">Masa salarial</span><span class="sv" style="color:${G.wageCap&&curWages>G.wageCap?'var(--red)':'var(--t2)'}">${curWages}k/sem${G.wageCap?' (tope CD: '+G.wageCap+'k)':''}</span></div>
+    ${cuotasPend?`<div class="sr"><span class="sl">Cuotas de pases pendientes</span><span class="sv" style="color:var(--ora)">${fv(cuotasPend)}</span></div>`:''}
+    ${fin?`<div class="sr"><span class="sl">Último balance mensual</span><span class="sv" style="color:${fin.neto>=0?'var(--green)':'var(--red)'}">${fin.neto>=0?'+':''}${fv(fin.neto)} (TV +${fv(fin.tv)} / sueldos −${fv(fin.wages)})</span></div>`:''}
+  </div>`;
+  // ═══ HISTORIAL MULTI-TEMPORADA ═══
+  const hist=G.history||[];
+  const titulos=hist.filter(h=>h.champion).length;
+  window._histHtml=hist.length?`
+  <div class="card" style="margin-bottom:9px">
+    <div class="ctitle">📜 Historial del club ${titulos?`· 🏆×${titulos}`:''}</div>
+    <div style="display:grid;grid-template-columns:44px 34px 1fr 60px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
+      <span>Temp.</span><span>Pos</span><span>Récord</span><span>Goleador</span>
+    </div>
+    ${hist.slice().reverse().map(h=>`
+      <div style="display:grid;grid-template-columns:44px 34px 1fr 60px;gap:2px;font-size:10px;padding:3px 4px;${h.champion?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
+        <span>${h.season}</span><span>${h.champion?'🏆':h.pos+'º'}</span>
+        <span>${h.w}V ${h.d}E ${h.l}P · ${h.pts}pts · ${h.gf}:${h.ga}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.myTopScorer}</span>
+      </div>`).join('')}
+  </div>`:'';
+
   const scorers = G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals).slice(0,10);
   const apps = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps).slice(0,10);
 
@@ -7254,7 +7451,7 @@ function rStats(){
   const played=G.calendar.filter(m=>m.played);
   const form5=played.slice(-5).map(m=>m.result).reverse();
   const formDots=form5.map(r=>r==='W'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin:0 1px"></span>':r==='D'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);margin:0 1px"></span>':'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin:0 1px"></span>').join('');
-  el.innerHTML = `
+  el.innerHTML = (window._finHtml||'')+(window._histHtml||'')+`
     <div class="card" style="margin-bottom:10px">
       <div class="ctitle">📈 Forma Reciente</div>
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
@@ -7351,6 +7548,7 @@ function payClause(id){
 function confirmClause(id){
   const p=G.market.find(x=>x.id===id);
   if(!p)return;
+  if(!ffpOk())return;
   const cl=clauseOf(p);
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
@@ -7401,6 +7599,7 @@ function selPct(id,pc){
 function confirmHalfPass(id){
   const p=G.market.find(x=>x.id===id);
   if(!p)return;
+  if(!ffpOk())return;
   const pc=window._pctSel||0.5;
   const cost=Math.round(p.val*pc*1.1*10)/10;
   if(G.budget<cost){flash('❌ Presupuesto insuficiente','loss');return;}
