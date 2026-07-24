@@ -9433,9 +9433,53 @@ function fmSetRestart(type,team,x,y,msg){
 function fmDoRestart(){
   const f=FM,r=f.restart;if(!r)return;
   const b=f.ball;
+  // ═══ PENAL: lo patea el mejor rematador vs el arquero ═══
+  if(r.type==='penalty'){
+    const atk=r.team==='my'?f.my:f.opp;
+    const def=r.team==='my'?f.opp:f.my;
+    const shooter=[...atk].filter(q=>!q.isGK).sort((a,c)=>(((c.attrs&&c.attrs.TIR)||c.rat)-((a.attrs&&a.attrs.TIR)||a.rat)))[0];
+    const gk=def.find(q=>q.isGK);
+    const tir=(shooter&&shooter.attrs&&shooter.attrs.TIR)||(shooter&&shooter.rat)||78;
+    const ref=(gk&&gk.attrs&&(gk.attrs.REF||gk.attrs.ATA))||(gk&&gk.rat)||72;
+    const pGoal=Math.max(0.55,Math.min(0.93,0.80+(tir-78)/220-(ref-72)/260));
+    fmSndKick(1);
+    if(Math.random()<pGoal){
+      if(r.team==='my'){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL DE PENAL!!\n'+(G.teamName||''));}
+      else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE PENAL\n'+f.oppName);}
+      f.phaseT=0;fmSndGoal();fmHUD();
+    } else {
+      fmMsg(Math.random()<0.5?'🧤 ¡ATAJÓ EL PENAL!':'❌ ¡LO MANDÓ AFUERA!');
+      f.restart=null;
+      const defTeam=r.team==='my'?'opp':'my';
+      const gkx=((defTeam==='my')===f.myAttRight)?f.leftGL:f.rightGL;
+      fmSetRestart('goalkick',defTeam,gkx+(gkx<f.VW/2?100:-100),f.VH/2,'');
+      return;
+    }
+    f.restart=null;return;
+  }
   b.x=Math.max(f.leftGL+8,Math.min(f.rightGL-8,r.x));
   b.y=Math.max(16,Math.min(f.VH-16,r.y));
   b.vx=0;b.vy=0;b.air=0;
+  // ═══ TIRO LIBRE CERCA DEL ÁREA: remate directo al arco ═══
+  if(r.type==='freekick'){
+    const atkGoalX=((r.team==='my')===f.myAttRight)?f.rightGL:f.leftGL;
+    const distGoal=Math.abs(atkGoalX-b.x);
+    const central=Math.abs(b.y-f.VH/2)<f.GH*2.2;
+    if(distGoal<(f.rightGL-f.leftGL)*0.30&&central){
+      const atk=r.team==='my'?f.my:f.opp;
+      const shooter=[...atk].filter(q=>!q.isGK).sort((a,c)=>(((c.attrs&&c.attrs.TIR)||c.rat)-((a.attrs&&a.attrs.TIR)||a.rat)))[0];
+      const tir=(shooter&&shooter.attrs&&shooter.attrs.TIR)||(shooter&&shooter.rat)||76;
+      const spread=1.25-Math.min(90,tir)/120;
+      const aimY=f.VH/2+(Math.random()-.5)*f.GH*1.1*spread;
+      const dx=atkGoalX-b.x,dy=aimY-b.y,dd=Math.hypot(dx,dy)||1;
+      const pwr=8.6+Math.max(0,tir-76)/12;
+      b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=Math.random()<0.4?4:0;
+      f._lastTouch=r.team;f.restart=null;
+      fmSndKick(0.95);
+      if(f.learn)f.learn.fkShots=(f.learn.fkShots||0)+1;
+      return;
+    }
+  }
   const squad=r.team==='my'?f.my:f.opp;
   let taker=null,ti=-1;
   if(r.type==='goalkick'){
@@ -9466,10 +9510,34 @@ function fmDoRestart(){
 function fmFoul(offTeam,offender,victim){
   const f=FM;if(!f||f.phase!=='play')return;
   const to=offTeam==='my'?'opp':'my';
-  const card=Math.random()<0.25;
+  // ¿la falta fue dentro del área del equipo que cometió la infracción? → PENAL
+  const defGoalX=(offTeam==='my')===f.myAttRight?f.leftGL:f.rightGL; // arco que defiende el infractor
+  const inBox=Math.abs(victim.x-defGoalX)<(f.rightGL-f.leftGL)*0.16&&Math.abs(victim.y-f.VH/2)<f.GH*1.15;
+  // Tipo de tarjeta: mayoría amarilla, algunas rojas (dobles/último hombre)
+  const roll=Math.random();
+  const red=roll<0.06;
+  const yellow=!red&&roll<0.34;
   fmSndWhistle(1);
-  fmSetRestart('freekick',to,victim.x,victim.y,card?'FALTA\n🟨 AMARILLA':'FALTA');
+  if(red&&offender){fmSendOff(offTeam,offender);}
+  if(inBox){
+    fmSetRestart('penalty',to,defGoalX,f.VH/2,red?'PENAL\n🟥 ROJA':'⚽ PENAL');
+  } else {
+    fmSetRestart('freekick',to,victim.x,victim.y,red?'FALTA\n🟥 ROJA':yellow?'FALTA\n🟨 AMARILLA':'FALTA');
+  }
   if(offender)offender._slideT=0;
+}
+// Expulsión: el jugador sale de la cancha (superioridad numérica)
+function fmSendOff(team,pl){
+  const f=FM;
+  pl._sentOff=true;pl.isGK=pl.isGK; // conserva rol
+  // lo saco del campo (a la banda) y no vuelve a jugar
+  pl.x=-500;pl.y=-500;pl.vx=0;pl.vy=0;
+  const arr=team==='my'?f.my:f.opp;
+  const idx=arr.indexOf(pl);
+  if(idx>=0)arr.splice(idx,1); // deja al equipo con 10
+  const nm=team==='my'?G.teamName:f.oppName;
+  fmMsg('🟥 EXPULSADO\n'+(pl.name||'')+' ('+nm+')');
+  if(f.learn)f.learn.reds=(f.learn.reds||0)+1;
 }
 
 // ═══ TECLAS CONFIGURABLES (se guardan en el navegador) ═══
@@ -10238,15 +10306,18 @@ function fmAI(p,team,idx,dt){
       } else if(justReceived&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
-      } else if(inBox&&Math.random()<0.13*dt){
-        const aimY=(Math.random()-.5)*f.GH*.55;
+      } else if(inBox&&Math.random()<(0.11+shotAttr/900)*dt){
+        // Puntería: a mayor TIR, menos dispersión (apunta más al arco)
+        const spread=1.30-Math.min(90,shotAttr)/115;
+        const aimY=(Math.random()-.5)*f.GH*.62*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=6.5+Math.random()*3.5;
+        const pwr=6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16;
         b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.8);
-      } else if(canShoot&&!inBox&&Math.random()<(0.028+prof.direct*0.035)*dt){
-        const aimY=(Math.random()-.5)*f.GH*.45;
+      } else if(canShoot&&!inBox&&Math.random()<(0.026+prof.direct*0.035+Math.max(0,shotAttr-74)/1000)*dt){
+        const spread=1.30-Math.min(90,shotAttr)/115;
+        const aimY=(Math.random()-.5)*f.GH*.5*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=7.0+Math.random()*2.5;
+        const pwr=6.8+Math.random()*2.4+Math.max(0,shotAttr-75)/16;
         b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);
       } else if(longShot&&Math.random()<(0.03+Math.max(0,shotAttr-72)/100*0.06)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
@@ -10330,12 +10401,21 @@ function fmAI(p,team,idx,dt){
             return;
           }
         }
-        // Quite: si llego a la pelota, la toco hacia mi arco/afuera del rival
+        // Quite: depende del DEF del marcador vs el REG/nivel del que lleva la pelota
         if(bd<KICK_R&&!(b.air>2)&&theyHave){
-          const awayX=ownGX-b.x,awayY=(b.y<mid?-1:1)*120;
-          const dd4=Math.hypot(awayX,awayY)||1;
-          b.vx=awayX/dd4*3.2;b.vy=awayY/dd4*3.2;
-          f._lastTouch=team;
+          const carrier=f.poss;
+          const defA=(p.attrs&&p.attrs.DEF)||p.rat||70;
+          const carA=carrier?((carrier.attrs&&carrier.attrs.REG)||carrier.rat||70):68;
+          const winProb=Math.max(0.25,Math.min(0.9,0.55+(defA-carA)/90));
+          if(Math.random()<winProb){
+            // roba limpio: saca la pelota lejos del rival
+            const awayX=ownGX-b.x,awayY=(b.y<mid?-1:1)*120;
+            const dd4=Math.hypot(awayX,awayY)||1;
+            b.vx=awayX/dd4*3.2;b.vy=awayY/dd4*3.2;
+            f._lastTouch=team;
+            if(f.learn)f.learn.tackles=(f.learn.tackles||0)+1;
+          }
+          // si falla, el portador sigue con la pelota (no la toca)
         }
       } else {
         // Presionadores secundarios: uno tapa la línea de pase hacia adelante,
@@ -10533,7 +10613,11 @@ function fmTeamPass(team,fromIdx){
     const leadY=t.y+(t.vy||0)*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
     const pwr=5.0+Math.random()*2.6;
-    b.vx=(dx/dd)*pwr;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4;
+    // PRECISIÓN DE PASE: a menor PAS, más error lateral (pases desviados que se pierden)
+    const pas=(fromP.attrs&&fromP.attrs.PAS)||fromP.rat||70;
+    const errAmp=(1-Math.min(92,pas)/100)*Math.min(1,dd/500)*2.6;
+    const ex=(Math.random()-.5)*errAmp,ey=(Math.random()-.5)*errAmp;
+    b.vx=(dx/dd)*pwr+ex;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4+ey;
     f._lastTouch=team;
     f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
     squad[fromIdx]._kickT=9;
