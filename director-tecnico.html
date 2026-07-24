@@ -8806,10 +8806,10 @@ function fmInit(m,W,H){
   const opp=m.home===G.teamName?m.away:m.home;
   const myKit=kitFor(G.teamName),oppKit=kitFor(opp);
   // Larger virtual field — players feel smaller, more room to move
-  const VW=2600,VH=1400;
+  const VW=2960,VH=1600;
   const sc=Math.min(W/VW,H/VH);
   const ox=(W-VW*sc)/2,oy=(H-VH*sc)/2;
-  const GH=158,leftGL=80,rightGL=2520;
+  const GH=180,leftGL=92,rightGL=2868;
   const fw=rightGL-leftGL;
 
   // Use actual formation from G.formation — convert FORMS % positions to canvas coords
@@ -9951,12 +9951,34 @@ function fmAI(p,team,idx,dt){
       } else if(Math.random()<passBase*dt){
         fmTeamPass(team,idx);
       } else {
-        const latWobble=(Math.sin(f.ticks*.07+idx))*55;
-        // Durmiendo el partido: la lleva hacia atrás/costado sin apuro
-        const vert=holding?-0.06:(0.14+counterBoost*0.10);
-        const dribX=b.x+(tgx-b.x)*vert;
-        const dribY=b.y+(mid+latWobble-b.y)*.05;
-        fmMove(p,dribX-p.x,dribY-p.y,dt,(0.068+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
+        // ═══ GAMBETA: rival cerca por delante → encara y lo intenta pasar ═══
+        const reg=(p.attrs&&p.attrs.REG)||p.rat||70;
+        let nearDef=null,nearD=1e9;
+        for(const o of rivals){
+          if(o.isGK)continue;
+          const ahead=attRight?(o.x>p.x-10):(o.x<p.x+10);
+          const dd0=Math.hypot(o.x-p.x,o.y-p.y);
+          if(ahead&&dd0<130&&dd0<nearD){nearD=dd0;nearDef=o;}
+        }
+        if(nearDef&&!holding&&Math.random()<(0.05+reg/900+(p.roleStyle==='Regateador'?0.05:0))*dt){
+          // amaga a un costado y acelera pasando al defensor
+          const side=(nearDef.y>p.y?-1:1);
+          const burstX=b.x+dirF*46;
+          const burstY=b.y+side*60;
+          fmMove(p,burstX-p.x,burstY-p.y,dt,0.14+reg/1400);
+          // el defensor puede quedar a contrapié (o frenar la gambeta con su DEF)
+          const def=(nearDef.attrs&&nearDef.attrs.DEF)||nearDef.rat||70;
+          if(Math.random()<0.006*dt*(1+(reg-def)/60)){
+            b.vx=dirF*3.4;b.vy=side*1.4;f._lastTouch=team;p._dribT=8;
+          }
+          if(!f.watch&&isM){} // (en jugable no aplica)
+        } else {
+          const latWobble=(Math.sin(f.ticks*.07+idx))*55;
+          const vert=holding?-0.06:(0.14+counterBoost*0.10);
+          const dribX=b.x+(tgx-b.x)*vert;
+          const dribY=b.y+(mid+latWobble-b.y)*.05;
+          fmMove(p,dribX-p.x,dribY-p.y,dt,(0.068+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
+        }
       }
     }else{
       // La tenía pero se me escapó un toque: la recupero
@@ -9983,6 +10005,17 @@ function fmAI(p,team,idx,dt){
               fmFoul('opp',p,cp4);
               return;
             }
+          }
+        }
+        // Falta en modo simulación: el presionador comete infracción sobre el portador
+        if(f.watch&&f.poss&&f.poss!==p&&f.possSide&&f.possSide!==team){
+          const carrier=f.poss;
+          const dCar=Math.hypot(p.x-carrier.x,p.y-carrier.y);
+          const aggrMul=(p.roleStyle==='Destructor'||p.roleStyle==='Marcador')?1.5:1;
+          if(dCar<p.r+carrier.r+10&&Math.random()<0.0016*dt*(0.6+prof.aggr)*aggrMul){
+            p._slideT=10;
+            fmFoul(team,p,carrier); // team comete la falta → tiro libre para el rival
+            return;
           }
         }
         // Quite: si llego a la pelota, la toco hacia mi arco/afuera del rival
@@ -10106,6 +10139,21 @@ function fmTeamPass(team,fromIdx){
   });
   if(bestI>=0){
     const t=squad[bestI];
+    // ═══ OFFSIDE: receptor pasado de la última línea rival cuando sale el pase ═══
+    // (línea = 2º defensor más atrasado; solo si recibe adelantado y en campo rival)
+    const defXs=rivals.filter(o=>!o.isGK).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
+    const lastLine=defXs.length>=2?defXs[1]:(defXs[0]||(attRight?f.rightGL:f.leftGL));
+    const beyond=attRight?(t.x>lastLine+16):(t.x<lastLine-16);
+    const fwdPass=attRight?(t.x>b.x+40):(t.x<b.x-40);
+    const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
+    if(beyond&&fwdPass&&inRivalHalf&&Math.random()<0.32){
+      const to=team==='my'?'opp':'my';
+      fmSndWhistle(1);
+      fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
+      f._lastTouch=team;
+      if(FM.learn)FM.learn.offsides=(FM.learn.offsides||0)+1;
+      return;
+    }
     const leadX=t.x+(t.vx||0)*12;
     const leadY=t.y+(t.vy||0)*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
