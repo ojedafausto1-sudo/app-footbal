@@ -8671,6 +8671,33 @@ function rSocial(){
 let FM=null;
 
 function fmBodyBall(p,b,team){
+  // ═══ ARQUERO: manos — ataja y retiene, o da rebote (también pelotas altas) ═══
+  if(p.isGK&&FM){
+    const f=FM;
+    const reachG=p.r+24;                         // alcance con los brazos
+    const dG=Math.hypot(b.x-p.x,b.y-p.y);
+    if(dG<reachG&&b.air<=7){
+      const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
+      const power=Math.hypot(b.vx,b.vy);
+      // atrapa si el reflejo alcanza para el envión del tiro; si no, rebote
+      const catchProb=Math.max(0.05,Math.min(0.92,ref/100*0.95-power*0.055+(b.air>2?-0.12:0.12)));
+      f._lastTouch=team;
+      if(Math.random()<catchProb){
+        // LA AGARRA: retiene y reinicia jugando
+        b.vx=0;b.vy=0;b.air=0;
+        b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;
+        p._recvTick=f.ticks;
+        if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
+      }else{
+        // DA REBOTE: manotea hacia un costado, velocidad reducida (puede quedar picando)
+        const away=(p.x<f.VW/2?1:-1),sy=(b.y<f.VH/2?-1:1);
+        b.vx=away*(2.6+Math.random()*2.4);b.vy=sy*(1.8+Math.random()*2.6);
+        b.air=Math.min(16,power*0.5);
+        if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
+      }
+      return true;
+    }
+  }
   if(b.air>2)return false; // pelota por el aire: pasa por encima
   const R=p.r+6.5;
   let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
@@ -9912,8 +9939,10 @@ function fmAI(p,team,idx,dt){
     if(bd<KICK_R&&!(b.air>2)){
       const distGoal=attRight?f.rightGL-b.x:b.x-f.leftGL;
       const inBox=distGoal<fieldW*.28;
+      const shotAttr=(p.attrs&&p.attrs.TIR)||p.rat||70;
       const canShoot=distGoal<fieldW*(0.40+prof.direct*0.20);
-      const longShot=distGoal<fieldW*.72&&!canShoot&&prof.direct>0.55;
+      // Remate de media/larga distancia: quien pega bien lo prueba de lejos
+      const longShot=distGoal<fieldW*.72&&!canShoot&&(prof.direct>0.4||shotAttr>=74)&&Math.abs(b.y-mid)<f.VH*0.40;
       const justReceived=p._recvTick&&(f.ticks-p._recvTick)<8;
       // CONTRAGOLPE: recién recuperada, los equipos de contra salen como flecha
       const inTransition=f._transSide===team&&(f.ticks-(f._transT||0))<110;
@@ -9944,10 +9973,14 @@ function fmAI(p,team,idx,dt){
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=7.0+Math.random()*2.5;
         b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);
-      } else if(longShot&&Math.random()<0.02*dt){
-        const aimY=(Math.random()-.5)*f.GH*.35;
+      } else if(longShot&&Math.random()<(0.03+Math.max(0,shotAttr-72)/100*0.06)*dt){
+        // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
+        const aimY=(Math.random()-.5)*f.GH*(0.5+(85-Math.min(85,shotAttr))/100);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        b.vx=(ddx/dd)*8.0;b.vy=(ddy/dd)*8.0;f._lastTouch=team;p._kickT=9;fmSndKick(0.9);
+        const pwr=8.2+Math.random()*1.6+Math.max(0,shotAttr-75)/12;
+        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;b.air=Math.random()<0.3?4:0;
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);
+        if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(Math.random()<passBase*dt){
         fmTeamPass(team,idx);
       } else {
@@ -10112,6 +10145,35 @@ function fmTeamPass(team,fromIdx){
   const mid5=f.VH/2;
   const inTrans=f._transSide===team&&(f.ticks-(f._transT||0))<110;
   const holding=prof._mode==='hold';
+  // ═══ CAMBIO DE FRENTE / PELOTAZO LARGO: buscar un compañero lejano y abierto ═══
+  // Los equipos directos y en salida cambian de banda o tiran el pelotazo al espacio.
+  const fromP=squad[fromIdx];
+  const longChance=(0.10+prof.direct*0.22+(inTrans?0.15:0))*(holding?0.3:1);
+  if(fromP&&!holding&&Math.random()<longChance){
+    let bestL=-1,bestLS=-1e9;
+    squad.forEach((t,i)=>{
+      if(i===fromIdx||t.isGK)return;
+      const d=Math.hypot(t.x-b.x,t.y-b.y);
+      if(d<fieldW*0.30)return;               // sólo pases realmente largos
+      const openN=rivals.reduce((a,m)=>a+(Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
+      const fwd=attRight?(t.x-b.x):(b.x-t.x);
+      const crossField=Math.abs(t.y-b.y);    // premia el cambio de banda
+      const sc=fwd*0.6+crossField*0.5-openN*90+Math.random()*40;
+      if(sc>bestLS){bestLS=sc;bestL=i;}
+    });
+    if(bestL>=0&&bestLS>0){
+      const t=squad[bestL];
+      const dx=t.x-b.x,dy=t.y-b.y,dd=Math.hypot(dx,dy)||1;
+      const pwr=7.2+dd*0.006;
+      b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;
+      b.air=Math.min(70,dd/pwr*0.75);        // pelota elevada, viaja por arriba
+      f._lastTouch=team;f._lastPasser={team,i:fromIdx};
+      fromP._kickT=9;t._recvTick=f.ticks+~~(dd/pwr);
+      fmSndKick(0.55);
+      if(f.learn)f.learn.longPass=(f.learn.longPass||0)+1;
+      return;
+    }
+  }
   let bestI=-1,bestScore=-Infinity;
   squad.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
@@ -10143,10 +10205,10 @@ function fmTeamPass(team,fromIdx){
     // (línea = 2º defensor más atrasado; solo si recibe adelantado y en campo rival)
     const defXs=rivals.filter(o=>!o.isGK).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
     const lastLine=defXs.length>=2?defXs[1]:(defXs[0]||(attRight?f.rightGL:f.leftGL));
-    const beyond=attRight?(t.x>lastLine+16):(t.x<lastLine-16);
-    const fwdPass=attRight?(t.x>b.x+40):(t.x<b.x-40);
+    const beyond=attRight?(t.x>lastLine+24):(t.x<lastLine-24);
+    const fwdPass=attRight?(t.x>b.x+50):(t.x<b.x-50);
     const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
-    if(beyond&&fwdPass&&inRivalHalf&&Math.random()<0.32){
+    if(beyond&&fwdPass&&inRivalHalf&&Math.random()<0.24){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
       fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
