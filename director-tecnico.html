@@ -1667,6 +1667,9 @@ function applyTeamTheme(teamId){
   s.setProperty('--gold',   t.gold);
   s.setProperty('--gold-d', t.goldD);
   s.setProperty('--bdr',    t.bdr);
+  // Si el usuario eligió un tema propio, tiene prioridad sobre el del club
+  let saved=null;try{saved=localStorage.getItem('dt_theme');}catch(e){}
+  if(saved&&typeof applyTheme==='function')applyTheme(saved);
 }
 
 // =============================================
@@ -2307,7 +2310,10 @@ function openP(id, inSquad){
         ${isForeign(p.nat) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
       ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
-        <button class="btn bo bs" onclick="loanIn('${p.id}')">📥 Pedir préstamo</button>
+        <button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>
+        <button class="btn bo bs" onclick="buyHalfPass('${p.id}')">➗ % del pase</button>
+        <button class="btn bo bs" onclick="openSwap('${p.id}')">🔄 Canje</button>
+        <button class="btn bo bs" onclick="loanIn('${p.id}')">📥 Préstamo</button>
       `}
     </div>
   `);
@@ -2388,8 +2394,10 @@ function openNeg(id){
     <div class="note">Contactá al agente para iniciar la negociación. Tenés hasta 3 rondas para acordar el traspaso.</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button class="btn bg" onclick="negStep2()">📞 Contactar agente</button>
-      <button class="btn bo bs" onclick="payClause('${id}')">💥 Pagar cláusula (${fv(clauseOf(p))})</button>
-      <button class="btn bo bs" onclick="negLoanOffer('${id}')">📥 Pedir préstamo</button>
+      <button class="btn bo bs" onclick="payClause('${id}')">💥 Cláusula (${fv(clauseOf(p))})</button>
+      <button class="btn bo bs" onclick="buyHalfPass('${id}')">➗ % del pase</button>
+      <button class="btn bo bs" onclick="openSwap('${id}')">🔄 Canje</button>
+      <button class="btn bo bs" onclick="negLoanOffer('${id}')">📥 Préstamo</button>
       <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
     </div>
   `);
@@ -8893,28 +8901,28 @@ function rSocial(){
 let FM=null;
 
 function fmBodyBall(p,b,team){
-  // ═══ ARQUERO: manos — ataja y retiene, o da rebote (también pelotas altas) ═══
+  // ═══ ARQUERO: manos — ataja fuerte, da rebote o le pasa por al lado ═══
   if(p.isGK&&FM){
     const f=FM;
-    const reachG=p.r+24;                         // alcance con los brazos
+    const reachG=p.r+22;                          // alcance con estirada
     const dG=Math.hypot(b.x-p.x,b.y-p.y);
-    if(dG<reachG&&b.air<=7){
+    // sólo interviene si la pelota va HACIA su arco con intención (o la tiene encima)
+    const ownGoalX=(p.x<f.VW/2)?f.leftGL:f.rightGL;
+    const towardGoal=(ownGoalX<f.VW/2?b.vx<-0.5:b.vx>0.5);
+    const power=Math.hypot(b.vx,b.vy);
+    if(dG<reachG&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
-      const power=Math.hypot(b.vx,b.vy);
-      // atrapa si el reflejo alcanza para el envión del tiro; si no, rebote
-      const catchProb=Math.max(0.05,Math.min(0.92,ref/100*0.95-power*0.055+(b.air>2?-0.12:0.12)));
+      // los tiros fuertes le cuestan más: goles posibles pero con atajadas
+      const catchProb=Math.max(0.04,Math.min(0.66,ref/100*0.68-power*0.05+(b.air>2?-0.15:0.08)));
       f._lastTouch=team;
       if(Math.random()<catchProb){
-        // LA AGARRA: retiene y reinicia jugando
-        b.vx=0;b.vy=0;b.air=0;
-        b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;
-        p._recvTick=f.ticks;
+        b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
       }else{
-        // DA REBOTE: manotea hacia un costado, velocidad reducida (puede quedar picando)
+        // rebote hacia un costado; a veces queda picando en el área (peligro)
         const away=(p.x<f.VW/2?1:-1),sy=(b.y<f.VH/2?-1:1);
-        b.vx=away*(2.6+Math.random()*2.4);b.vy=sy*(1.8+Math.random()*2.6);
-        b.air=Math.min(16,power*0.5);
+        b.vx=away*(2.2+Math.random()*2.2);b.vy=sy*(1.6+Math.random()*2.4);
+        b.air=Math.min(14,power*0.45);
         if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
       }
       return true;
@@ -10206,33 +10214,37 @@ function fmAI(p,team,idx,dt){
       } else if(Math.random()<passBase*dt){
         fmTeamPass(team,idx);
       } else {
-        // ═══ GAMBETA: rival cerca por delante → encara y lo intenta pasar ═══
+        // ═══ CONDUCCIÓN Y GAMBETA ═══
         const reg=(p.attrs&&p.attrs.REG)||p.rat||70;
+        // ¿tengo un rival cerca por delante? → lo encaro
         let nearDef=null,nearD=1e9;
         for(const o of rivals){
           if(o.isGK)continue;
-          const ahead=attRight?(o.x>p.x-10):(o.x<p.x+10);
+          const ahead=attRight?(o.x>p.x-24):(o.x<p.x+24);
           const dd0=Math.hypot(o.x-p.x,o.y-p.y);
-          if(ahead&&dd0<130&&dd0<nearD){nearD=dd0;nearDef=o;}
+          if(ahead&&dd0<160&&dd0<nearD){nearD=dd0;nearDef=o;}
         }
-        if(nearDef&&!holding&&Math.random()<(0.05+reg/900+(p.roleStyle==='Regateador'?0.05:0))*dt){
-          // amaga a un costado y acelera pasando al defensor
-          const side=(nearDef.y>p.y?-1:1);
-          const burstX=b.x+dirF*46;
-          const burstY=b.y+side*60;
-          fmMove(p,burstX-p.x,burstY-p.y,dt,0.14+reg/1400);
-          // el defensor puede quedar a contrapié (o frenar la gambeta con su DEF)
+        if(nearDef&&!holding){
+          // GAMBETA visible: amaga a un costado y acelera para pasarlo
+          const side=(nearDef.y>=p.y?-1:1);
+          if(p._dribSide===undefined||f.ticks%40===0)p._dribSide=side;
+          const s=p._dribSide;
+          const burstX=b.x+dirF*52;
+          const burstY=b.y+s*72;
+          fmMove(p,burstX-p.x,burstY-p.y,dt,0.12+reg/1100+(p.roleStyle==='Regateador'?0.02:0));
+          // ¿lo supera? depende de su regate vs la marca del defensor
           const def=(nearDef.attrs&&nearDef.attrs.DEF)||nearDef.rat||70;
-          if(Math.random()<0.006*dt*(1+(reg-def)/60)){
-            b.vx=dirF*3.4;b.vy=side*1.4;f._lastTouch=team;p._dribT=8;
+          if(nearD<p.r+nearDef.r+26&&Math.random()<0.02*dt*(1+(reg-def)/45)){
+            b.vx=dirF*3.8;b.vy=s*1.8;f._lastTouch=team;p._dribT=8;
+            if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
           }
-          if(!f.watch&&isM){} // (en jugable no aplica)
         } else {
-          const latWobble=(Math.sin(f.ticks*.07+idx))*55;
-          const vert=holding?-0.06:(0.14+counterBoost*0.10);
+          // Conducción al espacio buscando progresar
+          const latWobble=(Math.sin(f.ticks*.06+idx))*48;
+          const vert=holding?-0.05:(0.16+counterBoost*0.10);
           const dribX=b.x+(tgx-b.x)*vert;
           const dribY=b.y+(mid+latWobble-b.y)*.05;
-          fmMove(p,dribX-p.x,dribY-p.y,dt,(0.068+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
+          fmMove(p,dribX-p.x,dribY-p.y,dt,(0.075+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
         }
       }
     }else{
@@ -10281,15 +10293,47 @@ function fmAI(p,team,idx,dt){
           f._lastTouch=team;
         }
       } else {
-        // Presionadores secundarios: cortan el ángulo hacia su arco (no van a la pelota)
-        const cutX=b.x+(ownGX-b.x)*(0.15+myRank*0.08);
-        const cutY=b.y+(mid-b.y)*0.14+(myRank%2?1:-1)*40;
-        fmMove(p,cutX-p.x+sepX*0.4,cutY-p.y+sepY*0.4,dt,0.075*(1+prof.aggr*0.06));
+        // Presionadores secundarios: uno tapa la línea de pase hacia adelante,
+        // el otro cubre por detrás del que presiona (coberturas)
+        const carrier=f.poss;
+        if(carrier&&myRank===1){
+          // marca la mejor opción de pase del portador (el rival más adelantado cerca)
+          let opt=null,optS=-1e9;
+          for(const o of rivals){
+            if(o.isGK||o===carrier)continue;
+            const fwd=attRight?-(o.x):-(-o.x); // hacia nuestro arco = bueno taparlo
+            const s=(attRight?(f.rightGL-o.x):(o.x-f.leftGL))-Math.hypot(o.x-p.x,o.y-p.y)*0.6;
+            if(s>optS){optS=s;opt=o;}
+          }
+          if(opt){
+            const mx=(opt.x+b.x)/2,my=(opt.y+b.y)/2;
+            fmMove(p,mx-p.x+sepX*0.3,my-p.y+sepY*0.3,dt,0.07*(1+prof.aggr*0.06));
+          } else fmMove(p,b.x-p.x,b.y-p.y,dt,0.06);
+        } else {
+          const cutX=b.x+(ownGX-b.x)*(0.18+myRank*0.10);
+          const cutY=b.y+(mid-b.y)*0.16+(myRank%2?1:-1)*46;
+          fmMove(p,cutX-p.x+sepX*0.4,cutY-p.y+sepY*0.4,dt,0.072*(1+prof.aggr*0.06));
+        }
       }
     } else {
-      // BLOQUE DEFENSIVO: mantener forma, compactar hacia el centro y la pelota
+      // ═══ BLOQUE DEFENSIVO CON MARCA: cada uno vigila a un rival de su zona ═══
       let tx=homeX,ty=homeY;
-      if(theyHave)ty=mid+(ty-mid)*(0.95-(prof.disc||0.5)*0.14); // más disciplina = bloque más cerrado
+      if(theyHave)ty=mid+(ty-mid)*(0.95-(prof.disc||0.5)*0.14);
+      // Elijo a quién marcar: el rival amenazante más cercano a MI posición de bloque
+      let mark=null,mkD=1e9;
+      for(const o of rivals){
+        if(o.isGK)continue;
+        const d=Math.hypot(o.x-homeX,o.y-homeY);
+        if(d<fieldW*0.17&&d<mkD){mkD=d;mark=o;}
+      }
+      if(mark&&theyHave){
+        // me ubico entre el rival y mi arco (marca real → sigo sus movimientos)
+        const gx=ownGX,ang=Math.atan2(mid-mark.y,gx-mark.x);
+        const mx=mark.x+Math.cos(ang)*48;
+        const my=mark.y+Math.sin(ang)*48;
+        tx=homeX*0.40+mx*0.60;
+        ty=homeY*0.35+my*0.65;
+      }
       // Trampa del offside: defensas disciplinadas suben EN BLOQUE cuando la pelota está lejos
       if(isDef&&theyHave&&ballPct>0.55&&(prof.disc||0.5)>0.6){
         tx=attRight?Math.min(f.rightGL-40,tx+(prof.disc-0.5)*120):Math.max(f.leftGL+40,tx-(prof.disc-0.5)*120);
@@ -10297,7 +10341,9 @@ function fmAI(p,team,idx,dt){
       if(isDef&&!isM&&Math.abs(ad.laneShift)>0.15){
         ty=Math.max(40,Math.min(f.VH-40,ty+ad.laneShift*f.VH*0.11));
       }
-      fmMove(p,tx-p.x+sepX*0.55,ty-p.y+sepY*0.55,dt,0.058);
+      tx=Math.max(f.leftGL+30,Math.min(f.rightGL-30,tx));
+      ty=Math.max(40,Math.min(f.VH-40,ty));
+      fmMove(p,tx-p.x+sepX*0.5,ty-p.y+sepY*0.5,dt,mark&&theyHave?0.068:0.056);
     }
   } else if(weHave){
     // ═══ MI EQUIPO LA TIENE: NADIE persigue — abrirse y dar opciones de pase ═══
@@ -11431,8 +11477,12 @@ const UI_THEMES={
 const CLUB_THEME={boca:'oro',river:'rojo',racing:'celeste',indep:'rojo',sanlo:'bordo'};
 function applyTheme(k){
   const t=UI_THEMES[k]||UI_THEMES.oro;
-  document.documentElement.style.setProperty('--gold',t.g);
-  document.documentElement.style.setProperty('--gold-d',t.d);
+  const s=document.documentElement.style;
+  s.setProperty('--gold',t.g);
+  s.setProperty('--gold-d',t.d);
+  // recolorear también bordes y badge de rating para que el cambio se note en toda la UI
+  const rgb=(hex=>{const n=parseInt(hex.slice(1),16);return (n>>16)+','+((n>>8)&255)+','+(n&255);})(t.g);
+  s.setProperty('--bdr',`rgba(${rgb},.18)`);
   if(G)G.theme=k;
   try{localStorage.setItem('dt_theme',k);}catch(e){}
 }
