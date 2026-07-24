@@ -469,6 +469,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="prog"><div class="pf" id="repBar" style="width:78%;background:var(--gold)"></div></div>
             <div class="sr" style="margin-top:7px"><span class="sl">Moral</span><span class="sv" id="morV">72</span></div>
             <div class="prog"><div class="pf" id="morBar" style="width:72%;background:var(--green)"></div></div>
+            <div class="sr" style="margin-top:7px"><span class="sl">🔗 Química del equipo</span><span class="sv" id="chemV">—</span></div>
+            <div class="prog"><div class="pf" id="chemBar" style="width:45%;background:var(--pur)"></div></div>
             <div class="sr" style="margin-top:7px"><span class="sl">🏛️ Confianza de la Junta</span><span class="sv" id="confV">—</span></div>
             <div class="confbar"><div class="conffill" id="confBar" style="width:70%"></div></div>
             <div id="objText" style="font-size:10px;color:var(--t2);margin-top:6px;line-height:1.4"></div>
@@ -625,6 +627,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div style="font-size:10px;color:var(--t3);line-height:1.4">Hinchas, periodistas y rivales hablan de vos. Se actualiza tras cada partido.</div>
         <button onclick="rSocial()" style="flex-shrink:0;background:rgba(246,211,24,.12);border:1px solid rgba(246,211,24,.3);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer">🔄 Actualizar</button>
       </div>
+      <div id="pressHeadlines"></div>
       <div id="socialFeed"></div>
     </div>
 
@@ -1797,6 +1800,7 @@ function initGame(teamId){
   addPhoneMsg('board', 'Secretaría del Club', `📋 Presidente, quedó operativa su línea directa. Desde acá puede chatear con el DT y los jugadores, recibir ofertas de representantes y aprobar pedidos. El club es suyo.`, '🏛️');
   const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.desc}`).join('<br>');
   addPhoneMsg('board', 'Presidente', `🏛️ Como presidente del club, espero resultados esta temporada. Tus <b>objetivos</b> son:<br><br>${objList}<br><br>La confianza de la directiva depende de vos. ¡Éxitos!`, '👔');
+  setTimeout(()=>{try{offerPreseason();}catch(e){}},400);
 }
 
 function pressConf(){
@@ -2160,6 +2164,10 @@ function updateUI(){
   if($('morV'))$('morV').textContent=G.morale;
   if($('morBar'))$('morBar').style.width=G.morale+'%';
   updateBoard($);
+  if(G.chem===undefined)G.chem=45;
+  const chl=chemLabel(G.chem);
+  if($('chemV')){$('chemV').textContent=chl.t+' ('+Math.round(G.chem)+')';$('chemV').style.color=chl.c;}
+  if($('chemBar')){$('chemBar').style.width=G.chem+'%';$('chemBar').style.background=chl.c;}
   rMedReport();rFanReport();
   const nm = G.calendar.find(m=>!m.played);
   if(nm){
@@ -5845,6 +5853,7 @@ function nextSeason(){
   updateUI();
   flash('🏆 ¡Nueva temporada '+G.season+'!','win');
   gTab('ov', document.querySelector('.nb'));
+  setTimeout(()=>{try{offerPreseason();}catch(e){}},400);
 }
 
 // =============================================
@@ -5940,6 +5949,8 @@ function matchStrengths(m){
   // Estado de forma promedio del XI (jugadores calientes rinden más)
   const formMod=xi.reduce((a,p)=>a+formInfo(p).mod,0)/Math.max(1,xi.length);
   tacMod+=formMod;
+  // Química del equipo: un XI aceitado se potencia
+  tacMod+=((G.chem||0)/100-0.5)*0.06;
   return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
 }
 
@@ -5969,6 +5980,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     lg(res==='W'?'🔥':res==='L'?'😔':'🤝',`${derby}: ${res==='W'?'victoria':res==='L'?'derrota':'empate'} (vale doble)`);
   }
   updateFans(res,derby,gf);
+  pushHeadline(res,gf,ga,derby,m);
   G.gf+=gf; G.ga+=ga;
   m.played=true; m.result=res;
   G._talkBonus=0; // el efecto de la charla dura solo este partido
@@ -6062,6 +6074,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   } else G._lastMVP=null;
   // Estado de forma del XI según su aporte
   updateForm(xiPlayers,scorersList,res);
+  updateChemistry(xiPlayers);
   // Mis goleadores también cuentan para la tabla de goleadores de la liga
   if(m.comp==='Liga Profesional'&&G.league){
     scorersList.forEach(s3=>{
@@ -6210,8 +6223,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
     addPhoneMsg('player', ip.name, `${it.emo} Parte médico: <b>${it.t}</b>. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.${grave?' Voy a pelearla para volver lo antes posible.':''}`, it.emo);
     if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
   }
-  // Heal injured players
-  G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){ p.injured=false; p.injuredWeeks=0; } } });
+  // Heal injured players (con riesgo de recaída si se apuró el regreso)
+  G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){
+    if(p.reinjuryRisk&&Math.random()<p.reinjuryRisk){
+      // RECAÍDA: vuelve a lesionarse unas semanas
+      p.injuredWeeks=2+~~(Math.random()*3);p.injTotal=p.injuredWeeks;p.reinjuryRisk=Math.max(0.08,p.reinjuryRisk-0.12);
+      lg('🔁',`Recaída de ${p.name}: ${p.injuredWeeks} sem más`);
+      addPhoneMsg('board','Cuerpo Médico',`🔁 Presidente, <b>${p.name}</b> recayó de su lesión por apurar el regreso. ${p.injuredWeeks} semanas más de baja.`,'⚕️');
+    } else { p.injured=false; p.injuredWeeks=0; p.recPlan=null; p.reinjuryRisk=0; }
+  } } });
   if(G.week%6===0){
     G.squad.forEach(p=>{
       if(p.contract&&p.contract<=G.season&&!p._contractWarned){
@@ -6276,6 +6296,34 @@ function simMatch(auto){
   }
 }
 
+// Informe de scouting del rival: fortalezas, debilidades y planteo sugerido
+function rivalReport(rival,oppRat,oppForm,oppTrait,S){
+  const seed=rival.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const analystLv=(G.staffLevels&&G.staffLevels.analyst)||0;
+  const strong=[],weak=[];
+  // Perfil según su esquema + rasgo + una pizca de aleatoriedad estable
+  if(/3-5-2|5-3-2/.test(oppForm)){strong.push('Sólido atrás, cuesta entrarle por el medio');weak.push('Deja espacios a la espalda de los laterales');}
+  else if(/4-3-3|4-2-3-1/.test(oppForm)){strong.push('Peligroso por las bandas');weak.push('Vulnerable a la contra si lo agarrás mal parado');}
+  else{strong.push('Equipo equilibrado y ordenado');weak.push('Sin un plan claro, se lo puede dominar de local');}
+  if(oppTrait==='Ofensivo'||oppTrait==='Intenso'){strong.push('Presiona alto y va al frente');weak.push('Si aguantás la presión, quedan mano a mano atrás');}
+  if(oppTrait==='Defensivo'){strong.push('Bloque bajo, difícil de romper');weak.push('Casi no genera: paciencia y ataque posicional');}
+  if(oppRat>=78)strong.push('Plantel de jerarquía, con individualidades');
+  if(oppRat<=66)weak.push('Plantel corto: el desgaste lo golpea en el 2º tiempo');
+  // Planteo sugerido según fuerzas relativas
+  const diff=S.myS-S.oppS;
+  let plan;
+  if(diff>0.08)plan='Sos favorito: proponé el partido, tené la pelota y presioná alto.';
+  else if(diff<-0.08)plan='Sos el más débil: bloque compacto, orden y salir de contra.';
+  else plan='Partido parejo: equilibrio, cuidar la pelota y aprovechar la pelota parada.';
+  const known=analystLv>=1; // con analista de video ves más detalle
+  const sh=arr=>arr.slice(0,known?arr.length:1);
+  return `<div class="card" style="margin-bottom:10px;padding:9px;border-color:rgba(123,179,247,.25)">
+    <div class="ctitle" style="margin-bottom:6px;color:#7ab3f7">🔍 Análisis del rival ${analystLv?'<span style="font-size:8px;color:var(--t3)">· Analista N'+analystLv+'</span>':'<span style="font-size:8px;color:var(--t3)">· contratá un Analista para más detalle</span>'}</div>
+    <div style="font-size:10px;margin-bottom:3px"><b style="color:var(--green)">Fortalezas:</b> ${sh(strong).join(' · ')}</div>
+    <div style="font-size:10px;margin-bottom:5px"><b style="color:var(--ora)">Debilidades:</b> ${sh(weak).join(' · ')}</div>
+    <div style="font-size:10px;color:var(--t2);background:rgba(123,179,247,.08);border-radius:5px;padding:5px"><b>📋 Planteo sugerido:</b> ${plan}</div>
+  </div>`;
+}
 function showPreMatch(m){
   if(!G) return;
   const S = matchStrengths(m);
@@ -6333,6 +6381,8 @@ function showPreMatch(m){
         ${winPct>=50?'🟢 Favoritos':winPct>=35?'🟡 Partido parejo':'🔴 Difícil — hay que ir con todo'}
       </div>
     </div>
+    <!-- Análisis del rival -->
+    ${rivalReport(rival,S.oppRat,oppForm,oppTrait,S)}
     <!-- XI summary -->
     <div class="card" style="margin-bottom:10px;padding:8px">
       <div class="ctitle" style="margin-bottom:6px">📋 Tu XI (${G.formation||'4-3-3'})</div>
@@ -6703,6 +6753,122 @@ function updateForm(xiPlayers,scorersList,res){
   G.squad.forEach(p=>{if(!xiPlayers.includes(p)&&p.form){p.form*=0.7;if(Math.abs(p.form)<0.3)p.form=0;}});
 }
 
+// ═══ PRENSA DINÁMICA: titulares de tapa según el contexto ═══
+function pushHeadline(res,gf,ga,derby,m){
+  const tn=G.teamName||'el club';
+  const rival=(m.home===tn?m.away:m.home);
+  const last=G.calendar.filter(x=>x.played).map(x=>x.result);
+  const wStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='W')s++;else break;}return s;})();
+  const lStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='L')s++;else break;}return s;})();
+  const pos=(typeof myLeaguePos==='function'&&m.comp==='Liga Profesional')?myLeaguePos():0;
+  const diario=['Olé','TyC','ESPN','DirecTV Sports','La Nación Deportiva'][~~(Math.random()*5)];
+  let t,tone;
+  if(derby&&res==='W'){t=`¡${tn.toUpperCase()} SE QUEDÓ CON EL ${derby.toUpperCase()}!`;tone='good';}
+  else if(derby&&res==='L'){t=`DOLOR: ${tn} perdió el ${derby}`;tone='bad';}
+  else if(res==='W'&&gf>=4){t=`GOLEADA: ${tn} pasó por encima a ${rival} ${gf}-${ga}`;tone='good';}
+  else if(wStreak>=4){t=`${tn.toUpperCase()} NO PARA: ${wStreak} triunfos al hilo`;tone='good';}
+  else if(res==='W'&&pos===1){t=`${tn} gana y es LÍDER de la Liga`;tone='good';}
+  else if(res==='W'){t=`${tn} sumó de a tres ante ${rival}`;tone='good';}
+  else if(lStreak>=3){t=`CRISIS EN ${tn.toUpperCase()}: ${lStreak} derrotas seguidas`;tone='bad';}
+  else if(res==='L'&&ga>=4){t=`PAPELÓN: ${tn} cayó ${ga}-${gf} ante ${rival}`;tone='bad';}
+  else if(res==='L'&&pos>=(G.league&&G.league.clubs.length-3||16)){t=`ALARMA: ${tn} se hunde en la tabla`;tone='bad';}
+  else if(res==='L'){t=`${tn} no pudo con ${rival}`;tone='bad';}
+  else{t=`Reparto de puntos: ${tn} empató con ${rival}`;tone='neutral';}
+  G.headlines=G.headlines||[];
+  G.headlines.unshift({t,tone,diario,week:G.week,season:G.season});
+  if(G.headlines.length>10)G.headlines.pop();
+}
+function rHeadlines(containerId){
+  const el=document.getElementById(containerId);if(!el||!G)return;
+  const hs=G.headlines||[];
+  if(!hs.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="card" style="margin-bottom:9px;padding:0;overflow:hidden">
+    <div style="background:linear-gradient(90deg,#111,#222);color:#fff;font-family:'Rajdhani';font-weight:700;letter-spacing:.14em;font-size:11px;padding:6px 10px;text-transform:uppercase;border-bottom:2px solid var(--gold)">📰 Titulares de la prensa</div>
+    ${hs.slice(0,5).map(h=>`<div style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="font-family:'Rajdhani';font-weight:700;font-size:14px;line-height:1.15;color:${h.tone==='good'?'var(--green)':h.tone==='bad'?'var(--red)':'var(--tx)'}">${h.t}</div>
+      <div style="font-size:8px;color:var(--t3);margin-top:2px">${h.diario} · Sem ${h.week}</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ═══ PRETEMPORADA / GIRAS DE AMISTOSOS ═══
+const PRESEASON_TOURS={
+  local:{label:'🏟️ Pretemporada local',desc:'Amistosos en casa. Barato y seguro.',cost:0,income:1.5,fit:18,chem:8,rep:0,inj:0.02},
+  regional:{label:'🌎 Gira regional (Sudamérica)',desc:'Recaudás más y sumás roce. Algo de desgaste.',cost:1,income:5,fit:10,chem:14,rep:2,inj:0.06},
+  intl:{label:'✈️ Gira internacional (Europa/Asia)',desc:'Muchísima plata y prestigio, pero cansa y arriesga lesiones.',cost:3,income:14,fit:2,chem:16,rep:5,inj:0.12},
+};
+function offerPreseason(){
+  if(G._preseasonDone===G.season)return;
+  showMod(`
+    <button class="mclose" onclick="closeMod();G._preseasonDone=G.season"></button>
+    <div class="mtitle">🧳 Pretemporada ${G.season}</div>
+    <div class="note" style="margin-bottom:8px">Elegí cómo preparar al equipo. Cada opción deja plata, pone a punto la condición física y mejora la química — con distinto costo y riesgo.</div>
+    ${Object.entries(PRESEASON_TOURS).map(([k,t])=>`
+      <button class="btn bo" style="width:100%;margin-bottom:6px;text-align:left" onclick="doPreseason('${k}')">
+        <div style="font-weight:700">${t.label}</div>
+        <div style="font-size:9px;color:var(--t3)">${t.desc}</div>
+        <div style="font-size:9px;color:var(--gold);margin-top:2px">${t.cost?'Costo '+fv(t.cost)+' · ':''}Ingreso ${fv(t.income)} · +${t.fit} física · +${t.chem} química${t.rep?' · +'+t.rep+' rep':''}</div>
+      </button>`).join('')}
+    <button class="btn bR bs" style="width:100%" onclick="closeMod();G._preseasonDone=G.season">Saltar pretemporada</button>
+  `);
+}
+function doPreseason(k){
+  const t=PRESEASON_TOURS[k];if(!t)return;
+  if(G.budget<t.cost){flash('❌ Sin presupuesto para esta gira','loss');return;}
+  G.budget=Math.round((G.budget-t.cost+t.income)*10)/10;
+  G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+t.fit);});
+  G.chem=Math.min(100,(G.chem||45)+t.chem);
+  if(t.rep)G.rep=Math.min(100,(G.rep||50)+t.rep);
+  // riesgo de alguna lesión en la gira
+  if(Math.random()<t.inj*3){
+    const victim=G.squad[~~(Math.random()*G.squad.length)];
+    victim.injured=true;victim.injType='Golpe de pretemporada';victim.injEmo='🤕';
+    victim.injuredWeeks=1+~~(Math.random()*2);victim.injTotal=victim.injuredWeeks;
+    lg('🤕',`${victim.name} se resintió en la gira (${victim.injuredWeeks} sem)`);
+  }
+  G._preseasonDone=G.season;
+  lg('🧳',`Pretemporada: ${t.label} (+${fv(t.income)}, +${t.fit} física, +${t.chem} química)`);
+  addPhoneMsg('board','Secretaría del Club',`🧳 Cerramos la ${t.label}. Ingresos <b style="color:var(--gold)">${fv(t.income)}</b>, el plantel llega a punto para arrancar la temporada.`,'🏛️');
+  closeMod();updateUI();
+  flash('✅ Pretemporada completada','win');
+}
+
+// ═══ QUÍMICA DEL EQUIPO Y SOCIEDADES ═══
+// Sube cuando repetís el XI; baja si rotás mucho. Las duplas que juegan
+// seguido forman "sociedades" con un plus.
+function updateChemistry(xiPlayers){
+  if(G.chem===undefined)G.chem=45;
+  const ids=xiPlayers.map(p=>p.id).sort();
+  const prev=G._prevXI||[];
+  const same=ids.filter(id=>prev.includes(id)).length;
+  const stability=prev.length?same/11:0.5;
+  // 8+ repetidos → sube; menos de 6 → baja (rotación fuerte)
+  const d=stability>=0.73?2.2:stability>=0.55?0.6:-2.5;
+  G.chem=Math.max(15,Math.min(100,G.chem+d));
+  G._prevXI=ids;
+  // Sociedades: cuenta partidos juntos por dupla; a los 6 juntos, +chem
+  G.partners=G.partners||{};
+  for(let i=0;i<xiPlayers.length;i++)for(let j=i+1;j<xiPlayers.length;j++){
+    const a=xiPlayers[i],b=xiPlayers[j];
+    // sólo líneas cercanas (misma zona) forman sociedad
+    if(pgr(a.pos)!==pgr(b.pos)&&!(pgr(a.pos)==='MED'&&pgr(b.pos)==='DEL'))continue;
+    const k=[a.id,b.id].sort().join('|');
+    G.partners[k]=(G.partners[k]||0)+1;
+  }
+}
+function topPartnerships(){
+  const out=[];const seen=G.partners||{};
+  Object.entries(seen).filter(([,n])=>n>=6).forEach(([k,n])=>{
+    const [i1,i2]=k.split('|');
+    const p1=G.squad.find(x=>x.id===i1),p2=G.squad.find(x=>x.id===i2);
+    if(p1&&p2)out.push({p1,p2,n});
+  });
+  return out.sort((a,b)=>b.n-a.n).slice(0,4);
+}
+function chemLabel(v){
+  return v>=80?{t:'Aceitada',c:'var(--green)'}:v>=60?{t:'Buena',c:'var(--green)'}:v>=42?{t:'En formación',c:'var(--gold)'}:{t:'Descompaginada',c:'var(--red)'};
+}
+
 // ═══ PARTE MÉDICO ═══
 function rMedReport(){
   const el=document.getElementById('medReport');const card=document.getElementById('medCard');
@@ -6712,12 +6878,46 @@ function rMedReport(){
   if(card)card.style.display='';
   el.innerHTML=inj.sort((a,b)=>b.injuredWeeks-a.injuredWeeks).map(p=>{
     const tot=p.injTotal||p.injuredWeeks;const prog=Math.round((1-p.injuredWeeks/Math.max(1,tot))*100);
-    return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    const plan=p.recPlan==='accel'?'⚡ Acelerado':p.recPlan==='conserv'?'🛡️ Conservador':'Normal';
+    return `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onclick="openRecovery('${p.id}')">
       <div style="display:flex;justify-content:space-between;font-size:11px"><span>${p.injEmo||'🏥'} <b>${p.name}</b> <span style="color:var(--t3)">${p.pos}</span></span><span style="color:var(--red)">${p.injuredWeeks} sem</span></div>
-      <div style="font-size:9px;color:var(--t3)">${p.injType||'Lesión'}</div>
+      <div style="font-size:9px;color:var(--t3)">${p.injType||'Lesión'} · Plan: ${plan}${p.reinjuryRisk?' · <span style="color:var(--ora)">riesgo de recaída</span>':''}</div>
       <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:2px;overflow:hidden"><div style="width:${prog}%;height:100%;background:var(--ora)"></div></div>
     </div>`;
-  }).join('');
+  }).join('')+'<div style="font-size:9px;color:var(--t3);margin-top:4px">Tocá a un jugador para definir su plan de recuperación.</div>';
+}
+// ═══ PLAN DE RECUPERACIÓN (cuerpo médico) ═══
+function openRecovery(id){
+  const p=G.squad.find(x=>x.id===id);if(!p||!p.injured)return;
+  const docLv=(G.staffLevels&&G.staffLevels.doctor)||0;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">⚕️ Recuperación: ${p.name}</div>
+    <div class="note" style="margin-bottom:8px">${p.injEmo||'🏥'} <b>${p.injType||'Lesión'}</b> · ${p.injuredWeeks} semana(s) restante(s). Elegí cómo manejar el regreso:</div>
+    <button class="btn ${p.recPlan==='conserv'?'bg':'bo'}" style="width:100%;margin-bottom:6px;text-align:left" onclick="setRecovery('${id}','conserv')">
+      <div style="font-weight:700">🛡️ Conservador</div><div style="font-size:9px;color:var(--t3)">+1 semana de baja, pero vuelve entero (sin riesgo de recaída).</div></button>
+    <button class="btn ${(!p.recPlan||p.recPlan==='normal')?'bg':'bo'}" style="width:100%;margin-bottom:6px;text-align:left" onclick="setRecovery('${id}','normal')">
+      <div style="font-weight:700">➖ Normal</div><div style="font-size:9px;color:var(--t3)">Tiempos estándar del cuerpo médico.</div></button>
+    <button class="btn ${p.recPlan==='accel'?'bg':'bo'}" style="width:100%;margin-bottom:6px;text-align:left" onclick="setRecovery('${id}','accel')">
+      <div style="font-weight:700">⚡ Acelerado</div><div style="font-size:9px;color:var(--t3)">Vuelve antes (−${docLv>=2?1:1} a −2 sem), pero con <b style="color:var(--ora)">riesgo de recaída</b>${docLv?' (menor con buen médico)':''}.</div></button>
+    <button class="btn bR bs" style="width:100%" onclick="closeMod()">Cerrar</button>
+  `);
+}
+function setRecovery(id,plan){
+  const p=G.squad.find(x=>x.id===id);if(!p||!p.injured)return;
+  const prev=p.recPlan||'normal';
+  if(prev===plan){closeMod();return;}
+  const docLv=(G.staffLevels&&G.staffLevels.doctor)||0;
+  if(plan==='conserv'&&prev!=='conserv'){p.injuredWeeks+=1;p.reinjuryRisk=0;}
+  if(plan==='accel'){
+    const cut=Math.random()<0.5?1:2;
+    p.injuredWeeks=Math.max(1,p.injuredWeeks-cut);
+    p.reinjuryRisk=Math.max(0.10,0.35-docLv*0.08); // menor con médico
+  }
+  if(plan==='normal')p.reinjuryRisk=0;
+  p.recPlan=plan;
+  lg('⚕️',`${p.name}: plan de recuperación ${plan==='accel'?'acelerado':plan==='conserv'?'conservador':'normal'}`);
+  closeMod();updateUI();
 }
 
 // ═══ CLÁSICOS Y RIVALIDADES ═══
@@ -8599,6 +8799,7 @@ function setTacticM(mentality, btn){
 // SOCIAL FEED
 // =============================================
 function rSocial(){
+  rHeadlines('pressHeadlines');
   const el=document.getElementById('socialFeed');
   if(!el||!G)return;
   const tn=G.teamName||'Boca Juniors';
@@ -11155,6 +11356,7 @@ function rPresTab(){
       ${conf<25?'<div class="note R">La directiva esta muy disconforme. Si no mejoran los resultados, tu puesto peligra.</div>':''}
       ${conf>=85?'<div class="note G">La directiva esta encantada con tu gestion. Segui asi.</div>':''}
       ${G.boardTarget?`<div class="note" style="margin-top:6px">🎯 <b>Objetivo de la dirigencia:</b> ${G.boardTarget.desc}.</div>`:''}
+      <button class="btn bo bs" style="margin-top:8px" onclick="openThemePicker()">🎨 Cambiar tema de color</button>
       ${(G.careerOffers&&G.careerOffers.length)?`
         <div class="ctitle" style="margin-top:10px">📨 Ofertas de otros clubes</div>
         ${G.careerOffers.map(o=>`<div class="card" style="padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
@@ -11216,10 +11418,44 @@ function gTab(name, btn){
   btn.classList.add('on');
   selSlot = null; // clear tactics selection when switching tabs
 }
+// ═══ TEMAS DE COLOR (acento de la interfaz) ═══
+const UI_THEMES={
+  oro:{g:'#F6D318',d:'#e8c400',name:'Oro (clásico)'},
+  rojo:{g:'#e8484f',d:'#c62f37',name:'Rojo'},
+  azul:{g:'#3b8beb',d:'#2f6fc4',name:'Azul'},
+  celeste:{g:'#4db6e6',d:'#2f9fd4',name:'Celeste'},
+  verde:{g:'#1aaa6b',d:'#149257',name:'Verde'},
+  violeta:{g:'#b06ef5',d:'#9450e0',name:'Violeta'},
+  bordo:{g:'#d24b6a',d:'#b23555',name:'Bordó'},
+};
+const CLUB_THEME={boca:'oro',river:'rojo',racing:'celeste',indep:'rojo',sanlo:'bordo'};
+function applyTheme(k){
+  const t=UI_THEMES[k]||UI_THEMES.oro;
+  document.documentElement.style.setProperty('--gold',t.g);
+  document.documentElement.style.setProperty('--gold-d',t.d);
+  if(G)G.theme=k;
+  try{localStorage.setItem('dt_theme',k);}catch(e){}
+}
+function openThemePicker(){
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🎨 Tema de la interfaz</div>
+    <div class="note" style="margin-bottom:8px">Elegí el color de acento del simulador. Se guarda en tu navegador.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      ${Object.entries(THEMES).map(([k,t])=>`
+        <button class="btn ${(G&&G.theme||'oro')===k?'bg':'bo'}" onclick="applyTheme('${k}');openThemePicker()" style="display:flex;align-items:center;gap:8px;justify-content:flex-start">
+          <span style="width:16px;height:16px;border-radius:50%;background:${t.g};display:inline-block;flex-shrink:0"></span>${t.name}
+        </button>`).join('')}
+    </div>
+    <button class="btn bR bs" style="width:100%;margin-top:8px" onclick="closeMod()">Listo</button>
+  `);
+}
 function startGame(teamId){
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
   initGame(teamId||'boca');
+  let th=null;try{th=localStorage.getItem('dt_theme');}catch(e){}
+  applyTheme(th||CLUB_THEME[teamId]||'oro');
 }
 
 // =============================================
