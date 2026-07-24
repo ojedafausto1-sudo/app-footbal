@@ -5216,7 +5216,9 @@ function rCal(){
     ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
       <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${r.h}</span><span style="color:var(--gold);font-weight:700;min-width:26px;text-align:center">${r.s}</span><span style="flex:1;overflow:hidden;white-space:nowrap">${r.a}</span>
     </div>`).join('')}
-  </div>`:''}`;
+  </div>`:''}
+  <div id="otherLeaguesBox"></div>`;
+  setTimeout(()=>{try{rOtherLeagues();}catch(e){}},0);
   el.innerHTML=banner+tableHtml+Object.entries(byC).map(([c,ms])=>`
     <div class="card" style="margin-bottom:9px">
       <div class="ctitle">${c}</div>
@@ -5490,6 +5492,49 @@ function leagueSorted(){
 function myLeaguePos(){
   const t=leagueSorted().find(r=>r.club===G.teamName);
   return t?t.pos:0;
+}
+
+// ═══ OTRAS LIGAS: tabla plausible generada desde la fuerza de cada club ═══
+function otherLeaguePower(club,lg){
+  const rats=G.market.filter(p=>p.club===club&&p.lg===lg).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  return rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
+}
+function otherLeagueTable(lg){
+  const clubs=[...new Set(G.market.filter(p=>p.lg===lg).map(p=>p.club))];
+  // "fecha" del torneo proporcional a la semana jugada
+  const pj=Math.max(0,Math.min(30,Math.round((G.week||1)*0.75)));
+  return clubs.map(c=>{
+    const pow=otherLeaguePower(c,lg);
+    const seed=(c.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)%17)/17; // variación estable
+    // rendimiento esperado por partido según fuerza + azar estable
+    const ppg=Math.max(0.4,Math.min(2.4,(pow-62)/12+0.9+(seed-0.5)*0.5));
+    const pts=Math.round(ppg*pj);
+    const g=Math.round(pts/3*0.8+seed*2), l=Math.max(0,Math.round(pj*(0.9-ppg/3))), e=Math.max(0,pj-g-l);
+    return {club:c,pj,pts,g,e,l,pow:Math.round(pow)};
+  }).sort((a,b)=>b.pts-a.pts||b.pow-a.pow).map((r,i)=>({pos:i+1,...r}));
+}
+const OTHER_LEAGUES=['Brasil','Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Colombia','Chile','México'];
+function rOtherLeagues(){
+  const box=document.getElementById('otherLeaguesBox');if(!box||!G)return;
+  const avail=OTHER_LEAGUES.filter(lg=>G.market.some(p=>p.lg===lg||(lg==='México'&&p.lg==='Liga MX')));
+  if(!avail.length){box.innerHTML='';return;}
+  const sel=G._otherLg&&avail.includes(G._otherLg)?G._otherLg:avail[0];
+  G._otherLg=sel;
+  const lgKey=sel==='México'?'Liga MX':sel;
+  const rows=otherLeagueTable(lgKey).slice(0,20);
+  box.innerHTML=`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">🌍 Otras ligas</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      ${avail.map(lg=>`<button class="btn ${lg===sel?'bg':'bo'} bs" style="font-size:9px;padding:3px 7px" onclick="G._otherLg='${lg}';rOtherLeagues()">${lg}</button>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:22px 1fr 24px 30px 34px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
+      <span>#</span><span>Club</span><span>PJ</span><span>PTS</span><span>Fuerza</span>
+    </div>
+    ${rows.map(r=>`<div style="display:grid;grid-template-columns:22px 1fr 24px 30px 34px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${r.pos===1?'var(--gold)':r.pos<=4?'var(--green)':r.pos>=rows.length-1?'var(--red)':'transparent'}">
+      <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.club}</span>
+      <span>${r.pj}</span><span style="font-weight:700">${r.pts}</span><span style="color:var(--t3)">${r.pow}</span>
+    </div>`).join('')}
+  </div>`;
 }
 
 // =============================================
