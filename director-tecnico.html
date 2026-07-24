@@ -1953,11 +1953,29 @@ function buildBuyOffer(p, listed){
   if(listed){ mult=0.82+Math.random()*0.30; }
   else { mult=(p.rat>=85?1.7:p.rat>=80?1.45:p.rat>=75?1.25:1.1)+Math.random()*0.4; }
   const amount=Math.round(ask*mult*10)/10;
-  return {player:p, from:pickBuyer(), amount, type:'compra', listed:!!listed};
+  const o={player:p, from:pickBuyer(), amount, type:'compra', listed:!!listed};
+  // Términos extra que hacen la oferta más rica y realista
+  const roll=Math.random();
+  if(roll<0.25){ // pago en cuotas: cobrás más total pero repartido
+    o.plan=Math.random()<0.5?2:3;
+    o.amount=Math.round(o.amount*(o.plan===2?1.06:1.12)*10)/10;
+  } else if(roll<0.42){ // cláusula de reventa: menos hoy, % de una futura venta
+    o.sellOn=[10,15,20][~~(Math.random()*3)];
+    o.amount=Math.round(o.amount*0.88*10)/10;
+  } else if(roll<0.55&&p.rat>=76){ // te ofrecen plata + un jugador de su plantel
+    const cand=G.market.filter(q=>q.club!==G.teamName&&q.lg==='Liga ARG'&&Math.abs(q.rat-p.rat)<=6&&q.pos!==p.pos);
+    if(cand.length){o.swapIn=cand[~~(Math.random()*cand.length)];o.amount=Math.round(o.amount*0.55*10)/10;}
+  }
+  return o;
 }
 function buildLoanOffer(p){
   const fee=Math.round(p.val*(0.03+Math.random()*0.05)*10)/10;
-  return {player:p, from:LOAN_CLUBS[~~(Math.random()*LOAN_CLUBS.length)], amount:fee, type:'préstamo', listed:true};
+  const o={player:p, from:LOAN_CLUBS[~~(Math.random()*LOAN_CLUBS.length)], amount:fee, type:'préstamo', listed:true};
+  const roll=Math.random();
+  if(roll<0.3){o.buyOption=Math.round(p.val*(0.8+Math.random()*0.5)*10)/10;} // opción de compra
+  else if(roll<0.42){o.buyObligation=Math.round(p.val*(0.9+Math.random()*0.4)*10)/10;} // obligación de compra
+  if(Math.random()<0.5)o.wageShare=[50,70,100][~~(Math.random()*3)]; // se hacen cargo del sueldo
+  return o;
 }
 // Probability that a sale-listed player attracts a bid (cheaper ask → more attractive)
 function listAttract(p){
@@ -2391,6 +2409,15 @@ function negStep2(){
       <span style="font-size:12px;color:var(--t3)">M USD</span>
     </div>
     <div class="neg-rx" id="negRx"></div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;margin-top:8px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px">💳 FORMA DE PAGO (el club la evalúa)</div>
+      <div style="display:flex;gap:4px">
+        <button class="btn ${(nd.plan||1)===1?'bg':'bo'} bs negPlanBtn" data-pl="1" onclick="selNegPlan(1)" style="flex:1;font-size:10px">Contado</button>
+        <button class="btn ${(nd.plan||1)===2?'bg':'bo'} bs negPlanBtn" data-pl="2" onclick="selNegPlan(2)" style="flex:1;font-size:10px">2 cuotas<br><span style="font-size:8px">+5%</span></button>
+        <button class="btn ${(nd.plan||1)===3?'bg':'bo'} bs negPlanBtn" data-pl="3" onclick="selNegPlan(3)" style="flex:1;font-size:10px">3 cuotas<br><span style="font-size:8px">+10%</span></button>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">El pago diferido cuesta un recargo y <b>al club le gusta menos</b>: puede pedir más o rechazar. El contado es más fácil de cerrar.</div>
+    </div>
     <div style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center">👨‍💼 ${nd.agent.name} · Fee estimado: ~${fv(agentFee)} · Ronda ${nd.round}/${nd.maxRounds}</div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
       <button class="btn bg" onclick="subNegI('${nd.id}',${nd.demand})">✉️ Enviar oferta</button>
@@ -2398,6 +2425,7 @@ function negStep2(){
       <button class="btn bR bs" onclick="closeMod()">Retirarse</button>
     </div>
   `);
+  window._negPlan=nd.plan||1;
   updNegI(nd.demand, G.budget);
 }
 
@@ -2406,14 +2434,20 @@ function updNegI(demand, budget){
   const rx=document.getElementById('negRx');
   if(!inp||!rx) return;
   const val=parseFloat(inp.value)||0;
-  const ratio=val/demand;
+  const plan=window._negPlan||1;
+  // El pago en cuotas baja el atractivo de la oferta para el club vendedor
+  const planPenalty=plan===1?1:plan===2?0.93:0.86;
+  const ratio=(val/demand)*planPenalty;
+  // La primera cuota (lo que sale hoy) es lo que se controla contra el presupuesto
+  const payNow=Math.round(val*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
   let txt,col,bg;
-  if(val>budget)        {txt='❌ Sin presupuesto';             col='var(--red)';  bg='rgba(232,69,69,.12)';}
+  if(payNow>budget)    {txt='❌ Sin presupuesto para la 1ª cuota';col='var(--red)';  bg='rgba(232,69,69,.12)';}
   else if(ratio>=0.97)  {txt='✅ Prácticamente seguro';        col='var(--green)';bg='rgba(26,170,107,.12)';}
   else if(ratio>=0.88)  {txt='🟢 Buena oferta — probable acuerdo';col='var(--green)';bg='rgba(26,170,107,.08)';}
   else if(ratio>=0.76)  {txt='🟡 Posible contraoferta del club';col='var(--gold)'; bg='rgba(246,211,24,.08)';}
   else if(ratio>=0.60)  {txt='🟠 Probablemente rechacen';      col='var(--ora)';  bg='rgba(240,148,58,.1)';}
-  else                  {txt='⚠️ Oferta irrisoria — rechazarán';col='var(--red)';  bg='rgba(232,69,69,.1)';}
+  else                  {txt='⚠️ Oferta insuficiente — rechazarán';col='var(--red)';  bg='rgba(232,69,69,.1)';}
+  if(plan>1&&payNow<=budget)txt+=` · hoy pagás ${fv(payNow)}`;
   rx.textContent=txt; rx.style.color=col; rx.style.background=bg; rx.style.padding='7px'; rx.style.borderRadius='6px';
 }
 
@@ -2431,11 +2465,15 @@ function subNegI(id, demand){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(isNaN(offer)||offer<=0){flash('Ingresá un monto válido','draw');return;}
-  if(G.budget<offer){flash('❌ Presupuesto insuficiente','loss');return;}
+  const plan=window._negPlan||1;
+  const payNow=Math.round(offer*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
+  if(G.budget<payNow){flash('❌ No te alcanza para la primera cuota ('+fv(payNow)+')','loss');return;}
   if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
-  nd.lastOffer=offer;
-  const ratio=offer/demand;
+  nd.lastOffer=offer;nd.plan=plan;
+  // El club valora menos el pago diferido
+  const planPenalty=plan===1?1:plan===2?0.93:0.86;
+  const ratio=(offer/demand)*planPenalty;
   const rnd=Math.random();
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
   const hard=topClubs.some(c=>p.club.includes(c))?0.92:1;
@@ -2523,7 +2561,8 @@ function negStep3(id){
   window._negYears=3;
   window._negRole=roleExpect;
   window._negBonus=0;
-  window._negPlan=1;
+  // el plan de pago ya se acordó con el club (nd.plan); no se toca acá
+  window._negPlan=nd.plan||1;
   const playerMsg=p.rat>=85?`⭐ Conozco el proyecto de ${G.teamName||'tu club'}. Pero te aviso: soy un jugador top y espero ser titular indiscutido. Convenceme con los números.`:p.age<=22?`😃 ¡Qué emoción! Siempre soñé con jugar en ${G.teamName||'un club grande'}. Quiero minutos y un proyecto deportivo serio para seguir creciendo.`:p.age>=32?`🧠 A mi edad busco estabilidad. Quiero un contrato justo y un rol claro. Puedo aportar experiencia al vestuario de ${G.teamName||'tu club'}.`:`👋 Me interesa el proyecto de ${G.teamName||'tu club'}. Hablemos de las condiciones. Quiero un rol donde pueda rendir al máximo.`;
   addPhoneMsg('player',p.name,playerMsg,'⚽');
   showMod(`
@@ -2568,15 +2607,7 @@ function negStep3(id){
         ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}
       </div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">💳 FORMA DE PAGO DEL TRASPASO</div>
-      <div style="display:flex;gap:4px">
-        <button class="btn bg bs negPlanBtn" data-pl="1" onclick="selNegPlan(1)" style="flex:1;font-size:10px">Contado</button>
-        <button class="btn bo bs negPlanBtn" data-pl="2" onclick="selNegPlan(2)" style="flex:1;font-size:10px">2 cuotas<br><span style="font-size:8px">+5%</span></button>
-        <button class="btn bo bs negPlanBtn" data-pl="3" onclick="selNegPlan(3)" style="flex:1;font-size:10px">3 cuotas<br><span style="font-size:8px">+10%</span></button>
-      </div>
-      <div style="font-size:9px;color:var(--t3);margin-top:4px">Las cuotas se debitan cada 17 semanas. El club vendedor cobra un recargo por financiar.</div>
-    </div>
+    <div style="font-size:9px;color:var(--t3);margin-bottom:6px">💳 Pago acordado con el club: <b style="color:var(--gold)">${(nd.plan||1)===1?'Contado':(nd.plan)+' cuotas'}</b></div>
     <div class="neg-rx" id="negTermsRx"></div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
       <button class="btn bg" onclick="submitNegTerms('${id}')">✍️ Ofrecer contrato</button>
@@ -2589,7 +2620,7 @@ function negStep3(id){
 function selNegYears(y){window._negYears=y;document.querySelectorAll('.negYrBtn').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
 function selNegRole(r){window._negRole=r;document.querySelectorAll('.negRoleBtn').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
 function selNegBonus(b){window._negBonus=b;document.querySelectorAll('.negBonBtn').forEach(btn=>{const on=parseFloat(btn.dataset.b)===b;btn.classList.toggle('bg',on);btn.classList.toggle('bo',!on);});updNegTerms();}
-function selNegPlan(pl){window._negPlan=pl;document.querySelectorAll('.negPlanBtn').forEach(btn=>{const on=+btn.dataset.pl===pl;btn.classList.toggle('bg',on);btn.classList.toggle('bo',!on);});updNegTerms();}
+function selNegPlan(pl){window._negPlan=pl;if(window._negData)window._negData.plan=pl;document.querySelectorAll('.negPlanBtn').forEach(btn=>{const on=+btn.dataset.pl===pl;btn.classList.toggle('bg',on);btn.classList.toggle('bo',!on);});if(document.getElementById('negRx')&&window._negData)updNegI(window._negData.demand,G.budget);if(document.getElementById('negTermsRx'))updNegTerms();}
 
 function updNegTerms(){
   const nd=window._negData;if(!nd) return;
@@ -2939,6 +2970,12 @@ function rOffs(){
         <div style="flex:1">
           <div style="font-weight:600;font-size:12px">${o.from} quiere a <span style="color:var(--gold)">${o.player.name}</span>${src}</div>
           <div style="font-size:10px;color:var(--t3)">${typeIco} · <span style="color:var(--green)">${fv(o.amount)}</span> (TM: ${fv(o.player.val)})</div>
+          ${o.plan?`<div style="font-size:9px;color:var(--ora)">💳 Pagan en ${o.plan} cuotas</div>`:''}
+          ${o.sellOn?`<div style="font-size:9px;color:var(--pur)">📈 + ${o.sellOn}% de una futura venta</div>`:''}
+          ${o.swapIn?`<div style="font-size:9px;color:var(--gold)">🔄 + te ceden a ${o.swapIn.name} (${o.swapIn.pos} ${o.swapIn.rat})</div>`:''}
+          ${o.buyOption?`<div style="font-size:9px;color:var(--t2)">💰 Opción de compra: ${fv(o.buyOption)}</div>`:''}
+          ${o.buyObligation?`<div style="font-size:9px;color:var(--gold)">📋 Obligación de compra: ${fv(o.buyObligation)}</div>`:''}
+          ${o.wageShare?`<div style="font-size:9px;color:var(--green)">💵 Cubren ${o.wageShare}% del sueldo</div>`:''}
         </div>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -6157,6 +6194,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyAITransfers();
   weeklyDtMoves();
   processInstallments();
+  processIncoming();
   processScouts();
   checkPromises();
   if(G.week>=19&&G.boardTarget&&!G.boardTarget.reviewed)midSeasonReview();
@@ -8137,20 +8175,27 @@ function openSwap(id){
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
   const opts=G.squad.filter(q=>!q.injured).sort((a,b)=>b.val-a.val).slice(0,25);
+  window._swap2=null;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🔄 Canje por ${p.name} <span style="font-size:11px;color:var(--t3)">(${fv(p.val)})</span></div>
-    <div class="note" style="margin-bottom:8px">Elegí a quién entregás. Tu jugador se valora al 85% y pagás la diferencia. Al club le interesa más si el canje juega en otra posición que la de su estrella.</div>
+    <div class="note" style="margin-bottom:8px">Ofrecé jugador(es) + dinero. Tu jugador se valora al 85%. Podés <b>negociar cuánto ponés</b> — poner más plata convence al club. Le interesa más si el canje cubre un puesto que necesita.</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:3px">Jugador principal que entregás:</div>
     <select class="sb" id="swapSel" onchange="updSwapInfo('${p.id}')">
+      ${opts.map(q=>`<option value="${q.id}">${q.name} — ${q.pos} · ${q.rat} · ${fv(q.val)}</option>`).join('')}
+    </select>
+    <div style="font-size:10px;color:var(--t3);margin:6px 0 3px">Sumar un 2º jugador (opcional):</div>
+    <select class="sb" id="swapSel2" onchange="updSwapInfo('${p.id}')">
+      <option value="">— Ninguno —</option>
       ${opts.map(q=>`<option value="${q.id}">${q.name} — ${q.pos} · ${q.rat} · ${fv(q.val)}</option>`).join('')}
     </select>
     <div id="swapInfo"></div>
   `);
   updSwapInfo(p.id);
 }
-// El club vendedor evalúa si tu jugador LE SIRVE: puesto, edad, nivel, plantel
-function swapInterest(p,mine){
-  const roster=G.market.filter(q=>q.club===p.club);
+// El club vendedor evalúa si tu propuesta LE SIRVE: puesto, edad, nivel, plantel, dinero
+function swapInterest(p,mine,mine2,cash,fair){
+  const roster=G.market.filter(q=>q.club===p.club&&q.lg===p.lg);
   const samePos=roster.filter(q=>q.pos===mine.pos).length;
   const reasons=[];
   let i=0.40;
@@ -8161,53 +8206,81 @@ function swapInterest(p,mine){
   if(mine.age<=24){i+=0.10;reasons.push('✓ Joven con proyección');}
   else if(mine.age>=31){i-=0.12;reasons.push('❌ Edad avanzada');}
   if(mine.rat>=p.rat-2){i+=0.10;reasons.push('✓ Nivel comparable al de su jugador');}
-  if(mine.val*0.85>=p.val*0.6)i+=0.08;
   if(mine.injured){i-=0.30;reasons.push('❌ Está lesionado');}
-  return {prob:Math.max(0.05,Math.min(0.90,i)),reasons};
+  if(mine2){i+=0.10;reasons.push('✓ Sumás un segundo jugador');}
+  // El dinero por encima de lo justo convence; por debajo, enfría
+  if(cash!==undefined&&fair!==undefined){
+    const extra=cash-fair;
+    if(extra>=fair*0.5&&extra>0.5){i+=0.20;reasons.push('✓ Ofrecés dinero de más — les interesa');}
+    else if(extra>0.5){i+=0.10;reasons.push('✓ Ponés algo más de plata');}
+    else if(cash<fair-0.5){i-=0.18;reasons.push('❌ Ofrecés menos dinero del que piden');}
+  }
+  return {prob:Math.max(0.05,Math.min(0.92,i)),reasons};
 }
 function updSwapInfo(targetId){
   const p=G.market.find(x=>x.id===targetId);
   const sel=document.getElementById('swapSel');
+  const sel2=document.getElementById('swapSel2');
   const mine=G.squad.find(q=>q.id===sel.value);
   if(!p||!mine)return;
-  const credit=Math.round(mine.val*0.85*10)/10;
-  const diff=Math.max(0,Math.round((p.val-credit)*10)/10);
-  const ev=swapInterest(p,mine);
+  const mine2=(sel2&&sel2.value)?G.squad.find(q=>q.id===sel2.value):null;
+  const credit=Math.round((mine.val*0.85+(mine2?mine2.val*0.85:0))*10)/10;
+  // diferencia "justa"; el usuario puede ofrecer más para convencer
+  const fair=Math.max(0,Math.round((p.val-credit)*10)/10);
+  if(window._swapCash===undefined||window._swapTarget!==targetId){window._swapCash=fair;window._swapTarget=targetId;}
+  const cash=window._swapCash;
+  const ev=swapInterest(p,mine,mine2,cash,fair);
+  const maxCash=Math.max(fair*2+2,Math.round(G.budget));
   document.getElementById('swapInfo').innerHTML=`
-    <div class="sr"><span class="sl">Tu jugador (85%)</span><span class="sv" style="color:var(--green)">${fv(credit)}</span></div>
-    <div class="sr"><span class="sl">Pagás además</span><span class="sv" style="color:var(--gold)">${fv(diff)}</span></div>
+    <div class="sr"><span class="sl">Tus jugadores (85%)</span><span class="sv" style="color:var(--green)">${fv(credit)}${mine2?' (2)':''}</span></div>
+    <div style="margin:8px 0">
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--t2)">💵 Dinero que sumás</span><span style="color:var(--gold);font-weight:700" id="swapCashL">${fv(cash)}</span></div>
+      <input type="range" min="0" max="${maxCash}" step="0.5" value="${Math.min(cash,maxCash)}" class="neg-slider" oninput="window._swapCash=parseFloat(this.value);updSwapInfo('${p.id}')">
+      <div style="font-size:9px;color:var(--t3)">Sugerido: ${fv(fair)} · poner más sube la chance</div>
+    </div>
     <div class="sr"><span class="sl">Prob. de que acepten</span><span class="sv" style="color:${ev.prob>=0.55?'var(--green)':ev.prob>=0.35?'var(--gold)':'var(--red)'}">${Math.round(ev.prob*100)}%</span></div>
     <div style="font-size:9px;color:var(--t3);margin-top:6px;line-height:1.6">${ev.reasons.join('<br>')}</div>
     <div style="display:flex;gap:6px;margin-top:8px">
-      <button class="btn bg" onclick="confirmSwap('${p.id}','${mine.id}',${diff},${ev.prob})">Proponer canje</button>
+      <button class="btn bg" onclick="confirmSwap('${p.id}','${mine.id}','${mine2?mine2.id:''}',${cash},${ev.prob})">Proponer canje</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
     </div>`;
 }
-function confirmSwap(targetId,mineId,diff,interest){
+function confirmSwap(targetId,mineId,mine2Id,cash,interest){
   const p=G.market.find(x=>x.id===targetId);
   const mine=G.squad.find(q=>q.id===mineId);
+  const mine2=mine2Id?G.squad.find(q=>q.id===mine2Id):null;
   if(!p||!mine)return;
-  if(G.budget<diff){flash('❌ No te alcanza para la diferencia','loss');return;}
+  if(G.budget<cash){flash('❌ No te alcanza para el dinero ofrecido','loss');return;}
   if(Math.random()>interest){
-    lg('🔄',`${p.club} rechazó el canje ${mine.name} por ${p.name}`);
-    closeMod();
-    flash('❌ Rechazaron el canje','loss');
+    // El club contraoferta pidiendo más plata en vez de rechazar seco
+    const credit=mine.val*0.85+(mine2?mine2.val*0.85:0);
+    const need=Math.max(0,Math.round((p.val-credit)*1.25*10)/10);
+    if(need>cash&&need<=G.budget&&Math.random()<0.6){
+      lg('🔄',`${p.club} contraoferta: pide ${fv(need)} para cerrar`);
+      addPhoneMsg('agent','Mercado de pases',`↔️ <b>${p.club}</b> no rechaza el canje, pero pide <b style="color:var(--gold)">${fv(need)}</b> en efectivo para soltar a ${p.name}.`,'💬');
+      window._swapCash=need;updSwapInfo(targetId);
+      flash('↔️ El club pide más dinero','draw');
+      return;
+    }
+    lg('🔄',`${p.club} rechazó el canje por ${p.name}`);
+    closeMod();flash('❌ Rechazaron el canje','loss');
     return;
   }
-  G.budget=Math.round((G.budget-diff)*10)/10;
-  // Tu jugador se va al club vendedor
+  G.budget=Math.round((G.budget-cash)*10)/10;
   const oldClub=p.club;
-  G.squad=G.squad.filter(q=>q.id!==mineId);
-  G.bench=G.bench.filter(q=>q.id!==mineId);
-  Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===mineId)G.slots[k2]=null;});
-  mine.club=oldClub;mine.lg=p.lg;
-  G.market.push(mine);
-  // El objetivo llega
+  [mine,mine2].filter(Boolean).forEach(m=>{
+    G.squad=G.squad.filter(q=>q.id!==m.id);
+    G.bench=G.bench.filter(q=>q.id!==m.id);
+    Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===m.id)G.slots[k2]=null;});
+    m.club=oldClub;m.lg=p.lg;G.market.push(m);
+  });
   G.market=G.market.filter(x=>x.id!==targetId);
   p.club=G.teamName;p.lg='Liga ARG';
   G.squad.push(p);G.bench.push(p);
-  lg('🔄',`Canje: llegó ${p.name}, se fue ${mine.name} + ${fv(diff)}`);
+  const idos=[mine.name,mine2&&mine2.name].filter(Boolean).join(' + ');
+  lg('🔄',`Canje: llegó ${p.name}, se fue ${idos}${cash?' + '+fv(cash):''}`);
   addPhoneMsg('player',p.name,'¡Presidente! Llegué con toda la ilusión. Gracias por buscarme.','👤');
+  window._swapCash=undefined;
   closeMod();updateUI();
   flash('🔄 Canje cerrado: '+p.name,'win');
 }
@@ -8397,21 +8470,46 @@ function accOffAt(i, val){
   }
   resolveWantsOut(p);
   // Remove from active squad either way
-  G.budget=Math.round((G.budget+val)*10)/10;
   G.squad=G.squad.filter(x=>x.id!==p.id);
   G.bench=G.bench.filter(x=>x.id!==p.id);
   Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
   p.listed=null; p.askPrice=null;
   if(o.type==='préstamo'){
-    // Loan OUT: returns in 26 weeks
+    // Loan OUT: returns in 26 weeks (o queda si hay obligación de compra)
     p.loanedFrom=G.teamName; p.club=o.from; p.onLoan=true;
-    if(!G.loaned) G.loaned=[];
-    G.loaned.push({player:p, returnWeek:G.week+26, destClub:o.from});
-    lg('📤',`${p.name} cedido a ${o.from} (+${fv(val)}, vuelve en 26 sem)`);
-    flash('✅ '+p.name+' cedido a '+o.from,'win');
+    G.budget=Math.round((G.budget+val)*10)/10;
+    if(o.buyObligation){
+      G.budget=Math.round((G.budget+o.buyObligation)*10)/10;
+      p.onLoan=false;G.market.push(p);
+      lg('📋',`${p.name} cedido con obligación: ${o.from} lo compra por ${fv(o.buyObligation)}`);
+      flash('✅ '+p.name+' cedido (obligación de compra)','win');
+    } else {
+      if(!G.loaned) G.loaned=[];
+      G.loaned.push({player:p, returnWeek:G.week+26, destClub:o.from, buyOption:o.buyOption});
+      lg('📤',`${p.name} cedido a ${o.from} (+${fv(val)}${o.wageShare?', '+o.wageShare+'% sueldo cubierto':''}${o.buyOption?', opción '+fv(o.buyOption):''})`);
+      flash('✅ '+p.name+' cedido a '+o.from,'win');
+    }
   } else {
+    // Compra: manejar cuotas, cláusula de reventa y canje entrante
+    let payNow=val;
+    if(o.plan&&o.plan>1){
+      payNow=Math.round(val/o.plan*10)/10;
+      G.pendingIncome=G.pendingIncome||[];
+      for(let k=1;k<o.plan;k++)G.pendingIncome.push({from:o.from,player:p.name,amount:Math.round(val/o.plan*10)/10,dueWeek:G.week+17*k,season:G.season});
+      lg('💳',`Cobro en ${o.plan} cuotas de ${o.from}: hoy ${fv(payNow)}`);
+    }
+    G.budget=Math.round((G.budget+payNow)*10)/10;
+    if(o.sellOn){p.sellOnPct=o.sellOn;p.sellOnTo=G.teamName;} // guardás % de futura venta
+    if(o.swapIn){
+      const inc=G.market.find(x=>x.id===o.swapIn.id)||o.swapIn;
+      G.market=G.market.filter(x=>x.id!==inc.id);
+      inc.club=G.teamName;inc.lg='Liga ARG';
+      G.squad.push(inc);G.bench.push(inc);
+      lg('🔄',`En el pase de ${p.name} llegó ${inc.name}`);
+      addPhoneMsg('player',inc.name,'¡Presidente! Contento de sumarme en esta operación. Voy a responder.','👤');
+    }
     G.market.push(p);
-    lg('💰',`${p.name} → ${o.from} (${fv(val)})`);
+    lg('💰',`${p.name} → ${o.from} (${fv(val)}${o.sellOn?', +'+o.sellOn+'% reventa':''})`);
     flash('✅ Vendido a '+o.from+' '+fv(val),'win');
   }
   // Drop any other pending offers for the same player
@@ -11272,6 +11370,18 @@ function processInstallments(){
     if(G.budget<0)addPhoneMsg('board','Secretaría del Club',`⚠️ Presidente, la cuota de <b>${c.player}</b> (${fv(c.amount)}) nos dejó en rojo. Hay que vender o generar ingresos.`,'🏛️');
   }
   G.installments=G.installments.filter(c=>!due.includes(c));
+}
+// Cobros en cuotas de ventas que hiciste
+function processIncoming(){
+  if(!G.pendingIncome||!G.pendingIncome.length)return;
+  const wk=G.week||1;
+  const due=G.pendingIncome.filter(c=>c.season===G.season?c.dueWeek<=wk:G.season>c.season);
+  if(!due.length)return;
+  for(const c of due){
+    G.budget=Math.round((G.budget+c.amount)*10)/10;
+    lg('💵',`Cobro de cuota de ${c.from} por ${c.player}: +${fv(c.amount)}`);
+  }
+  G.pendingIncome=G.pendingIncome.filter(c=>!due.includes(c));
 }
 
 // ═══ CARRUSEL DE DTs: los otros clubes también despiden y contratan ═══
