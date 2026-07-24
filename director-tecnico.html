@@ -795,8 +795,23 @@ function ageLabel(age) {
   return `<span class="age-vet">◆ Veterano</span>`;
 }
 
+// ═══ AJUSTE POR TRAYECTORIA / RENDIMIENTO REAL ═══
+// El valor de mercado castiga a los veteranos de jerarquía (por reventa),
+// así que la calculadora sola los subvalora. Esta tabla corrige a mano
+// casos claros de rendimiento en la vida real (campeones del mundo,
+// carreras largas en el top europeo). Es un delta chico (±), editable.
+// El rating final igual respeta el techo 91 de la calculadora.
+const PERF_ADJ = {
+  'Leandro Paredes':+4, 'Ángel Di María':+5, 'Enzo Pérez':+5, 'Marcos Rojo':+2,
+  'Javier Mascherano':+3, 'Ramiro Funes Mori':+2, 'Gabriel Mercado':+2,
+  'Fernando Gago':+2, 'Óscar Romero':+1, 'Ever Banega':+3, 'Nicolás Otamendi':+3,
+  'Germán Pezzella':+2, 'Guido Rodríguez':+2, 'Lucas Ocampos':+2,
+  'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
+};
+function perfAdj(name){ return PERF_ADJ[name]||0; }
 function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
-  const rat = (rat_override > 0) ? Math.min(91,rat_override) : valToRat(val, age, pos);
+  const rat = (rat_override > 0) ? Math.min(91,rat_override)
+    : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
   const pot = Math.max(rat, valToPot(val, age, pos));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
