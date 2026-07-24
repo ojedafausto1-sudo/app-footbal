@@ -1452,8 +1452,10 @@ const STAD_INIT = {
     {id:'naming',name:'Naming Rights (venta de nombre)',desc:'Un sponsor paga por el nombre del estadio.',cost:25,eff:'inc+1.2',built:false},
     {id:'aux',name:'Estadio Auxiliar (Reserva)',desc:'La reserva juega de local. Juveniles crecen.',cost:22,eff:'train',built:false},
     {id:'residence',name:'Residencia de Jugadores',desc:'Concentración propia. Moral del plantel.',cost:18,eff:'rep+3',built:false},
-    {id:'lab',name:'Laboratorio de Datos y GPS',desc:'Análisis científico del rendimiento.',cost:15,eff:'train',built:false},
+    {id:'lab',name:'Laboratorio de Datos y GPS',desc:'Análisis científico del rendimiento. Menos lesiones.',cost:15,eff:'train',built:false},
     {id:'tunnel',name:'Túnel y Vestuarios Premium',desc:'Nivel Champions. Impresiona rivales. Rep +3.',cost:10,eff:'rep+3',built:false},
+    {id:'recovery',name:'Sala de Recuperación (Crioterapia)',desc:'El plantel recupera condición física más rápido.',cost:16,eff:'recovery',built:false},
+    {id:'gym',name:'Gimnasio de Alto Rendimiento',desc:'Físico y potencia. Menos desgaste en la temporada.',cost:14,eff:'recovery',built:false},
   ]
 };
 
@@ -1500,8 +1502,8 @@ function weeklyYouth(){
   const lvl=y.level||1;
   const hasStaff=y.upgrades.some(u=>u.id==='yt'&&u.built);
   const hasScouts=y.upgrades.some(u=>u.id==='ys'&&u.built);
-  // Desarrollo semanal (staff especializado acelera; la personalidad modula)
-  const spd=lvl+1+(hasStaff?1:0);
+  // Desarrollo semanal (staff especializado + instalaciones aceleran; la personalidad modula)
+  const spd=(lvl+1+(hasStaff?1:0))*facilityTrainMult();
   y.players.forEach(p=>{
     if(!p.person)p.person=randPerson();
     const pm=(YOUTH_PERSONS[p.person]||{dev:1}).dev;
@@ -3434,6 +3436,16 @@ function rTrainMeta(){
 function setTrainIntensity(k){G.trainIntensity=k;rTrainMeta();flash('🔥 Intensidad: '+TRAIN_INTENSITY[k].label,'win');}
 function setTrainFocus(k){G.trainFocus=k;rTrainMeta();flash('🎯 Foco: '+TRAIN_FOCI[k].label,'win');}
 
+// ═══ INSTALACIONES DEL CLUB: las obras de entrenamiento aceleran el desarrollo ═══
+function facilityTrainMult(){
+  const st=(G.stadium&&G.stadium.upgrades)||[];
+  const n=st.filter(u=>u.built&&u.eff==='train').length;
+  return 1+n*0.09; // +9% de desarrollo por cada instalación de entrenamiento
+}
+function hasFacility(id){
+  const st=(G.stadium&&G.stadium.upgrades)||[];
+  return st.some(u=>u.built&&u.id===id);
+}
 // Desarrollo automático semanal de TODO el plantel hacia su potencial
 function weeklyTraining(){
   const intK=G.trainIntensity||'normal';
@@ -3441,7 +3453,7 @@ function weeklyTraining(){
   const intMul=TRAIN_INTENSITY[intK].dev;
   const ycLv=(G.staffLevels&&G.staffLevels.youthcoach)||0;
   const asstLv=(G.staffLevels&&G.staffLevels.asst)||1;
-  const ctr=G.youth&&G.youth.upgrades&&G.youth.upgrades.some(u=>u.id==='yt'&&u.built)?1.15:1;
+  const ctr=(G.youth&&G.youth.upgrades&&G.youth.upgrades.some(u=>u.id==='yt'&&u.built)?1.15:1)*facilityTrainMult();
   G.squad.forEach(p=>{
     ensureAttrs(p);
     if(p.dev===undefined)p.dev=0;
@@ -6161,12 +6173,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
-  if(intCfg.fit){G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.max(15,Math.min(100,p.fit+intCfg.fit));});}
+  // Instalaciones de recuperación devuelven condición física extra cada semana
+  const recBonus=(hasFacility('recovery')?4:0)+(hasFacility('gym')?3:0);
+  if(intCfg.fit||recBonus){G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.max(15,Math.min(100,p.fit+(intCfg.fit||0)+recBonus));});}
   // Injury (reduced by physio level and medical center)
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const physioLv = G.staffLevels.physio||1;
   let injChance = (G.medicalCenter ? 0.07 : 0.12)*(intCfg.inj||1);
   if(physioLv>=3) injChance*=0.6; else if(physioLv>=2) injChance*=0.75;
+  // Instalaciones de élite reducen lesiones (alto rendimiento, GPS/datos, césped híbrido)
+  if(hasFacility('highperf')) injChance*=0.82;
+  if(hasFacility('lab')||hasFacility('hybrid')) injChance*=0.88;
   // Jugadores fundidos se lesionan más (y son los que más chance tienen de caer)
   const tired=G.squad.filter(p=>fitOf(p)<60&&!p.injured);
   if(tired.length>=3) injChance*=1.5;
