@@ -10671,41 +10671,50 @@ function fmTeamPass(team,fromIdx){
       return;
     }
   }
-  let bestI=-1,bestScore=-Infinity;
+  // Línea de offside rival (2º defensor más atrasado): no le pasamos a un adelantado
+  const oDefXs=rivals.filter(o=>!o.isGK).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
+  const offLine=oDefXs.length>=2?oDefXs[1]:(oDefXs[0]||(attRight?f.rightGL:f.leftGL));
+  let bestI=-1,bestScore=-Infinity,bestOff=false;
+  let bestOnI=-1,bestOnScore=-Infinity; // mejor opción HABILITADA (sin offside)
   squad.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
-    if(d<60)return;
+    if(d<55)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
-    const blocked=rivals.some(m=>{
-      const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;
-      return Math.hypot(m.x-mx,m.y-my2)<d*0.3;
-    });
-    const marked=rivals.some(m=>Math.hypot(m.x-t.x,m.y-t.y)<110);
+    // ¿el receptor está en posición adelantada? (un equipo no le pasa a un offside)
+    const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
+    const isOff=inRivalHalf&&(attRight?(t.x>offLine+16):(t.x<offLine-16))&&(attRight?(t.x>b.x+30):(t.x<b.x-30));
+    // apertura: cuántos rivales tiene cerca (preferir al que está SOLO)
+    const near=rivals.reduce((a,m)=>a+(!m.isGK&&Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
+    const blocked=rivals.some(m=>{const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;return Math.hypot(m.x-mx,m.y-my2)<d*0.28;});
     const recvOwnDist=attRight?(t.x-f.leftGL):(f.rightGL-t.x);
-    const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.28;
-    // Peso vertical: directo (perfil) + contragolpe (transición); durmiendo, pase seguro corto
-    let fwdW=(0.4+prof.direct*0.5)+(inTrans?(prof.counter||0.5)*0.4:0);
-    if(holding)fwdW=0.12;
-    // PARED: devolvérsela al que me la dio (asociación uno-dos)
-    const isWall=f._lastPasser&&f._lastPasser.team===team&&f._lastPasser.i===i&&d<280;
-    // Bandas: DTs de bandas buscan receptores abiertos; los de centro, por adentro
+    const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.24;
+    // PESO VERTICAL más bajo → la pelota circula (no todo es para adelante)
+    let fwdW=(0.20+prof.direct*0.38)+(inTrans?(prof.counter||0.5)*0.45:0);
+    if(holding)fwdW=0.06;
+    const isWall=f._lastPasser&&f._lastPasser.team===team&&f._lastPasser.i===i&&d<300;
     const wideness=Math.abs(t.y-mid5)/(f.VH/2);
-    const flankBias=((prof.flank||0.5)-0.5)*70*wideness-((0.5-(prof.flank||0.5))*40*wideness);
-    const roleBonus=(t.roleStyle==='Organizador')?20:(t.roleStyle==='Salida limpia'&&recvOwnDist<fieldW*0.4)?12:0;
-    const score=fwdScore*fwdW-d*(holding?0.16:(0.14-prof.direct*0.08))+flankBias+roleBonus+(isWall?30+((prof.tempo||0.5)*25):0)+(Math.random()*30)-(blocked?40:0)-(marked?(holding?80:50):0)-(suicidal?90:0);
-    if(score>bestScore){bestScore=score;bestI=i;}
+    const flankBias=((prof.flank||0.5)-0.5)*60*wideness;
+    const roleBonus=(t.roleStyle==='Organizador')?18:0;
+    const score=fwdScore*fwdW
+      - d*(holding?0.14:0.10)
+      - near*24                                 // el que está libre vale más
+      + flankBias+roleBonus
+      + (isWall?26+((prof.tempo||0.5)*22):0)
+      + Math.random()*40                        // variedad real de pases
+      - (blocked?45:0)
+      - (suicidal?90:0)
+      - (isOff?150:0);                          // casi nunca le pasa a un offside
+    if(score>bestScore){bestScore=score;bestI=i;bestOff=isOff;}
+    if(!isOff&&score>bestOnScore){bestOnScore=score;bestOnI=i;} // mejor habilitado
   });
+  // Si el mejor está adelantado pero hay un habilitado razonable, juega con el habilitado
+  // (el pasador "ve" el offside). Sólo a veces se arriesga el pase y se cobra offside.
+  if(bestOff&&bestOnI>=0&&Math.random()<0.8){bestI=bestOnI;bestOff=false;}
   if(bestI>=0){
     const t=squad[bestI];
-    // ═══ OFFSIDE: receptor pasado de la última línea rival cuando sale el pase ═══
-    // (línea = 2º defensor más atrasado; solo si recibe adelantado y en campo rival)
-    const defXs=rivals.filter(o=>!o.isGK).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
-    const lastLine=defXs.length>=2?defXs[1]:(defXs[0]||(attRight?f.rightGL:f.leftGL));
-    const beyond=attRight?(t.x>lastLine+24):(t.x<lastLine-24);
-    const fwdPass=attRight?(t.x>b.x+50):(t.x<b.x-50);
-    const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
-    if(beyond&&fwdPass&&inRivalHalf&&Math.random()<0.24){
+    // OFFSIDE sólo cuando, pese a todo, jugó el pase al adelantado (raro y realista)
+    if(bestOff&&Math.random()<0.55){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
       fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
