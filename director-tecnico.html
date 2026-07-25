@@ -8957,14 +8957,19 @@ function fmBodyBall(p,b,team){
     const power=Math.hypot(b.vx,b.vy);
     if(dG<reachG&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
-      // los tiros fuertes le cuestan más: goles posibles pero con atajadas
       const catchProb=Math.max(0.04,Math.min(0.66,ref/100*0.68-power*0.05+(b.air>2?-0.15:0.08)));
+      const shooter=f._lastTouch;                    // quien remató (antes de tocar el arquero)
+      if(shooter&&shooter!==team)fmStat(shooter,'sot'); // tiro al arco del que disparó
       f._lastTouch=team;
-      // tiro al arco: cuenta como remate a puerta para el equipo que disparó
-      if(f._lastTouch)fmStat(f._lastTouch,'sot');
       if(Math.random()<catchProb){
         b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
+      }else if(shooter&&shooter!==team&&Math.random()<0.45){
+        // la manda al CÓRNER (rebote al lateral fuera de la línea de fondo)
+        const gx=(p.x<f.VW/2)?f.leftGL:f.rightGL;
+        b.x=gx;b.y=b.y<f.VH/2?18:f.VH-18;b.vx=0;b.vy=0;b.air=0;
+        fmSetRestart('corner',shooter,gx+(gx<f.VW/2?16:-16),b.y,'CÓRNER');fmStat(shooter,'corner');
+        if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
       }else{
         // rebote hacia un costado; a veces queda picando en el área (peligro)
         const away=(p.x<f.VW/2?1:-1),sy=(b.y<f.VH/2?-1:1);
@@ -10258,8 +10263,12 @@ function fmAI(p,team,idx,dt){
   // Córner: el que saca tira el centro al área
   if(p._forceCross&&bd<KICK_R+6&&!(b.air>2)){
     p._forceCross=0;
-    const tx3=attRight?f.rightGL-fieldW*0.11:f.leftGL+fieldW*0.11;
-    const ty3=mid+(Math.random()*130-65);
+    // Rutina de córner: primer palo / punto de penal / segundo palo
+    const routine=Math.random();
+    const depth=routine<0.35?0.07:routine<0.7?0.11:0.15;
+    const tx3=attRight?f.rightGL-fieldW*depth:f.leftGL+fieldW*depth;
+    const nearPost=b.y<mid; // saca desde el palo donde salió la pelota
+    const ty3=routine<0.35?(nearPost?mid-f.GH*0.5:mid+f.GH*0.5):routine<0.7?mid+(Math.random()*80-40):(nearPost?mid+f.GH*0.6:mid-f.GH*0.6);
     const ddx=tx3-b.x,ddy=ty3-b.y,dd3=Math.hypot(ddx,ddy)||1;
     b.vx=ddx/dd3*6.4;b.vy=ddy/dd3*6.4;
     b.air=Math.min(80,dd3/6.4*0.7);
@@ -10483,6 +10492,14 @@ function fmAI(p,team,idx,dt){
     }
   } else if(weHave){
     // ═══ MI EQUIPO LA TIENE: NADIE persigue — abrirse y dar opciones de pase ═══
+    // UNO-DOS: el que acaba de pasar pica al vacío hacia adelante para la devolución
+    if(p._giveGo&&(f.ticks-p._giveGo)<55&&(f.ticks-p._giveGo)>2){
+      const runX=p.x+dirF*fieldW*0.10;
+      const runY=p.y+(p.y<mid?-40:40);
+      fmMove(p,runX-p.x+sepX*0.3,runY-p.y+sepY*0.3,dt,0.09);
+      p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+      return;
+    }
     const carrier=f.poss;
     let supRank=-1;
     if(carrier){
@@ -10631,6 +10648,7 @@ function fmTeamPass(team,fromIdx){
     b.vx=(dx/dd)*pwr+ex;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4+ey;
     f._lastTouch=team;
     f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
+    if(fromP)fromP._giveGo=f.ticks; // el que pasa pica al vacío (uno-dos)
     squad[fromIdx]._kickT=9;
     fmSndKick(0.32);fmStat(team,'pass');
     t._recvTick=f.ticks;
