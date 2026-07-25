@@ -7644,7 +7644,7 @@ function sitSetupAttack(W,H,oR,mainP,pool){
   const defN=Math.max(0,atkN+~~((Math.random()-.3)*2.5));
   const scenLabel=atkN===1?'¡Mano a mano con el arquero!':atkN===2?`2v${defN} — ¡combiná!`:`3v${defN} — ¡dominá el campo!`;
   s.label=`🎮 ¡ATAQUE! <span style="color:var(--gold)">${mainP.name.split(' ').pop()}</span> — ${scenLabel}`;
-  s.hint='Flechas: mover · Z: TIRO al arco · X: PASE';
+  s.hint='Flechas: mover · Z: TIRO (mantené ← o → para clavarla al ángulo) · X: PASE';
   const mates=pool.filter(p=>p!==mainP).slice(0,atkN-1);
   const lanes=atkN===1?[W/2]:atkN===2?[W*.26,W*.74]:[W*.18,W/2,W*.82];
   s.atk=[
@@ -7718,25 +7718,27 @@ function sitSetupAttack(W,H,oR,mainP,pool){
         s.shotLocked=true;
         if(bd<=KICK_R){
           const pp=p.p;
-          // ═══ TIRO POR PERFIL: la dirección sale de CÓMO encarás la pelota ═══
-          // tu posición respecto al centro + hacia dónde venías yendo definen el ángulo.
-          // Las flechas L/R afinan (apuntás al palo), pero no es un tiro fijo.
-          const perfil=(p.x-W/2)*0.55+(p.vx||0)*24;
-          const nudge=(k.left?-gh*.35:0)+(k.right?gh*.35:0);
-          const noise=(91-pp.rat)*.30*(Math.random()*2-1);
-          const tx=sC(W/2+perfil+nudge+noise,W/2-gh*1.05,W/2+gh*1.05),ty=glY-4;
+          // ═══ APUNTÁS VOS con las flechas: ← palo izquierdo · → palo derecho ═══
+          // mantené ← o → al patear para clavarla en el ángulo. Sin flecha = al medio.
+          let aim=(k.right?1:0)-(k.left?1:0);              // -1 / 0 / +1 elegido por vos
+          if(aim===0)aim=sC((p.x-W/2)/gh*0.5,-0.4,0.4);   // sin flecha: apenas según tu posición
+          const noise=(90-pp.rat)*0.007*(Math.random()*2-1); // el tirador flojo pierde precisión
+          const tx=sC(W/2+(aim+noise)*(gh-8),W/2-gh+5,W/2+gh-5),ty=glY-4;
+          s.aimX=tx;
           const ang=Math.atan2(ty-b.y,tx-b.x);
-          const sp=5.0+(pp.rat-70)*.04;
+          const sp=9.0+(pp.rat-70)*.06;                   // remate RÁPIDO: al arquero no le da para tapar el palo lejano
           b.vx=Math.cos(ang)*sp;b.vy=Math.sin(ang)*sp;
-          s.scorer=pp;s.gk.react=8;s.mode='shot';
+          s.scorer=pp;s.gk.react=6;s.mode='shot';
         }
       }
       if(!k.shoot)s.shotLocked=false;
       // X: pase al mejor compañero
       if(k.pass&&!s.passLocked){s.passLocked=true;doPass();}
       if(!k.pass)s.passLocked=false;
+      // el arquero te sigue pero con retraso (no queda pegado a tu posición):
+      // por eso podés amagar a un lado y patear al otro.
       const tgx=sC(b.x,W/2-gh+10,W/2+gh-10);
-      s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*dt,s.gk.spd*dt);
+      s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*.55*dt,s.gk.spd*.55*dt);
       s.gk.x=sC(s.gk.x,W/2-gh+6,W/2+gh-6);
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('goal');return sitEnd('miss');}
       if(b.x<-BR||b.x>W+BR)return sitEnd('out');
@@ -7744,17 +7746,13 @@ function sitSetupAttack(W,H,oR,mainP,pool){
       const rAdj=Math.max(0,((window._sitShooterQ||75)-75))*0.16; // tu crack coloca mejor: arquero llega menos
       if(sD(s.gk,b)<12+BR-rAdj)return sitEnd('save');
     } else {
+      // el arquero REACCIONA (con demora) y vuela hacia la pelota, pero su alcance
+      // es limitado: si la esquinás lejos de donde está, no llega = GOL.
       if(s.gk.react>0)s.gk.react-=dt;
-      else{
-        // el arquero ANTICIPA: calcula a dónde va la pelota y vuela a ese palo
-        const tImpact=b.vy<-0.1?Math.min(16,(b.y-glY)/(-b.vy)):14;
-        const predX=b.x+b.vx*tImpact;
-        const tgx=sC(predX,W/2-gh+8,W/2+gh-8);
-        s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*1.5*dt,s.gk.spd*1.5*dt);
-      }
+      else{const tgx=sC(b.x,W/2-gh+8,W/2+gh-8);s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*dt,s.gk.spd*dt);}
       s.gk.x=sC(s.gk.x,W/2-gh+6,W/2+gh-6);
       const rAdj2=Math.max(0,((window._sitShooterQ||75)-75))*0.16;
-      if(sD(s.gk,b)<16-rAdj2)return sitEnd('save');
+      if(sD(s.gk,b)<13-rAdj2)return sitEnd('save');
       if(b.y<=glY){if(Math.abs(b.x-W/2)<=gh-3)return sitEnd('goal');return sitEnd('miss');}
       if(b.x<-14||b.x>W+14||b.y>H+14)return sitEnd('miss');
       if(Math.hypot(b.vx,b.vy)<.45){s.mode='dribble';}
@@ -7767,14 +7765,21 @@ function sitSetupAttack(W,H,oR,mainP,pool){
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
     s.atk.forEach((a,i)=>sitDrawPlayerK(ctx,a.x,a.y,a.r,myKit,a.p.name.split(' ').pop().slice(0,7),i===s.ctrl&&s.mode==='dribble'));
     sitDrawBall(ctx,s.ball);
-    // Indicador de dirección de tiro: refleja tu PERFIL (posición + movimiento)
+    // Mira de tiro: apunta a dónde vas a patear según las flechas (← palo izq · → palo der)
     if(s.mode==='dribble'){
       const p=s.atk[s.ctrl];
-      const perfil=(p.x-W/2)*0.55+(p.vx||0)*24+(s.keys.left?-gh*.35:0)+(s.keys.right?gh*.35:0);
-      const tx=sC(W/2+perfil,W/2-gh,W/2+gh),ty=glY;
-      ctx.save();ctx.strokeStyle='rgba(246,211,24,.5)';ctx.lineWidth=1.8;ctx.setLineDash([5,5]);
+      let aim=(s.keys.right?1:0)-(s.keys.left?1:0);
+      if(aim===0)aim=sC((p.x-W/2)/gh*0.5,-0.4,0.4);
+      const tx=sC(W/2+aim*(gh-8),W/2-gh+5,W/2+gh-5),ty=glY;
+      ctx.save();
+      ctx.strokeStyle=aim!==0?'rgba(246,211,24,.85)':'rgba(246,211,24,.4)';
+      ctx.lineWidth=aim!==0?2.6:1.6;ctx.setLineDash([6,5]);
       ctx.beginPath();ctx.moveTo(s.ball.x,s.ball.y);ctx.lineTo(tx,ty);ctx.stroke();
-      ctx.setLineDash([]);ctx.restore();
+      ctx.setLineDash([]);
+      // marcador del palo apuntado
+      ctx.fillStyle=aim!==0?'rgba(246,211,24,.9)':'rgba(246,211,24,.45)';
+      ctx.beginPath();ctx.arc(tx,ty+3,aim!==0?6:4,0,7);ctx.fill();
+      ctx.restore();
     }
     sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
