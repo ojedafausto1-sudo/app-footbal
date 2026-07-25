@@ -7285,21 +7285,30 @@ function startSituation(ev){
        keys:{up:false,down:false,left:false,right:false,shoot:false,pass:false},
        mainP,scorer:null,shootCharging:false,shootCharge:0,passLocked:false};
   sitKeyBind();
-  // Tocar la pelota grande con mouse/dedo dispara el tiro en esa dirección
+  // ═══ ARRASTRAR PARA PATEAR (estilo flick-kick / dkicker) ═══
+  // Arrastrás desde la pelota hacia atrás y soltás: la dirección y la potencia
+  // salen del arrastre; el punto de contacto (costado/abajo) da comba y altura.
   if(!cv._sitClickBound){
     cv._sitClickBound=true;
+    const pt=(e)=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
     cv.addEventListener('pointerdown',e=>{
       const s=SIT;if(!s||!s.contact||s.kicked||s.ended)return;
-      const r=cv.getBoundingClientRect();
-      const x=(e.clientX-r.left)*(cv.width/r.width);
-      const y=(e.clientY-r.top)*(cv.height/r.height);
-      const bx=s.W*0.80,by=s.H*0.72,R=42;
-      const nx=(x-bx)/R,ny=(y-by)/R;
-      if(Math.hypot(nx,ny)<=1.3){
-        s._clickPt={nx:Math.max(-1,Math.min(1,nx)),ny:Math.max(-1,Math.min(1,ny))};
-        s._clickFire=true;
-      }
+      const p=pt(e);const bx=s.W*0.80,by=s.H*0.72,R=42;
+      if(Math.hypot(p.x-bx,p.y-by)<=R*1.6){s._drag={x0:p.x,y0:p.y,x:p.x,y:p.y};}
     });
+    cv.addEventListener('pointermove',e=>{const s=SIT;if(!s||!s._drag||s.kicked)return;const p=pt(e);s._drag.x=p.x;s._drag.y=p.y;
+      // previsualización en vivo (contacto = dirección del arrastre, invertida al soltar)
+      const R=42;s.contact.nx=Math.max(-1,Math.min(1,(s._drag.x-s._drag.x0)/-R));s.contact.ny=Math.max(-1,Math.min(1,(s._drag.y-s._drag.y0)/-R));
+    });
+    const release=e=>{const s=SIT;if(!s||!s._drag||s.kicked){if(s)s._drag=null;return;}
+      const R=42;const dx=s._drag.x-s._drag.x0,dy=s._drag.y-s._drag.y0;
+      const len=Math.hypot(dx,dy);s._drag=null;
+      if(len<10){return;} // toque muy corto: no dispara (evita disparos accidentales)
+      // dirección: la pelota va en sentido OPUESTO al arrastre (como una honda)
+      const nx=Math.max(-1,Math.min(1,dx/-R)),ny=Math.max(-1,Math.min(1,dy/-R));
+      s._clickPt={nx,ny};s._clickPow=Math.min(1.35,0.6+len/120);s._clickFire=true;};
+    cv.addEventListener('pointerup',release);
+    cv.addEventListener('pointercancel',release);
   }
   const oR=LM.S.oppRat;
   if     (ev.type==='attack')    sitSetupAttack(W,H,oR,mainP,pool);
@@ -7817,12 +7826,13 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
           const errY=(91-mainP.rat)*0.30*edge*(Math.random()*2-1);
           const tx=cx-nx*gw*0.98+err;
           const ty=gy-((ny+1)/2)*(gy-g.barY)*1.06+errY;
+          const pow=s._clickPow||1;s._clickPow=null;
           s.curve=-nx*34;
           s.target={x:tx,y:ty};s.scorer=mainP;
-          s.kicked=true;s.flightT=0;s.flightDur=30;
+          s.kicked=true;s.flightT=0;s.flightDur=Math.max(20,Math.round(30/pow));
           s.contact=null;
-          // El arquero adivina un palo; la comba fuerte lo complica
-          const reads=Math.random()<(0.38+(oR-62)*.010)*(Math.abs(nx)>0.55?0.75:1);
+          // El arquero adivina un palo; la comba fuerte lo complica; un tiro potente le da menos tiempo
+          const reads=Math.random()<(0.38+(oR-62)*.010)*(Math.abs(nx)>0.55?0.75:1)*(pow>1.05?0.85:1);
           if(reads)s.gkDive={x:cx-nx*gw*0.9+(Math.random()*2-1)*24,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
           else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
           s.gkStart={x:s.gk.x,y:s.gk.y};
@@ -8055,7 +8065,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   s.gk={x:cx+(Math.random()*30-15),y:gy-22,swayT:0};
   s.kicked=false;s.power=0;s.charging=false;
   s.contact={t:0,nx:0,ny:0};
-  s.hint='TOCÁ la pelota grande (o Z con la mira): abajo=por sobre la barrera · costado=comba';
+  s.hint='ARRASTRÁ desde la pelota y soltá (potencia por distancia). Costado=comba · abajo=por arriba de la barrera';
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
@@ -8074,9 +8084,10 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
         const errY=(91-mainP.rat)*0.34*edge*(Math.random()*2-1);
         const tx=cx-nx*gw*0.95+err;
         const ty=gy-((ny+1)/2)*(gy-g.barY)*1.06+errY;
+        const powFk=s._clickPow||1;s._clickPow=null;
         s.curve=-nx*40;
         s.target={x:tx,y:ty};s.scorer=mainP;
-        s.kicked=true;s.flightT=0;s.flightDur=40;
+        s.kicked=true;s.flightT=0;s.flightDur=Math.max(26,Math.round(40/powFk));
         s.contact=null;
         // La barrera bloquea según por dónde PASA la pelota: la comba la rodea,
         // pegarle abajo (ny>0.35) la levanta por encima
@@ -8309,7 +8320,15 @@ function rStats(){
   const played=G.calendar.filter(m=>m.played);
   const form5=played.slice(-5).map(m=>m.result).reverse();
   const formDots=form5.map(r=>r==='W'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin:0 1px"></span>':r==='D'?'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);margin:0 1px"></span>':'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);margin:0 1px"></span>').join('');
-  el.innerHTML = (window._finHtml||'')+(window._histHtml||'')+`
+  // Tabla propia: goleadores, asistencias y MVPs de la temporada
+  const asis=G.squad.filter(p=>(p.assists||0)>0).sort((a,b)=>(b.assists||0)-(a.assists||0)).slice(0,6);
+  const mvps=G.squad.filter(p=>(p.mvpCount||0)>0).sort((a,b)=>(b.mvpCount||0)-(a.mvpCount||0)).slice(0,5);
+  const col3=(title,list,key,unit)=>list.length?`<div class="card" style="margin-bottom:9px"><div class="ctitle">${title}</div>${list.map((p,i)=>`<div style="display:flex;gap:6px;font-size:10px;padding:3px 4px;${i===0?'color:var(--gold);font-weight:700':''}"><span style="min-width:14px;color:var(--t3)">${i+1}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name} <span style="color:var(--t3)">${p.pos}</span></span><span style="font-weight:700">${(key==='assists'?p.assists:key==='mvpCount'?p.mvpCount:p.goals)||0}${unit}</span></div>`).join('')}</div>`:'';
+  window._topHtml=`<div class="ctitle" style="margin-top:4px">🏅 Tus figuras — Temporada ${G.season}</div>`+
+    col3('⚽ Goleadores',scorers.slice(0,6),'goals','')+
+    col3('🅰️ Asistencias',asis,'assists','')+
+    col3('⭐ MVP del partido',mvps,'mvpCount','');
+  el.innerHTML = (window._finHtml||'')+(window._topHtml||'')+(window._histHtml||'')+`
     <div class="card" style="margin-bottom:10px">
       <div class="ctitle">📈 Forma Reciente</div>
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
