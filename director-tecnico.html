@@ -8960,6 +8960,8 @@ function fmBodyBall(p,b,team){
       // los tiros fuertes le cuestan más: goles posibles pero con atajadas
       const catchProb=Math.max(0.04,Math.min(0.66,ref/100*0.68-power*0.05+(b.air>2?-0.15:0.08)));
       f._lastTouch=team;
+      // tiro al arco: cuenta como remate a puerta para el equipo que disparó
+      if(f._lastTouch)fmStat(f._lastTouch,'sot');
       if(Math.random()<catchProb){
         b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
@@ -9209,6 +9211,7 @@ function fmInit(m,W,H){
     mentality:1, // 0=DEF 1=EQ 2=OF
     adapt,
     learn:{shots:0,longShots:0,passes:0,lofted:0,dribbleTicks:0,laneTop:0,laneMid:0,laneBot:0},
+    stat:{my:{shots:0,sot:0,pass:0,corner:0,foul:0,off:0},opp:{shots:0,sot:0,pass:0,corner:0,foul:0,off:0}},
     _pausedBy:null,
   };
   // El bot juega más rápido/agresivo según lo que aprendió (rubber-band)
@@ -9258,14 +9261,21 @@ function fmSetupWatch(){
       <div id="${modeId}" style="font-size:8.5px;color:#F6D318;font-weight:700"></div>
     </div>`;
     bar.innerHTML=chip(G.dt,'left','fm-mode-my')+
-      `<div style="display:flex;gap:3px">
+      `<div style="display:flex;gap:3px;align-items:center">
         <button class="fm-spdbtn on" onclick="fmSetSpeed(1,this)">1x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(2,this)">2x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(4,this)">4x</button>
         <button class="fm-spdbtn" onclick="fmSetSpeed(8,this)">8x</button>
+        <button class="fm-spdbtn" id="fm-cambtn" onclick="fmToggleCam(this)" title="Cámara">🎥 Seguir</button>
       </div>`+chip(f.oppDT,'right','fm-mode-opp');
     gm.appendChild(bar);
   }
+}
+function fmStat(team,key,n){if(FM&&FM.stat&&FM.stat[team])FM.stat[team][key]=(FM.stat[team][key]||0)+(n||1);}
+function fmToggleCam(btn){
+  if(!FM)return;
+  FM.camFollow=(FM.camFollow===false)?true:false;
+  if(btn){btn.textContent=FM.camFollow===false?'🎥 Completa':'🎥 Seguir';btn.classList.toggle('on',FM.camFollow!==false);}
 }
 // ═══ GESTIÓN DEL PARTIDO: el DT ajusta según resultado y minuto (como en la vida real) ═══
 function fmAdjustProfile(base,dt,diff,minute){
@@ -9518,6 +9528,7 @@ function fmFoul(offTeam,offender,victim){
   const red=roll<0.06;
   const yellow=!red&&roll<0.34;
   fmSndWhistle(1);
+  fmStat(offTeam,'foul');
   if(red&&offender){fmSendOff(offTeam,offender);}
   if(inBox){
     fmSetRestart('penalty',to,defGoalX,f.VH/2,red?'PENAL\n🟥 ROJA':'⚽ PENAL');
@@ -10312,20 +10323,20 @@ function fmAI(p,team,idx,dt){
         const aimY=(Math.random()-.5)*f.GH*.62*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.8);
+        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.8);fmStat(team,'shots');
       } else if(canShoot&&!inBox&&Math.random()<(0.026+prof.direct*0.035+Math.max(0,shotAttr-74)/1000)*dt){
         const spread=1.30-Math.min(90,shotAttr)/115;
         const aimY=(Math.random()-.5)*f.GH*.5*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=6.8+Math.random()*2.4+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);
+        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
       } else if(longShot&&Math.random()<(0.03+Math.max(0,shotAttr-72)/100*0.06)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const aimY=(Math.random()-.5)*f.GH*(0.5+(85-Math.min(85,shotAttr))/100);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=8.2+Math.random()*1.6+Math.max(0,shotAttr-75)/12;
         b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;b.air=Math.random()<0.3?4:0;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(Math.random()<passBase*dt){
         fmTeamPass(team,idx);
@@ -10605,7 +10616,7 @@ function fmTeamPass(team,fromIdx){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
       fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
-      f._lastTouch=team;
+      f._lastTouch=team;fmStat(team,'off');
       if(FM.learn)FM.learn.offsides=(FM.learn.offsides||0)+1;
       return;
     }
@@ -10621,7 +10632,7 @@ function fmTeamPass(team,fromIdx){
     f._lastTouch=team;
     f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
     squad[fromIdx]._kickT=9;
-    fmSndKick(0.32);
+    fmSndKick(0.32);fmStat(team,'pass');
     t._recvTick=f.ticks;
   }
 }
@@ -10652,15 +10663,15 @@ function fmBall(dt){
   // LÍNEA DE FONDO IZQUIERDA
   if(b.x<f.leftGL){
     if(b.y>gy1&&b.y<gy2){
-      if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
-      else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);}
+      if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);fmStat('my','sot');}
+      else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);fmStat('opp','sot');}
       fmSndGoal();fmHUD();
     }else{
       const defender=f.myAttRight?'my':'opp'; // ataco a la derecha → defiendo la izquierda
       b.x=f.leftGL;b.vx=0;b.vy=0;
       if(f._lastTouch===defender){
         const att=defender==='my'?'opp':'my';
-        fmSetRestart('corner',att,f.leftGL+16,b.y<mid2?20:f.VH-20,'CÓRNER');
+        fmSetRestart('corner',att,f.leftGL+16,b.y<mid2?20:f.VH-20,'CÓRNER');fmStat(att,'corner');
       }else{
         fmSetRestart('goalkick',defender,f.leftGL+100,mid2,'SAQUE DE ARCO');
       }
@@ -10670,15 +10681,15 @@ function fmBall(dt){
   // LÍNEA DE FONDO DERECHA
   if(b.x>f.rightGL){
     if(b.y>gy1&&b.y<gy2){
-      if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);}
-      else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);}
+      if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);fmStat('my','sot');}
+      else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);fmStat('opp','sot');}
       fmSndGoal();fmHUD();
     }else{
       const defender=f.myAttRight?'opp':'my';
       b.x=f.rightGL;b.vx=0;b.vy=0;
       if(f._lastTouch===defender){
         const att=defender==='my'?'opp':'my';
-        fmSetRestart('corner',att,f.rightGL-16,b.y<mid2?20:f.VH-20,'CÓRNER');
+        fmSetRestart('corner',att,f.rightGL-16,b.y<mid2?20:f.VH-20,'CÓRNER');fmStat(att,'corner');
       }else{
         fmSetRestart('goalkick',defender,f.rightGL-100,mid2,'SAQUE DE ARCO');
       }
@@ -10728,15 +10739,31 @@ function fmDrawSim(cv,ctx){
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2;
   const gy1=mid-GH,gy2=mid+GH;
-  // Cancha completa en pantalla (cámara fija)
   const pad=90;
-  const s=Math.min(W/(VW+pad*2),(H-88)/(VH+pad*2));
-  const ox=(W-VW*s)/2,oy=(H-56-VH*s)/2+14;
+  const fit=Math.min(W/(VW+pad*2),(H-88)/(VH+pad*2));
 
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='#0a0e18';ctx.fillRect(0,0,W,H);
   ctx.save();
-  ctx.translate(ox,oy);ctx.scale(s,s);
+
+  if(f.camFollow===false){
+    // Cámara fija — cancha completa
+    const ox=(W-VW*fit)/2,oy=(H-56-VH*fit)/2+14;
+    ctx.translate(ox,oy);ctx.scale(fit,fit);
+  } else {
+    // ═══ CÁMARA QUE SIGUE LA JUGADA CON ZOOM ═══
+    const zoomF=f.simZoom||1.9;
+    const z=fit*zoomF;
+    // el foco se adelanta un poco hacia donde va la pelota (anticipación)
+    const tX=f.ball.x+(f.ball.vx||0)*6, tY=f.ball.y+(f.ball.vy||0)*4;
+    if(f.camSimX===undefined){f.camSimX=tX;f.camSimY=tY;}
+    f.camSimX+=(tX-f.camSimX)*0.07;
+    f.camSimY+=(tY-f.camSimY)*0.06;
+    const halfW=(W/2)/z, halfH=((H-56)/2)/z;
+    let cX=halfW>=(VW+pad*2)/2?VW/2:Math.max(leftGL-pad+halfW,Math.min(rightGL+pad-halfW,f.camSimX));
+    let cY=halfH>=(VH+pad*2)/2?VH/2:Math.max(-pad+halfH,Math.min(VH+pad-halfH,f.camSimY));
+    ctx.translate(W/2,(H-56)/2+14);ctx.scale(z,z);ctx.translate(-cX,-cY);
+  }
 
   // Piso alrededor
   ctx.fillStyle='#12351d';
@@ -11458,11 +11485,47 @@ function fmEnd(){
       lg('👁',`Los rivales estudian tu juego: te esperan por ${fav}${AL.aggr>0.55?' y suben su intensidad':''}`);
     }
   }
+  const st=f.stat,pt=f.possT||{my:1,opp:1};
   document.getElementById('fm-ov')?.remove();
   fmClean();
   applyMatchResult(m,gf,ga,[]);updateUI();
+  if(st)showSimStats(m,gf,ga,st,pt); else
   flash(gf>ga?'¡Victoria! '+gf+'-'+ga:gf===ga?'Empate '+gf+'-'+ga:'Derrota '+gf+'-'+ga,
     gf>ga?'win':gf===ga?'draw':'loss');
+}
+// Estadísticas del partido medidas por el motor
+function showSimStats(m,gf,ga,st,pt){
+  const tn=G.teamName||'Nosotros',rival=m.home===tn?m.away:m.home;
+  const tot=(pt.my+pt.opp)||1;
+  const posMy=Math.round(pt.my/tot*100),posOpp=100-posMy;
+  const rows=[
+    ['Posesión',posMy+'%',posOpp+'%',posMy,posOpp],
+    ['Remates',st.my.shots,st.opp.shots,st.my.shots,st.opp.shots],
+    ['Al arco',st.my.sot,st.opp.sot,st.my.sot,st.opp.sot],
+    ['Pases',st.my.pass,st.opp.pass,st.my.pass,st.opp.pass],
+    ['Córners',st.my.corner,st.opp.corner,st.my.corner,st.opp.corner],
+    ['Faltas',st.my.foul,st.opp.foul,st.my.foul,st.opp.foul],
+    ['Offsides',st.my.off,st.opp.off,st.my.off,st.opp.off],
+  ];
+  const resCol=gf>ga?'var(--green)':gf===ga?'var(--gold)':'var(--red)';
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">${m.comp}</div>
+      <div style="font-family:'Rajdhani';font-size:34px;font-weight:900;color:${resCol}">${gf} - ${ga}</div>
+      <div style="font-size:11px;color:var(--t2)">${tn} vs ${rival}</div>
+    </div>
+    <div class="ctitle">📊 Estadísticas del partido</div>
+    <div class="card" style="padding:9px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-weight:700;margin-bottom:6px"><span style="color:#fff">${tn.split(' ')[0].toUpperCase()}</span><span>${rival.split(' ')[0].toUpperCase()}</span></div>
+      ${rows.map(([l,vL,vR,bL,bR])=>{const t=(bL+bR)||1,pL=Math.round(bL/t*100);return `
+        <div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><b style="min-width:26px">${vL}</b><span style="font-size:8px;color:var(--t3)">${l}</span><b style="min-width:26px;text-align:right">${vR}</b></div>
+          <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.08)"><div style="width:${pL}%;background:var(--gold)"></div><div style="width:${100-pL}%;background:rgba(255,255,255,.22)"></div></div>
+        </div>`;}).join('')}
+    </div>
+    <button class="btn bg" style="width:100%;margin-top:10px" onclick="closeMod()">Cerrar</button>
+  `);
 }
 
 function fmQuit(){
