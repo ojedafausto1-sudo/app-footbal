@@ -7058,9 +7058,9 @@ function playMatch(){
   for(let i=0;i<myCh;i++){
     const r=Math.random();
     let t;
-    if(r<0.10)t='penalty';
-    else if(r<0.28)t='corner';
-    else if(r<0.44)t='freekick';
+    if(r<0.09)t='penalty';
+    else if(r<0.44)t='corner';   // "centro al área" (estilo dkicker): la más frecuente
+    else if(r<0.58)t='freekick';
     else t='attack';
     events.push({min:rndMin(),type:t,side:'my'});
   }
@@ -7949,7 +7949,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
         const err=(91-mainP.rat)*.40*(Math.random()*2-1);
         s.target.x+=err;s.target.y+=(Math.random()*2-1)*err*.4;
         s.phase='flight';s.flightT=0;s.flightDur=92;
-        s.hint='Joystick/Flechas: ¡posicioná al cabeceador en el punto ✕!';
+        s.hint='Movete al punto ✕ y APRETÁ (Z/toque) cuando la pelota te llegue: alto=cabezazo · bajo=volea';
       }
       if(!k.shoot)s.kickLocked=false;
     } else if(s.phase==='flight'){
@@ -7976,7 +7976,30 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       if(s.mate3){sitMove(s.mate3,s.target.x-24-s.mate3.x,s.target.y+24-s.mate3.y,dt,.04);s.mate3.x=sC(s.mate3.x,8,W-8);}
       // GK sale solo si el centro es muy cerca del arco
       if(s.target.y<glY+48){sitMove(s.gk,s.target.x-s.gk.x,s.target.y-s.gk.y,dt,.05);}
-      if(f>=1){
+      // ═══ REMATE TIMEADO (estilo dkicker): apretá cuando la pelota está encima ═══
+      const dBall=Math.hypot(s.header.x-s.ball.x,s.header.y-s.ball.y);
+      if((k.shoot||s._clickFire)&&!s._struck&&f>0.35){
+        s._struck=true;s._clickFire=false;
+        if(dBall<40){
+          const height=Math.sin(f*Math.PI);              // alto=cabeza, bajo=volea
+          const timing=sC((40-dBall)/40,0,1);            // qué tan justo llegaste
+          const who=s.header;s.scorer=who.p;
+          const finish=(who.p.attrs&&(height>0.45?who.p.attrs.FIS:who.p.attrs.TIR))||who.p.rat||70;
+          // apuntás al palo más lejano del arquero
+          const aimLeft=s.gk.x>W/2;
+          const tx=aimLeft?W/2-gh*0.7:W/2+gh*0.7;
+          s._strikeType=height>0.45?'header':'volley';
+          const q=sC(timing*0.6+(finish-64)/70+(Math.abs(tx-s.gk.x)>gh*0.6?0.12:0),0,1);
+          const dgk=Math.abs(tx-s.gk.x);
+          const pGoal=sC(0.20+q*0.62-(dgk<gh*0.35?0.25:0),0.05,0.9);
+          const rnd=Math.random();
+          if(rnd<pGoal)return sitEnd('goal');
+          if(rnd<pGoal+0.34)return sitEnd('save');
+          return sitEnd('miss');
+        } else return sitEnd('miss'); // apretaste lejos de la pelota: no conectaste
+      }
+      if(!k.shoot&&!s._clickFire)s._struck=s._struck; // (mantener)
+      if(f>=1&&!s._struck){
         // Resolución basada en distancias
         const dh=sD(s.header,s.target);
         const dm2=s.mate2?sD(s.mate2,s.target):999;
