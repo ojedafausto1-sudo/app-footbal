@@ -10415,28 +10415,33 @@ function fmAI(p,team,idx,dt){
           const dd0=Math.hypot(o.x-p.x,o.y-p.y);
           if(ahead&&dd0<160&&dd0<nearD){nearD=dd0;nearDef=o;}
         }
+        const vel=(p.attrs&&p.attrs.VEL)||p.rat||70;
         if(nearDef&&!holding){
-          // GAMBETA visible: amaga a un costado y acelera para pasarlo
+          // GAMBETA: amaga a un costado y EMPUJA la pelota para pasar al defensor
           const side=(nearDef.y>=p.y?-1:1);
           if(p._dribSide===undefined||f.ticks%40===0)p._dribSide=side;
           const s=p._dribSide;
-          const burstX=b.x+dirF*52;
-          const burstY=b.y+s*72;
-          fmMove(p,burstX-p.x,burstY-p.y,dt,0.12+reg/1100+(p.roleStyle==='Regateador'?0.02:0));
-          // ¿lo supera? depende de su regate vs la marca del defensor
+          // toque de gambeta: la pelota va al costado-adelante (traslada de verdad)
+          const carrySpd=2.6+reg/45+vel/60;
+          b.vx=dirF*carrySpd*0.85;b.vy=s*carrySpd*0.9;f._lastTouch=team;
+          fmMove(p,b.x-p.x+dirF*26,b.y-p.y+s*30,dt,0.11+reg/1000);
+          // ¿lo supera limpio? según regate vs marca
           const def=(nearDef.attrs&&nearDef.attrs.DEF)||nearDef.rat||70;
-          if(nearD<p.r+nearDef.r+26&&Math.random()<0.02*dt*(1+(reg-def)/45)){
-            b.vx=dirF*3.8;b.vy=s*1.8;f._lastTouch=team;p._dribT=8;
+          if(nearD<p.r+nearDef.r+30&&Math.random()<0.02*dt*(1+(reg-def)/45)){
+            b.vx=dirF*4.0;b.vy=s*2.0;p._dribT=8;
             if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
             if(Math.random()<0.5)fmSay('dribble',team,p.name);
           }
         } else {
-          // Conducción al espacio buscando progresar
-          const latWobble=(Math.sin(f.ticks*.06+idx))*48;
-          const vert=holding?-0.05:(0.16+counterBoost*0.10);
-          const dribX=b.x+(tgx-b.x)*vert;
-          const dribY=b.y+(mid+latWobble-b.y)*.05;
-          fmMove(p,dribX-p.x,dribY-p.y,dt,(0.075+prof.tempo*0.016+counterBoost*0.014)*(holding?0.7:1));
+          // ═══ CONDUCCIÓN: EMPUJA la pelota adelante y la corre (traslada, estilo FIFA) ═══
+          // El DT directo/rápido conduce más vertical y veloz.
+          const vertBias=holding?-0.4:(0.55+prof.direct*0.6+counterBoost*0.5);
+          const tgy=mid+(Math.sin(f.ticks*.045+idx*1.7))*70;   // busca carriles, no recto
+          const dirx=(tgx-b.x)*vertBias, diry=(tgy-b.y);
+          const dn=Math.hypot(dirx,diry)||1;
+          const carrySpd=(2.2+prof.tempo*1.4+vel/70+counterBoost*1.0)*(holding?0.5:1);
+          b.vx=dirx/dn*carrySpd;b.vy=diry/dn*carrySpd;f._lastTouch=team;
+          fmMove(p,b.x-p.x+dirx/dn*28,b.y-p.y+diry/dn*22,dt,0.085+prof.tempo*0.02);
         }
       }
     }else{
@@ -12076,22 +12081,42 @@ function weeklyAITransfers(){
     const buyClubs=[...new Set(G.market.filter(p=>p.lg===buyLg).map(p=>p.club))];
     if(!buyClubs.length)continue;
     const buyClub=buyClubs[~~(Math.random()*buyClubs.length)];
-    // Objetivo: joven o rendidor de una liga de menor poder, valor acorde al comprador
-    const maxVal=LG_POW[buyLg]*12;
+    // ═══ FICHAJE REALISTA: el club compra por NECESIDAD y por su NIVEL ═══
+    const buyerSquad=G.market.filter(x=>x.club===buyClub&&x.lg===buyLg);
+    if(buyerSquad.length<8)continue;
+    const topR=[...buyerSquad].map(x=>x.rat).sort((a,b)=>b-a);
+    const clubLevel=topR.slice(0,14).reduce((a,r)=>a+r,0)/Math.min(14,topR.length);
+    // ¿qué puesto necesita? (el grupo con menos jugadores buenos)
+    const groups={ARQ:[],DEF:[],MED:[],DEL:[]};
+    buyerSquad.forEach(x=>{const gr=pgr(x.pos);if(groups[gr])groups[gr].push(x.rat);});
+    // necesidad = qué grupo está más por debajo del nivel del club o corto de gente
+    let needPos='DEL',needW=-1e9;
+    ['ARQ','DEF','MED','DEL'].forEach(gk=>{
+      const arr=groups[gk]||[];const best=arr.length?Math.max(...arr):45;
+      const minCnt={ARQ:2,DEF:6,MED:6,DEL:4}[gk];
+      const shortage=Math.max(0,minCnt-arr.length);
+      const gap=clubLevel-best;                 // cuánto está por debajo del nivel del club
+      const w=gap*1.0+shortage*4-(gk==='ARQ'?4:0)+Math.random()*2; // el arco pesa menos (1 titular)
+      if(w>needW){needW=w;needPos=gk;}
+    });
+    const maxVal=LG_POW[buyLg]*14;
+    // candidato: juega en el puesto necesitado, nivel ACORDE al club, asequible, de liga <= comprador
     const cands=G.market.filter(p=>
-      p.club!==buyClub&&p.lg!==buyLg&&
-      (LG_POW[p.lg]||0.5)<=LG_POW[buyLg]&&
-      p.val>=0.8&&p.val<=maxVal&&p.rat>=70&&p.age<=30&&!p.listed);
+      p.club!==buyClub && pgr(p.pos)===needPos && !p.listed &&
+      p.rat>=clubLevel-7 && p.rat<=clubLevel+4 &&           // ni un crack a un chico ni un flojo a un grande
+      (LG_POW[p.lg]||0.5)<=LG_POW[buyLg]+0.6 &&
+      p.val<=maxVal && p.age<=32);
     if(!cands.length)continue;
-    // Preferencia: jóvenes con rating alto
-    cands.sort((a,b)=>(b.rat+(28-b.age))-(a.rat+(28-a.age)));
-    const p=cands[~~(Math.random()*Math.min(25,cands.length))];
-    const oldClub=p.club,oldLg=p.lg;
-    const fee=Math.round(p.val*(1.1+Math.random()*0.6)*10)/10;
+    // el club prioriza upgrade real: mejor rating/proyección, valor razonable
+    cands.sort((a,b)=>(b.rat+(27-b.age)*0.3-b.val*0.05)-(a.rat+(27-a.age)*0.3-a.val*0.05));
+    const p=cands[~~(Math.random()*Math.min(12,cands.length))];
+    const oldClub=p.club;
+    const fee=Math.round(p.val*(1.1+Math.random()*0.5)*10)/10;
     p.club=buyClub;p.lg=buyLg;
-    p.val=Math.round(p.val*1.12*10)/10; // el pase lo revaloriza
-    lg('💸',`${buyClub} fichó a ${p.name} (${oldClub}) por ${fv(fee)}`);
-    if(fee>=12)addPhoneMsg('agent','Mercado de pases',`💸 Bomba del mercado: <b>${buyClub}</b> se llevó a <b>${p.name}</b> desde ${oldClub} por <b style="color:var(--gold)">${fv(fee)}</b>.`,'📰');
+    p.val=Math.round(p.val*1.1*10)/10;
+    const posN={ARQ:'un arquero',DEF:'un defensor',MED:'un mediocampista',DEL:'un delantero'}[needPos];
+    lg('💸',`${buyClub} reforzó ${posN}: ${p.name} (${oldClub}) por ${fv(fee)}`);
+    if(fee>=12)addPhoneMsg('agent','Mercado de pases',`💸 <b>${buyClub}</b> necesitaba ${posN} y se llevó a <b>${p.name}</b> desde ${oldClub} por <b style="color:var(--gold)">${fv(fee)}</b>.`,'📰');
   }
   // ═══ Un grande puede pagar la CLÁUSULA de uno de tus jugadores ═══
   // No podés negarte — pero el jugador sí puede rechazar el pase.
