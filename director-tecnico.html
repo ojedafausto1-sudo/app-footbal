@@ -7911,166 +7911,141 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   };
 }
 
-// ——— CÓRNER (centro al punto de caída, ganala de cabeza) ———
+// ——— CENTRO AL ÁREA (vista de frente, estilo dkicker): timeá el cabezazo/volea ———
 function sitSetupCorner(W,H,oR,mainP,pool){
-  const s=SIT,gh=Math.min(92,W*.22),glY=24;
-  s.gh=gh;s.glY=glY;
-  s.label=`⚑ <span style="color:var(--gold)">¡CÓRNER!</span> ${mainP.name.split(' ').pop()} va a cobrar`;
-  s.hint='Flechas: punto de caída ✕ · Z: ¡CENTRO! · Luego X: cambiar cabeceador';
-  // Aleatoriamente desde la izquierda o la derecha
+  const s=SIT;
+  const g={x1:W*.20,x2:W*.80,barY:H*.16,groundY:H*.42};
+  s.g=g;
+  const cx=W/2;
+  s.label=`⚡ <span style="color:var(--gold)">¡CENTRO AL ÁREA!</span> ${mainP.name.split(' ').pop()} a definir`;
+  s.hint='← → (o joystick): acompañá el centro · Z/toque cuando la pelota te llegue: alto=cabezazo · bajo=volea';
+  const finish=(mainP.attrs&&Math.max(mainP.attrs.TIR||70,mainP.attrs.FIS||70))||mainP.rat||72;
+  s.finQ=finish;
+  // Zona del área donde se mueve el rematador (delante del arco)
+  const sy=g.groundY+(H-g.groundY)*0.44;
+  s.striker={x:cx,y:sy,r:13};
+  // Arquero en la línea
+  s.gk={x:cx,y:g.groundY-12,r:13,dive:0};
+  // 1-2 defensores en el área
+  s.defs=[{x:cx-46,y:g.groundY+(H-g.groundY)*0.26,r:12},{x:cx+52,y:g.groundY+(H-g.groundY)*0.30,r:12}];
+  // El centro viene de una banda y cruza el área
   const fromRight=Math.random()>.5;
-  const bsx=fromRight?W-14:14,bsy=H-22;
-  s.ball={x:bsx,y:bsy,r:6.5};
-  s.ballStart={x:bsx,y:bsy};
-  s.target={x:W/2,y:glY+58};
-  s.phase='aim';
-  const jp=pool.filter(p=>p!==mainP);
-  const hP=jp[0]||mainP;
-  // Cabeceador controlado + 2 compañeros AI en posición + 3 defensores + GK
-  s.header={p:hP,x:W/2+(fromRight?-40:40),y:glY+90,vx:0,vy:0,r:12,spd:1.72+(hP.rat-68)*.012};
-  s.mate2=jp[1]?{p:jp[1],x:W/2+(fromRight?34:-34),y:glY+110,vx:0,vy:0,r:11,spd:1.30}:null;
-  s.mate3=jp[2]?{p:jp[2],x:W/2+(fromRight?70:-70),y:glY+130,vx:0,vy:0,r:10,spd:1.10}:null;
-  s.defs=[
-    {x:W/2-10,y:glY+70,vx:0,vy:0,r:11,spd:0.90+(oR-62)*.012},
-    {x:W/2+26,y:glY+88,vx:0,vy:0,r:11,spd:0.86+(oR-62)*.012},
-    {x:W/2-30,y:glY+50,vx:0,vy:0,r:10,spd:0.82+(oR-62)*.010}
-  ];
-  s.gk={x:W/2,y:glY+13,vx:0,vy:0,r:12,spd:1.0};
-  s.headTimer=0;
+  s.fromRight=fromRight;
+  const bStartX=fromRight?W-8:8, bEndX=fromRight?W*0.30:W*0.70;
+  s.ball={x:bStartX,y:g.groundY+(H-g.groundY)*0.16,r:7};
+  s.crossT=0;s.crossDur=78+~~(Math.random()*22);
+  s.bPath={x0:bStartX,x1:bEndX,y0:s.ball.y,y1:sy+8};
+  s.phase='cross'; s.struck=false;
   s.update=function(dt){
     const k=s.keys;
-    if(s.phase==='aim'){
-      if(k.left) s.target.x=Math.max(W/2-gh*1.8,s.target.x-2.5*dt);
-      if(k.right)s.target.x=Math.min(W/2+gh*1.8,s.target.x+2.5*dt);
-      if(k.up)   s.target.y=Math.max(glY+30,s.target.y-2.0*dt);
-      if(k.down) s.target.y=Math.min(glY+H*.32,s.target.y+2.0*dt);
-      if(k.shoot&&!s.kickLocked){
-        s.kickLocked=true;
-        const err=(91-mainP.rat)*.40*(Math.random()*2-1);
-        s.target.x+=err;s.target.y+=(Math.random()*2-1)*err*.4;
-        s.phase='flight';s.flightT=0;s.flightDur=92;
-        s.hint='Movete al punto ✕ y APRETÁ (Z/toque) cuando la pelota te llegue: alto=cabezazo · bajo=volea';
-      }
-      if(!k.shoot)s.kickLocked=false;
-    } else if(s.phase==='flight'){
-      s.flightT+=dt;
-      const f=Math.min(1,s.flightT/s.flightDur);
-      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
-      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.16;
-      s.ball.r=6.5+Math.sin(f*Math.PI)*4;
-      // Movés al cabeceador con joystick/flechas
-      const dx=(k.right?1:0)-(k.left?1:0),dy=(k.down?1:0)-(k.up?1:0);
-      sitMove(s.header,dx,dy,dt,.090);
-      s.header.x=sC(s.header.x,10,W-10);s.header.y=sC(s.header.y,glY+22,glY+H*.42);
-      // X: cambiar de cabeceador (controlás al mejor ubicado)
-      if(k.pass&&!s._swLock&&s.mate2){
-        s._swLock=true;
-        const tmp={p:s.header.p,x:s.header.x,y:s.header.y,vx:s.header.vx,vy:s.header.vy,r:s.header.r,spd:s.header.spd};
-        s.header.p=s.mate2.p;s.header.x=s.mate2.x;s.header.y=s.mate2.y;s.header.vx=s.mate2.vx;s.header.vy=s.mate2.vy;s.header.spd=s.mate2.spd;
-        s.mate2.p=tmp.p;s.mate2.x=tmp.x;s.mate2.y=tmp.y;s.mate2.vx=tmp.vx;s.mate2.vy=tmp.vy;s.mate2.spd=tmp.spd;
-      }
-      if(!k.pass)s._swLock=false;
-      // Compañeros AI: van a posiciones cerca del target
-      s.defs.forEach(d=>{sitMove(d,s.target.x-d.x,s.target.y-d.y,dt,.045);d.x=sC(d.x,8,W-8);d.y=sC(d.y,glY+20,H-8);});
-      if(s.mate2){sitMove(s.mate2,s.target.x+22-s.mate2.x,s.target.y+10-s.mate2.y,dt,.05);s.mate2.x=sC(s.mate2.x,8,W-8);}
-      if(s.mate3){sitMove(s.mate3,s.target.x-24-s.mate3.x,s.target.y+24-s.mate3.y,dt,.04);s.mate3.x=sC(s.mate3.x,8,W-8);}
-      // GK sale solo si el centro es muy cerca del arco
-      if(s.target.y<glY+48){sitMove(s.gk,s.target.x-s.gk.x,s.target.y-s.gk.y,dt,.05);}
-      // ═══ REMATE TIMEADO (estilo dkicker): apretá cuando la pelota está encima ═══
-      const dBall=Math.hypot(s.header.x-s.ball.x,s.header.y-s.ball.y);
-      if((k.shoot||s._clickFire)&&!s._struck&&f>0.35){
-        s._struck=true;s._clickFire=false;
-        if(dBall<40){
-          const height=Math.sin(f*Math.PI);              // alto=cabeza, bajo=volea
-          const timing=sC((40-dBall)/40,0,1);            // qué tan justo llegaste
-          const who=s.header;s.scorer=who.p;
-          const finish=(who.p.attrs&&(height>0.45?who.p.attrs.FIS:who.p.attrs.TIR))||who.p.rat||70;
-          // apuntás al palo más lejano del arquero
-          const aimLeft=s.gk.x>W/2;
-          const tx=aimLeft?W/2-gh*0.7:W/2+gh*0.7;
-          s._strikeType=height>0.45?'header':'volley';
-          const q=sC(timing*0.6+(finish-64)/70+(Math.abs(tx-s.gk.x)>gh*0.6?0.12:0),0,1);
-          const dgk=Math.abs(tx-s.gk.x);
-          const pGoal=sC(0.20+q*0.62-(dgk<gh*0.35?0.25:0),0.05,0.9);
-          const rnd=Math.random();
-          if(rnd<pGoal)return sitEnd('goal');
-          if(rnd<pGoal+0.34)return sitEnd('save');
-          return sitEnd('miss');
-        } else return sitEnd('miss'); // apretaste lejos de la pelota: no conectaste
-      }
-      if(!k.shoot&&!s._clickFire)s._struck=s._struck; // (mantener)
-      if(f>=1&&!s._struck){
-        // Resolución basada en distancias
-        const dh=sD(s.header,s.target);
-        const dm2=s.mate2?sD(s.mate2,s.target):999;
-        const dm3=s.mate3?sD(s.mate3,s.target):999;
-        const dd=Math.min(...s.defs.map(d=>sD(d,s.target)));
-        const dgk=sD(s.gk,s.target);
-        if(dgk<20)return sitEnd('save');
-        const myBest=Math.min(dh,dm2,dm3);
-        // Defensores ganan si son notablemente más cerca
-        if(dd<myBest-10)return sitEnd('cleared');
-        if(myBest<32){
-          const who=dh<=Math.min(dm2,dm3)?s.header:dm2<=dm3?s.mate2:s.mate3;
-          s.scorer=who.p;
-          const q=sC((32-myBest)/32*.65+(who.p.rat-65)/60,0,1);
-          const pGoal=sC(.18+q*.66,0,.88);
-          const rnd=Math.random();
-          if(rnd<pGoal)return sitEnd('goal');
-          if(rnd<pGoal+.36)return sitEnd('save');
-          return sitEnd('miss');
+    if(s.phase==='cross'){
+      // el rematador se mueve con vos (izq/der) para acompañar el centro
+      const dx=(k.right?1:0)-(k.left?1:0);
+      s.striker.x=sC(s.striker.x+dx*2.6*dt,g.x1-10,g.x2+10);
+      // vuelo del centro: cruza el área con un arco (sube y baja)
+      s.crossT+=dt;
+      const f=Math.min(1,s.crossT/s.crossDur);
+      s.ball.x=s.bPath.x0+(s.bPath.x1-s.bPath.x0)*f;
+      s.ball.y=s.bPath.y0+(s.bPath.y1-s.bPath.y0)*f;
+      s.ballH=Math.sin(f*Math.PI); // 0..1 altura del arco (1=bien alto)
+      s.ball.r=6.5+s.ballH*3.5;
+      // arquero achica un poco siguiendo la pelota
+      s.gk.x=sC(s.gk.x+(cx+(s.ball.x-cx)*0.35-s.gk.x)*0.05*dt,g.x1+16,g.x2-16);
+      // ¿REMATÁS? apretás Z/toque cuando la pelota está cerca del rematador
+      const dBall=Math.hypot(s.striker.x-s.ball.x,s.striker.y-s.ball.y);
+      if((k.shoot||s._clickFire)&&!s.struck){
+        s.struck=true;s._clickFire=false;
+        if(dBall<52 && f>0.15){
+          const timing=sC((52-dBall)/52,0,1);                 // qué tan justo llegaste
+          s.strikeType=s.ballH>0.45?'CABEZAZO':'VOLEA';
+          // apuntás al palo lejos del arquero (o al que venía tu carrera)
+          const aimLeft=s.gk.x>=cx;
+          const postX=aimLeft?g.x1+(g.x2-g.x1)*0.14:g.x2-(g.x2-g.x1)*0.14;
+          const errX=(1-timing)*(g.x2-g.x1)*0.32*(Math.random()*2-1)+(95-Math.min(95,s.finQ))*0.6*(Math.random()*2-1);
+          const tx=sC(postX+errX,g.x1-20,g.x2+20);
+          const ty=g.barY+(g.groundY-g.barY)*(0.30+Math.random()*0.5);
+          s.target={x:tx,y:ty};s.scorer=mainP;
+          s.phase='shot';s.shotT=0;s.shotDur=20;
+          s.ballStart={x:s.ball.x,y:s.ball.y};
+          // el arquero adivina un palo (mejor si el rival es fuerte)
+          const reads=Math.random()<(0.30+(oR-62)*0.010);
+          s.gkDive={x:reads?tx+(Math.random()*2-1)*44:cx-(tx-cx)*(0.4+Math.random()*0.9), y:g.groundY-30-Math.random()*30};
+          s.gkStart={x:s.gk.x,y:s.gk.y};
+          s.reach=16+(oR-62)*0.42;
+          s.quality=timing;
+          fmSndKick && fmSndKick(0.7);
+        } else {
+          return sitEnd('miss'); // apretaste lejos de la pelota / muy pronto
         }
-        return sitEnd('cleared');
+      }
+      // si el centro pasa de largo sin rematar
+      if(f>=1 && !s.struck){
+        if(dBall<40){ // llegó al rematador pero no apretaste: cabezazo flojo automático
+          s.striker.x=s.ball.x;
+        } else return sitEnd('cleared'); // no llegaste: despeja la defensa
+      }
+    } else if(s.phase==='shot'){
+      s.shotT+=dt;
+      const f=Math.min(1,s.shotT/s.shotDur);
+      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
+      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*0.05;
+      s.ball.r=7-2*f;
+      // el arquero vuela
+      const gf=Math.min(1,s.shotT/(s.shotDur*0.9));
+      s.gk.x=s.gkStart.x+(s.gkDive.x-s.gkStart.x)*gf;
+      s.gk.y=s.gkStart.y+(s.gkDive.y-s.gkStart.y)*gf;
+      // ¿la ataja?
+      if(Math.hypot(s.gk.x-s.ball.x,s.gk.y-s.ball.y)<s.reach)return sitEnd('save');
+      if(f>=1){
+        const t=s.target;
+        // ¿entró entre los palos?
+        if(t.x>g.x1+6&&t.x<g.x2-6&&t.y>g.barY&&t.y<g.groundY){
+          // chance final segun timing + finalización
+          const pg=sC(0.45+s.quality*0.35+(s.finQ-64)/120,0.15,0.95);
+          if(Math.random()<pg)return sitEnd('goal');
+          return sitEnd('save');
+        }
+        return sitEnd('miss');
       }
     }
   };
   s.draw=function(ctx){
-    sitDrawField(ctx,W,H,glY,gh);
-    // Banderín de córner (izquierda o derecha)
-    const bx=fromRight?W-17:13;
-    ctx.fillStyle='#f1c40f';ctx.fillRect(bx,H-26,4,22);
-    ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(bx,H-28,14,3);
-    // Punto de caída ✕ con círculo pulsante
-    const t=s.target;
-    const pulse=0.65+0.35*Math.sin(s.t*.08);
-    ctx.strokeStyle=`rgba(246,211,24,${pulse*.9})`;ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.moveTo(t.x-9,t.y-9);ctx.lineTo(t.x+9,t.y+9);ctx.moveTo(t.x+9,t.y-9);ctx.lineTo(t.x-9,t.y+9);ctx.stroke();
-    ctx.beginPath();ctx.arc(t.x,t.y,16,0,7);ctx.strokeStyle=`rgba(246,211,24,${pulse*.4})`;ctx.lineWidth=1.5;ctx.stroke();
-    // Trayectoria punteada en fase de aim
-    if(s.phase==='aim'){
-      ctx.beginPath();ctx.setLineDash([5,5]);
-      ctx.moveTo(s.ballStart.x,s.ballStart.y);ctx.lineTo(t.x,t.y);
-      ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);
+    sitDrawGoalView(ctx,W,H,g);
+    // área grande (líneas)
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
+    ctx.strokeRect(g.x1-W*0.06,g.groundY,(g.x2-g.x1)+W*0.12,(H-g.groundY)*0.7);
+    // defensores
+    s.defs.forEach(d=>sitDrawPlayer(ctx,d.x,d.y,d.r,'#2b6fd6','',false));
+    // arquero
+    sitDrawPlayer(ctx,s.gk.x,s.gk.y,s.gk.r,'#e0c020','GK',false);
+    // rematador (vos)
+    if(s.phase==='cross')sitDrawPlayer(ctx,s.striker.x,s.striker.y,s.striker.r,'#e84545',(mainP.name.split(' ').pop()||'').slice(0,6),true);
+    // pelota con sombra segun altura
+    if(s.phase!=='shot'){
+      const shY=s.striker.y+6;
+      ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(s.ball.x,s.ball.y+8+(s.ballH||0)*10,7,3,0,0,7);ctx.fill();
     }
-    // Indicador de proximidad al target en fase de vuelo
-    if(s.phase==='flight'){
-      const dh=sD(s.header,t);
-      if(dh<40){
-        const cl=sC((40-dh)/40,0,1);
-        ctx.fillStyle=`rgba(246,211,24,${cl*.7})`;ctx.font=`bold ${10+~~(cl*6)}px Rajdhani,sans-serif`;
+    ctx.beginPath();ctx.arc(s.ball.x,s.ball.y,s.ball.r,0,7);
+    const bg=ctx.createRadialGradient(s.ball.x-2,s.ball.y-2,1,s.ball.x,s.ball.y,s.ball.r);
+    bg.addColorStop(0,'#fff');bg.addColorStop(1,'#c8c8c8');ctx.fillStyle=bg;ctx.fill();
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.stroke();
+    // indicador: cuando la pelota está en rango, ¡REMATÁ!
+    if(s.phase==='cross'){
+      const dBall=Math.hypot(s.striker.x-s.ball.x,s.striker.y-s.ball.y);
+      if(dBall<60){
+        const cl=sC((60-dBall)/60,0,1);
+        ctx.fillStyle=`rgba(246,211,24,${0.5+cl*0.5})`;ctx.font=`bold ${13+~~(cl*8)}px Rajdhani,sans-serif`;
         ctx.textAlign='center';ctx.textBaseline='bottom';
-        ctx.fillText('⚡ POSICIÓN!',s.header.x,s.header.y-16);
+        ctx.fillText(s.ballH>0.45?'⚡ ¡CABEZAZO!':'⚡ ¡VOLEA!',s.striker.x,s.striker.y-20);
       }
-      // Barra de tiempo restante
-      const f=Math.min(1,s.flightT/s.flightDur);
-      const bw=W*.55,bh=5,bx2=W/2-bw/2,by2=glY+6;
-      ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(bx2,by2,bw,bh);
-      const col=f<0.6?'#0fb866':f<0.8?'#f6d318':'#e84545';
-      ctx.fillStyle=col;ctx.fillRect(bx2,by2,bw*(1-f),bh);
+      // barra de tiempo del centro
+      const f=Math.min(1,s.crossT/s.crossDur);
+      ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(W/2-70,H-16,140,7);
+      ctx.fillStyle='var(--gold)';ctx.fillStyle='#F6D318';ctx.fillRect(W/2-70,H-16,140*(1-f),7);
     }
-    const myKit=kitFor(LM.myName),rvKit=kitFor(LM.rival);
-    s.defs.forEach(d=>sitDrawPlayerK(ctx,d.x,d.y,11,rvKit,null,false));
-    sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
-    if(s.mate3)sitDrawPlayerK(ctx,s.mate3.x,s.mate3.y,10,myKit,null,false);
-    if(s.mate2)sitDrawPlayerK(ctx,s.mate2.x,s.mate2.y,10,myKit,s.mate2.p.name.split(' ').pop().slice(0,5),false);
-    sitDrawPlayerK(ctx,s.header.x,s.header.y,12,myKit,s.header.p.name.split(' ').pop().slice(0,6),true);
-    sitDrawPlayerK(ctx,s.ballStart.x+(fromRight?-16:16),s.ballStart.y,11,myKit,mainP.name.split(' ').pop().slice(0,5),s.phase==='aim');
-    sitDrawBall(ctx,s.ball);
-    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
+    sitDrawHint(ctx,W,H,s.hint);
   };
 }
-
-// ——— TIRO LIBRE (vista de arco, estilo FIFA) ———
 function sitSetupFreeKick(W,H,oR,mainP,pool){
   const s=SIT;
   const g={x1:W*.16,x2:W*.84,barY:H*.28,groundY:H*.55};
