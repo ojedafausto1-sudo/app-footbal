@@ -7682,18 +7682,28 @@ function sitSetupAttack(W,H,oR,mainP,pool){
         a.x=sC(a.x,10,W-10);a.y=sC(a.y,glY+34,H-10);
         sitBodyBall(a,b,BR);
       });
+      let stolen=false;
       s.defs.forEach((df,di)=>{
         const carrier=s.atk[s.ctrl];
-        const tgtX=carrier.x+(carrier.x<W/2?-12:12);
-        const tgtY=Math.min(carrier.y+10,b.y);
-        const chaseStr=sD(df,carrier)<120?0.09:0.072;
-        sitMove(df,tgtX-df.x,tgtY-df.y,dt,chaseStr);
+        // el defensor persigue LA PELOTA (para robarla de verdad, no un fantasma)
+        sitMove(df,b.x-df.x,b.y-df.y,dt,sD(df,carrier)<130?0.082:0.066);
         df.x=sC(df.x,8,W-8);df.y=sC(df.y,glY+26,H-8);
-        if(sD(df,carrier)<df.r+carrier.r+6&&Math.random()<0.04*dt){
-          b.vx=(Math.random()-.5)*2.5;b.vy=1.8+Math.random();
+        // TACKLE: sólo si LLEGA a la pelota y gana el duelo DEF vs tu regate.
+        // Si venís moviéndote (protegés/gambeteás), es más difícil que te la saque.
+        const dBall=sD(df,b);
+        if(dBall<df.r+BR+3&&!stolen){
+          const def=70+(oR-62)*0.42;
+          const drib=(carrier.p.attrs&&carrier.p.attrs.REG)||carrier.p.rat||70;
+          const moving=Math.hypot(carrier.vx||0,carrier.vy||0)>0.6?0.6:1; // en movimiento cuesta más robar
+          if(Math.random()<0.018*dt*moving*(1+(def-drib)/55)){
+            stolen=true; // roba limpio: la pelota sale despejada
+          } else {
+            // no la gana: sólo la roza (la pelota sigue en juego cerca tuyo)
+            sitBodyBall(df,b,BR,{x:(Math.random()-.5)*0.6,y:0.5});
+          }
         }
-        sitBodyBall(df,b,BR,{x:(Math.random()-.5)*1.0,y:1.4});
       });
+      if(stolen){b.vx=(Math.random()-.5)*3;b.vy=2.4;return sitEnd('cleared');}
       const bd=sD(p,b);
       const doPass=()=>{
         if(bd>KICK_R+14)return;
@@ -7708,13 +7718,17 @@ function sitSetupAttack(W,H,oR,mainP,pool){
         s.shotLocked=true;
         if(bd<=KICK_R){
           const pp=p.p;
-          const aim=k.left?-gh*.82:k.right?gh*.82:(Math.random()*2-1)*gh*.28;
-          const noise=(91-pp.rat)*.38*(Math.random()*2-1);
-          const tx=W/2+aim+noise,ty=glY-4;
+          // ═══ TIRO POR PERFIL: la dirección sale de CÓMO encarás la pelota ═══
+          // tu posición respecto al centro + hacia dónde venías yendo definen el ángulo.
+          // Las flechas L/R afinan (apuntás al palo), pero no es un tiro fijo.
+          const perfil=(p.x-W/2)*0.55+(p.vx||0)*24;
+          const nudge=(k.left?-gh*.35:0)+(k.right?gh*.35:0);
+          const noise=(91-pp.rat)*.30*(Math.random()*2-1);
+          const tx=sC(W/2+perfil+nudge+noise,W/2-gh*1.05,W/2+gh*1.05),ty=glY-4;
           const ang=Math.atan2(ty-b.y,tx-b.x);
           const sp=5.0+(pp.rat-70)*.04;
           b.vx=Math.cos(ang)*sp;b.vy=Math.sin(ang)*sp;
-          s.scorer=pp;s.gk.react=10;s.mode='shot';
+          s.scorer=pp;s.gk.react=8;s.mode='shot';
         }
       }
       if(!k.shoot)s.shotLocked=false;
@@ -7731,7 +7745,13 @@ function sitSetupAttack(W,H,oR,mainP,pool){
       if(sD(s.gk,b)<12+BR-rAdj)return sitEnd('save');
     } else {
       if(s.gk.react>0)s.gk.react-=dt;
-      else{const tgx=sC(b.x,W/2-gh+8,W/2+gh-8);s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*1.3*dt,s.gk.spd*1.3*dt);}
+      else{
+        // el arquero ANTICIPA: calcula a dónde va la pelota y vuela a ese palo
+        const tImpact=b.vy<-0.1?Math.min(16,(b.y-glY)/(-b.vy)):14;
+        const predX=b.x+b.vx*tImpact;
+        const tgx=sC(predX,W/2-gh+8,W/2+gh-8);
+        s.gk.x+=sC(tgx-s.gk.x,-s.gk.spd*1.5*dt,s.gk.spd*1.5*dt);
+      }
       s.gk.x=sC(s.gk.x,W/2-gh+6,W/2+gh-6);
       const rAdj2=Math.max(0,((window._sitShooterQ||75)-75))*0.16;
       if(sD(s.gk,b)<16-rAdj2)return sitEnd('save');
@@ -7747,13 +7767,13 @@ function sitSetupAttack(W,H,oR,mainP,pool){
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
     s.atk.forEach((a,i)=>sitDrawPlayerK(ctx,a.x,a.y,a.r,myKit,a.p.name.split(' ').pop().slice(0,7),i===s.ctrl&&s.mode==='dribble'));
     sitDrawBall(ctx,s.ball);
-    // Indicador de dirección de tiro (en lugar de barra de potencia)
+    // Indicador de dirección de tiro: refleja tu PERFIL (posición + movimiento)
     if(s.mode==='dribble'){
       const p=s.atk[s.ctrl];
-      const aim=s.keys.left?-gh*.82:s.keys.right?gh*.82:0;
-      const tx=W/2+aim,ty=glY;
-      ctx.save();ctx.strokeStyle='rgba(246,211,24,.35)';ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
-      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(tx,ty);ctx.stroke();
+      const perfil=(p.x-W/2)*0.55+(p.vx||0)*24+(s.keys.left?-gh*.35:0)+(s.keys.right?gh*.35:0);
+      const tx=sC(W/2+perfil,W/2-gh,W/2+gh),ty=glY;
+      ctx.save();ctx.strokeStyle='rgba(246,211,24,.5)';ctx.lineWidth=1.8;ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(s.ball.x,s.ball.y);ctx.lineTo(tx,ty);ctx.stroke();
       ctx.setLineDash([]);ctx.restore();
     }
     sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
@@ -8015,11 +8035,14 @@ function sitSetupCorner(W,H,oR,mainP,pool){
         if(dBall<52 && f>0.15){
           const timing=sC((52-dBall)/52,0,1);                 // qué tan justo llegaste
           s.strikeType=s.ballH>0.45?'CABEZAZO':'VOLEA';
-          // apuntás al palo lejos del arquero (o al que venía tu carrera)
-          const aimLeft=s.gk.x>=cx;
-          const postX=aimLeft?g.x1+(g.x2-g.x1)*0.14:g.x2-(g.x2-g.x1)*0.14;
-          const errX=(1-timing)*(g.x2-g.x1)*0.32*(Math.random()*2-1)+(95-Math.min(95,s.finQ))*0.6*(Math.random()*2-1);
-          const tx=sC(postX+errX,g.x1-20,g.x2+20);
+          // ═══ POR PERFIL: la dirección depende de DÓNDE le pegás a la pelota ═══
+          // si la agarrás con tu cuerpo a la izquierda del balón, la mandás a la derecha, y viceversa.
+          // Además apuntás algo al palo lejos del arquero.
+          const perfil=(s.striker.x-s.ball.x)*-2.4;           // tu posición respecto a la pelota
+          const gkBias=(s.gk.x>=cx?-1:1)*(g.x2-g.x1)*0.10;    // un poco al palo libre
+          const base=cx+perfil+gkBias;
+          const errX=(1-timing)*(g.x2-g.x1)*0.30*(Math.random()*2-1)+(95-Math.min(95,s.finQ))*0.6*(Math.random()*2-1);
+          const tx=sC(base+errX,g.x1-20,g.x2+20);
           const ty=g.barY+(g.groundY-g.barY)*(0.30+Math.random()*0.5);
           s.target={x:tx,y:ty};s.scorer=mainP;
           s.phase='shot';s.shotT=0;s.shotDur=20;
@@ -8227,8 +8250,8 @@ function sitSetupDefense(W,H,oR){
   const defRat=68+((LM&&LM.S&&LM.S.avgR?LM.S.avgR:68)-65)*.5;
   s.player={x:W/2+(Math.random()*50-25),y:H*.50,vx:0,vy:0,r:12,spd:1.30+(defRat-68)*.014};
   s.cpuDef=defN>1?{x:W/2-(Math.random()*60+20),y:H*.45+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.15+(defRat-68)*.010}:null;
-  s.attacker={x:W/2+(Math.random()*70-35),y:H-75,vx:0,vy:0,r:12,spd:1.22+(oR-62)*.018};
-  s.attacker2=atkN>1?{x:W*(.25+Math.random()*.5),y:H-55+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.14+(oR-62)*.015}:null;
+  s.attacker={x:W/2+(Math.random()*70-35),y:H-75,vx:0,vy:0,r:12,spd:1.36+(oR-62)*.024};
+  s.attacker2=atkN>1?{x:W*(.25+Math.random()*.5),y:H-55+(Math.random()*20-10),vx:0,vy:0,r:11,spd:1.26+(oR-62)*.020}:null;
   s.ball={x:s.attacker.x+(Math.random()*10-5),y:s.attacker.y-24,vx:0,vy:-.4};
   s.gk={x:W/2,y:glY+14,spd:1.40};
   s.stun=0;s.tackleLock=false;s.despejeLock=false;s.mode='dribble';
@@ -8257,10 +8280,14 @@ function sitSetupDefense(W,H,oR){
       sitMove(a,b.x-a.x,b.y-a.y,dt,.088);
       a.x=sC(a.x,8,W-8);a.y=sC(a.y,glY+18,H-8);
       if(bdA<a.r+BR+7&&s.touchCd<=0){
-        const feintX=W/2+Math.sin(s.t*.008)*W*.22;
+        // gambetea hacia el arco ESQUIVANDO al defensor: empuja la pelota al lado libre
+        const side=(p.x>=b.x?-1:1);                              // lado contrario al defensor
+        const near=sD(p,b)<46?1:0;                               // si lo tenés encima, jinke más
+        const feintX=sC(W/2+side*W*(.14+near*.14)+Math.sin(s.t*.011)*W*.10,W*.16,W*.84);
         const ang=Math.atan2((glY+14)-b.y,feintX-b.x);
-        b.vx=Math.cos(ang)*a.spd*1.75;b.vy=Math.sin(ang)*a.spd*1.75;
-        s.touchCd=22;
+        const pw=a.spd*(1.85+near*.25);
+        b.vx=Math.cos(ang)*pw;b.vy=Math.sin(ang)*pw;
+        s.touchCd=18-~~(near*4);
       }
       sitBodyBall(a,b,BR);
       if(s.attacker2){
@@ -8281,9 +8308,10 @@ function sitSetupDefense(W,H,oR){
       if(k.shoot&&!s.tackleLock&&s.stun<=0){
         s.tackleLock=true;
         const dist=sD(p,a);
-        if(dist<22)return sitEnd('tackle_ok');
-        if(dist<36){if(Math.random()<.42)return sitEnd('tackle_foul');return sitEnd('tackle_ok');}
-        s.stun=42;
+        // limpio SÓLO si estás encima; si tirás la pierna lejos, quedás vendido
+        if(dist<16)return sitEnd('tackle_ok');
+        if(dist<30){if(Math.random()<.52)return sitEnd('tackle_foul');return sitEnd('tackle_ok');}
+        s.stun=50;
       }
       if(!k.shoot)s.tackleLock=false;
       // X: despeje — empuja la pelota hacia afuera del área
