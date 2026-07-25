@@ -8961,6 +8961,7 @@ function fmBodyBall(p,b,team){
       const shooter=f._lastTouch;                    // quien remató (antes de tocar el arquero)
       if(shooter&&shooter!==team)fmStat(shooter,'sot'); // tiro al arco del que disparó
       f._lastTouch=team;
+      fmSay('save');
       if(Math.random()<catchProb){
         b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
@@ -9060,6 +9061,8 @@ function startFullMatch(watch){
       <!-- Táctica en vivo (estilo DLS: BALANCED) -->
       <button id="fm-tactic" onclick="fmCycleTactic()" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.3);color:#fff;font-family:'Rajdhani';font-size:11px;font-weight:800;letter-spacing:.15em;padding:4px 18px;border-radius:4px;cursor:pointer;z-index:11">EQUILIBRADO</button>
       <div id="fm-msg" style="position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:900;color:#fff;text-shadow:0 0 24px rgba(0,0,0,.95);pointer-events:none;display:none;text-align:center;white-space:nowrap;line-height:1.25;z-index:20"></div>
+      <!-- RELATO / NARRACIÓN -->
+      <div id="fm-relato" style="position:absolute;left:50%;bottom:52px;transform:translateX(-50%);max-width:88%;background:rgba(4,10,20,.82);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--gold);border-radius:7px;padding:5px 12px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:#fff;pointer-events:none;display:none;z-index:19;text-align:center;line-height:1.2"></div>
       <!-- PANTALLA DE CONTROLES (se muestra al arrancar) -->
       <div id="fm-help" style="position:absolute;inset:0;background:rgba(2,8,18,.92);z-index:30;display:flex;align-items:center;justify-content:center;overflow-y:auto">
         <div style="max-width:680px;width:92%;padding:18px">
@@ -9519,6 +9522,18 @@ function fmDoRestart(){
       if(r.type==='corner')taker._forceCross=1;
     }
   }
+  // En un córner: mando delanteros al área (primer palo / penal / segundo palo)
+  if(r.type==='corner'){
+    const atk=r.team==='my'?f.my:f.opp;
+    const attRight=(r.team==='my')?f.myAttRight:!f.myAttRight;
+    const goalX=attRight?f.rightGL:f.leftGL;
+    const dir=attRight?-1:1;
+    const box=(f.rightGL-f.leftGL);
+    const targets=[[goalX+dir*box*0.06,f.VH/2-f.GH*0.5],[goalX+dir*box*0.10,f.VH/2],[goalX+dir*box*0.13,f.VH/2+f.GH*0.55],[goalX+dir*box*0.09,f.VH/2+f.GH*0.9]];
+    // los más ofensivos/altos suben al área
+    const rushers=[...atk].filter(q=>!q.isGK&&q!==taker).sort((a,c)=>((c.attrs&&c.attrs.FIS)||c.rat)-((a.attrs&&a.attrs.FIS)||a.rat)).slice(0,4);
+    rushers.forEach((q,i)=>{const t=targets[i%targets.length];q.x=t[0];q.y=t[1];q.vx=0;q.vy=0;});
+  }
   f._lastTouch=r.team;
   f.restart=null;
 }
@@ -9537,7 +9552,9 @@ function fmFoul(offTeam,offender,victim){
   if(red&&offender){fmSendOff(offTeam,offender);}
   if(inBox){
     fmSetRestart('penalty',to,defGoalX,f.VH/2,red?'PENAL\n🟥 ROJA':'⚽ PENAL');
+    fmSay('penalty',to);
   } else {
+    fmSay('foul',offTeam);
     fmSetRestart('freekick',to,victim.x,victim.y,red?'FALTA\n🟥 ROJA':yellow?'FALTA\n🟨 AMARILLA':'FALTA');
   }
   if(offender)offender._slideT=0;
@@ -10373,6 +10390,7 @@ function fmAI(p,team,idx,dt){
           if(nearD<p.r+nearDef.r+26&&Math.random()<0.02*dt*(1+(reg-def)/45)){
             b.vx=dirF*3.8;b.vy=s*1.8;f._lastTouch=team;p._dribT=8;
             if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
+            if(Math.random()<0.5)fmSay('dribble',team,p.name);
           }
         } else {
           // Conducción al espacio buscando progresar
@@ -10633,7 +10651,7 @@ function fmTeamPass(team,fromIdx){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
       fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
-      f._lastTouch=team;fmStat(team,'off');
+      f._lastTouch=team;fmStat(team,'off');fmSay('offside',team);
       if(FM.learn)FM.learn.offsides=(FM.learn.offsides||0)+1;
       return;
     }
@@ -10670,6 +10688,28 @@ function fmBall(dt){
   b.vx*=fr;b.vy*=fr;
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH,bR=7,mid2=f.VH/2;
+  // ═══ CABEZAZO EN EL ÁREA: centro que baja y un delantero la conecta ═══
+  if(b.air>1&&b.air<9){
+    const team=f._lastTouch;
+    if(team){
+      const atkArr=team==='my'?f.my:f.opp;
+      const attRight=(team==='my')?f.myAttRight:!f.myAttRight;
+      const goalX=attRight?f.rightGL:f.leftGL;
+      const inBox=Math.abs(b.x-goalX)<(f.rightGL-f.leftGL)*0.20&&Math.abs(b.y-mid2)<f.GH*1.2;
+      if(inBox){
+        let hd=null,hdD=1e9;
+        for(const a of atkArr){if(a.isGK)continue;const d=Math.hypot(a.x-b.x,a.y-b.y);if(d<42&&d<hdD){hdD=d;hd=a;}}
+        if(hd&&Math.random()<0.45){
+          const head=(hd.attrs&&(hd.attrs.FIS||hd.attrs.TIR))||hd.rat||70;
+          const aimY=mid2+(Math.random()-.5)*f.GH*1.05*(1.35-Math.min(90,head)/110);
+          const dx=goalX-b.x,dy=aimY-b.y,dd=Math.hypot(dx,dy)||1;
+          const pwr=5.6+Math.random()*2;
+          b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=0;
+          f._lastTouch=team;fmStat(team,'shots');fmSay('header',team,hd.name);fmSndKick(0.7);
+        }
+      }
+    }
+  }
   // LATERAL: la pelota salió por la banda → saque de banda
   if(b.y<bR||b.y>f.VH-bR){
     if(b.air>2){b.y=b.y<bR?bR:f.VH-bR;return;} // en el aire aún no salió
@@ -11480,6 +11520,33 @@ function fmMsg(txt){
   const el=document.getElementById('fm-msg');if(!el)return;
   el.innerHTML=txt.replace(/\n/g,'<br>');el.style.display='block';
   clearTimeout(FM&&FM._mt);if(FM)FM._mt=setTimeout(()=>{if(el)el.style.display='none';},2200);
+}
+// ═══ RELATO: narración de la jugada (ticker inferior) ═══
+function fmRelato(txt){
+  const el=document.getElementById('fm-relato');if(!el||!FM)return;
+  el.textContent=txt;el.style.display='block';
+  clearTimeout(FM._rt);FM._rt=setTimeout(()=>{if(el)el.style.display='none';},2600);
+}
+// Frases de relato por tipo de evento (con nombre del jugador cuando corresponde)
+function fmSay(kind,team,name){
+  if(!FM||!FM.watch)return;
+  const mine=team==='my';
+  const club=(mine?G.teamName:FM.oppName)||'';
+  const nm=name?name:'';
+  const R={
+    chance:[`¡Se viene ${club}!`,`Ataca ${club}...`,`Peligro de ${club}`,`${club} llega al área`],
+    shot:[`¡Remató ${nm||club}!`,`¡Disparo de ${nm||club}!`,`¡La probó ${nm||club}!`],
+    save:[`¡Gran atajada del arquero!`,`¡Salvó el arquero!`,`¡Qué manotazo!`,`¡Le tapó todo!`],
+    corner:[`Córner para ${club}`,`Tiro de esquina de ${club}`],
+    foul:[`Falta de ${club}`,`Cortó con falta ${club}`],
+    penalty:[`¡PENAL para ${club}!`,`¡Penal! Lo va a patear ${club}`],
+    offside:[`Posición adelantada de ${club}`,`¡Estaba en offside!`],
+    dribble:[`¡Qué gambeta de ${nm}!`,`${nm} se saca a uno de encima`,`¡Amagó y pasó ${nm}!`],
+    freekick:[`Tiro libre peligroso para ${club}`,`Pelota parada de ${club}`],
+    header:[`¡Cabezazo de ${nm||club}!`,`¡De cabeza ${nm||club}!`],
+    goalchance:[`¡MANO A MANO!`,`¡Solo frente al arquero!`,`¡Quedó de cara al gol!`],
+  }[kind];
+  if(R)fmRelato(R[~~(Math.random()*R.length)]);
 }
 
 function fmEnd(){
