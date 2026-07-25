@@ -10585,14 +10585,23 @@ function fmAI(p,team,idx,dt){
       supRank=ds.findIndex(dd=>dd.i===idx);
     }
     let tx=homeX,ty=homeY,acc2=0.058;
-    if(carrier&&supRank>=0&&supRank<2){
-      // Apoyo cercano: diagonal adelantada respecto al portador
-      const dc=Math.hypot(p.x-carrier.x,p.y-carrier.y);
-      if(dc>120){
-        tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,carrier.x+(attRight?150:-150)));
-        ty=Math.max(40,Math.min(f.VH-40,carrier.y+(p.hy<carrier.y?-200:200)));
-        acc2=0.056;
+    if(carrier&&supRank>=0&&supRank<3){
+      // APOYO: los 3 más cercanos ofrecen opciones a distintas distancias/ángulos,
+      // buscando ESPACIO LIBRE (lejos de los rivales) — no todos al mismo lado.
+      const ang=supRank===0?(p.hy<carrier.y?-1:1):supRank===1?(attRight?0.2:-0.2):(p.hy<carrier.y?1:-1);
+      const fwd=supRank===0?150:supRank===1?70:-40;   // uno adelante, uno al pie, uno de descarga
+      let bx=carrier.x+(attRight?fwd:-fwd);
+      let by=carrier.y+ang*(150+supRank*30);
+      // corregir hacia el espacio más libre cercano
+      const openTweak=(dx,dy)=>{let n=0;rivals.forEach(m=>{if(!m.isGK&&Math.hypot(m.x-(bx+dx),m.y-(by+dy))<120)n++;});return n;};
+      if(openTweak(0,0)>0){ // si el punto está marcado, probar correr al espacio
+        const opts=[[0,-90],[0,90],[70,0],[-70,0]];
+        opts.sort((a,c)=>openTweak(a[0],a[1])-openTweak(c[0],c[1]));
+        bx+=opts[0][0];by+=opts[0][1];
       }
+      tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,bx));
+      ty=Math.max(40,Math.min(f.VH-40,by));
+      acc2=0.06;
     } else if(isAttacker){
       // Delanteros VIVOS: ciclan entre pinchar la línea, venir a recibir al pie
       // y tirar diagonales — nunca clavados en el offside
