@@ -2275,7 +2275,7 @@ function autoFill(){
   sl.forEach((s,i) => {
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
-      if(used.has(p.id)||p.injured)continue;
+      if(used.has(p.id)||p.injured||p.susp>0)continue;   // lesionado o suspendido: no juega
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
       let sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
@@ -2450,6 +2450,8 @@ function squadHealthPanel(){
     benched.length?chip('🪑',`${benched.length} sin minutos`,'var(--red)',
       'Se están oxidando y pierden nivel: '+benched.slice(0,4).map(p=>p.name).join(', ')):'',
     inj?chip('🏥',`${inj} lesionado${inj>1?'s':''}`,'var(--red)',''):'',
+    (()=>{const s=sq.filter(p=>p.susp>0);return s.length?chip('🟥',`${s.length} suspendido${s.length>1?'s':''}`,'var(--red)',s.map(p=>`${p.name} (${p.susp})`).join(', ')):'';})(),
+    (()=>{const y=sq.filter(p=>(p.yellows||0)>=4&&!p.susp);return y.length?chip('🟨',`${y.length} al borde`,'var(--ora)','A una amarilla de perderse un partido: '+y.map(p=>p.name).join(', ')):'';})(),
     cap?chip('💵',`Masa salarial ${capPct}%`,capPct>=95?'var(--red)':capPct>=80?'var(--ora)':'var(--green)',
       `${wage}k/sem de un tope de ${cap}k`):'',
   ].filter(Boolean);
@@ -2475,7 +2477,7 @@ function rSq(f){
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -6651,7 +6653,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(res==='W'){
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); G.rep=Math.min(100,G.rep+1*dMul);
     // Bonos de sponsors por victoria
-    const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0);
+    const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0)*facilityFx().sponsorMul;
     if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
   } else if(res==='D'){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
@@ -6709,6 +6711,35 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const usedMins = new Set();
   // Track apps for all XI
   xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  // ═══ TARJETAS Y SUSPENSIONES ═══
+  // Las amarillas se acumulan: a la 5ª te perdés la próxima fecha. Una roja te
+  // saca 1-2 partidos. Un DT picante ve más tarjetas. Ahora tener plantel largo
+  // sirve de verdad.
+  (function cards(){
+    const prof=(typeof dtProfile==='function')?dtProfile(G.dt):{cyn:0.5,aggr:0.5};
+    const heat=0.5+(prof.cyn||0.5)*0.6+(prof.aggr||0.5)*0.4+(derby?0.5:0);
+    xiPlayers.forEach(p=>{
+      if(p.susp>0)return;
+      const defish=pgr(p.pos)==='DEF'||p.pos==='MCD';
+      const pY=0.085*heat*(defish?1.5:1);
+      if(Math.random()<pY){
+        p.yellows=(p.yellows||0)+1;
+        if(p.yellows>=5){
+          p.yellows=0;p.susp=(p.susp||0)+1;
+          lg('🟥',`${p.name} llegó a 5 amarillas: se pierde el próximo partido`);
+          addPhoneMsg('board','Cuerpo Técnico',`🟨 <b>${p.name}</b> acumuló la quinta amarilla. No está disponible para la próxima fecha.`,'🟨');
+        }
+      }
+      if(Math.random()<0.012*heat){
+        const games=Math.random()<0.25?2:1;
+        p.susp=(p.susp||0)+games;p.yellows=0;
+        lg('🟥',`Roja para ${p.name}: ${games} fecha(s) de suspensión`);
+        addPhoneMsg('board','Cuerpo Técnico',`🟥 Expulsaron a <b>${p.name}</b>. Se pierde ${games===1?'la próxima fecha':'las próximas 2 fechas'}.`,'🟥');
+      }
+    });
+    // Los suspendidos cumplen: descuenta una fecha a los que NO jugaron
+    G.squad.forEach(q=>{ if(q.susp>0&&!xiPlayers.includes(q))q.susp=Math.max(0,q.susp-1); });
+  })();
   applyFatigue(xiPlayers);
   if(providedScorers && providedScorers.length){
     // Goles anotados por el jugador en el modo jugable
@@ -6873,6 +6904,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
     let spInc=0;
     G.sponsors.forEach(s=>{ spInc+=s.income; s.weeksLeft=Math.max(0,s.weeksLeft-1); });
     G.sponsors=G.sponsors.filter(s=>s.weeksLeft>0);
+    // Sala de prensa y museo hacen valer más el contrato (era una promesa que
+    // la UI mostraba pero el código nunca aplicaba)
+    spInc*=facilityFx().sponsorMul;
     if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
   }
   // Staff salary deduction
@@ -10892,6 +10926,47 @@ function fmCoachSubs(){
   f._nextSubMin=min+(9+~~(Math.random()*10));
 }
 
+// ═══ EL DT RIVAL TAMBIÉN LEE EL PARTIDO ═══
+// Refresca piernas y mueve su planteo: si va perdiendo se juega la vida,
+// si gana se mete atrás a aguantar el resultado.
+function fmOppCoach(){
+  const f=FM;if(!f)return;
+  const min=f.minute||0;
+  if(min<50)return;
+  if(f._oppNext===undefined)f._oppNext=56+~~(Math.random()*10);
+  const diff=(f.oppG||0)-(f.myG||0);
+  // Ajuste táctico: se vuelca al ataque o se repliega
+  if(f.oppProfEff||f.oppProf){
+    const base=f.oppProf||{};
+    if(!f._oppBase)f._oppBase=Object.assign({},base);
+    const b=f._oppBase;
+    let mod={};
+    if(diff<0&&min>=62){                      // pierde: sale a buscarlo
+      mod={press:Math.min(1,(b.press||.5)+0.18),line:Math.min(1,(b.line||.5)+0.20),
+           tempo:Math.min(1,(b.tempo||.5)+0.18),direct:Math.min(1,(b.direct||.5)+0.12)};
+      if(!f._oppMsg1){f._oppMsg1=true;fmMsg&&fmMsg('⚠️ EL RIVAL\nSE VUELCA AL ATAQUE');}
+    } else if(diff>0&&min>=70){               // gana: aguanta
+      mod={press:Math.max(0,(b.press||.5)-0.15),line:Math.max(0,(b.line||.5)-0.22),
+           tempo:Math.max(0,(b.tempo||.5)-0.15),counter:Math.min(1,(b.counter||.5)+0.20),
+           cyn:Math.min(1,(b.cyn||.5)+0.15)};
+      if(!f._oppMsg2){f._oppMsg2=true;fmMsg&&fmMsg('🛡️ EL RIVAL\nSE METE ATRÁS');}
+    }
+    if(Object.keys(mod).length)f.oppProfEff=Object.assign({},b,mod);
+  }
+  // Cambios del rival: refresca al más fundido
+  if(min<f._oppNext)return;
+  if(f._oppSubs===undefined)f._oppSubs=5;
+  if(f._oppSubs<=0)return;
+  const cands=f.opp.map((p,i)=>({p,i})).filter(o=>!o.p.isGK).sort((a,b)=>(a.p.stam||100)-(b.p.stam||100));
+  const worst=cands[0];
+  if(!worst||(worst.p.stam||100)>78)return;
+  worst.p.stam=Math.min(100,92+Math.random()*8);        // entra uno fresco
+  worst.p.rat=Math.max(60,worst.p.rat-1);               // el suplente suele ser algo menos
+  f._oppSubs--;
+  f._oppNext=min+(10+~~(Math.random()*9));
+  fmMsg&&fmMsg('🔄 CAMBIO\nEN EL RIVAL');
+}
+
 // Aplica el cambio (lo usa tanto el DT como vos con DT personalizado)
 function fmApplySub(oi,bi,byCoach){
   const f=FM;if(!f||f.subsLeft<=0)return false;
@@ -11013,6 +11088,7 @@ function fmTick(dt){
   if(f.ticks>=f.tpm){
     f.ticks-=f.tpm;f.minute++;fmHUD();
     try{fmCoachSubs();}catch(e){}   // el DT mueve el banco por su cuenta
+    try{fmOppCoach();}catch(e){}    // el DT rival también lee el partido
     if(f.minute%2===0)fmUpdateTactics();
     if(f.minute===45&&f.half===1){f.phase='half';f.phaseT=0;fmSndWhistle(2);fmMsg('MEDIO\nTIEMPO');return;}
     if(f.minute>=90){f.phase='done';fmSndWhistle(3);setTimeout(fmEnd,400);return;}
