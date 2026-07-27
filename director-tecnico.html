@@ -1959,6 +1959,8 @@ function initGame(teamId){
     pressConfDone: false,
   };
   arAttachLeague();          // zonas + fixture de los 30 clubes (buildCal corrió sin G)
+  // El DT arranca con SU esquema real, no con un 4-3-3 fijo para todos
+  if(G.dt&&G.dt.style&&typeof FORMS==='object'&&FORMS[G.dt.style])G.formation=G.dt.style;
   G.stadium.name = tc.stadName;
   G.stadium.capacity = tc.stadCap;
   G.stadium.income = tc.stadInc;
@@ -2263,20 +2265,43 @@ function autoFill(){
   G.slots = {};
   const sl = getForm();
   const used = new Set();
-  // El DT arma el 11 respetando puestos: mejor score = rating − penalización
+  // ═══ EL DT ARMA EL 11 A SU MANERA ═══
+  // Antes elegía sólo por rating. Ahora pesa lo que EL TÉCNICO busca: un DT de
+  // presión quiere piernas y aguante, uno de posesión quiere técnica, uno
+  // directo quiere físico. Y mira condición y estado de forma antes de poner a
+  // alguien fundido.
+  const pr=(typeof dtProfile==='function')?dtProfile(G.dt):{press:.5,line:.5,direct:.5,counter:.5,tempo:.5};
+  const at=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
   sl.forEach((s,i) => {
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
       if(used.has(p.id)||p.injured)continue;
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
-      const sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
+      let sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
+      if(p.pos!=='ARQ'){
+        sc += (pr.press-0.5)*((at(p,'VEL')+at(p,'FIS'))/2-70)*0.10;   // presionar exige piernas
+        sc += (pr.line -0.5)*(at(p,'VEL')-70)*0.07;                   // línea alta: defensores rápidos
+        sc += (pr.direct-0.5)*(at(p,'FIS')-70)*0.08;                  // juego directo: físico
+        sc += (0.5-pr.direct)*(at(p,'REG')-70)*0.08;                  // jugar abajo: técnica
+        sc += (pr.counter-0.5)*(at(p,'VEL')-70)*0.06;                 // contra: velocidad
+      }
+      const fit=(p.fit===undefined?100:p.fit);
+      sc += (fit-88)*0.12;                                            // no pone a nadie fundido
+      sc += (p.form||0)*1.1;                                          // el que está enchufado, juega
       if(sc>bestScore){bestScore=sc;best=p;}
     }
     if(best){G.slots[i]=best.id;used.add(best.id);}
     else G.slots[i]=null;
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
+}
+// Antes de cada partido, el DT REAL pone su once (y rota a los cansados).
+// Con un DT personalizado mandás vos: el once que armaste queda intacto.
+function dtPicksXI(){
+  if(!G||!G.dt)return;
+  if(G.dt.customProf)return;      // tu DT personalizado: vos elegís
+  autoFill();
 }
 
 // =============================================
@@ -3500,7 +3525,13 @@ function rXI(){
   const el = document.getElementById('xi');
   if(!el||!G) return;
   const sl = getForm();
-  el.innerHTML = sl.map((s,i) => {
+  // Quién decide el once: vos (DT personalizado) o el técnico del club
+  const mine=(typeof dtIsMine==='function')&&dtIsMine();
+  const hdr=`<div style="font-size:9px;padding:3px 4px;margin-bottom:3px;border-radius:5px;background:${mine?'rgba(246,211,24,.10)':'rgba(255,255,255,.05)'};color:${mine?'var(--gold)':'var(--t3)'}">
+    ${mine?'⭐ <b>Vos dirigís</b>: elegís el once, la táctica y los cambios.'
+          :`👔 El once lo pone <b>${(G.dt&&G.dt.name)||'el DT'}</b> (${(G.dt&&G.dt.style)||'—'} · ${(G.dt&&G.dt.trait)||'—'}). Sos el presidente: si no te gusta, cambiá de técnico.`}
+  </div>`;
+  el.innerHTML = hdr + sl.map((s,i) => {
     const p = G.slots[i] ? G.squad.find(x=>x.id===G.slots[i]) : null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
       <span style="color:var(--t3);font-size:9px;width:28px;font-family:'Rajdhani',sans-serif">${s.lbl}</span>
@@ -6982,6 +7013,7 @@ function simMatch(auto){
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
+  dtPicksXI();      // el técnico define el once (salvo que el DT sea tuyo)
   const S = matchStrengths(m);
   // ═══ SIMULACIÓN RÁPIDA v2: el resultado DEPENDE del nivel de los planteles ═══
   // Antes la diferencia pesaba poco y el empate era fijo (20%): un equipazo perdía
@@ -7776,6 +7808,7 @@ function playMatch(){
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
+  dtPicksXI();      // el técnico define el once (salvo que el DT sea tuyo)
   initPads();
   const S = matchStrengths(m);
   const diff = S.myS - S.oppS + S.homeBonus;
@@ -10776,11 +10809,88 @@ function fmPause(){
   }
 }
 
-// ═══ SUSTITUCIONES EN VIVO ═══
-// Ahora que los jugadores se cansan de verdad, poder refrescar el equipo
-// en el segundo tiempo cambia partidos. Hasta 5 cambios por partido.
+// ¿Mando yo en la banca? Sólo si el DT es MI DT personalizado.
+// Sos el PRESIDENTE: con un técnico de verdad, los cambios los hace él.
+function dtIsMine(){ return !!(G&&G.dt&&G.dt.customProf); }
+
+// ═══ EL DT HACE LOS CAMBIOS ═══
+// Lee el partido como lo haría él: saca a los fundidos, y según vaya el
+// marcador y su perfil (ofensivo/defensivo) refuerza ataque o aguanta.
+function fmCoachSubs(){
+  const f=FM;if(!f||dtIsMine())return;
+  if(f.subsLeft<=0||!(f.benchPool||[]).length)return;
+  const min=f.minute||0;
+  if(min<55)return;                                   // los cambios llegan en el 2T
+  if(f._nextSubMin===undefined)f._nextSubMin=58+~~(Math.random()*8);
+  if(min<f._nextSubMin)return;
+  const prof=(f.myProfEff||f.myProf)||{};
+  const diff=(f.myG||0)-(f.oppG||0);
+  // A quién saca: el más fundido del campo
+  const cands=f.my.map((p,i)=>({p,i})).filter(o=>!o.p.isGK).sort((a,b)=>(a.p.stam||100)-(b.p.stam||100));
+  const worst=cands[0];
+  if(!worst)return;
+  const tired=(worst.p.stam||100)<74;
+  // Si va perdiendo, mete gente de ataque aunque no esté fundido
+  const chasing=diff<0&&min>=65;
+  if(!tired&&!chasing)return;
+  // A quién mete: si busca el partido, el mejor atacante; si gana, alguien de su puesto
+  const pool=f.benchPool;
+  let bi=0;
+  if(chasing){
+    const atkIdx=pool.findIndex(q=>['DC','EI','ED','MCO'].includes(q.pos));
+    if(atkIdx>=0)bi=atkIdx;
+  } else {
+    const same=pool.findIndex(q=>q.pos===worst.p.role);
+    if(same>=0)bi=same;
+  }
+  fmApplySub(worst.i,bi,true);
+  f._nextSubMin=min+(9+~~(Math.random()*10));
+}
+
+// Aplica el cambio (lo usa tanto el DT como vos con DT personalizado)
+function fmApplySub(oi,bi,byCoach){
+  const f=FM;if(!f||f.subsLeft<=0)return false;
+  const out=f.my[oi], inc=(f.benchPool||[])[bi];
+  if(!out||!inc)return false;
+  const attrs=(typeof mkAttrs==='function')?mkAttrs(inc.rat||72,out.role,inc):out.attrs;
+  f.my[oi]=Object.assign({},out,{
+    name:inc.name.split(' ').pop().slice(0,7),
+    rat:Math.round(inc.rat||72),
+    attrs:attrs||out.attrs,
+    num:inc.num||out.num,
+    spd:out.isGK?out.spd:(1.30+(((attrs&&attrs.pac)||70)/100)*0.65),
+    stam:Math.max(70,Math.min(100,inc.fit===undefined?100:inc.fit)),
+    _srcId:inc.id,
+  });
+  f.benchPool=f.benchPool.filter((_,j)=>j!==bi);
+  f.subsLeft--;
+  f.subsMade=f.subsMade||[];
+  f.subsMade.push({min:f.minute||0,out:out.name,in:f.my[oi].name,byCoach:!!byCoach});
+  const real=(G.squad||[]).find(q=>q.id===inc.id);
+  if(real)real.apps=(real.apps||0)+1;
+  const who=byCoach?`${(G.dt&&G.dt.name)||'El DT'}: `:'';
+  fmMsg&&fmMsg(`🔄 ${who}${out.name} ➜ ${f.my[oi].name}`);
+  lg&&lg('🔄',`${byCoach?((G.dt&&G.dt.name)||'El DT')+' hizo el cambio':'Cambio'} en el ${f.minute||0}': sale ${out.name}, entra ${f.my[oi].name}`);
+  return true;
+}
+
+// ═══ SUSTITUCIONES EN VIVO (sólo con DT personalizado) ═══
 function fmOpenSubs(){
   const f=FM;if(!f)return;
+  if(!dtIsMine()){
+    // Sos el presidente: no bajás a la banca a mover el equipo.
+    const hechos=(f.subsMade||[]).map(s=>`<div style="font-size:10px;padding:2px 0;color:var(--t2)">${s.min}' ↔ Sale <b>${s.out}</b>, entra <b>${s.in}</b></div>`).join('');
+    if(f.phase!=='paused')fmPause();
+    showMod(`
+      <button class="mclose" onclick="closeMod();fmPause()">✕</button>
+      <div class="mtitle">🔄 Banca de suplentes</div>
+      <div class="note" style="margin-bottom:8px">Los cambios los decide <b>${(G.dt&&G.dt.name)||'el DT'}</b>. Vos sos el presidente: podés mirar, opinar en la prensa y, si no te convence, cambiar de técnico.<br><br>Si querés manejar vos la banca y el once, creá un <b>DT personalizado</b> desde la sección Cuerpo Técnico.</div>
+      <div class="sr"><span class="sl">Cambios disponibles</span><span class="sv">${f.subsLeft}</span></div>
+      ${hechos?`<div class="ctitle" style="margin-top:8px">Cambios del DT</div>${hechos}`:'<div class="note" style="margin-top:8px">Todavía no movió el banco.</div>'}
+      <button class="btn bg" style="width:100%;margin-top:10px" onclick="closeMod();fmPause()">Volver al partido</button>
+    `);
+    return;
+  }
   if(f.phase!=='paused')fmPause();
   const pool=f.benchPool||[];
   const onField=f.my.map((p,i)=>({p,i})).filter(o=>!o.p.isGK);
@@ -10805,31 +10915,10 @@ function fmOpenSubs(){
   showMod(html);
 }
 function fmDoSub(){
-  const f=FM;if(!f||f.subsLeft<=0)return;
+  const f=FM;if(!f||!dtIsMine())return;
   const oi=+document.getElementById('subOut').value;
   const bi=+document.getElementById('subIn').value;
-  const out=f.my[oi], inc=(f.benchPool||[])[bi];
-  if(!out||!inc)return;
-  // el que entra hereda la posición pero llega descansado
-  const attrs=(typeof mkAttrs==='function')?mkAttrs(inc.rat||72,out.role,inc):out.attrs;
-  f.my[oi]=Object.assign({},out,{
-    name:inc.name.split(' ').pop().slice(0,7),
-    rat:Math.round(inc.rat||72),
-    attrs:attrs||out.attrs,
-    num:inc.num||out.num,
-    spd:out.isGK?out.spd:(1.30+(((attrs&&attrs.pac)||70)/100)*0.65),
-    stam:Math.max(70,Math.min(100,inc.fit===undefined?100:inc.fit)),
-    _srcId:inc.id,
-  });
-  f.benchPool=f.benchPool.filter((_,j)=>j!==bi);
-  f.subsLeft--;
-  f.subsMade=f.subsMade||[];
-  f.subsMade.push({min:f.minute||0,out:out.name,in:f.my[oi].name});
-  // el que sale suma el partido igual
-  const real=(G.squad||[]).find(q=>q.id===inc.id);
-  if(real){real.apps=(real.apps||0)+1;}
-  fmMsg&&fmMsg(`🔄 ${out.name} ➜ ${f.my[oi].name}`);
-  lg&&lg('🔄',`Cambio en el ${f.minute||0}': sale ${out.name}, entra ${f.my[oi].name}`);
+  fmApplySub(oi,bi,false);
   closeMod();fmPause();
 }
 
@@ -10878,6 +10967,7 @@ function fmTick(dt){
   f.ticks+=dt;
   if(f.ticks>=f.tpm){
     f.ticks-=f.tpm;f.minute++;fmHUD();
+    try{fmCoachSubs();}catch(e){}   // el DT mueve el banco por su cuenta
     if(f.minute%2===0)fmUpdateTactics();
     if(f.minute===45&&f.half===1){f.phase='half';f.phaseT=0;fmSndWhistle(2);fmMsg('MEDIO\nTIEMPO');return;}
     if(f.minute>=90){f.phase='done';fmSndWhistle(3);setTimeout(fmEnd,400);return;}
@@ -11247,7 +11337,32 @@ function dtProfile(dt){
     'Líder':{aggr:.65,press:.60,cyn:.70},
     'Equilibrado':{},
   };
-  const o=Object.assign({},base,T[t]||{});
+  // ═══ CADA DT REAL, COMO JUEGA DE VERDAD ═══
+  // El rasgo solo agrupaba a varios técnicos bajo la misma idea. Esta tabla
+  // ajusta a mano a los más conocidos para que su equipo se parezca al de la
+  // vida real (presión, línea, ritmo, si va al contragolpe, si es picante).
+  const REAL={
+    'Pep Guardiola':      {press:.95,line:.88,tempo:.45,direct:.08,width:.80,counter:.15,flank:.55,cyn:.30,disc:.92},
+    'Diego Simeone':      {press:.38,line:.18,tempo:.50,direct:.80,aggr:.95,width:.32,counter:.92,flank:.40,cyn:.96,disc:.94},
+    'Marcelo Gallardo':   {press:.84,line:.72,tempo:.82,direct:.48,width:.66,counter:.78,flank:.72,cyn:.62,disc:.82},
+    'Carlo Ancelotti':    {press:.52,line:.55,tempo:.55,direct:.38,width:.62,counter:.62,flank:.60,cyn:.60,disc:.78},
+    'Zinedine Zidane':    {press:.55,line:.58,tempo:.58,direct:.35,width:.60,counter:.68,flank:.62,cyn:.50,disc:.70},
+    'Carlos Bianchi':     {press:.45,line:.42,tempo:.52,direct:.58,aggr:.62,counter:.72,cyn:.86,disc:.88},
+    'Miguel Ángel Russo': {press:.42,line:.38,tempo:.48,direct:.60,counter:.68,cyn:.70,disc:.84},
+    'Ricardo Gareca':     {press:.50,line:.45,tempo:.62,direct:.55,counter:.86,flank:.70,cyn:.62,disc:.80},
+    'Gabriel Milito':     {press:.74,line:.68,tempo:.60,direct:.28,width:.66,counter:.55,disc:.80},
+    'Fernando Gago':      {press:.72,line:.70,tempo:.50,direct:.20,width:.70,counter:.42,disc:.76},
+    'Eduardo Berizzo':    {press:.90,line:.66,tempo:.78,direct:.45,aggr:.72,counter:.62,disc:.70},
+    'Ariel Holan':        {press:.82,line:.70,tempo:.68,direct:.35,disc:.86,cyn:.50},
+    'Jorge Almirón':      {press:.48,line:.40,tempo:.55,direct:.62,counter:.76,cyn:.80,disc:.80},
+    'Gustavo Alfaro':     {press:.34,line:.30,tempo:.45,direct:.68,counter:.74,cyn:.82,disc:.88},
+    'Guillermo Barros Schelotto':{press:.58,line:.66,tempo:.72,direct:.50,width:.82,flank:.90,counter:.60,cyn:.45},
+    'Sebastián Battaglia':{press:.72,line:.55,tempo:.70,aggr:.80,direct:.60,counter:.62,cyn:.58},
+    'Claudio Úbeda':      {press:.60,line:.55,tempo:.55,direct:.42,counter:.55,disc:.72},
+    'Diego Martínez':     {press:.80,line:.62,tempo:.72,direct:.42,counter:.65,disc:.74},
+    'Diego Dabove':       {press:.40,line:.35,tempo:.55,direct:.70,counter:.82,cyn:.70},
+  };
+  const o=Object.assign({},base,T[t]||{},REAL[(dt&&dt.name)||'']||{});
   if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);o.counter=Math.min(1,o.counter+.10);}
   if(style==='4-3-3'||style==='3-4-3'){o.width=Math.min(1,o.width+.15);o.flank=Math.min(1,o.flank+.10);}
   if(style==='4-2-3-1'){o.tempo=Math.min(1,o.tempo+.05);}
