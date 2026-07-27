@@ -2190,6 +2190,134 @@ function pressConfAnswer(moraleDelta,confDelta,fansDelta,dtRelDelta){
   updateUI();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// HABLAR CON EL DT: le exigís cosas y él acepta o te retruca
+// No es un menú de opciones que se cumplen solas: el técnico tiene
+// su idea. Si le pedís algo que va contra su forma de jugar, te va
+// a discutir — y ahí decidís si aflojás o si le imponés la orden
+// (que la cumple, pero te odia un poco más).
+// ═══════════════════════════════════════════════════════════════
+function dtDemands(){
+  const pr=dtProfile(G.dt), sq=G.squad||[];
+  const xi=Object.values(G.slots||{}).filter(Boolean);
+  const joven=sq.filter(p=>p.age<=21&&!xi.includes(p.id)&&!p.injured&&!p.susp).sort((a,b)=>(b.pot||b.rat)-(a.pot||a.rat))[0];
+  const figura=sq.filter(p=>xi.includes(p.id)).sort((a,b)=>b.rat-a.rat)[0];
+  const fundido=sq.filter(p=>xi.includes(p.id)&&(p.fit===undefined?100:p.fit)<72).sort((a,b)=>(a.fit||100)-(b.fit||100))[0];
+  const d=[];
+  d.push({id:'atacar',label:'⚔️ "Quiero que juguemos más ofensivo"',
+    desc:'Más gente arriba y más riesgo.',
+    resist:(0.5-pr.direct)*0.3+(pr.counter>0.7?0.35:0)+(pr.press<0.4?0.3:0),
+    argue:`"Presidente, con este plantel salir a atacar de entrada nos deja abiertos. Yo creo en el orden y en golpear cuando el rival se estira."`,
+    apply:()=>{G.tactic=G.tactic||{};G.tactic.mentality='Ofensivo';G.pressure='Alta';}});
+  d.push({id:'cerrar',label:'🛡️ "Quiero que cuidemos más el arco"',
+    desc:'Bloque más bajo y menos riesgo atrás.',
+    resist:(pr.press>0.75?0.4:0)+(pr.line>0.7?0.3:0),
+    argue:`"Si me meto atrás con este equipo, regalo la pelota y me terminan ahogando. Prefiero achicar arriba."`,
+    apply:()=>{G.tactic=G.tactic||{};G.tactic.mentality='Defensivo';G.pressure='Baja';}});
+  if(joven)d.push({id:'joven',label:`🌱 "Quiero ver a ${joven.name} en cancha"`,
+    desc:`${joven.age} años · ${joven.rat} (techo ${joven.pot||joven.rat}). Los pibes crecen jugando.`,
+    resist:(G.dt.trait==='Formador'?-0.3:0.25)+((joven.rat<(figura?figura.rat:75)-8)?0.3:0),
+    argue:`"El pibe tiene condiciones, pero todavía no está. Si lo quemo ahora, lo perdemos. Démosle tiempo."`,
+    apply:()=>{const sl=getForm();let idx=sl.findIndex((s,i)=>s.pos!=='ARQ'&&posPenalty(joven.pos,s.pos)<=1);
+      if(idx<0)idx=sl.findIndex(s=>s.pos!=='ARQ');
+      if(idx>=0){G.slots[idx]=joven.id;G.bench=sq.filter(p=>!Object.values(G.slots).includes(p.id));}
+      joven._forced=true;joven.morale=Math.min(99,(joven.morale||70)+10);}});
+  if(fundido)d.push({id:'rotar',label:`😮‍💨 "Dale descanso a ${fundido.name}"`,
+    desc:`Está al ${Math.round(fundido.fit||100)}% de condición. Si sigue, se rompe.`,
+    resist:(fundido.rat>=80?0.3:0)+(pr.disc>0.8?-0.15:0),
+    argue:`"Lo necesito. Es el que me sostiene el equipo. Si lo saco, perdemos jerarquía en un partido clave."`,
+    apply:()=>{const k=Object.keys(G.slots).find(k=>G.slots[k]===fundido.id);
+      if(k!==undefined){const rep=sq.filter(p=>!Object.values(G.slots).includes(p.id)&&!p.injured&&!p.susp&&pgr(p.pos)===pgr(fundido.pos)).sort((a,b)=>b.rat-a.rat)[0];
+        if(rep){G.slots[k]=rep.id;G.bench=sq.filter(p=>!Object.values(G.slots).includes(p.id));}}}});
+  d.push({id:'cantera',label:'🧒 "Quiero más juveniles en el plantel"',
+    desc:'Que la cantera tenga lugar en primera.',
+    resist:(G.dt.trait==='Formador'?-0.35:0.2),
+    argue:`"Los pibes no ganan campeonatos solos. Si me llena el plantel de juveniles, no compito."`,
+    apply:()=>{G._youthPush=true;lg('🧒','El DT se compromete a darle lugar a la cantera');}});
+  return d;
+}
+function openDtTalk(){
+  if(!G||!G.dt)return;
+  const rel=(G.dtRel===undefined?65:G.dtRel), rl=dtRelLabel();
+  const ds=dtDemands();
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">💬 Reunión con ${G.dt.name}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div>${rb(G.dt.rat)}</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--t2)">${G.dt.style} · ${G.dt.trait}</div>
+        <div style="font-size:10px;color:${rl.c}">${rl.e} Relación ${rl.t} (${rel})</div>
+      </div>
+    </div>
+    <div class="note" style="margin-bottom:8px">${G.dt.philosophy?`<em>"${G.dt.philosophy}"</em>`:''}<br><br>
+      Planteale lo que querés. <b>No siempre va a decir que sí</b>: si le pedís algo contrario a su idea de juego, te lo va a discutir.</div>
+    ${ds.map((x,i)=>`<div onclick="dtAskFor(${i})" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px;margin-bottom:6px;cursor:pointer"
+      onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)'">
+      <div style="font-size:11px;color:var(--tx);font-weight:600">${x.label}</div>
+      <div style="font-size:9px;color:var(--t3);margin-top:2px">${x.desc}</div>
+    </div>`).join('')}
+  `);
+}
+function dtAskFor(i){
+  const ds=dtDemands(), x=ds[i]; if(!x)return;
+  window._dtPending=x.id;
+  const rel=(G.dtRel===undefined?65:G.dtRel);
+  // Cuanto peor la relación y más grande el técnico, más te discute
+  const ego=((G.dt.rat||75)-70)/100;
+  const chance=Math.max(0.05,Math.min(0.95,0.78-(x.resist||0)-ego*0.9+(rel-60)/220));
+  if(Math.random()<chance){
+    x.apply&&x.apply();
+    setDtRel(2);
+    updateUI();
+    showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🤝 ${G.dt.name} aceptó</div>
+      <div class="note" style="margin:8px 0"><em>"Me parece bien, presidente. Lo vamos a trabajar así."</em></div>
+      <div class="sr"><span class="sl">Relación con el DT</span><span class="sv" style="color:var(--green)">+2</span></div>
+      <button class="btn bg" style="width:100%;margin-top:10px" onclick="closeMod()">Listo</button>`);
+    lg('🤝',`${G.dt.name} aceptó tu pedido: ${x.label.replace(/^[^"]*"/,'').replace(/"$/,'')}`);
+    return;
+  }
+  // TE RETRUCA: podés aflojar o imponerte
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">😠 ${G.dt.name} no está de acuerdo</div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px;margin:8px 0">
+      <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:5px">🎙️ ${G.dt.name} responde:</div>
+      <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${x.argue}</div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:7px">¿Qué hacés?</div>
+    <div onclick="dtResolve(${i},'ceder')" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;font-size:11px;color:var(--t2)">
+      "Tenés razón, vos sos el técnico. Manejalo como quieras."
+      <div style="font-size:9px;color:var(--green);margin-top:3px">Relación con el DT +6 · No se aplica el cambio</div>
+    </div>
+    <div onclick="dtResolve(${i},'imponer')" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;font-size:11px;color:var(--t2)">
+      "Le agradezco, pero acá decido yo. Hágalo."
+      <div style="font-size:9px;color:var(--red);margin-top:3px">Se aplica el cambio · Relación −14 · Moral del plantel −2</div>
+    </div>
+    <div onclick="dtResolve(${i},'charlar')" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;cursor:pointer;font-size:11px;color:var(--t2)">
+      "Pensalo y lo hablamos la semana que viene."
+      <div style="font-size:9px;color:var(--t3);margin-top:3px">Sin cambios · Podés volver a intentarlo</div>
+    </div>`);
+}
+function dtResolve(i,how){
+  const ds=dtDemands(), x=ds[i]; if(!x){closeMod();return;}
+  if(how==='ceder'){
+    setDtRel(6);
+    lg('🤝',`Le diste libertad a ${G.dt.name} para manejarlo a su manera`);
+    flash('🤝 El DT valora tu respaldo','win');
+  } else if(how==='imponer'){
+    x.apply&&x.apply();
+    setDtRel(-14);
+    G.morale=Math.max(0,G.morale-2);
+    lg('📢',`Le impusiste tu decisión a ${G.dt.name}`);
+    addPhoneMsg('board',G.dt.name,`😤 Presidente, acato la orden porque usted manda. Pero quiero que quede claro que no estoy de acuerdo y que la responsabilidad del resultado no es mía.`,'👔');
+    flash('📢 Impusiste tu decisión — el DT quedó dolido','loss');
+  } else {
+    flash('Quedó para charlarlo la semana que viene','draw');
+  }
+  closeMod();updateUI();
+}
+
 // ═══ RELACIÓN CON EL DT ═══
 // Como presidente, tu vínculo con el técnico es una variable en sí misma:
 // bancarlo en público lo fortalece, dejarlo solo lo desgasta. Si se rompe,
@@ -4265,7 +4393,10 @@ function rStaff(){
     <div style="font-size:10px;color:var(--green);margin-top:4px">✦ ${(DT_TRAIT_FX[G.dt.trait]||{fx:'Sin bono especial'}).fx}</div>
     <div style="font-size:9px;color:var(--t3);margin-top:6px;font-family:'Rajdhani';text-transform:uppercase">Perfil táctico (se ve en la simulación)</div>
     ${dtProfBars(G.dt)}
-    <button class="btn bR bs" style="margin-top:7px" onclick="fireDT()">🚪 Despedir</button>
+    <div style="display:flex;gap:5px;margin-top:7px">
+      <button class="btn bg bs" style="flex:1" onclick="openDtTalk()">💬 Hablar con el DT</button>
+      <button class="btn bR bs" style="flex:1" onclick="fireDT()">🚪 Despedir</button>
+    </div>
   `;
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const sl = G.staffLevels;
@@ -13670,9 +13801,67 @@ function weeklyDtMoves(){
   }
 }
 
+// ═══ EL DT TE HABLA ═══
+// No espera a que le preguntes: te cuenta cómo ve al equipo, te pide cosas
+// y te marca lo que no le gusta. Lo que dice sale de la situación real.
+function weeklyDtVoice(){
+  if(!G||!G.dt)return;
+  if(Math.random()>0.45)return;
+  const dt=G.dt, rel=(G.dtRel===undefined?65:G.dtRel), sq=G.squad||[];
+  const xi=Object.values(G.slots||{}).filter(Boolean);
+  const last3=G.calendar.filter(m=>m.played).slice(-3).map(m=>m.result);
+  const mal=last3.length>=2&&last3.filter(r=>r==='L').length>=2;
+  const bien=last3.length>=2&&last3.every(r=>r==='W');
+  const msgs=[];
+  // Pide un refuerzo donde más le falta
+  const grp=['ARQ','DEF','MED','DEL'].map(g=>({g,n:sq.filter(p=>pgr(p.pos)===g).length,
+    avg:(()=>{const a=sq.filter(p=>pgr(p.pos)===g);return a.length?a.reduce((s,p)=>s+p.rat,0)/a.length:0;})()}));
+  const flojo=grp.filter(x=>x.n>0).sort((a,b)=>a.avg-b.avg)[0];
+  const nombreG={ARQ:'un arquero',DEF:'un defensor',MED:'un mediocampista',DEL:'un delantero'};
+  if(flojo&&isTransferWindowOpen())msgs.push(`Presidente, si me quiere ayudar de verdad, necesito <b>${nombreG[flojo.g]}</b>. Es la línea que más floja tengo y se nota en la cancha.`);
+  // Se queja de la condición física del plantel
+  const fundidos=sq.filter(p=>xi.includes(p.id)&&(p.fit===undefined?100:p.fit)<70);
+  if(fundidos.length>=3)msgs.push(`Tengo ${fundidos.length} titulares por debajo del 70% de condición. O rotamos, o en dos fechas se me rompe alguno.`);
+  // Un juvenil lo sorprendió
+  const joya=sq.filter(p=>p.age<=21&&(p.pot||p.rat)-p.rat>=8).sort((a,b)=>(b.pot||0)-(a.pot||0))[0];
+  if(joya&&Math.random()<0.5)msgs.push(`Le quiero comentar algo: <b>${joya.name}</b> me está sorprendiendo en los entrenamientos. Si le damos minutos, en un año lo tenemos hecho.`);
+  // Suspendidos / lesionados
+  const bajas=sq.filter(p=>p.susp>0||p.injured);
+  if(bajas.length>=3)msgs.push(`Estoy con ${bajas.length} bajas entre lesionados y suspendidos. Voy a tener que improvisar, se lo aviso antes de que lo lea en el diario.`);
+  // Estado de ánimo según la racha y la relación
+  if(mal&&rel<50)msgs.push(`Sé que se habla de mi puesto. Solo le pido que si va a tomar una decisión, me la diga a mí primero y no a la prensa.`);
+  else if(mal)msgs.push(`No estamos bien, lo sé. Le pido tiempo: el equipo entrena bien y esto se va a dar vuelta.`);
+  if(bien)msgs.push(`El grupo está enchufado. Si sostenemos esto, nos metemos arriba. Gracias por bancar en los momentos feos.`);
+  if(rel>=80&&Math.random()<0.4)msgs.push(`Quería agradecerle el respaldo público. Para un técnico, saber que el presidente te banca vale más que cualquier refuerzo.`);
+  if(!msgs.length)return;
+  addPhoneMsg('board',dt.name,'👔 '+msgs[~~(Math.random()*msgs.length)],'👔');
+}
+
 // Mensajes semanales entrantes (jugadores/DT le escriben al presidente)
 function weeklyChats(){
   ensureChats();
+  weeklyDtVoice();
+  // ═══ PEDIDOS CONCRETOS DE LOS JUGADORES ═══
+  // Renovación al que se le vence el contrato y anda bien; reclamo de minutos
+  // del que no juega. Ahora que existe p.rendim, se puede pedir con fundamento.
+  const yr=G.season||2026;
+  const wantRenew=G.squad.filter(p=>p.contract&&p.contract<=yr+1&&!p.wantsOut&&!p._askedRenew&&(p.rendim===undefined||p.rendim>-0.2));
+  if(wantRenew.length&&Math.random()<0.45){
+    const p=wantRenew[~~(Math.random()*wantRenew.length)];
+    p._askedRenew=true;
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them',`Presidente, se me vence el contrato en ${p.contract}. Estoy cómodo acá y me gustaría seguir, pero necesito saber si el club cuenta conmigo. ¿Podemos sentarnos a renovar?`);
+    addPhoneMsg('player',p.name,`📄 Se le vence el contrato en <b>${p.contract}</b> y pide renovar. Si lo deja llegar al final, lo perdés sin plata.`,'📄');
+  }
+  const wantMinutes=G.squad.filter(p=>p.rendim!==undefined&&p.rendim<=-0.4&&p.rat>=72&&!p.wantsOut&&!p._askedMin&&(p.age||26)<=31);
+  if(wantMinutes.length&&Math.random()<0.4){
+    const p=wantMinutes[~~(Math.random()*wantMinutes.length)];
+    p._askedMin=true;
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them',`Presidente, no vine a este club para mirar los partidos desde el banco. Le pido que hable con el técnico, o voy a tener que pensar en irme.`);
+    addPhoneMsg('player',p.name,`🪑 <b>${p.name}</b> (${p.rat}) reclama minutos: casi no juega y se está oxidando. Si no juega, va a pedir salir.`,'🪑');
+    p.morale=Math.max(0,(p.morale||70)-4);
+  }
   // Jugador descontento
   const unhappy=G.squad.filter(p=>(p.morale||70)<45&&!p.wantsOut);
   if(unhappy.length&&Math.random()<0.5){
