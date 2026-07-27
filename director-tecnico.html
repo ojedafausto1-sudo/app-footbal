@@ -844,16 +844,22 @@ const PERF_ADJ = {
   'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
 };
 function perfAdj(name){ return PERF_ADJ[name]||0; }
-function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored) {
+function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm) {
   const rat = (rat_override > 0) ? Math.min(91,rat_override)
     : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
   const pot = Math.max(rat, valToPot(val, age, pos));
+  // El vencimiento de contrato viene de la base real cuando está disponible
+  // (lo usa todo el mercado: precontratos, libres, descuentos por poco vínculo).
+  // Si la base no lo trae, se estima: a los cracks les quedan más años.
+  const cUntil = (contractUntil && contractUntil >= 2026) ? contractUntil
+    : 2026 + (rat>=80 ? 2+~~(Math.random()*2) : ~~(Math.random()*3));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
     val, rat, wage:wage||~~(rat*.4), pot,
     perf:1, // multiplicador de rendimiento sobre el valor (0.75–1.30)
     morale:65+~~(Math.random()*25),
-    contract:2026+~~(Math.random()*3),
+    contract:cUntil,
+    height:heightCm||0,
     goals:0, assists:0, apps:0,
     attrs:genA(pos,rat), injured:false
   };
@@ -1027,7 +1033,7 @@ function squadFromDB(clubName, fallbackFn, overrides){
     let num=r[0];
     while(used.has(num)&&num<50)num++;
     used.add(num);
-    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0);
+    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10]);
     if(r[8])pl.foot=r[8];
     return pl;
   });
@@ -1057,7 +1063,8 @@ function buildMkt(){
   // ═══ BASE DE DATOS EXTRAÍDA (players-db.js): 15.000 jugadores reales de 23 ligas ═══
   if(window.PLAYERS_DB && Array.isArray(PLAYERS_DB)){
     for(const r of PLAYERS_DB){
-      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0);
+      // r[9]=año de vencimiento de contrato, r[10]=altura en cm (si la base los trae)
+      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10]);
       if(r[8])pl.foot=r[8];
       m.push(pl);
     }
@@ -2197,7 +2204,7 @@ function pressConfAnswer(moraleDelta,confDelta,fansDelta,dtRelDelta){
 // a discutir — y ahí decidís si aflojás o si le imponés la orden
 // (que la cumple, pero te odia un poco más).
 // ═══════════════════════════════════════════════════════════════
-function dtDemands(){
+function dtAskList(){
   const pr=dtProfile(G.dt), sq=G.squad||[];
   const xi=Object.values(G.slots||{}).filter(Boolean);
   const joven=sq.filter(p=>p.age<=21&&!xi.includes(p.id)&&!p.injured&&!p.susp).sort((a,b)=>(b.pot||b.rat)-(a.pot||a.rat))[0];
@@ -2242,7 +2249,7 @@ function dtDemands(){
 function openDtTalk(){
   if(!G||!G.dt)return;
   const rel=(G.dtRel===undefined?65:G.dtRel), rl=dtRelLabel();
-  const ds=dtDemands();
+  const ds=dtAskList();
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">💬 Reunión con ${G.dt.name}</div>
@@ -2263,7 +2270,7 @@ function openDtTalk(){
   `);
 }
 function dtAskFor(i){
-  const ds=dtDemands(), x=ds[i]; if(!x)return;
+  const ds=dtAskList(), x=ds[i]; if(!x)return;
   window._dtPending=x.id;
   const rel=(G.dtRel===undefined?65:G.dtRel);
   // Cuanto peor la relación y más grande el técnico, más te discute
@@ -2303,7 +2310,7 @@ function dtAskFor(i){
     </div>`);
 }
 function dtResolve(i,how){
-  const ds=dtDemands(), x=ds[i]; if(!x){closeMod();return;}
+  const ds=dtAskList(), x=ds[i]; if(!x){closeMod();return;}
   if(how==='ceder'){
     setDtRel(6);
     lg('🤝',`Le diste libertad a ${G.dt.name} para manejarlo a su manera`);

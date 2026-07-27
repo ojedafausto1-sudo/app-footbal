@@ -734,6 +734,13 @@ async function extractTM(selected) {
           apps: parseInt(p.appearances || p.matches) || 0,
           marketVal: parseMarketVal(p.marketValue || p.value || p.currentMarketValue || ''),
           number: parseInt(p.shirtNumber || p.number || p.jerseyNumber) || 0,
+          // ═══ VENCIMIENTO DE CONTRATO ═══
+          // El juego lo necesita de verdad: define si un jugador se abarata,
+          // si se le puede firmar un precontrato o si queda libre. Hasta ahora
+          // se inventaba al azar.
+          contractUntil: parseContractYear(p.contract || p.contractUntil || p.contractExpiryDate || p.contractExpires || ''),
+          // Altura: sirve para el juego aéreo (cabezazos, córners)
+          heightCm: parseHeight(p.height || p.heightCm || ''),
           foot: String(footRaw||'').toLowerCase().includes('izq')||String(footRaw||'').toLowerCase().includes('left')?'izq':String(footRaw||'').toLowerCase().includes('der')||String(footRaw||'').toLowerCase().includes('right')?'der':String(footRaw||'').toLowerCase().includes('both')||String(footRaw||'').toLowerCase().includes('ambi')?'ambi':'',
           playerId: p.id || p.playerId || ''
         });
@@ -890,6 +897,25 @@ function mapPos(pos) {
   return 'MC';
 }
 
+// Año de vencimiento del contrato. Transfermarkt lo manda en varios formatos
+// ("Jun 30, 2027", "2027-06-30", "30.06.2027"): sacamos el año.
+function parseContractYear(v) {
+  if (!v) return 0;
+  if (typeof v === 'object') v = v.until || v.date || v.expires || '';
+  const s = String(v);
+  const m = s.match(/(20\d{2})/);
+  return m ? parseInt(m[1]) : 0;
+}
+// Altura en cm ("1,85 m" / "185 cm" / 185)
+function parseHeight(v) {
+  if (!v) return 0;
+  const s = String(v).replace(',', '.');
+  const m = s.match(/(\d+\.?\d*)/);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  return n < 3 ? Math.round(n * 100) : Math.round(n);
+}
+
 function mapNat(nat) {
   const n = String(nat || '').toLowerCase();
   const map = {
@@ -906,7 +932,7 @@ function mapNat(nat) {
     'austria':'AUT','switzerland':'SUI','poland':'POL','czech republic':'CZE',
     'czechia':'CZE','scotland':'ESC','wales':'GAL','ireland':'IRL',
     'costa rica':'CRC','honduras':'HON','jamaica':'JAM','canada':'CAN',
-    'australia':'AUS','new zealand':'NZL','ukraine':'UCR','algeria':'ARG_DZ',
+    'australia':'AUS','new zealand':'NZL','ukraine':'UCR','algeria':'ALG',
     'tunisia':'TUN','mali':'MAL','guinea':'GUI','gabon':'GAB',
     'democratic republic of congo':'COD','slovenia':'SVN','slovakia':'SVK',
     'hungary':'HUN','romania':'RUM','greece':'GRE','georgia':'GEO',
@@ -925,15 +951,38 @@ function mapNat(nat) {
     'daenemark':'DIN','schweden':'SUE','norwegen':'NOR','österreich':'AUT',
     'oesterreich':'AUT','schweiz':'SUI','polen':'POL','tschechien':'CZE',
     'schottland':'ESC','irland':'IRL','kanada':'CAN','australien':'AUS',
-    'neuseeland':'NZL','algerien':'ARG_DZ','tunesien':'TUN','slowenien':'SVN',
+    'neuseeland':'NZL','algerien':'ALG','tunesien':'TUN','slowenien':'SVN',
     'slowakei':'SVK','ungarn':'HUN','rumänien':'RUM','rumaenien':'RUM',
     'georgien':'GEO','nordmazedonien':'MKD','albanien':'ALB',
     'bosnien-herzegowina':'BIH','bosnien und herzegowina':'BIH',
     'finnland':'FIN','katar':'QAT','saudi-arabien':'ARB','island':'ISL',
     'kap verde':'CPV','dominikanische republik':'DOM','wales':'GAL'
   };
+  // 1) Coincidencia EXACTA primero. Antes se buscaba por "includes" en el orden
+  //    del objeto y eso daba errores feos: "Somalia" contiene "mali" → MAL,
+  //    "Malta" contiene "malta"→ no, pero caía en MAL por el fallback, y
+  //    "Northern Ireland" contenía "ireland" → IRL (es otra selección).
+  if (map[n]) return map[n];
+  // 2) Casos especiales que el includes resolvía mal
+  const EXACT = {
+    'somalia':'SOM','malta':'MLT','china':'CHN','chinese taipei':'TPE',
+    'northern ireland':'NIR','nordirland':'NIR',
+    'guinea-bissau':'GNB','guinea bissau':'GNB','equatorial guinea':'GNQ',
+    'republic of ireland':'IRL','angola':'ANG','cape verde':'CPV',
+    'congo':'CGO','dr congo':'COD','uzbekistan':'UZB','armenia':'ARM',
+    'algeria':'ALG','algerien':'ALG','argelia':'ALG',
+    'south africa':'RSA','südafrika':'RSA','zambia':'ZAM','zimbabwe':'ZIM',
+    'burkina faso':'BFA','togo':'TOG','benin':'BEN','niger':'NIG_NE',
+    'new caledonia':'NCL','curacao':'CUW','curaçao':'CUW','suriname':'SUR',
+    'trinidad and tobago':'TRI','haiti':'HAI','guatemala':'GUA',
+    'nicaragua':'NCA','bulgaria':'BUL','belarus':'BLR','lithuania':'LTU',
+    'latvia':'LVA','estonia':'EST','moldova':'MDA','luxembourg':'LUX',
+    'cyprus':'CYP','faroe islands':'FRO','kazakhstan':'KAZ','azerbaijan':'AZE',
+  };
+  if (EXACT[n]) return EXACT[n];
+  // 3) Recién ahora, coincidencia parcial (pero exigiendo palabra completa)
   for (const [key, val] of Object.entries(map)) {
-    if (n === key || n.includes(key)) return val;
+    if (new RegExp('(^|[^a-z])' + key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '([^a-z]|$)').test(n)) return val;
   }
   return nat ? nat.slice(0, 3).toUpperCase() : 'UNK';
 }
@@ -983,7 +1032,7 @@ function generateOutput() {
       }
     }
 
-    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado\n';
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm\n';
     let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
     for (const p of unique) {
@@ -995,11 +1044,19 @@ function generateOutput() {
       const val = p.marketVal || 1;
       const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
 
-      js += `  a(${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},0,0);\n`;
-      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val}\n`;
+      // El formato de players-db.js suma contrato y altura al final:
+      // [num,nombre,pos,edad,nac,club,liga,valorM,pie,contratoHasta,alturaCm]
+      const foot = p.foot || 'der';
+      const cUntil = p.contractUntil || 0;
+      const hCm = p.heightCm || 0;
+      js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm}],\n`;
+      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val},${cUntil||''},${hCm||''}\n`;
     }
 
     js += `  // Total: ${unique.length} jugadores extraidos\n`;
+    const conContrato = unique.filter(p=>p.contractUntil).length;
+    const conAltura = unique.filter(p=>p.heightCm).length;
+    log(`Contratos con fecha: ${conContrato}/${unique.length} · Alturas: ${conAltura}/${unique.length}`);
 
     document.getElementById('output').value = js;
     window._csvData = csv;
