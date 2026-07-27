@@ -1533,7 +1533,8 @@ function weeklyYouth(){
   const hasStaff=y.upgrades.some(u=>u.id==='yt'&&u.built);
   const hasScouts=y.upgrades.some(u=>u.id==='ys'&&u.built);
   // Desarrollo semanal (staff especializado + instalaciones aceleran; la personalidad modula)
-  const spd=(lvl+1+(hasStaff?1:0))*facilityTrainMult();
+  const _yfx=facilityFx();
+  const spd=(lvl+1+(hasStaff?1:0))*facilityTrainMult()*_yfx.youthSpeed;   // academia/alto rendimiento/estadio auxiliar
   y.players.forEach(p=>{
     if(!p.person)p.person=randPerson();
     const pm=(YOUTH_PERSONS[p.person]||{dev:1}).dev;
@@ -1551,7 +1552,7 @@ function weeklyYouth(){
   }
   // Camada nueva cada 12 semanas (los ojeadores traen más y mejores)
   if(G.week%12===0&&y.players.length<18){
-    const n=1+~~(Math.random()*(hasScouts?3:2));
+    const n=1+~~(Math.random()*(hasScouts?3:2))+_yfx.youthIntake;   // la academia trae más pibes
     const fn=['Thiago','Mateo','Luca','Agustín','Franco','Valentín','Ezequiel','Nicolás','Bruno','Ramiro','Benjamín','Bautista','Joaquín','Lautaro'];
     const ln=['González','López','Fernández','Rodríguez','Martínez','García','Torres','Herrera','Pérez','Díaz','Acosta','Molina','Cabrera','Ojeda'];
     const poss=['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC'];
@@ -3671,6 +3672,58 @@ function hasFacility(id){
   const st=(G.stadium&&G.stadium.upgrades)||[];
   return st.some(u=>u.built&&u.id===id);
 }
+// Etiqueta concreta de lo que da cada obra (para verlo ANTES de gastar la plata)
+function facilityFxLabel(id,eff){
+  const M={
+    tunnel:'⚡ +1.2% de ventaja jugando de local',
+    fanzone:'⚡ +0.8% de local · +4 reputación',
+    roof:'⚡ +0.4% de local · +1.0M por partido',
+    residence:'💚 +0.9 de moral por semana',
+    recovery:'💚 +0.4 moral/sem · recuperás condición más rápido',
+    gym:'💪 Menos desgaste físico en la temporada',
+    store:'💰 +0.10M por semana',
+    megastore:'💰 +0.22M por semana',
+    hotel:'💰 +0.18M por semana',
+    solar:'📉 −0.45M de gastos operativos por mes',
+    security:'📉 −0.20M de gastos por mes · +2 reputación',
+    academy:'🧒 +1 juvenil por camada · cantera +12% más rápida',
+    highperf:'🧒 +1 juvenil por camada · cantera +25% · −18% lesiones',
+    aux:'🧒 Cantera +18% más rápida',
+    press:'📣 Los sponsors pagan +6%',
+    museum:'📣 Los sponsors pagan +5% · +3 reputación',
+    medical:'🏥 −30% de lesiones',
+    lab:'🏥 −12% de lesiones',
+    hybrid:'🏥 −12% de lesiones',
+    ct:'📈 +9% de desarrollo del plantel',
+  };
+  if(M[id])return M[id];
+  if(eff&&eff.startsWith('inc+'))return '💰 +'+eff.split('+')[1]+'M por partido de local';
+  if(eff&&eff.startsWith('cap+'))return '🏟️ +'+Number(eff.split('+')[1]).toLocaleString('es')+' butacas';
+  if(eff&&eff.startsWith('rep+'))return '⭐ +'+eff.split('+')[1]+' de reputación';
+  return '';
+}
+
+// ═══ EFECTOS REALES DE LAS INSTALACIONES ═══
+// Varias obras estaban sólo de adorno: sumaban un bonus genérico y su
+// descripción prometía cosas que el juego no aplicaba. Acá cada una hace
+// exactamente lo que dice.
+function facilityFx(){
+  return {
+    // Vestuarios y túnel nivel Champions: intimida al rival de visita
+    homeEdge : (hasFacility('tunnel')?0.012:0)+(hasFacility('fanzone')?0.008:0)+(hasFacility('roof')?0.004:0),
+    // Residencia y crioterapia: el plantel llega más entero y con mejor ánimo
+    moraleWk : (hasFacility('residence')?0.9:0)+(hasFacility('recovery')?0.4:0),
+    // Cantera: más camadas y mejores juveniles
+    youthIntake: (hasFacility('academy')?1:0)+(hasFacility('highperf')?1:0),
+    youthSpeed : 1+(hasFacility('aux')?0.18:0)+(hasFacility('academy')?0.12:0)+(hasFacility('highperf')?0.25:0),
+    // Comercial: tienda y megatienda dejan plata todas las semanas
+    weeklyInc: (hasFacility('store')?0.10:0)+(hasFacility('megastore')?0.22:0)+(hasFacility('hotel')?0.18:0),
+    // Energía propia y accesos digitales: bajan los gastos operativos
+    opsCut   : (hasFacility('solar')?0.45:0)+(hasFacility('security')?0.2:0),
+    // Prensa y museo: mejoran lo que pagan los sponsors
+    sponsorMul: 1+(hasFacility('press')?0.06:0)+(hasFacility('museum')?0.05:0),
+  };
+}
 // Desarrollo automático semanal de TODO el plantel hacia su potencial
 function weeklyTraining(){
   const intK=G.trainIntensity||'normal';
@@ -3953,6 +4006,7 @@ function rStad(){
           <div>
             <div style="font-weight:600;font-size:12px;font-family:'Rajdhani',sans-serif">${u.built?'✅ ':''} ${u.name}</div>
             <div style="font-size:10px;color:var(--t3);margin-top:1px">${u.desc}</div>
+            <div style="font-size:9px;color:var(--gold);margin-top:2px">${facilityFxLabel(u.id,u.eff)}</div>
           </div>
           <div style="font-size:12px;font-weight:600;color:${u.built?'var(--green)':'var(--gold)'};flex-shrink:0;margin-left:8px">${u.built?'Listo':'$'+u.cost+'M'}</div>
         </div>
@@ -6318,7 +6372,9 @@ function matchStrengths(m){
   oppRat += G.diff===2 ? 7 : G.diff===0 ? -7 : 0;
 
   // Home advantage
-  const homeBonus = m.home===myTeam ? 0.04 : -0.02;
+  // Las instalaciones del estadio pesan de local (vestuarios, fan zone, techo)
+  const _fx = facilityFx();
+  const homeBonus = m.home===myTeam ? (0.04+_fx.homeEdge) : -0.02;
 
   // Compute my strength and opponent strength on same scale
   // Los atributos DLS pesan: ataque y defensa reales del XI
@@ -6812,6 +6868,10 @@ function applyMatchResult(m, gf, ga, providedScorers){
       }
     });
   }
+  // ═══ LO QUE RINDEN LAS INSTALACIONES CADA SEMANA ═══
+  const _wfx=facilityFx();
+  if(_wfx.weeklyInc>0)G.budget=Math.round((G.budget+_wfx.weeklyInc)*10)/10;   // tienda, megatienda, hotel
+  if(_wfx.moraleWk>0)G.morale=Math.min(100,G.morale+_wfx.moraleWk);           // residencia, crioterapia
   weeklyOffers();
   weeklyChats();
   weeklyMarketEvolution();
@@ -6832,7 +6892,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // Gastos operativos del club: cuerpo técnico, inferiores, estadio, logística.
     // Sin esto el presupuesto sólo subía y la plata dejaba de ser un problema.
     const staffLv=Object.values(G.staffLevels||{}).reduce((a,v)=>a+(v||0),0);
-    const ops=Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035)*10)/10;
+    // Paneles solares y accesos digitales abaratan la operación del club
+    const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035-_wfx.opsCut)*10)/10);
     G.budget=Math.round((G.budget-wages+tv-ops)*10)/10;
     const neto=Math.round((tv-wages-ops)*10)/10;
     G.finLast={wages,tv,neto,wk,ops};
@@ -9871,11 +9932,22 @@ function fmBodyBall(p,b,team){
 function fmMove(body,dx,dy,dt,acc){
   const mg=Math.hypot(dx,dy)||1;
   if(dx||dy){dx/=mg;dy/=mg;}
-  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*body.spd*(acc||.085)*dt;
-  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*body.spd*(acc||.085)*dt;
-  const v=Math.hypot(body.vx,body.vy),vmax=body.spd*1.28;
+  // ═══ CANSANCIO ═══ El que corrió todo el partido llega con las piernas duras.
+  // body.stam va de 100 a ~55 y recorta velocidad y aceleración: por eso los
+  // partidos se abren en el final y el físico (FIS) de tus jugadores se nota.
+  const st=body.stam===undefined?100:body.stam;
+  const fatigue=0.72+0.28*(st/100);
+  const spd=body.spd*fatigue;
+  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*(acc||.085)*dt;
+  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*spd*(acc||.085)*dt;
+  const v=Math.hypot(body.vx,body.vy),vmax=spd*1.28;
   if(v>vmax){body.vx*=vmax/v;body.vy*=vmax/v;}
   body.x+=body.vx*dt;body.y+=body.vy*dt;
+  // Gastás según cuánto te movés; el aguante (FIS) define cuánto te dura
+  if(!body.isGK&&body.stam!==undefined){
+    const fis=(body.attrs&&body.attrs.FIS)||body.rat||70;
+    body.stam=Math.max(52,body.stam-v*dt*0.0036*(1.75-fis/80));
+  }
 }
 
 function startFullMatch(watch){
@@ -10050,6 +10122,9 @@ function fmInit(m,W,H){
       rat:Math.round(rat),attrs,
       num:(realP&&realP.num)||numFallback||0,
       spd:basePac,
+      // Arranca según la condición física REAL del jugador: si venís de jugar
+      // todos los partidos, salís a la cancha ya cansado.
+      stam:isGK?undefined:Math.max(62,Math.min(100,(realP&&realP.fit!==undefined)?realP.fit:100)),
     };
   };
   // === IA ADAPTATIVA: perfil persistente de cómo jugás ===
