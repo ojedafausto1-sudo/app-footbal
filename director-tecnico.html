@@ -780,6 +780,33 @@ function valToPot(val, age, pos){
 }
 
 // Badge de rating coloreado
+// Tendencia de mercado: si el jugador viene subiendo o bajando de cotización.
+// (p.mform es la racha que mueve semana a semana su media y su valor)
+function mktTrend(p){
+  const m=p&&p.mform;
+  if(m===undefined||Math.abs(m)<0.7)return '';
+  const up=m>0;
+  return `<span title="${up?'Viene subiendo: media y cotización en alza':'Viene bajando: pierde nivel y valor'}"
+    style="font-size:9px;margin-left:3px;color:${up?'var(--green)':'var(--red)'};cursor:help">${up?'▲':'▼'}</span>`;
+}
+
+// ═══ TENDENCIA DEL JUGADOR ═══
+// Ahora que la media sube o baja según el rendimiento, hay que poder VERLO:
+// esta insignia dice si el jugador está creciendo, estancado o apagándose,
+// y por qué (minutos, goles, edad).
+function trendBadge(p){
+  if(!p||p.rendim===undefined)return '';
+  const r=p.rendim, age=p.age||26, gap=(p.pot||p.rat)-p.rat;
+  let e,t,c;
+  if(r>=0.45&&gap>0){e='📈';t=`En alza — juega y rinde (techo ${p.pot})`;c='var(--green)';}
+  else if(r>=0.45&&gap<=0){e='⭐';t='En su mejor nivel — ya está en su techo';c='var(--gold)';}
+  else if(r<=-0.35&&age>=26){e='📉';t='Bajando — casi no juega y se está oxidando';c='var(--red)';}
+  else if(r<=-0.35){e='🪑';t='Sin minutos — no progresa';c='var(--ora)';}
+  else if(age>=32){e='⏳';t=`Veterano (${age}) — el paso del tiempo le pesa`;c='var(--ora)';}
+  else {e='➖';t='Estable';c='var(--t3)';}
+  return `<span title="${t}" style="font-size:10px;color:${c};cursor:help">${e}</span>`;
+}
+
 function rb(r) {
   const cl = r>=85?'rb-e':r>=80?'rb-a':r>=75?'rb-g':r>=70?'rb-b':'rb-s';
   return `<span class="rb ${cl}">${r}</span>`;
@@ -2370,6 +2397,41 @@ function rFormDots(){
     Array(Math.max(0,5-res.length)).fill('<span class="form-dot fd-n"></span>').join('');
 }
 
+// ═══ ESTADO DEL PLANTEL: lo que hay que mirar antes de que sea tarde ═══
+// Resume envejecimiento, contratos por vencer, gente sin minutos y lesionados.
+// Antes había que ir jugador por jugador para darse cuenta de estas cosas.
+function squadHealthPanel(){
+  if(!G||!G.squad||!G.squad.length)return '';
+  const sq=G.squad;
+  const avgAge=(sq.reduce((a,p)=>a+(p.age||26),0)/sq.length).toFixed(1);
+  const vets=sq.filter(p=>(p.age||0)>=32).length;
+  const kids=sq.filter(p=>(p.age||99)<=21).length;
+  const expiring=sq.filter(p=>p.contract&&p.contract<=G.season+1);
+  const benched=sq.filter(p=>p.rendim!==undefined&&p.rendim<=-0.35&&(p.age||0)>=26);
+  const inj=sq.filter(p=>p.injured).length;
+  const wage=Math.round(sq.reduce((a,p)=>a+(p.wage||0),0));
+  const cap=G.wageCap||0;
+  const capPct=cap?Math.round(wage/cap*100):0;
+  const chip=(ico,txt,col,tip)=>`<span title="${tip||''}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border:1px solid ${col};border-radius:20px;padding:2px 8px;font-size:9px;color:${col};cursor:help">${ico} ${txt}</span>`;
+  const items=[
+    chip('👥',`Edad media ${avgAge}`,avgAge>=29?'var(--ora)':avgAge<=24?'var(--gold)':'rgba(255,255,255,.18)',
+      avgAge>=29?'Plantel envejecido: hay que renovar':'Equilibrio de edades'),
+    vets?chip('⏳',`${vets} veterano${vets>1?'s':''} 32+`,'var(--ora)','Van a ir bajando de nivel: pensá el recambio'):'',
+    kids?chip('🌱',`${kids} juvenil${kids>1?'es':''}`,'var(--green)','Si juegan, crecen rápido'):'',
+    expiring.length?chip('📄',`${expiring.length} contrato${expiring.length>1?'s':''} por vencer`,'var(--red)',
+      expiring.slice(0,4).map(p=>p.name).join(', ')):'',
+    benched.length?chip('🪑',`${benched.length} sin minutos`,'var(--red)',
+      'Se están oxidando y pierden nivel: '+benched.slice(0,4).map(p=>p.name).join(', ')):'',
+    inj?chip('🏥',`${inj} lesionado${inj>1?'s':''}`,'var(--red)',''):'',
+    cap?chip('💵',`Masa salarial ${capPct}%`,capPct>=95?'var(--red)':capPct>=80?'var(--ora)':'var(--green)',
+      `${wage}k/sem de un tope de ${cap}k`):'',
+  ].filter(Boolean);
+  return `<div class="card" style="margin-bottom:8px;padding:8px">
+    <div class="ctitle" style="margin-bottom:5px">🩺 Estado del plantel</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${items.join('')}</div>
+  </div>`;
+}
+
 // =============================================
 // SQUAD
 // =============================================
@@ -2383,14 +2445,14 @@ function rSq(f){
     const o={ARQ:0,DEF:1,MED:2,DEL:3};
     return o[pgr(a.pos)]-o[pgr(b.pos)];
   });
-  el.innerHTML = pl.map(p=>`
+  el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
       <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
-      <div style="display:flex;align-items:center;gap:4px">${rb(p.rat)}${ageLabel(p.age)}</div>
+      <div style="display:flex;align-items:center;gap:4px">${rb(p.rat)}${trendBadge(p)}${ageLabel(p.age)}</div>
       <div class="cc">${p.contract}</div>
     </div>
   `).join('');
@@ -3096,7 +3158,7 @@ function renderMkt(){
       <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="font-size:9px;color:var(--t2)">${p.lg.split(' ')[0]}</div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
-      <div class="vc">${fv(p.val)}</div>
+      <div class="vc">${fv(p.val)}${mktTrend(p)}</div>
       <div>${rb(p.pot)}</div>
       <div style="display:flex;gap:3px">
         <button class="btn bg bs" onclick="event.stopPropagation();openNeg('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'}>🤝 Neg.</button>
@@ -8542,145 +8604,157 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
 }
 
 // ——— CENTRO AL ÁREA (vista de frente, estilo dkicker): timeá el cabezazo/volea ———
+// ═══ CENTRO AL ÁREA en cámara 3D (mismo motor que penal y tiro libre) ═══
+// El centro entra cruzando el área. Te movés para engancharlo y apretás Z
+// justo cuando te llega: si viene alto es CABEZAZO, si viene bajo es VOLEA.
+// La dirección sale de tu perfil respecto a la pelota (dónde le pegás).
 function sitSetupCorner(W,H,oR,mainP,pool){
   const s=SIT;
-  const g={x1:W*.20,x2:W*.80,barY:H*.16,groundY:H*.42};
-  s.g=g;
-  const cx=W/2;
+  const P={nearY:H*0.92, farY:H*0.14, nearHW:W*0.62, farHW:W*0.27, hUnit:H*0.32};
+  const proj=(wx,wz,wy)=>{
+    const t=wz<0?0:wz>1?1:wz;
+    const sc=1-0.63*t;
+    const gy=P.nearY+(P.farY-P.nearY)*t;
+    const hw=P.nearHW+(P.farHW-P.nearHW)*t;
+    return {x:W/2+wx*hw, y:gy-(wy||0)*P.hUnit*sc, sc};
+  };
+  s.proj=proj;
+  const GOAL_HW=0.60, BAR=0.84;
   s.label=`⚡ <span style="color:var(--gold)">¡CENTRO AL ÁREA!</span> ${mainP.name.split(' ').pop()} a definir`;
-  s.hint='← → (o joystick): acomodate bajo el centro · Z/toque cuando te llega: alto=cabezazo · bajo=volea';
-  const finish=(mainP.attrs&&Math.max(mainP.attrs.TIR||70,mainP.attrs.FIS||70))||mainP.rat||72;
-  s.finQ=finish;
-  // Zona del área donde se mueve el rematador (delante del arco)
-  const sy=g.groundY+(H-g.groundY)*0.44;
-  s.striker={x:cx,y:sy,r:13};
-  // Arquero en la línea
-  s.gk={x:cx,y:g.groundY-12,r:13,dive:0};
-  // 1-2 defensores en el área
-  s.defs=[{x:cx-46,y:g.groundY+(H-g.groundY)*0.26,r:12},{x:cx+52,y:g.groundY+(H-g.groundY)*0.30,r:12}];
-  // El centro viene de una banda y cruza el área
+  s.hint='← → (o joystick): enganchá el centro · Z/toque cuando te llega: alto=cabezazo · bajo=volea';
+  s.finQ=(mainP.attrs&&Math.max(mainP.attrs.TIR||70,mainP.attrs.FIS||70))||mainP.rat||72;
+  // El rematador se mueve por el área, a media profundidad
+  s.stWx=0; s.stWz=0.55;
+  // Arquero en la línea y 2 centrales marcando
+  s.gkWx=0; s.swayT=0;
+  s.defs=[{wx:-0.34,wz:0.74},{wx:0.30,wz:0.80}];
+  // El centro viene de una banda cruzando el área
   const fromRight=Math.random()>.5;
   s.fromRight=fromRight;
-  const bStartX=fromRight?W-8:8, bEndX=fromRight?W*0.30:W*0.70;
-  s.ball={x:bStartX,y:g.groundY+(H-g.groundY)*0.16,r:7};
-  s.crossT=0;s.crossDur=145+~~(Math.random()*40);   // más lento: te da tiempo a acomodarte
-  s.bPath={x0:bStartX,x1:bEndX,y0:s.ball.y,y1:sy+8};
-  s.phase='cross'; s.struck=false;
+  s.cross={x0:fromRight?1.30:-1.30, x1:fromRight?-0.55:0.55, z0:0.88, z1:0.42};
+  s.crossT=0; s.crossDur=118+~~(Math.random()*36);   // lento: te da tiempo a leerlo
+  s.ball={wx:s.cross.x0,wz:s.cross.z0,wy:0.30};
+  s.phase='cross'; s.struck=false; s.flightT=0;
+
   s.update=function(dt){
     const k=s.keys;
     if(s.phase==='cross'){
-      // el rematador se mueve con vos (izq/der) para acompañar el centro
       const dx=(k.right?1:0)-(k.left?1:0);
-      s.striker.x=sC(s.striker.x+dx*2.6*dt,g.x1-10,g.x2+10);
-      // vuelo del centro: cruza el área con un arco (sube y baja)
+      s.stWx=sC(s.stWx+dx*0.019*dt,-0.95,0.95);
       s.crossT+=dt;
       const f=Math.min(1,s.crossT/s.crossDur);
-      s.ball.x=s.bPath.x0+(s.bPath.x1-s.bPath.x0)*f;
-      s.ball.y=s.bPath.y0+(s.bPath.y1-s.bPath.y0)*f;
-      s.ballH=Math.sin(f*Math.PI); // 0..1 altura del arco (1=bien alto)
-      s.ball.r=6.5+s.ballH*3.5;
-      // arquero achica un poco siguiendo la pelota
-      s.gk.x=sC(s.gk.x+(cx+(s.ball.x-cx)*0.35-s.gk.x)*0.05*dt,g.x1+16,g.x2-16);
-      // ¿REMATÁS? apretás Z/toque cuando la pelota está cerca del rematador
-      const dBall=Math.hypot(s.striker.x-s.ball.x,s.striker.y-s.ball.y);
+      s.ball.wx=s.cross.x0+(s.cross.x1-s.cross.x0)*f;
+      s.ball.wz=s.cross.z0+(s.cross.z1-s.cross.z0)*f;
+      s.ballH=Math.sin(f*Math.PI);                    // 0..1 altura del arco del centro
+      s.ball.wy=0.16+s.ballH*0.62;
+      // el arquero achica siguiendo el centro
+      s.gkWx=sC(s.gkWx+((s.ball.wx*0.34)-s.gkWx)*0.05*dt,-0.42,0.42);
+      // los centrales acompañan
+      s.defs.forEach((d,i)=>{d.wx+=((s.ball.wx*(i?0.5:0.35))-d.wx)*0.03*dt;});
+      const dBall=Math.abs(s.stWx-s.ball.wx)+Math.abs(s.stWz-s.ball.wz)*0.7;
+      s.dBall=dBall;
       if((k.shoot||s._clickFire)&&!s.struck){
         s.struck=true;s._clickFire=false;
-        if(dBall<52 && f>0.15){
-          const timing=sC((52-dBall)/52,0,1);                 // qué tan justo llegaste
-          s.strikeType=s.ballH>0.45?'CABEZAZO':'VOLEA';
-          // ═══ POR PERFIL: la dirección depende de DÓNDE le pegás a la pelota ═══
-          // si la agarrás con tu cuerpo a la izquierda del balón, la mandás a la derecha, y viceversa.
-          // Además apuntás algo al palo lejos del arquero.
-          const perfil=(s.striker.x-s.ball.x)*-2.4;           // tu posición respecto a la pelota
-          const gkBias=(s.gk.x>=cx?-1:1)*(g.x2-g.x1)*0.10;    // un poco al palo libre
-          const base=cx+perfil+gkBias;
-          const errX=(1-timing)*(g.x2-g.x1)*0.30*(Math.random()*2-1)+(95-Math.min(95,s.finQ))*0.6*(Math.random()*2-1);
-          const tx=sC(base+errX,g.x1-20,g.x2+20);
-          const ty=g.barY+(g.groundY-g.barY)*(0.30+Math.random()*0.5);
-          s.target={x:tx,y:ty};s.scorer=mainP;
-          s.phase='shot';s.shotT=0;s.shotDur=20;
-          s.ballStart={x:s.ball.x,y:s.ball.y};
-          // el arquero adivina un palo (mejor si el rival es fuerte)
-          const reads=Math.random()<(0.30+(oR-62)*0.010);
-          s.gkDive={x:reads?tx+(Math.random()*2-1)*44:cx-(tx-cx)*(0.4+Math.random()*0.9), y:g.groundY-30-Math.random()*30};
-          s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=16+(oR-62)*0.42;
+        if(dBall<0.42&&f>0.18){
+          const timing=sC((0.42-dBall)/0.42,0,1);      // qué tan justo llegaste
+          s.strikeType=s.ball.wy>0.52?'CABEZAZO':'VOLEA';
+          // POR PERFIL: si la agarrás con el cuerpo a un lado, la mandás al otro
+          const perfil=(s.stWx-s.ball.wx)*-1.5;
+          // Cuanto MEJOR la enganchás, más lejos del arquero la colocás.
+          // (si sólo mirara el perfil, engancharla perfecto la mandaba al medio)
+          const gkBias=(s.gkWx>=0?-1:1)*(0.14+timing*0.34);
+          const err=(1-timing)*0.34*(Math.random()*2-1)+(95-Math.min(95,s.finQ))*0.006*(Math.random()*2-1);
+          s.txWx=sC(perfil+gkBias+err,-0.95,0.95)*GOAL_HW/0.6;
+          s.tyWy=sC((s.strikeType==='CABEZAZO'?0.30:0.22)+Math.random()*0.42,0,1.05);
           s.quality=timing;
-          fmSndKick && fmSndKick(0.7);
-        } else {
-          return sitEnd('miss'); // apretaste lejos de la pelota / muy pronto
-        }
+          s.phase='shot';s.flightT=0;s.dur=17;
+          s.startWx=s.ball.wx;s.startWz=s.ball.wz;s.startWy=s.ball.wy;
+          s.scorer=mainP;
+          // un cabezazo bien enganchado no lo saca ni leyéndolo
+          const reads=Math.random()<(0.26+(oR-62)*0.008)*(1-timing*0.45);
+          s.gkGuess=reads?sC(s.txWx*0.5,-0.45,0.45):(Math.random()*2-1)*0.38;
+          s.gkReach=0.13+(oR-62)*0.003;
+          s.gkDiveDir=s.gkGuess>=0?1:-1;
+          fmSndKick&&fmSndKick(0.75);
+        } else return sitEnd('miss');
       }
-      // si el centro pasa de largo sin rematar
-      if(f>=1 && !s.struck){
-        if(dBall<40){ // llegó al rematador pero no apretaste: cabezazo flojo automático
-          s.striker.x=s.ball.x;
-        } else return sitEnd('cleared'); // no llegaste: despeja la defensa
-      }
-    } else if(s.phase==='shot'){
-      s.shotT+=dt;
-      const f=Math.min(1,s.shotT/s.shotDur);
-      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f;
-      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*0.05;
-      s.ball.r=7-2*f;
-      // el arquero vuela
-      const gf=Math.min(1,s.shotT/(s.shotDur*0.9));
-      s.gk.x=s.gkStart.x+(s.gkDive.x-s.gkStart.x)*gf;
-      s.gk.y=s.gkStart.y+(s.gkDive.y-s.gkStart.y)*gf;
-      // ¿la ataja?
-      if(Math.hypot(s.gk.x-s.ball.x,s.gk.y-s.ball.y)<s.reach)return sitEnd('save');
-      if(f>=1){
-        const t=s.target;
-        // ¿entró entre los palos?
-        if(t.x>g.x1+6&&t.x<g.x2-6&&t.y>g.barY&&t.y<g.groundY){
-          // chance final segun timing + finalización
-          const pg=sC(0.45+s.quality*0.35+(s.finQ-64)/120,0.15,0.95);
-          if(Math.random()<pg)return sitEnd('goal');
-          return sitEnd('save');
-        }
-        return sitEnd('miss');
+      if(f>=1&&!s.struck)return sitEnd('cleared');     // pasó de largo: despeja la defensa
+    } else {
+      s.flightT+=dt;
+      const u=Math.min(1,s.flightT/s.dur);
+      s.ball.wx=s.startWx+(s.txWx-s.startWx)*u;
+      s.ball.wz=s.startWz+(1-s.startWz)*u;
+      s.ball.wy=s.startWy+(s.tyWy-s.startWy)*u+0.14*Math.sin(u*Math.PI);
+      if(u>=1){
+        if(Math.abs(s.txWx)>GOAL_HW-0.02||s.tyWy>BAR-0.02)return sitEnd('miss');
+        const cover=(s.gkReach||0.22)*(1-s.tyWy*0.4);
+        if(Math.abs((s.gkGuess||0)-s.txWx)<cover)return sitEnd('save');
+        const pg=sC(0.55+s.quality*0.32+(s.finQ-64)/150,0.25,0.97);
+        if(Math.random()<pg)return sitEnd('goal');
+        return sitEnd('save');
       }
     }
   };
+
   s.draw=function(ctx){
-    sitDrawGoalView(ctx,W,H,g);
-    // área grande (líneas)
-    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
-    ctx.strokeRect(g.x1-W*0.06,g.groundY,(g.x2-g.x1)+W*0.12,(H-g.groundY)*0.7);
-    const myKit=(typeof kitFor==='function')?kitFor(G.teamName):{c1:'#e84545',c2:'#fff'};
-    const figH=s.striker?s.striker.r*3.4:44;
-    // defensores (camiseta rival)
-    s.defs.forEach(d=>sitDrawFigure(ctx,d.x,d.y+d.r,figH*0.95,'#2b6fd6','#fff',{run:0}));
-    // arquero (buzo amarillo, vuela en el remate)
-    sitDrawFigure(ctx,s.gk.x,s.gk.y+s.gk.r,figH*0.98,'#e0c020','#222',{label:'GK',dive:s.phase==='shot',diveDir:(s.gkDive&&s.gkDive.x<s.gk.x?-1:1)});
-    // rematador (vos) — corre y encara la pelota
-    if(s.phase!=='shot'&&s.striker){
-      const face=Math.sign(s.ball.x-s.striker.x)||1;
-      sitDrawFigure(ctx,s.striker.x,s.striker.y+s.striker.r,figH,myKit.c1,'#fff',{run:(s.t*0.14)%1,face,isCtrl:true,label:(mainP.name.split(' ').pop()||'').slice(0,7)});
+    ctx.fillStyle='#2a8037';ctx.fillRect(0,0,W,H);
+    const sky=ctx.createLinearGradient(0,0,0,P.farY+H*0.05);
+    sky.addColorStop(0,'#0a1622');sky.addColorStop(1,'#1a3a54');ctx.fillStyle=sky;ctx.fillRect(0,0,W,P.farY+H*0.02);
+    ctx.fillStyle='#12202c';ctx.fillRect(0,P.farY-H*0.05,W,H*0.07);
+    for(let i=0;i<12;i++){
+      const z0=i/12,z1=(i+1)/12;
+      const a=proj(-2.6,z0,0),b=proj(2.6,z0,0),c=proj(2.6,z1,0),d=proj(-2.6,z1,0);
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
+      ctx.fillStyle=i%2?'#2f8f3e':'#2a8037';ctx.fill();
     }
-    // pelota con sombra según altura del arco
-    if(s.phase!=='shot'){
-      ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(s.ball.x,s.ball.y+10+(s.ballH||0)*12,7,3,0,0,7);ctx.fill();
-    }
-    ctx.beginPath();ctx.arc(s.ball.x,s.ball.y,s.ball.r,0,7);
-    const bg=ctx.createRadialGradient(s.ball.x-2,s.ball.y-2,1,s.ball.x,s.ball.y,s.ball.r);
-    bg.addColorStop(0,'#fff');bg.addColorStop(1,'#c8c8c8');ctx.fillStyle=bg;ctx.fill();
-    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=2;
+    [-1.15,1.15].forEach(wx=>{const a=proj(wx,0.30,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
+    const ln=proj(-1.15,0.30,0),rn=proj(1.15,0.30,0);ctx.beginPath();ctx.moveTo(ln.x,ln.y);ctx.lineTo(rn.x,rn.y);ctx.stroke();
+    // arco
+    const lb=proj(-GOAL_HW,1,0),lt=proj(-GOAL_HW,1,BAR),rt=proj(GOAL_HW,1,BAR),rb=proj(GOAL_HW,1,0);
+    ctx.fillStyle='rgba(255,255,255,.05)';
+    ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=1;
+    for(let i=1;i<8;i++){const t=i/8;const a=proj(-GOAL_HW+2*GOAL_HW*t,1,0),b=proj(-GOAL_HW+2*GOAL_HW*t,1,BAR);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    for(let i=1;i<4;i++){const t=i/4;const a=proj(-GOAL_HW,1,BAR*t),b=proj(GOAL_HW,1,BAR*t);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
+    // arquero
+    const gp=proj(s.gkWx,0.965,0);
+    sitDrawFigure(ctx,gp.x,gp.y,66*gp.sc,'#e0c020','#222',{label:'GK',dive:s.phase==='shot'&&s.flightT>2,diveDir:s.gkDiveDir||1});
+    // defensores
+    const rkit=kitFor(LM.rival);
+    s.defs.forEach((d,i)=>{const dp=proj(d.wx,d.wz,0);
+      sitDrawFigure(ctx,dp.x,dp.y,64*dp.sc,rkit.c1,'#fff',{hair:i%2?'#2a1a0e':'#3a2415'});});
+    // rematador (vos)
+    const mkit=kitFor(LM.myName);
+    const sp2=proj(s.stWx,s.stWz,0);
+    sitDrawFigure(ctx,sp2.x,sp2.y,70*sp2.sc,mkit.c1,'#fff',
+      {run:s.phase==='cross'?(s.t*0.06)%1:(s.flightT*0.2)%1,face:1,isCtrl:s.phase==='cross',
+       label:mainP.name.split(' ').pop().slice(0,7)});
+    // pelota + sombra
+    const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sh=proj(s.ball.wx,s.ball.wz,0);
+    ctx.beginPath();ctx.ellipse(sh.x,sh.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();
+    const br=Math.max(2.6,9.5*bp.sc);
+    ctx.beginPath();ctx.arc(bp.x,bp.y,br,0,7);
+    const bg=ctx.createRadialGradient(bp.x-br*.35,bp.y-br*.38,br*.1,bp.x,bp.y,br);
+    bg.addColorStop(0,'#fff');bg.addColorStop(.6,'#e6e6e6');bg.addColorStop(1,'#b2b2b2');ctx.fillStyle=bg;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
     if(s.phase==='cross'){
-      const dBall=Math.hypot(s.striker.x-s.ball.x,s.striker.y-s.ball.y);
-      if(dBall<62){
-        const cl=sC((62-dBall)/62,0,1);
-        ctx.fillStyle=`rgba(246,211,24,${0.5+cl*0.5})`;ctx.font=`bold ${13+~~(cl*8)}px Rajdhani,sans-serif`;
-        ctx.textAlign='center';ctx.textBaseline='bottom';
-        ctx.fillText(s.ballH>0.45?'⚡ ¡CABEZAZO!':'⚡ ¡VOLEA!',s.striker.x,s.striker.y-24);
+      // aviso de remate cuando la tenés a tiro
+      if((s.dBall||9)<0.5){
+        const cl=sC((0.5-s.dBall)/0.5,0,1);
+        ctx.fillStyle=`rgba(246,211,24,${0.5+cl*0.5})`;
+        ctx.font=`bold ${14+~~(cl*10)}px Rajdhani,sans-serif`;ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillText(s.ball.wy>0.52?'⚡ ¡CABEZAZO!':'⚡ ¡VOLEA!',sp2.x,sp2.y-72*sp2.sc);
       }
-      // CONTADOR DE TIEMPO (estilo dkicker)
+      // reloj del centro
       const f=Math.min(1,s.crossT/s.crossDur);
-      const left=Math.max(0,(s.crossDur-s.crossT)/30);
-      ctx.fillStyle='#F6D318';ctx.font='bold 20px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-      ctx.fillText('TIME: '+left.toFixed(1),W/2,8);
-      ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(W/2-70,H-16,140,7);
-      ctx.fillStyle='#F6D318';ctx.fillRect(W/2-70,H-16,140*(1-f),7);
+      ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(W/2-72,H-20,144,8);
+      ctx.fillStyle='#F6D318';ctx.fillRect(W/2-72,H-20,144*(1-f),8);
+      ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 11px Rajdhani,sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText('TIME: '+(Math.max(0,(s.crossDur-s.crossT))/60).toFixed(1),W/2,H-24);
     }
     sitDrawHint(ctx,W,H,s.hint);
   };
