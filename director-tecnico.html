@@ -1549,6 +1549,115 @@ function weeklyYouth(){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// LIGA PROFESIONAL ARGENTINA — formato real (Apertura + Clausura)
+// 30 clubes en 2 zonas de 15. Cada zona juega todos contra todos
+// (14 fechas) + 1 interzonal. Los 8 primeros de cada zona pasan a
+// octavos y se define por eliminación directa hasta la final.
+// TODOS los clubes tienen fixture propio y juegan en paralelo:
+// los resultados de las otras canchas salen fecha a fecha.
+// ═══════════════════════════════════════════════════════════════
+const AR_CLUBS=['Boca Juniors','River Plate','Racing Club','Independiente','San Lorenzo',
+  'Vélez Sarsfield','Estudiantes LP','Rosario Central','CA Talleres','Lanús',
+  'Huracán','Argentinos Jrs.','Banfield',"Newell's",'Belgrano',
+  'Instituto ACC','Central Córdoba','Barracas C.','Defensa','Tigre',
+  'Platense','Unión Santa Fe','Atl. Tucumán','Sarmiento Junin','Aldosivi',
+  'Ind. Rivadavia','Dep. Riestra','Godoy Cruz','Gimnasia','San Martín (SJ)'];
+
+function _shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// Reparte los 30 clubes en 2 zonas de 15 (tu club siempre entra)
+function arBuildZones(teamName){
+  const pool=AR_CLUBS.includes(teamName)?[...AR_CLUBS]:[teamName,...AR_CLUBS.slice(0,29)];
+  const rest=_shuf(pool.filter(c=>c!==teamName));
+  const A=[teamName,...rest.slice(0,14)];
+  const B=rest.slice(14,29);
+  return {A:_shuf(A),B};
+}
+
+// Round-robin (método del círculo) con localía ALTERNADA.
+// Antes el fixture ponía TODOS los partidos de local primero y después
+// todos de visitante; ahora vas alternando fecha a fecha como en la vida real.
+function arRoundRobin(teams){
+  const t=[...teams];
+  if(t.length%2)t.push(null);                    // bye: con 15 equipos uno queda libre
+  const n=t.length, raw=[];
+  for(let r=0;r<n-1;r++){
+    const pairs=[];
+    for(let i=0;i<n/2;i++){
+      const h=t[i], a=t[n-1-i];
+      if(h&&a) pairs.push([h,a]);
+    }
+    raw.push(pairs);
+    t.splice(1,0,t.pop());                        // rota fijando el primero
+  }
+  // ═══ BALANCEO DE LOCALÍA ═══
+  // El método del círculo por sí solo deja rachas larguísimas (jugabas 9 de
+  // local seguidos). Acá se elige la orientación de cada partido para que
+  // nadie encadene 3 fechas seguidas en la misma condición y para que al
+  // final todos tengan más o menos la mitad de partidos en casa.
+  const last={},streak={},hc={},ac={};
+  const rounds=raw.map(pairs=>pairs.map(([x,y])=>{
+    const cost=(h,a)=>{
+      let c=0;
+      if(last[h]==='H')c+=(streak[h]||0)>=2?12:3;
+      if(last[a]==='A')c+=(streak[a]||0)>=2?12:3;
+      c+=Math.max(0,(hc[h]||0)-(ac[h]||0))*2;    // el que ya jugó mucho de local, afuera
+      c+=Math.max(0,(ac[a]||0)-(hc[a]||0))*2;
+      return c;
+    };
+    const [h,a]=cost(x,y)<=cost(y,x)?[x,y]:[y,x];
+    streak[h]=last[h]==='H'?(streak[h]||0)+1:1; streak[a]=last[a]==='A'?(streak[a]||0)+1:1;
+    last[h]='H'; last[a]='A'; hc[h]=(hc[h]||0)+1; ac[a]=(ac[a]||0)+1;
+    return [h,a];
+  }));
+  return rounds;
+}
+
+// Genera el fixture COMPLETO de un torneo (Apertura o Clausura) para los 30 clubes
+function arBuildTournament(zones,phase,startWeek){
+  const label=phase==='apertura'?'Apertura':'Clausura';
+  const fx=[];
+  const rA=arRoundRobin(zones.A), rB=arRoundRobin(zones.B);
+  const nR=Math.max(rA.length,rB.length);
+  for(let r=0;r<nR;r++){
+    const wk=startWeek+r;
+    (rA[r]||[]).forEach(([h,a])=>fx.push({week:wk,comp:'Liga Profesional',phase,zone:'A',fecha:r+1,home:h,away:a,played:false,result:null,score:null}));
+    (rB[r]||[]).forEach(([h,a])=>fx.push({week:wk,comp:'Liga Profesional',phase,zone:'B',fecha:r+1,home:h,away:a,played:false,result:null,score:null}));
+  }
+  // Fecha interzonal: cada club de A enfrenta a uno de B (los clásicos primero)
+  const wkInter=startWeek+nR;
+  const CLASICOS={'Boca Juniors':'River Plate','Racing Club':'Independiente','San Lorenzo':'Huracán',
+    'Rosario Central':"Newell's",'Estudiantes LP':'Gimnasia','Lanús':'Banfield'};
+  const usedA=new Set(),usedB=new Set();
+  Object.entries(CLASICOS).forEach(([x,y])=>{
+    const inA=zones.A.includes(x)?x:zones.A.includes(y)?y:null;
+    const inB=zones.B.includes(x)?x:zones.B.includes(y)?y:null;
+    if(inA&&inB&&!usedA.has(inA)&&!usedB.has(inB)){
+      usedA.add(inA);usedB.add(inB);
+      const homeFirst=phase==='apertura';
+      fx.push({week:wkInter,comp:'Liga Profesional',phase,zone:'INT',fecha:nR+1,
+        home:homeFirst?inA:inB,away:homeFirst?inB:inA,played:false,result:null,score:null});
+    }
+  });
+  const restA=_shuf(zones.A.filter(c=>!usedA.has(c))), restB=_shuf(zones.B.filter(c=>!usedB.has(c)));
+  restA.forEach((h,i)=>{const a=restB[i];if(!a)return;
+    fx.push({week:wkInter,comp:'Liga Profesional',phase,zone:'INT',fecha:nR+1,
+      home:i%2===0?h:a,away:i%2===0?a:h,played:false,result:null,score:null});});
+  return {fixtures:fx,fechas:nR+1,lastWeek:wkInter,label};
+}
+
+// Pasa a G la liga generada por el último buildCal (que corre antes de existir G)
+function arAttachLeague(){
+  const L=buildCal._league;if(!L||!G)return;
+  G.arZones=L.zones;
+  G.arFix=L.fixtures;
+  G.arPhases=L.phases;
+  G.arPlayoff=null;G.arLastRound=[];
+  G.libPotRivals=buildCal._libPotRivals||[];
+  G.league=null;                    // se reconstruye con los 30 clubes
+}
+
 function buildCal(teamName, teamId){
   teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
   function shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -1567,17 +1676,50 @@ function buildCal(teamName, teamId){
     ['Cerro Porteño','PAR'],['Colo-Colo','CHI'],['U. Católica','CHI'],['Alianza Lima','PER'],
     ['Millonarios','COL'],['Dep. Cali','COL'],['The Strongest','BOL'],['Sporting Cristal','PER']
   ];
-  const libG = shuf(libPool).slice(0,4);
+  // ═══ SORTEO REAL DE LA LIBERTADORES (por bombos) ═══
+  // Antes el grupo salía de una lista mezclada y la fase final tenía siempre
+  // los mismos 5 rivales: te cruzabas con los mismos todas las temporadas.
+  // Ahora hay 4 bombos por jerarquía y sale UN rival de cada uno.
+  const LIB_POTS=[
+    [['Flamengo','BRA'],['Palmeiras','BRA'],['River Plate','ARG'],['Boca Juniors','ARG'],['Atlético Mineiro','BRA']],
+    [['Botafogo','BRA'],['Internacional','BRA'],['Nacional (URU)','URU'],['Peñarol','URU'],['Racing Club','ARG'],['Fluminense','BRA'],['São Paulo','BRA']],
+    [['LDU Quito','ECU'],['Olimpia','PAR'],['Cerro Porteño','PAR'],['Colo-Colo','CHI'],['Alianza Lima','PER'],['Millonarios','COL'],['Atlético Nacional','COL'],['Estudiantes LP','ARG']],
+    [['U. Católica','CHI'],['Dep. Cali','COL'],['The Strongest','BOL'],['Sporting Cristal','PER'],['Bolívar','BOL'],['Always Ready','BOL'],['Talleres','ARG'],['Libertad','PAR']]
+  ];
+  const libDraw=()=>{
+    const used=new Set([teamName]);
+    return LIB_POTS.map(pot=>{
+      const opts=shuf(pot.filter(([n])=>!used.has(n)));
+      const pick=opts[0]||pot[0];
+      used.add(pick[0]);
+      return pick;
+    });
+  };
+  const drawn=libDraw();
+  const libG = drawn.slice(1);                    // 3 rivales de grupo (bombos 2-4)
+  buildCal._libPotRivals=drawn.map(d=>d[0]);      // guardado para el sorteo de octavos
   const caFinalRivals = shuf(['Racing Club','River Plate','Independiente','San Lorenzo','Boca Juniors'].filter(t=>t!==teamName));
   const caFinalRival = caFinalRivals[0] || 'Racing Club';
   const caPool=['Almagro','Tigre','Quilmes','Atlanta','Chacarita','Brown de Adrogué','All Boys','Villa Dálmine','Temperley','Tristán Suárez','Sacachispas','Comunicaciones','Deportivo Morón','Los Andes','Almirante Brown'];
   const caOpps = shuf(caPool).slice(0,3).concat([caFinalRivals[1]||'San Lorenzo']);
   const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF'];
   const sch = [];
-  lr.forEach((r,i) => {
-    sch.push({week:i+1,  comp:'Liga Profesional', home:teamName, away:r, played:false,result:null,score:null});
-    sch.push({week:i+20, comp:'Liga Profesional', home:r, away:teamName, played:false,result:null,score:null});
-  });
+  // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
+  const zones=arBuildZones(teamName);
+  const ap=arBuildTournament(zones,'apertura',1);
+  const cl=arBuildTournament(zones,'clausura',ap.lastWeek+5);   // hueco para los playoffs del Apertura
+  const allFix=[...ap.fixtures,...cl.fixtures];
+  // buildCal corre DENTRO del literal que crea G, así que G todavía no existe:
+  // se deja en la función y initGame lo levanta después (ver arAttachLeague).
+  buildCal._league={zones,fixtures:allFix,
+    phases:{apertura:{start:1,last:ap.lastWeek,fechas:ap.fechas},
+            clausura:{start:cl.lastWeek-cl.fechas+1,last:cl.lastWeek,fechas:cl.fechas}}};
+  if(typeof G==='object'&&G)arAttachLeague();
+  // Mis partidos van al calendario (el resto los juega la liga en paralelo)
+  allFix
+    .filter(f=>f.home===teamName||f.away===teamName)
+    .forEach(f=>sch.push({week:f.week,comp:'Liga Profesional',phase:f.phase,zone:f.zone,fecha:f.fecha,
+      home:f.home,away:f.away,played:false,result:null,score:null}));
   const resolvedTeamId = teamId || (G&&G.teamId) || 'boca';
   const tc=TEAMS[resolvedTeamId];
   const qualifiesLib=(tc&&tc.initRep>=72)||!!(G&&G.qualifiedLib);
@@ -1612,19 +1754,23 @@ function genLibKO(){
   const gsMes = G.calendar.filter(m=>m.comp==='Copa Libertadores - Grupos'&&m.played);
   let gsP = 0;
   gsMes.forEach(m=>{ if(m.result==='W') gsP+=3; else if(m.result==='D') gsP+=1; });
-  const qualified = gsP >= 7; // Need at least 7 pts to qualify
+  const qualified = gsP >= Math.max(6,Math.round(gsMes.length*1.15)); // ~mitad de los puntos
   if(!qualified){
-    lg('📋',tn+' no clasificó a octavos de Libertadores');
+    lg('📋',`${tn} no clasificó a octavos de Libertadores (${gsP} pts)`);
     flash('Eliminados de la Libertadores en grupos','loss');
     return;
   }
-  // Add KO matches — avoid using the selected team as a rival
-  const allRivals = [['Atlético MG','BRA'],['River Plate','ARG'],['Fluminense','BRA'],['Palmeiras','BRA'],['Nacional (URU)','URU']];
-  const rivals = allRivals.filter(r=>r[0]!==tn);
-  const r8 = rivals[~~(Math.random()*rivals.length)][0];
-  const r4 = rivals.filter(r=>r[0]!==r8)[~~(Math.random()*Math.max(1,rivals.length-1))][0];
-  const rFOpts = ['Palmeiras','Racing Club','Olimpia'].filter(r=>r!==tn);
-  const rF = rFOpts[~~(Math.random()*rFOpts.length)];
+  // ═══ SORTEO DE LA FASE FINAL ═══
+  // Antes los rivales salían siempre de la misma lista de 5 clubes: te cruzabas
+  // con Palmeiras y River todas las temporadas. Ahora hay un bolillero amplio y
+  // cada ronda saca un rival distinto (sin repetir, y sin cruzarte a vos mismo).
+  const KO_POOL=['Flamengo','Palmeiras','Atlético Mineiro','Botafogo','Internacional','Fluminense',
+    'São Paulo','River Plate','Racing Club','Estudiantes LP','Nacional (URU)','Peñarol',
+    'LDU Quito','Olimpia','Cerro Porteño','Colo-Colo','Alianza Lima','Millonarios',
+    'Atlético Nacional','Bolívar','Libertad','Sporting Cristal'];
+  const bolillero=_shuf(KO_POOL.filter(r=>r!==tn));
+  const r8=bolillero[0], r4=bolillero[1], rF=bolillero[2];
+  lg('🎲',`Sorteo de octavos de Libertadores: ${tn} vs ${r8}`);
   // Find next available weeks
   const usedWeeks = new Set(G.calendar.map(m=>m.week));
   const nextW = (from) => { let w=from; while(usedWeeks.has(w)) w++; usedWeeks.add(w); return w; };
@@ -1783,6 +1929,7 @@ function initGame(teamId){
     })(),
     pressConfDone: false,
   };
+  arAttachLeague();          // zonas + fixture de los 30 clubes (buildCal corrió sin G)
   G.stadium.name = tc.stadName;
   G.stadium.capacity = tc.stadCap;
   G.stadium.income = tc.stadInc;
@@ -3473,21 +3620,38 @@ function weeklyTraining(){
   G.squad.forEach(p=>{
     ensureAttrs(p);
     if(p.dev===undefined)p.dev=0;
-    // ═══ DECLIVE DE LOS VETERANOS ═══
+    // ═══ EL RENDIMIENTO MANDA ═══
+    // rf: qué tan bien viene jugando (−1 malo .. +1 excelente). Sale de si es
+    // titular, de sus goles y de su estado de forma. Un crack que no juega se
+    // estanca y baja; un pibe que juega y la rompe pega el salto.
+    const played=p.apps||0;
+    const totalW=Math.max(1,G.week||1);
+    const share=Math.min(1.3,played/Math.max(1,totalW*0.75));   // 1 = jugó casi todo
+    const isXI=Object.values(G.slots||{}).includes(p.id);
+    const gRate=played?(p.goals||0)/played:0;
+    const scoreBonus=pgr(p.pos)==='DEL'?gRate*1.6:pgr(p.pos)==='MED'?gRate*2.4:gRate*3.2;
+    let rf=(share-0.55)*1.5 + Math.min(0.6,scoreBonus) + ((p.form||0)*0.09) + (isXI?0.12:-0.12);
+    rf=Math.max(-1,Math.min(1,rf));
+    p.rendim=Math.round(rf*100)/100;                            // visible para la UI
+    // ═══ DECLIVE: por edad, PERO acelerado o frenado por el rendimiento ═══
     // Antes un jugador sólo podía SUBIR: al llegar a su techo quedaba congelado
-    // para siempre y un plantel viejo nunca se desgastaba. Ahora, pasados los 30,
-    // se va apagando de a poco (el preparador físico lo frena).
-    if(p.age>=31){
+    // para siempre y un plantel viejo nunca se desgastaba.
+    const declineAge=p.age>=31;
+    const badSpell=rf<-0.35&&p.age>=26;                          // suplente crónico: se oxida
+    if(declineAge||badSpell){
       if(p.decl===undefined)p.decl=0;
       const fitCoach=1-((G.staffLevels&&G.staffLevels.fitness)||0)*0.12;
-      p.decl+=(p.age>=35?1.5:p.age>=33?1.0:0.6)*Math.max(0.4,fitCoach);
+      let d=declineAge?(p.age>=35?1.5:p.age>=33?1.0:0.6):0;
+      if(badSpell)d+=0.55;                                       // no juega → pierde nivel
+      d*=Math.max(0.25,1-rf*0.75);                               // rindiendo bien, se frena
+      p.decl+=d*Math.max(0.4,fitCoach);
       if(p.decl>=10){
         p.decl=0;
         p.rat=Math.max(52,p.rat-1);
         p.val=calcVal(p);
         if(p.rat<=(p.pot||99)-6&&!p._declNoted&&p.rat>=70){
           p._declNoted=true;
-          addPhoneMsg('board','Cuerpo Técnico',`📉 Presidente, <b>${p.name}</b> (${p.age} años) viene bajando su rendimiento: ya está en <b>${p.rat}</b>. Habría que pensar en un recambio.`,'📉');
+          addPhoneMsg('board','Cuerpo Técnico',`📉 Presidente, <b>${p.name}</b> (${p.age} años) viene bajando su rendimiento: ya está en <b>${p.rat}</b>. ${badSpell?'Casi no juega y se está oxidando.':'Habría que pensar en un recambio.'}`,'📉');
         }
       }
     }
@@ -3496,7 +3660,9 @@ function weeklyTraining(){
     if(gap<=0)return;
     let ageMul=p.age<=20?1.6:p.age<=23?1.25:p.age<=27?0.7:p.age<=31?0.35:0.12;
     if(p.age<=21&&ycLv)ageMul*=(1+ycLv*0.2);
-    const gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr;
+    // El rendimiento multiplica el crecimiento: sin minutos casi no progresás
+    const perfMul=Math.max(0.12,1+rf*1.15);
+    const gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr*perfMul;
     p.dev+=gain;
     // Subir un punto de foco al atributo elegido cuando acumula
     if(foc.attr&&p.dev>=6){
@@ -5001,7 +5167,33 @@ function rStand(){
       <span style="text-align:center;font-weight:700;font-size:11px">${t.pts}</span>
     </div>`;
   const hdrHtml=`<div style="display:grid;grid-template-columns:14px 18px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;padding:2px 4px;font-size:8px;color:var(--t3);font-family:'Rajdhani';text-transform:uppercase;margin-bottom:2px"><span></span><span>#</span><span>Club</span><span>PJ</span><span style="color:var(--green)">G</span><span style="color:var(--gold)">E</span><span style="color:var(--red)">P</span><span>DIF</span><span>PTS</span></div>`;
-  el.innerHTML=hdrHtml+tbl.slice(0,16).map((t,i)=>rowHtml(t,i,zc)).join('');
+  // ═══ FORMATO REAL: dos zonas de 15, los 8 primeros de cada una a playoffs ═══
+  if(G.arZones){
+    const zcut=i=>i<8?'#0fb866':'transparent';
+    const myZ=arZoneOf(tn);
+    const zoneHtml=(z)=>{
+      const rows=arZoneTable(z).map(r=>({c:r.club,pts:r.pts,pj:r.pj,w:r.g,d:r.e,l:r.p,gf:r.gf,ga:r.gc,dif:r.gf-r.gc}));
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-family:'Rajdhani';font-size:11px;font-weight:800;color:${z===myZ?'var(--gold)':'var(--t2)'};letter-spacing:.06em">ZONA ${z}${z===myZ?' · tu zona':''}</span>
+          <span style="font-size:8px;color:var(--green)">▌ los 8 pasan a playoffs</span>
+        </div>
+        ${hdrHtml}${rows.map((t,i)=>rowHtml(t,i,zcut)).join('')}
+      </div>`;
+    };
+    const ph=G.arPlayoff?`<div class="note" style="margin-bottom:8px">🏆 <b>Playoffs del Torneo ${G.arPlayoff.phase==='apertura'?'Apertura':'Clausura'}</b> — instancia: <b style="color:var(--gold)">${G.arPlayoff.round}</b></div>`:'';
+    const lastR=(G.arLastRound||[]).slice(0,10);
+    const live=lastR.length?`<div class="card" style="margin-bottom:9px"><div class="ctitle">📋 Resultados de la fecha</div>
+      ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
+        <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${sn(r.h)}</span>
+        <span style="color:var(--gold);font-weight:700;min-width:26px;text-align:center">${r.s}</span>
+        <span style="flex:1;overflow:hidden;white-space:nowrap">${sn(r.a)}</span>
+        ${r.zone?`<span style="font-size:8px;color:var(--t3);min-width:14px">${r.zone}</span>`:''}
+      </div>`).join('')}</div>`:'';
+    el.innerHTML=ph+zoneHtml('A')+zoneHtml('B')+live;
+  } else {
+    el.innerHTML=hdrHtml+tbl.slice(0,16).map((t,i)=>rowHtml(t,i,zc)).join('');
+  }
 
   // Copa Libertadores / Sudamericana group standings
   const copaCard=document.getElementById('standCopaCard');
@@ -5451,9 +5643,16 @@ function clubPower(club){
 function ensureLeague(){
   if(G.league&&G.league.season===G.season)return;
   const tn=G.teamName||'Boca Juniors';
-  const rivals=[...new Set(G.calendar.filter(m=>m.comp==='Liga Profesional').map(m=>m.home===tn?m.away:m.home))];
-  G.league={season:G.season,clubs:[tn,...rivals],table:{},scorers:{},lastRound:[]};
+  // Con el formato de 2 zonas la liga son los 30 clubes, no sólo tus rivales
+  const clubs=(G.arZones)?[...G.arZones.A,...G.arZones.B]
+    :[tn,...new Set(G.calendar.filter(m=>m.comp==='Liga Profesional').map(m=>m.home===tn?m.away:m.home))];
+  G.league={season:G.season,clubs,table:{},scorers:{},lastRound:[]};
   G.league.clubs.forEach(c=>G.league.table[c]={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0});
+}
+// Zona de un club (para las tablas separadas del Apertura/Clausura)
+function arZoneOf(club){
+  if(!G.arZones)return null;
+  return G.arZones.A.includes(club)?'A':G.arZones.B.includes(club)?'B':null;
 }
 function tallyLeague(A,B,ga,gb){
   const T=G.league.table;
@@ -5474,32 +5673,98 @@ function creditScorers(club,n){
     if(p)p.goals=(p.goals||0)+1;
   }
 }
-// Simula la fecha completa: los otros 18 clubes juegan entre sí
-function simLeagueRound(rivalPlayed){
+// ═══ LA FECHA SE JUEGA EN PARALELO ═══
+// Antes se emparejaba a los otros clubes AL AZAR cada fecha: no seguían un
+// fixture, podían enfrentarse dos veces seguidas y la tabla no era coherente.
+// Ahora cada club tiene sus partidos reales y se juegan los de ESTA fecha.
+function arSimPair(A,B){
+  // Marcador por goles esperados según la fuerza real de cada plantel
+  const pa=clubPower(A)+2.0, pb=clubPower(B);      // +2 de localía
+  const d=(pa-pb)/26;
+  const xgA=Math.max(0.25,1.35+d*3.2), xgB=Math.max(0.25,1.35-d*3.0);
+  const pois=(lam)=>{let L=Math.exp(-lam),k=0,p=1;do{k++;p*=Math.random();}while(p>L);return k-1;};
+  return [Math.min(6,pois(xgA)),Math.min(6,pois(xgB))];
+}
+function simLeagueRound(rivalPlayed,weekOverride){
   ensureLeague();
-  const others=G.league.clubs.filter(c=>c!==G.teamName&&c!==rivalPlayed);
-  const sh=[...others].sort(()=>Math.random()-0.5);
+  const wk=weekOverride!==undefined?weekOverride:G.week;
   const results=[];
-  for(let i=0;i+1<sh.length;i+=2){
-    const A=sh[i],B=sh[i+1];
-    const d=((clubPower(A)+2)-clubPower(B))/14; // leve localía para A
-    const pWin=Math.max(0.15,Math.min(0.75,0.37+d));
-    const r=Math.random();
-    let ga,gb;
-    if(r<pWin){ga=1+~~(Math.random()*3);gb=~~(Math.random()*ga);}
-    else if(r<pWin+0.28){ga=gb=~~(Math.random()*3);}
-    else{gb=1+~~(Math.random()*3);ga=~~(Math.random()*gb);}
-    tallyLeague(A,B,ga,gb);
-    creditScorers(A,ga);creditScorers(B,gb);
-    results.push({h:A,a:B,s:ga+'-'+gb});
+  if(G.arFix&&G.arFix.length){
+    // Juega la fecha completa de las dos zonas (menos tu partido, que ya jugaste)
+    G.arFix.filter(f=>!f.played&&f.week<=wk&&f.home!==G.teamName&&f.away!==G.teamName)
+      .forEach(f=>{
+        const [ga,gb]=arSimPair(f.home,f.away);
+        f.played=true;f.score=ga+'-'+gb;
+        f.result=ga>gb?'H':ga===gb?'D':'A';
+        tallyLeague(f.home,f.away,ga,gb);
+        creditScorers(f.home,ga);creditScorers(f.away,gb);
+        results.push({h:f.home,a:f.away,s:ga+'-'+gb,zone:f.zone,fecha:f.fecha});
+      });
+    // Marca como jugado el partido tuyo en el fixture global
+    G.arFix.filter(f=>!f.played&&f.week<=wk&&(f.home===G.teamName||f.away===G.teamName))
+      .forEach(f=>{
+        const mine=G.calendar.find(m=>m.played&&m.comp==='Liga Profesional'&&m.week===f.week&&m.home===f.home&&m.away===f.away);
+        if(mine&&mine.score){f.played=true;f.score=mine.score;
+          const [h,a]=mine.score.split('-').map(Number);
+          f.result=h>a?'H':h===a?'D':'A';}
+      });
+  } else {
+    const others=G.league.clubs.filter(c=>c!==G.teamName&&c!==rivalPlayed);
+    const sh=[...others].sort(()=>Math.random()-0.5);
+    for(let i=0;i+1<sh.length;i+=2){
+      const A=sh[i],B=sh[i+1];
+      const [ga,gb]=arSimPair(A,B);
+      tallyLeague(A,B,ga,gb);
+      creditScorers(A,ga);creditScorers(B,gb);
+      results.push({h:A,a:B,s:ga+'-'+gb});
+    }
   }
   G.league.lastRound=results;
+  G.arLastRound=results;
 }
 function leagueSorted(){
   ensureLeague();
   return Object.entries(G.league.table)
     .sort((a,b)=>b[1].pts-a[1].pts||( b[1].gf-b[1].gc)-(a[1].gf-a[1].gc)||b[1].gf-a[1].gf)
     .map(([club,row],i)=>({pos:i+1,club,...row}));
+}
+// Tabla de UNA zona (así se ordena el Apertura/Clausura de verdad)
+function arZoneTable(z){
+  ensureLeague();
+  if(!G.arZones)return [];
+  const clubs=z==='A'?G.arZones.A:G.arZones.B;
+  return clubs.map(c=>({club:c,...(G.league.table[c]||{pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0})}))
+    .sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf)
+    .map((r,i)=>({pos:i+1,...r}));
+}
+// ═══ PLAYOFFS: los 8 primeros de cada zona, cruzados A1-B8, A2-B7... ═══
+function arStartPlayoff(phase){
+  if(!G.arZones)return;
+  if(G.arPlayoff&&G.arPlayoff.phase===phase)return;
+  const A=arZoneTable('A').slice(0,8), B=arZoneTable('B').slice(0,8);
+  if(A.length<8||B.length<8)return;
+  const ties=[];
+  for(let i=0;i<8;i++){
+    ties.push({home:A[i].club,away:B[7-i].club,seedH:`A${i+1}`,seedA:`B${8-i}`});
+    ties.push({home:B[i].club,away:A[7-i].club,seedH:`B${i+1}`,seedA:`A${8-i}`});
+  }
+  // 16 clasificados → 8 llaves de octavos (cruce clásico entre zonas)
+  const bracket=[];
+  for(let i=0;i<8;i++)bracket.push({home:A[i].club,away:B[7-i].club});
+  G.arPlayoff={phase,round:'Octavos',ties:bracket,alive:[...A.map(r=>r.club),...B.map(r=>r.club)],champion:null};
+  const label=phase==='apertura'?'Apertura':'Clausura';
+  const meIn=G.arPlayoff.alive.includes(G.teamName);
+  lg('🏆',`Playoffs del Torneo ${label}: clasificaron los 8 de cada zona`);
+  if(meIn){
+    const my=bracket.find(t=>t.home===G.teamName||t.away===G.teamName);
+    addPhoneMsg('board','Secretaría del Club',`🏆 ¡Clasificamos a los playoffs del Torneo ${label}! En octavos nos toca <b>${my?(my.home===G.teamName?my.away:my.home):'—'}</b>.`,'🏛️');
+    // Se agrega la llave al calendario para que la juegues
+    const wk=G.week+1;
+    if(my)G.calendar.push({week:wk,comp:`Liga Profesional - ${label} Octavos`,home:my.home,away:my.away,played:false,result:null,score:null});
+    G.calendar.sort((a,b)=>a.week-b.week);
+  } else {
+    addPhoneMsg('board','Comisión Directiva',`😞 No clasificamos a los playoffs del Torneo ${label}. Quedamos afuera de la pelea por el título.`,'🏛️');
+  }
 }
 function myLeaguePos(){
   const t=leagueSorted().find(r=>r.club===G.teamName);
@@ -5905,6 +6170,7 @@ function nextSeason(){
   // La CD fija el tope salarial de la nueva temporada
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   G.calendar = buildCal(G.teamName);
+  arAttachLeague();          // zonas y fixture nuevos para la temporada que arranca
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
   G.offers = genOffers();
   G.tourney = buildTourney();
@@ -6055,6 +6321,45 @@ function matchStrengths(m){
   return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
 }
 
+// ═══ AVANCE EN LOS PLAYOFFS DEL APERTURA / CLAUSURA ═══
+// Partido único por ronda: Octavos → Cuartos → Semifinal → Final.
+// El resto del cuadro se juega en paralelo, así que siempre tenés rival.
+function arAdvancePlayoff(m,res){
+  const P=G.arPlayoff;if(!P)return;
+  const label=P.phase==='apertura'?'Apertura':'Clausura';
+  const order=['Octavos','Cuartos','Semifinal','Final'];
+  const cur=order.find(r=>m.comp.includes(r));
+  if(!cur)return;
+  const rival=m.home===G.teamName?m.away:m.home;
+  if(res==='L'||(res==='D'&&Math.random()<0.5)){        // empate → penales
+    lg('❌',`Eliminados en ${cur.toLowerCase()} del Torneo ${label} ante ${rival}`);
+    flash(`❌ Eliminados en ${cur.toLowerCase()} del ${label}`,'loss');
+    G.boardConf=Math.max(0,(G.boardConf||50)-(cur==='Final'?6:4));
+    G.arPlayoff=null;return;
+  }
+  if(cur==='Final'){
+    lg('🏆',`¡${G.teamName} CAMPEÓN del Torneo ${label} ${G.season}!`);
+    flash(`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}!`,'win');
+    G.rep=Math.min(100,(G.rep||50)+7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
+    (G.trophies=G.trophies||[]).push({name:`Torneo ${label}`,season:G.season});
+    addPhoneMsg('board','Comisión Directiva',`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}, PRESIDENTE! Una gestión histórica.`,'🏛️');
+    G.arPlayoff=null;return;
+  }
+  // Pasa de ronda: se sortea el próximo rival entre los que siguen vivos
+  const next=order[order.indexOf(cur)+1];
+  const alive=(P.alive||[]).filter(c=>c!==G.teamName&&c!==rival);
+  const opp=alive.length?alive[~~(Math.random()*alive.length)]:'River Plate';
+  P.alive=alive.filter(c=>c!==opp).concat([G.teamName,opp]);
+  P.round=next;
+  const wk=G.week+1;
+  const iHome=Math.random()<0.5;
+  G.calendar.push({week:wk,comp:`Liga Profesional - ${label} ${next}`,
+    home:iHome?G.teamName:opp,away:iHome?opp:G.teamName,played:false,result:null,score:null});
+  G.calendar.sort((a,b)=>a.week-b.week);
+  lg('✅',`${G.teamName} avanza a ${next.toLowerCase()} del Torneo ${label}: rival ${opp}`);
+  flash(`✅ ¡A ${next.toLowerCase()}! Rival: ${opp}`,'win');
+}
+
 // ═══ RESOLUCIÓN DE LLAVES DE COPA ═══
 // Al cerrar una llave (VUELTA, o partido único) suma el global. Si quedás
 // eliminado se borran del fixture las rondas siguientes de esa copa.
@@ -6158,12 +6463,21 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(_isHome)tallyLeague(m.home,m.away,gf,ga);else tallyLeague(m.home,m.away,ga,gf);
     const rival=_isHome?m.away:m.home;
     creditScorers(rival,ga);
-    simLeagueRound(rival);
+    simLeagueRound(rival,m.week);
+    // ¿Terminó la fase regular del torneo? Arrancan los playoffs
+    if(G.arPhases&&m.phase){
+      const ph=G.arPhases[m.phase];
+      const pend=(G.arFix||[]).filter(f=>f.phase===m.phase&&!f.played).length;
+      if(ph&&pend===0)arStartPlayoff(m.phase);
+    }
   }
+  // Llaves de los playoffs del Apertura/Clausura
+  if(/Liga Profesional - (Apertura|Clausura)/.test(m.comp))arAdvancePlayoff(m,res);
 
   // Check Libertadores group stage completion
+  const gsTotal  = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos').length;
   const gsPlayed = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos'&&x.played).length;
-  if(gsPlayed===8) genLibKO();
+  if(gsTotal>0&&gsPlayed===gsTotal) genLibKO();   // el grupo son 3 rivales (6 partidos)
   // ═══ ELIMINACIÓN EN COPAS: si perdés la llave, te vas afuera ═══
   // Antes las rondas siguientes ya estaban en el fixture y las jugabas igual
   // aunque hubieras perdido: llegabas a la final habiendo sido eliminado.
@@ -12472,7 +12786,11 @@ function weeklyMarketEvolution(){
     const ageTrend = age<=21?0.055 : age<=24?0.035 : age<=28?0.008 : age<=31?-0.012 : age<=34?-0.030 : -0.055;
     // Margen hasta su techo: cerca del potencial cuesta más subir
     const room = Math.max(0, (pot-p.rat))/12;
-    const drift = ageTrend*(0.4+room) + p.mform*0.016;
+    // RENDIMIENTO REAL en la liga simulada: los goles que viene haciendo pesan
+    // tanto como la edad. Un goleador en racha sube aunque tenga 29.
+    const gls=p.goals||0;
+    const perfR=Math.max(-0.6,Math.min(1.1, gls*(pgr(p.pos)==='DEL'?0.10:pgr(p.pos)==='MED'?0.16:0.22) - (gls===0&&G.week>10?0.22:0)));
+    const drift = ageTrend*(0.4+room) + p.mform*0.016 + perfR*0.030;
     p._ratF=(p._ratF===undefined?p.rat:p._ratF)+drift;           // media con decimales (interna)
     const capped=Math.max(52,Math.min(pot, p._ratF));
     p._ratF=capped;
