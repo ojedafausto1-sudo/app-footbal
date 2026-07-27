@@ -3473,6 +3473,24 @@ function weeklyTraining(){
   G.squad.forEach(p=>{
     ensureAttrs(p);
     if(p.dev===undefined)p.dev=0;
+    // ═══ DECLIVE DE LOS VETERANOS ═══
+    // Antes un jugador sólo podía SUBIR: al llegar a su techo quedaba congelado
+    // para siempre y un plantel viejo nunca se desgastaba. Ahora, pasados los 30,
+    // se va apagando de a poco (el preparador físico lo frena).
+    if(p.age>=31){
+      if(p.decl===undefined)p.decl=0;
+      const fitCoach=1-((G.staffLevels&&G.staffLevels.fitness)||0)*0.12;
+      p.decl+=(p.age>=35?1.5:p.age>=33?1.0:0.6)*Math.max(0.4,fitCoach);
+      if(p.decl>=10){
+        p.decl=0;
+        p.rat=Math.max(52,p.rat-1);
+        p.val=calcVal(p);
+        if(p.rat<=(p.pot||99)-6&&!p._declNoted&&p.rat>=70){
+          p._declNoted=true;
+          addPhoneMsg('board','Cuerpo Técnico',`📉 Presidente, <b>${p.name}</b> (${p.age} años) viene bajando su rendimiento: ya está en <b>${p.rat}</b>. Habría que pensar en un recambio.`,'📉');
+        }
+      }
+    }
     // Los jóvenes con margen (pot>rat) crecen; los veteranos casi no
     const gap=Math.max(0,(p.pot||p.rat)-p.rat);
     if(gap<=0)return;
@@ -4951,28 +4969,22 @@ function rStand(){
   ];
   // If selected team not in the default list, add it with a reasonable str
   if(!ALL_CLUBS.find(x=>x.c===tn)) ALL_CLUBS.push({c:tn,str:0.70});
-  const myPlayed = G.calendar.filter(m=>m.comp==='Liga Profesional'&&m.played);
-  let myPts=0,myGF=0,myGA=0,myW=0,myD=0,myL=0;
-  myPlayed.forEach(m=>{
-    const mine=m.home===tn;
-    if(!m.score)return;
-    const [gf,ga]=m.score.split('-').map(Number);
-    myGF+=mine?gf:ga; myGA+=mine?ga:gf;
-    if(m.result==='W'){myPts+=3;myW++;}
-    else if(m.result==='D'){myPts+=1;myD++;}
-    else myL++;
-  });
-  const pj=myPlayed.length;
-  const seed=G.week*13+7;
-  const tbl=ALL_CLUBS.map((t,i)=>{
-    if(t.c===tn) return {c:t.c,pts:myPts,pj,w:myW,d:myD,l:myL,gf:myGF,ga:myGA,dif:myGF-myGA};
-    const simW=Math.floor(pj*t.str*0.85+((seed+i*7)%3)*0.1);
-    const simD=Math.floor(pj*(1-t.str)*0.3+((seed+i*3)%2)*0.1);
-    const simL=Math.max(0,pj-simW-simD);
-    const sgf=simW*2+simD+Math.floor((seed*(i+2))%3);
-    const sga=simL*2+simD+Math.floor((seed*(i+1))%3);
-    return {c:t.c,pts:simW*3+simD,pj,w:simW,d:simD,l:simL,gf:sgf,ga:sga,dif:sgf-sga};
-  }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
+  // ═══ TABLA REAL ═══
+  // Antes esta tabla se INVENTABA con una fórmula (pj*str) y no tenía nada que
+  // ver con los partidos que realmente se jugaron: la posición que veías no era
+  // la que el juego usaba para los objetivos de la CD ni para los titulares.
+  // Ahora se lee la tabla de verdad (G.league.table), la misma que alimenta
+  // myLeaguePos(): lo que ves es lo que cuenta.
+  let tbl;
+  const seed=G.week*13+7;   // usada más abajo por la tabla de grupos de la copa
+  ensureLeague();
+  const realRows=leagueSorted();
+  if(realRows.length&&realRows.some(r=>r.pj>0)){
+    tbl=realRows.map(r=>({c:r.club,pts:r.pts,pj:r.pj,w:r.g,d:r.e,l:r.p,gf:r.gf,ga:r.gc,dif:r.gf-r.gc}));
+  } else {
+    // Antes de la primera fecha todavía no hay nada jugado: se muestra en cero.
+    tbl=ALL_CLUBS.map(t=>({c:t.c,pts:0,pj:0,w:0,d:0,l:0,gf:0,ga:0,dif:0}));
+  }
 
   const zc=i=>i<4?'#0fb866':i<8?'#f0943a':'transparent';
   const sn=c=>c.replace('Boca Juniors','Boca').replace(' Sarsfield','').replace('Defensa y Justicia','Def.J').replace('Argentinos Jrs','Arg.Jrs').replace('Barracas Central','Barracas').replace('Gimnasia LP','Gimnasia');
@@ -5991,11 +6003,41 @@ function matchStrengths(m){
     if(tr==='Táctico'||tr==='Analítico') tacMod+=0.015;
     if(G.dt.style==='5-3-2') tacMod-=0.02;
   }
-  // Perfil táctico del DT: presión y línea alta suman (con riesgo si el equipo es lento)
+  // ═══ LA IDEA DEL DT SE VE EN LA CANCHA ═══
+  // Antes el perfil del DT movía ±0.05 y daba igual a quién enfrentaras. Ahora
+  // cada rasgo se mide contra EL PLANTEL que tenés y contra el RIVAL: presionar
+  // con un equipo lento te cuesta caro, contragolpear a un grande funciona, y
+  // jugar por abajo sin técnica no sirve.
   const myProfS=dtProfile(G.dt);
-  tacMod+=(myProfS.press-0.5)*0.05;
-  tacMod+=(myProfS.line-0.5)*(avgR>=72?0.03:-0.02);
-  if(myProfS.direct>0.65&&atkPow>=74)tacMod+=0.015;
+  const attrOf=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
+  const fieldXI=xi.filter(p=>p.pos!=='ARQ');
+  const avgOf=(k)=>fieldXI.length?fieldXI.reduce((a,p)=>a+attrOf(p,k),0)/fieldXI.length:70;
+  const spd=avgOf('VEL'), tec=avgOf('REG'), phy=avgOf('FIS'), def=avgOf('DEF');
+  const gapVsOpp=(avgR-oppRat)/100;                    // + si sos mejor que el rival
+  // TS acota cuánto puede inclinar la cancha el planteo: un buen plan te da una
+  // ventaja real, pero NUNCA reemplaza tener mejores jugadores.
+  const TS=0.55;
+  let tFit=0;
+  // Presión alta: exige piernas y físico. Bien ejecutada ahoga al rival.
+  const pressFit=((spd+phy)/2-70)/40;                  // -1..+1 aprox
+  tFit += (myProfS.press-0.5)*(0.16*pressFit - 0.05*Math.max(0,-gapVsOpp*2));
+  // Línea alta: sólo si tenés defensores rápidos; si no, te la tiran atrás
+  const lineFit=(spd-70)/38 + (def-70)/55;
+  tFit += (myProfS.line-0.5)*0.15*lineFit;
+  // Juego directo: necesita delanteros potentes; posesión necesita técnica
+  tFit += (myProfS.direct-0.5)*0.13*((phy-70)/38);
+  tFit += (0.5-myProfS.direct)*0.13*((tec-70)/38);
+  // Contragolpe: rinde mucho más contra un rival superior (te deja espacios)
+  tFit += (myProfS.counter-0.5)*(gapVsOpp<0?0.20:0.05)*(0.5+(spd-68)/45);
+  // Amplitud: aprovecha extremos rápidos
+  tFit += (myProfS.width-0.5)*0.07*((spd-70)/40);
+  // Juego brusco: corta el juego rival pero arriesga expulsiones
+  tFit += (myProfS.cyn-0.5)*0.05 - Math.max(0,myProfS.cyn-0.75)*0.06;
+  // Disciplina táctica: un equipo ordenado sufre menos sorpresas
+  tFit += (myProfS.disc-0.5)*0.06;
+  tacMod += Math.max(-0.075,Math.min(0.075,tFit*TS));  // techo y piso del planteo
+  // Guardamos el diagnóstico para mostrarlo en la previa del partido
+  G._tacFit={pressFit:Math.round(pressFit*100)/100,lineFit:Math.round(lineFit*100)/100,spd:Math.round(spd),tec:Math.round(tec),phy:Math.round(phy)};
   // Instrucciones tácticas afectan el partido
   if(G.pressure==='Alta') tacMod+=0.02;
   if(G.pressure==='Baja') tacMod-=0.015;
@@ -6427,6 +6469,49 @@ function simMatch(auto){
 }
 
 // Informe de scouting del rival: fortalezas, debilidades y planteo sugerido
+// ═══ ¿EL PLANTEO LE QUEDA A ESTE PLANTEL? ═══
+// Muestra en la previa si la idea del DT encaja con los jugadores que tenés.
+// Presionar arriba con un equipo lento, o jugar por abajo sin técnica, ahora
+// se paga en el resultado: acá lo ves ANTES de jugar.
+function tacticFitPanel(S){
+  const f=G._tacFit; if(!f) return '';
+  const pr=dtProfile(G.dt);
+  const rows=[];
+  const verdict=(v,goodTxt,badTxt,midTxt)=>v>0.25?{t:goodTxt,c:'var(--green)',i:'✓'}:v<-0.25?{t:badTxt,c:'var(--red)',i:'✕'}:{t:midTxt,c:'var(--gold)',i:'~'};
+  if(pr.press>0.6){
+    const v=verdict(f.pressFit,'Tenés piernas para presionar arriba','Tu equipo es lento para presionar tan alto','Presión alta: al límite de lo que aguantan');
+    rows.push(['Presión alta',v]);
+  }
+  if(pr.line>0.6){
+    const v=verdict(f.lineFit,'Defensa rápida: la línea alta funciona','Te van a tirar la pelota a la espalda','Línea adelantada: riesgo controlado');
+    rows.push(['Línea adelantada',v]);
+  }
+  if(pr.direct>0.62){
+    const v=verdict((f.phy-70)/38,'Tenés físico para el juego directo','Sin peso arriba, el pelotazo se pierde','Juego directo: funciona a ratos');
+    rows.push(['Juego directo',v]);
+  }
+  if(pr.direct<0.38){
+    const v=verdict((f.tec-70)/38,'Técnica de sobra para jugarla abajo','Falta técnica para salir jugando','Salida elaborada: se puede');
+    rows.push(['Salir jugando',v]);
+  }
+  if(pr.counter>0.6&&S.oppRat>=(S.avgR||70)){
+    rows.push(['Contragolpe',{t:'El rival te va a dejar espacios: ideal',c:'var(--green)',i:'✓'}]);
+  }
+  if(pr.cyn>0.78)rows.push(['Juego brusco',{t:'Cortás el juego, pero cuidado con las expulsiones',c:'var(--gold)',i:'!'}]);
+  if(!rows.length)rows.push(['Planteo equilibrado',{t:'Sin riesgos marcados para este plantel',c:'var(--t2)',i:'~'}]);
+  return `<div class="card" style="margin-bottom:10px;padding:8px">
+    <div class="ctitle" style="margin-bottom:5px">🧠 Tu idea de juego vs. tu plantel</div>
+    <div style="display:flex;gap:8px;font-size:9px;color:var(--t3);margin-bottom:5px">
+      <span>⚡ VEL ${f.spd}</span><span>🪄 TÉC ${f.tec}</span><span>💪 FÍS ${f.phy}</span>
+    </div>
+    ${rows.map(([k,v])=>`<div style="display:flex;gap:6px;align-items:flex-start;font-size:10px;padding:2px 0">
+      <span style="color:${v.c};font-weight:700;min-width:10px">${v.i}</span>
+      <span style="color:var(--t2);min-width:96px">${k}</span>
+      <span style="color:${v.c};flex:1">${v.t}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
 function rivalReport(rival,oppRat,oppForm,oppTrait,S){
   const seed=rival.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
   const analystLv=(G.staffLevels&&G.staffLevels.analyst)||0;
@@ -6511,6 +6596,8 @@ function showPreMatch(m){
         ${winPct>=50?'🟢 Favoritos':winPct>=35?'🟡 Partido parejo':'🔴 Difícil — hay que ir con todo'}
       </div>
     </div>
+    <!-- ¿Tu planteo le sirve a ESTE plantel? -->
+    ${tacticFitPanel(S)}
     <!-- Análisis del rival -->
     ${rivalReport(rival,S.oppRat,oppForm,oppTrait,S)}
     <!-- XI summary -->
