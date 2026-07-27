@@ -5190,7 +5190,18 @@ function rStand(){
         <span style="flex:1;overflow:hidden;white-space:nowrap">${sn(r.a)}</span>
         ${r.zone?`<span style="font-size:8px;color:var(--t3);min-width:14px">${r.zone}</span>`:''}
       </div>`).join('')}</div>`:'';
-    el.innerHTML=ph+zoneHtml('A')+zoneHtml('B')+live;
+    // Tabla anual: suma Apertura + Clausura y define los 2 descensos
+    const ann=leagueSorted();
+    const nDn=ann.length>=26?2:1;
+    const annHtml=ann.length&&ann.some(r=>r.pj>0)?`<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-family:'Rajdhani';font-size:11px;font-weight:800;color:var(--t2);letter-spacing:.06em">📅 TABLA ANUAL</span>
+        <span style="font-size:8px;color:var(--red)">▌ los ${nDn} últimos descienden</span>
+      </div>
+      ${hdrHtml}${ann.map((r,i)=>rowHtml({c:r.club,pts:r.pts,pj:r.pj,w:r.g,d:r.e,l:r.p,gf:r.gf,ga:r.gc,dif:r.gf-r.gc},i,
+        j=>j>=ann.length-nDn?'#e84545':j<4?'#0fb866':'transparent')).join('')}
+    </div>`:'';
+    el.innerHTML=ph+zoneHtml('A')+zoneHtml('B')+annHtml+live;
   } else {
     el.innerHTML=hdrHtml+tbl.slice(0,16).map((t,i)=>rowHtml(t,i,zc)).join('');
   }
@@ -6097,17 +6108,29 @@ function archiveSeason(){
   const repGain=pos===1?8:pos<=4?4:pos<=8?1:pos>=t.length-1?-4:0;
   if(repGain){G.rep=Math.max(20,Math.min(100,(G.rep||50)+repGain));
     if(repGain>0)lg('⭐',`La reputación del club sube a ${G.rep} por la campaña`);}
-  // Descenso del último (IA) y ascenso del mejor club de la Nacional (base real)
-  const tail=[...t].reverse().find(r=>r.club!==G.teamName);
+  // ═══ DESCENSOS POR TABLA ANUAL (como en la Liga Profesional de verdad) ═══
+  // G.league.table acumula el Apertura Y el Clausura, así que leagueSorted()
+  // ES la tabla anual. Bajan los 2 últimos y suben 2 de la Primera Nacional.
   const inLeague=new Set(t.map(r=>r.club));
   const cands=[...new Set(G.market.filter(p=>p.lg==='Liga ARG').map(p=>p.club))].filter(c=>!inLeague.has(c)&&c!==G.teamName);
-  if(tail&&cands.length){
+  const nDown=t.length>=26?2:1;
+  const doomed=[...t].reverse().filter(r=>r.club!==G.teamName).slice(0,nDown);
+  const iAmLast=t.length&&t[t.length-1].club===G.teamName;
+  if(doomed.length&&cands.length){
     cands.sort((a,b)=>clubPower(b)-clubPower(a));
-    const up=cands[~~(Math.random()*Math.min(4,cands.length))];
-    G.leagueClubs=t.map(r=>r.club).filter(c=>c!==tail.club&&c!==G.teamName);
-    G.leagueClubs.push(up);
-    lg('🔻',`${tail.club} descendió — asciende ${up}`);
-    addPhoneMsg('agent','Mercado de pases',`📉 <b>${tail.club}</b> se fue al descenso. Desde la Primera Nacional asciende <b>${up}</b>.`,'📰');
+    const ups=_shuf(cands.slice(0,Math.max(nDown,Math.min(6,cands.length)))).slice(0,nDown);
+    const downSet=new Set(doomed.map(d=>d.club));
+    G.leagueClubs=t.map(r=>r.club).filter(c=>!downSet.has(c));
+    ups.forEach(u=>{if(!G.leagueClubs.includes(u))G.leagueClubs.push(u);});
+    // La lista de 30 para el fixture de la temporada que viene
+    if(typeof AR_CLUBS!=='undefined'){
+      doomed.forEach((d,i)=>{const idx=AR_CLUBS.indexOf(d.club);if(idx>=0&&ups[i])AR_CLUBS[idx]=ups[i];});
+    }
+    lg('🔻',`Descienden por la tabla anual: ${doomed.map(d=>d.club).join(' y ')} — ascienden ${ups.join(' y ')}`);
+    addPhoneMsg('agent','Mercado de pases',`📉 Por la <b>tabla anual</b> se fueron al descenso <b>${doomed.map(d=>d.club).join('</b> y <b>')}</b>. Desde la Primera Nacional ascienden <b>${ups.join('</b> y <b>')}</b>.`,'📰');
+  }
+  if(iAmLast){
+    addPhoneMsg('board','Comisión Directiva',`🚨 Presidente, quedamos ÚLTIMOS en la tabla anual. Es una vergüenza institucional y su continuidad está en juego.`,'🏛️');
   }
   if(pos===t.length&&t.length){
     G.boardConf=Math.max(0,(G.boardConf||50)-40);
@@ -8340,144 +8363,181 @@ function sitDrawContact(ctx,W,H,s){
   ctx.fillText('abajo=alta · costado=cruzada · borde=riesgo',bx,by+R+21);
 }
 
+// ═══ PENAL en cámara 3D (mismo motor de perspectiva que el tiro libre) ═══
+// Pateando: arrastrás desde la pelota (o joystick + Z) y elegís palo y altura.
+// Atajando: movés al arquero por la línea y te tirás con Z en el momento justo.
 function sitSetupPenalty(W,H,oR,mainP,isOpp){
   const s=SIT;
-  const g={x1:W*.16,x2:W*.84,barY:H*.28,groundY:H*.55};
-  s.g=g;s.isOpp=isOpp;
+  const P={nearY:H*0.90, farY:H*0.16, nearHW:W*0.58, farHW:W*0.26, hUnit:H*0.33};
+  const proj=(wx,wz,wy)=>{
+    const t=wz<0?0:wz>1?1:wz;
+    const sc=1-0.62*t;
+    const gy=P.nearY+(P.farY-P.nearY)*t;
+    const hw=P.nearHW+(P.farHW-P.nearHW)*t;
+    return {x:W/2+wx*hw, y:gy-(wy||0)*P.hUnit*sc, sc};
+  };
+  s.proj=proj;s.isOpp=isOpp;
+  const GOAL_HW=0.62, BAR=0.86;
   s.label=isOpp
     ?`🟨 <span style="color:#e84545">PENAL para ${LM.rival}</span> — sos el arquero, ¡atajalo!`
     :`🎯 <span style="color:var(--gold)">¡PENAL!</span> ${mainP.name.split(' ').pop()} al punto`;
-  const cx=W/2,gy=g.groundY;
-  s.ball={x:cx,y:H-58,r:7};
-  s.ballStart={x:cx,y:H-58};
-  s.aim={x:cx,y:(g.barY+gy)/2};
-  s.gk={x:cx,y:gy-22,swayT:0};
-  s.taker={x:cx-34,y:H-44};
-  s.kicked=false;s.dove=false;s.diveDir=0;
-  s.oppKickDelay=isOpp?115:0;
-  s.power=0;s.charging=false;
-  if(!isOpp)s.contact={t:0,nx:0,ny:0};
-  s.hint=isOpp?'← →↑↓: movete · Z: ¡tirate a atajar!':'← →↑↓ (o arrastrá): ELEGÍ dónde pegarle a la pelota · Z/soltá: patear · abajo=alta · costado=cruzada';
+  s.hint=isOpp
+    ?'← →: movete en la línea · Z: ¡tirate! (adiviná el palo)'
+    :'Arrastrá desde la pelota (o joystick + Z): elegí palo, altura y potencia';
+  s.ball={wx:0,wz:0.10,wy:0};
+  s.gkWx=0; s.swayT=0; s.kicked=false; s.dove=false; s.diveDir=1; s.flightT=0;
+  s.aimAx=0.55; s.aimAy=0.45; s.power=0.9; s.charging=false; s.contact=null;
+  s.oppKickDelay=isOpp?110:0;
+  s.finQ=isOpp?70:((mainP.attrs&&mainP.attrs.TIR)||mainP.rat||75);
+
+  const fire=(ax,ay,pw)=>{
+    s.aimAx=sC(ax,-1.15,1.15); s.aimAy=sC(ay,0,1.1);
+    const err=(94-s.finQ)*0.010;
+    s.txWx=s.aimAx*GOAL_HW+err*(Math.random()*2-1);
+    s.tyWy=sC(s.aimAy*BAR+err*0.6*(Math.random()*2-1),-0.06,1.06);
+    s.power=sC(pw,0.6,1.3);
+    s.dur=Math.round(30-s.power*8);
+    s.kicked=true;s.flightT=0;s.fkAim=false;s.scorer=mainP;
+    if(!isOpp){
+      // el arquero adivina un palo; un remate fuerte y esquinado lo complica
+      // Adivinar el palo no alcanza: si la clavás al ángulo, no llega igual
+      const reads=Math.random()<(0.34+(oR-62)*0.010)*(Math.abs(s.txWx)>0.34?0.62:1)*(s.power>1.05?0.80:1);
+      s.gkGuess=reads?sC(s.txWx*0.62,-0.5,0.5):(Math.random()*2-1)*0.42;
+      s.gkReach=0.19+(oR-62)*0.004;
+      s.diveDir=s.gkGuess>=0?1:-1;
+    }
+    fmSndKick&&fmSndKick(0.9);
+  };
+  s._fire=fire;
+
   s.update=function(dt){
     const k=s.keys;
     if(!s.kicked){
-      if(s.isOpp){
-        // Sos el arquero: movete libre en el área chica (línea + profundidad)
-        if(k.left) s.gk.x=Math.max(g.x1+16,s.gk.x-1.7*dt);
-        if(k.right)s.gk.x=Math.min(g.x2-16,s.gk.x+1.7*dt);
-        if(k.up)   s.gk.y=Math.max(g.groundY-52,s.gk.y-1.1*dt);
-        if(k.down) s.gk.y=Math.min(g.groundY-8,s.gk.y+1.1*dt);
-        if(k.shoot&&!s.dove){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:0;s.diveUp=k.up?-1:0;}
+      if(isOpp){
+        // SOS EL ARQUERO: te movés en la línea y te tirás
+        if(k.left) s.gkWx=sC(s.gkWx-0.020*dt,-0.62,0.62);
+        if(k.right)s.gkWx=sC(s.gkWx+0.020*dt,-0.62,0.62);
+        if(k.shoot&&!s.dove){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:0;s.diveUp=k.up?1:0;}
         s.oppKickDelay-=dt;
         if(s.oppKickDelay<=0){
-          // El rival elige un palo (sesgo a las esquinas)
-          const side=Math.random()>.5?1:-1;
-          const tx=cx+side*(g.x2-cx)*(0.45+Math.random()*0.45);
-          const ty=g.barY+(gy-g.barY)*(0.25+Math.random()*0.65);
-          const acc=Math.random();
-          s.target=acc<.12?{x:tx+side*W*.08,y:ty}:{x:tx,y:ty}; // 12% la tira afuera
-          s.kicked=true;s.flightT=0;s.flightDur=34;
+          const side=Math.random()<0.5?-1:1;
+          const ax=side*(0.35+Math.random()*0.75), ay=0.15+Math.random()*0.75;
+          s.txWx=ax*GOAL_HW; s.tyWy=ay*BAR;
+          if(Math.random()<0.10){s.txWx*=1.35;s.tyWy=Math.min(1.15,s.tyWy*1.3);} // a veces la tira afuera
+          s.power=0.95;s.dur=24;s.kicked=true;s.flightT=0;
         }
-      } else {
-        // TOCÁ LA PELOTA: el punto de contacto define la dirección del tiro.
-        // Abajo de la pelota = la elevás · costado = va cruzada al palo opuesto · centro = fuerte al medio
-        s.gk.swayT+=dt;
-        s.gk.x=cx+Math.sin(s.gk.swayT*.045)*(g.x2-cx)*.18;
-        sitContactTick(s,dt);
-        const fire=(nx,ny)=>{
-          const gw=g.x2-cx;
-          const edge=Math.hypot(nx,ny)>0.95?1.8:1.0; // pegarle al borde = riesgo
-          const err=(91-mainP.rat)*0.38*edge*(Math.random()*2-1);
-          const errY=(91-mainP.rat)*0.30*edge*(Math.random()*2-1);
-          const tx=cx-nx*gw*0.98+err;
-          const ty=gy-((ny+1)/2)*(gy-g.barY)*1.06+errY;
-          const pow=s._clickPow||1;s._clickPow=null;
-          s.curve=-nx*34;
-          s.target={x:tx,y:ty};s.scorer=mainP;
-          s.kicked=true;s.flightT=0;s.flightDur=Math.max(20,Math.round(30/pow));
-          s.contact=null;
-          // El arquero adivina un palo; la comba fuerte lo complica; un tiro potente le da menos tiempo
-          const reads=Math.random()<(0.38+(oR-62)*.010)*(Math.abs(nx)>0.55?0.75:1)*(pow>1.05?0.85:1);
-          if(reads)s.gkDive={x:cx-nx*gw*0.9+(Math.random()*2-1)*24,y:Math.min(gy-12,ty+(Math.random()*2-1)*18)};
-          else s.gkDive={x:cx-(tx-cx)*(0.4+Math.random()*0.8),y:gy-28-Math.random()*38};
-          s.gkStart={x:s.gk.x,y:s.gk.y};
-          s.reach=13+(oR-62)*.38;
-        };
-        if(s._clickFire){s._clickFire=false;fire(s._clickPt.nx,s._clickPt.ny);}
-        else if(k.shoot&&!s._cLock){s._cLock=true;fire(s.contact.nx,s.contact.ny);}
-        if(!k.shoot)s._cLock=false;
+        return;
       }
+      s.fkAim=true;
+      if(k.left) s.aimAx=sC(s.aimAx-0.030*dt,-1.1,1.1);
+      if(k.right)s.aimAx=sC(s.aimAx+0.030*dt,-1.1,1.1);
+      if(k.up)   s.aimAy=sC(s.aimAy+0.030*dt,0,1.1);
+      if(k.down) s.aimAy=sC(s.aimAy-0.030*dt,0,1.1);
+      if(s._drag){
+        const dx=s._drag.x-s._drag.x0, dy=s._drag.y-s._drag.y0;
+        s.aimAx=sC(dx/(W*0.22),-1.1,1.1);
+        s.aimAy=sC((-dy)/(H*0.20),0,1.1);
+        s.power=sC(Math.hypot(dx,dy)/140,0.6,1.3);
+        s.charging=true;
+      }
+      if(k.shoot&&!s._drag){s.charging=true;s.power=sC(s.power+0.022*dt,0.6,1.3);}
+      s.swayT+=dt; s.gkWx=Math.sin(s.swayT*0.035)*0.10;
+      if(s._clickFire){s._clickFire=false;
+        const raw=s._clickRaw||{dx:0,dy:-70,len:70};
+        fire(sC(raw.dx/(W*0.22),-1.1,1.1),sC((-raw.dy)/(H*0.20),0,1.1),sC(raw.len/140,0.6,1.3));
+        return;}
+      if(!k.shoot&&s.charging&&!s._drag){fire(s.aimAx,s.aimAy,Math.max(0.75,s.power));return;}
     } else {
       s.flightT+=dt;
-      const f=Math.min(1,s.flightT/s.flightDur);
-      // Vuelo con leve comba
-      s.ball.x=s.ballStart.x+(s.target.x-s.ballStart.x)*f+Math.sin(f*Math.PI)*(s.curve||0)*0.55;
-      s.ball.y=s.ballStart.y+(s.target.y-s.ballStart.y)*f-Math.sin(f*Math.PI)*H*.06;
-      s.ball.r=7-2.5*f;
-      if(s.isOpp){
-        // Podés seguir moviéndote un poco y tirarte
-        if(!s.dove){
-          if(k.left) s.gk.x=Math.max(g.x1+16,s.gk.x-1.1*dt);
-          if(k.right)s.gk.x=Math.min(g.x2-16,s.gk.x+1.1*dt);
-          if(k.shoot){s.dove=true;s.diveT=0;s.diveDir=k.left?-1:k.right?1:(s.target.x>s.gk.x?1:-1);s.diveUp=k.up?-1:0;}
-        } else {
-          s.diveT=(s.diveT||0)+dt;
-          s.gk.x=sC(s.gk.x+s.diveDir*2.6*dt,g.x1+10,g.x2-10);
-          s.gk.y=sC((s.gk.y||gy-22)+(s.diveUp||0)*2.2*dt,g.barY+10,gy);
-        }
-      } else if(s.gkDive){
-        const gf=Math.min(1,s.flightT/(s.flightDur*.92));
-        s.gk.x=s.gkStart.x+(s.gkDive.x-s.gkStart.x)*gf;
-        s.gk.y=s.gkStart.y+(s.gkDive.y-s.gkStart.y)*gf;
-      }
-      if(f>=1){
-        const t=s.target;
-        const out=t.x<g.x1+4||t.x>g.x2-4||t.y<g.barY+4;
-        if(s.isOpp){
-          if(out)return sitEnd('miss');
-          const high=t.y<gy-55;
-          const reach=s.dove?52:26;
-          const saved=Math.abs(s.gk.x-t.x)<reach&&Math.abs((s.gk.y||gy-22)-t.y)<(high?reach:reach*1.5)&&(s.dove||!high);
+      const u=Math.min(1,s.flightT/s.dur);
+      s.ball.wz=0.10+0.90*u;
+      s.ball.wx=s.txWx*u;
+      s.ball.wy=s.tyWy*u+0.16*Math.sin(u*Math.PI);
+      if(isOpp&&s.dove){s.diveT=(s.diveT||0)+dt;s.gkWx=sC(s.gkWx+s.diveDir*0.030*dt,-0.75,0.75);}
+      if(u>=1){
+        const wide=Math.abs(s.txWx)>GOAL_HW-0.02||s.tyWy>BAR-0.02||s.tyWy<0;
+        if(isOpp){
+          if(wide)return sitEnd('miss');
+          const high=s.tyWy>0.55;
+          const reach=(s.dove?0.30:0.15)+(s.diveUp?0.06:0);
+          const saved=Math.abs(s.gkWx-s.txWx)<reach&&(s.dove||!high);
           return sitEnd(saved?'gk_save':'def_goal');
         }
-        if(out)return sitEnd('miss');
-        if(sD(s.gk,t)<s.reach)return sitEnd('save');
+        if(wide)return sitEnd('miss');
+        const cover=(s.gkReach||0.26)*(1-s.tyWy*0.45);
+        if(Math.abs((s.gkGuess||0)-s.txWx)<cover)return sitEnd('save');
         return sitEnd('goal');
       }
     }
   };
+
   s.draw=function(ctx){
-    sitDrawGoalView(ctx,W,H,g);
-    // Punto penal
-    ctx.beginPath();ctx.arc(cx,H-58,4,0,7);ctx.fillStyle='rgba(255,255,255,.5)';ctx.fill();
-    // arquero — figura, vuela cuando sale el remate
-    const gkKit=s.isOpp?kitFor(LM.myName):{c1:'#e0c020'};
-    const gkDiving=s.kicked||s.dove;
-    const gDir=(s.gkDive&&s.gkDive.x<W/2)?-1:(s.diveDir||1);
-    sitDrawFigure(ctx,s.gk.x,s.gk.y+15,46,gkKit.c1||'#e0c020','#222',{label:'GK',dive:gkDiving,diveDir:gDir,isCtrl:s.isOpp});
-    // ejecutante — figura con su camiseta
-    const tKit=kitFor(s.isOpp?LM.rival:LM.myName);
-    sitDrawFigure(ctx,s.taker.x,s.taker.y+13,44,tKit.c1,'#fff',{run:(s.t*0.10)%1,face:1,isCtrl:!s.isOpp,label:(s.isOpp?LM.rival.split(' ')[0]:mainP.name.split(' ').pop()).slice(0,7)});
-    sitDrawBall(ctx,s.ball);
-    if(!s.kicked&&!s.isOpp)sitDrawAim(ctx,s.aim.x,s.aim.y);
-    if(!s.isOpp&&(s.charging||s.power>0)&&!s.kicked){
-      const pw=s.power||0;
-      const bw=120,bh=10,bx=W/2-bw/2,by=H*.62;
-      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(bx-2,by-2,bw+4,bh+4);
-      ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(bx,by,bw,bh);
-      ctx.fillStyle=pw>85?'#e84545':pw>50?'#f0943a':'#0fb866';
-      ctx.fillRect(bx,by,bw*(pw/100),bh);
-      ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
-      ctx.fillStyle='#fff';ctx.font='bold 9px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('POTENCIA '+(~~pw)+'%',W/2,by+bh+10);
+    ctx.fillStyle='#2a8037';ctx.fillRect(0,0,W,H);
+    const sky=ctx.createLinearGradient(0,0,0,P.farY+H*0.05);
+    sky.addColorStop(0,'#0a1622');sky.addColorStop(1,'#1a3a54');ctx.fillStyle=sky;ctx.fillRect(0,0,W,P.farY+H*0.02);
+    ctx.fillStyle='#12202c';ctx.fillRect(0,P.farY-H*0.05,W,H*0.07);
+    for(let i=0;i<12;i++){
+      const z0=i/12,z1=(i+1)/12;
+      const a=proj(-2.6,z0,0),b=proj(2.6,z0,0),c=proj(2.6,z1,0),d=proj(-2.6,z1,0);
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
+      ctx.fillStyle=i%2?'#2f8f3e':'#2a8037';ctx.fill();
     }
-    if(!s.kicked&&s.isOpp){
+    // área grande + punto del penal
+    ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=2;
+    [-1.15,1.15].forEach(wx=>{const a=proj(wx,0.32,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
+    const ln=proj(-1.15,0.32,0),rn=proj(1.15,0.32,0);ctx.beginPath();ctx.moveTo(ln.x,ln.y);ctx.lineTo(rn.x,rn.y);ctx.stroke();
+    const spot=proj(0,0.10,0);ctx.beginPath();ctx.arc(spot.x,spot.y,3.5,0,7);ctx.fillStyle='rgba(255,255,255,.6)';ctx.fill();
+    // arco
+    const lb=proj(-GOAL_HW,1,0),lt=proj(-GOAL_HW,1,BAR),rt=proj(GOAL_HW,1,BAR),rb=proj(GOAL_HW,1,0);
+    ctx.fillStyle='rgba(255,255,255,.05)';
+    ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=1;
+    for(let i=1;i<8;i++){const t=i/8;const a=proj(-GOAL_HW+2*GOAL_HW*t,1,0),b=proj(-GOAL_HW+2*GOAL_HW*t,1,BAR);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    for(let i=1;i<4;i++){const t=i/4;const a=proj(-GOAL_HW,1,BAR*t),b=proj(GOAL_HW,1,BAR*t);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
+    // arquero
+    const gkKit=isOpp?kitFor(LM.myName):{c1:'#e0c020'};
+    const gp=proj(s.gkWx,0.965,0),gh=68*gp.sc;
+    sitDrawFigure(ctx,gp.x,gp.y,gh,gkKit.c1||'#e0c020','#222',
+      {label:'GK',dive:(isOpp?s.dove:s.kicked&&s.flightT>2),diveDir:s.diveDir,isCtrl:isOpp});
+    // ejecutante
+    const tKit=kitFor(isOpp?LM.rival:LM.myName);
+    const kp=proj(-0.20,0.03,0),kh=76*kp.sc;
+    sitDrawFigure(ctx,kp.x,kp.y,kh,tKit.c1,'#fff',
+      {run:s.kicked?(s.flightT*0.25)%1:(s.t*0.05)%1,face:1,isCtrl:!isOpp,
+       label:(isOpp?LM.rival.split(' ')[0]:mainP.name.split(' ').pop()).slice(0,7)});
+    // pelota + sombra
+    const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sp=proj(s.ball.wx,s.ball.wz,0);
+    ctx.beginPath();ctx.ellipse(sp.x,sp.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();
+    const br=Math.max(2.6,9*bp.sc);
+    ctx.beginPath();ctx.arc(bp.x,bp.y,br,0,7);
+    const bg=ctx.createRadialGradient(bp.x-br*.35,bp.y-br*.38,br*.1,bp.x,bp.y,br);
+    bg.addColorStop(0,'#fff');bg.addColorStop(.6,'#e6e6e6');bg.addColorStop(1,'#b2b2b2');ctx.fillStyle=bg;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
+    // mira + potencia (sólo pateando)
+    if(!s.kicked&&!isOpp){
+      const tgt=proj(s.aimAx*GOAL_HW,1,s.aimAy*BAR);
+      ctx.strokeStyle='rgba(246,211,24,.55)';ctx.lineWidth=3;ctx.setLineDash([7,6]);
+      ctx.beginPath();
+      for(let i=0;i<=20;i++){const u=i/20;const pp=proj(s.aimAx*GOAL_HW*u,0.10+0.90*u,(s.aimAy*BAR)*u+0.16*Math.sin(u*Math.PI));
+        if(i===0)ctx.moveTo(pp.x,pp.y);else ctx.lineTo(pp.x,pp.y);}
+      ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2.4;
+      ctx.beginPath();ctx.arc(tgt.x,tgt.y,9,0,7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(tgt.x-13,tgt.y);ctx.lineTo(tgt.x+13,tgt.y);ctx.moveTo(tgt.x,tgt.y-13);ctx.lineTo(tgt.x,tgt.y+13);ctx.stroke();
+      const pct=Math.min(100,Math.round((s.power-0.6)/(1.3-0.6)*100));
+      ctx.fillStyle='#F6D318';ctx.font='900 22px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText(pct+'%',bp.x,bp.y-26);
+    }
+    // cuenta regresiva del rival (atajando)
+    if(!s.kicked&&isOpp){
       const cd=Math.max(1,Math.ceil(s.oppKickDelay/35));
-      ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(W/2-50,H*.72-16,100,32);
-      ctx.fillStyle='#e84545';ctx.font='bold 20px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('PATEA en '+cd,W/2,H*.72);
+      ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(W/2-52,H*.76-17,104,34);
+      ctx.fillStyle='#e84545';ctx.font='bold 21px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('PATEA en '+cd,W/2,H*.76);
     }
-    sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
+    sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
