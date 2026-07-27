@@ -2221,7 +2221,8 @@ function dtDemands(){
     apply:()=>{const sl=getForm();let idx=sl.findIndex((s,i)=>s.pos!=='ARQ'&&posPenalty(joven.pos,s.pos)<=1);
       if(idx<0)idx=sl.findIndex(s=>s.pos!=='ARQ');
       if(idx>=0){G.slots[idx]=joven.id;G.bench=sq.filter(p=>!Object.values(G.slots).includes(p.id));}
-      joven._forced=true;joven.morale=Math.min(99,(joven.morale||70)+10);}});
+      joven._forced=4;joven.morale=Math.min(99,(joven.morale||70)+10);
+      lg('🌱',`Por pedido tuyo, ${joven.name} entra al equipo titular`);}});
   if(fundido)d.push({id:'rotar',label:`😮‍💨 "Dale descanso a ${fundido.name}"`,
     desc:`Está al ${Math.round(fundido.fit||100)}% de condición. Si sigue, se rompe.`,
     resist:(fundido.rat>=80?0.3:0)+(pr.disc>0.8?-0.15:0),
@@ -2233,7 +2234,9 @@ function dtDemands(){
     desc:'Que la cantera tenga lugar en primera.',
     resist:(G.dt.trait==='Formador'?-0.35:0.2),
     argue:`"Los pibes no ganan campeonatos solos. Si me llena el plantel de juveniles, no compito."`,
-    apply:()=>{G._youthPush=true;lg('🧒','El DT se compromete a darle lugar a la cantera');}});
+    apply:()=>{G._youthPush=true;
+      lg('🧒','El DT se compromete a darle lugar a la cantera en el armado del equipo');
+      addPhoneMsg('board',G.dt.name,`🧒 De acuerdo, presidente. A partir de ahora los pibes van a tener su oportunidad en el once. Ojo que si no acompañan los resultados, la presión va a caer sobre nosotros dos.`,'👔');}});
   return d;
 }
 function openDtTalk(){
@@ -2474,6 +2477,11 @@ function autoFill(){
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
       let sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
+      // Órdenes del presidente que el DT tiene que respetar: si le exigiste que
+      // un pibe juegue, no se lo puede borrar al armar el equipo siguiente.
+      if(p._forced>0)sc+=40;
+      // Si te comprometió lugar para la cantera, los juveniles pesan más
+      if(G._youthPush&&(p.age||26)<=21)sc+=6;
       if(p.pos!=='ARQ'){
         sc += (pr.press-0.5)*((at(p,'VEL')+at(p,'FIS'))/2-70)*0.10;   // presionar exige piernas
         sc += (pr.line -0.5)*(at(p,'VEL')-70)*0.07;                   // línea alta: defensores rápidos
@@ -2647,6 +2655,10 @@ function squadHealthPanel(){
     inj?chip('🏥',`${inj} lesionado${inj>1?'s':''}`,'var(--red)',''):'',
     (()=>{const s=sq.filter(p=>p.susp>0);return s.length?chip('🟥',`${s.length} suspendido${s.length>1?'s':''}`,'var(--red)',s.map(p=>`${p.name} (${p.susp})`).join(', ')):'';})(),
     (()=>{const y=sq.filter(p=>(p.yellows||0)>=4&&!p.susp);return y.length?chip('🟨',`${y.length} al borde`,'var(--ora)','A una amarilla de perderse un partido: '+y.map(p=>p.name).join(', ')):'';})(),
+    (()=>{const f=sq.filter(p=>p._forced>0);return f.length?chip('📢',`${f.length} por orden tuya`,'var(--gold)','Le exigiste al DT que jueguen: '+f.map(p=>`${p.name} (${p._forced} fechas)`).join(', ')):'';})(),
+    G._youthPush?chip('🧒','Cantera priorizada','var(--green)','El DT se comprometió a darle lugar a los juveniles en el once'):'',
+    (()=>{const dis=sq.filter(p=>!p.injured&&!(p.susp>0)).length;const col=dis<14?'var(--red)':dis<17?'var(--ora)':'var(--green)';
+      return chip('✅',`${dis} disponibles`,col,dis<14?'Plantel al límite para armar un equipo competitivo':'Jugadores en condiciones de jugar el próximo partido');})(),
     cap?chip('💵',`Masa salarial ${capPct}%`,capPct>=95?'var(--red)':capPct>=80?'var(--ora)':'var(--green)',
       `${wage}k/sem de un tope de ${cap}k`):'',
   ].filter(Boolean);
@@ -6945,6 +6957,18 @@ function applyMatchResult(m, gf, ga, providedScorers){
     });
     // Los suspendidos cumplen: descuenta una fecha a los que NO jugaron
     G.squad.forEach(q=>{ if(q.susp>0&&!xiPlayers.includes(q))q.susp=Math.max(0,q.susp-1); });
+    // Las órdenes del presidente duran unas fechas y después el DT vuelve a mandar
+    G.squad.forEach(q=>{ if(q._forced>0)q._forced--; });
+  })();
+  // ═══ LA RELACIÓN CON EL DT SE MUEVE CON LOS RESULTADOS ═══
+  // No sólo con lo que declarás: ganar juntos acerca, perder desgasta.
+  (function dtBond(){
+    if(G.dtRel===undefined)G.dtRel=65;
+    let d=res==='W'?1.6:res==='D'?0:-1.4;
+    if(derby)d*=1.8;
+    // Si le impusiste jugadores y sale mal, se enoja más
+    if(res==='L'&&G.squad.some(q=>q._forced>0))d-=1.2;
+    G.dtRel=Math.max(0,Math.min(100,G.dtRel+d));
   })();
   applyFatigue(xiPlayers);
   if(providedScorers && providedScorers.length){
