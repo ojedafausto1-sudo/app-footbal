@@ -5551,34 +5551,79 @@ function rCal(){
   const rows=leagueSorted();
   const scor=Object.entries(G.league.scorers).sort((a,b)=>b[1].goals-a[1].goals).slice(0,8);
   const lastR=G.league.lastRound||[];
+  // ═══ CENTRO DE COMPETENCIA ═══
+  // Con el formato de 2 zonas, la tabla única ya no representa el torneo: acá
+  // va la TABLA ANUAL (la que define los descensos), la fecha completa de las
+  // dos zonas y los goleadores de toda la liga.
+  const nDown=rows.length>=26?2:1;
+  const sn2=c=>c.replace('Boca Juniors','Boca').replace(' Sarsfield','').replace('Argentinos Jrs.','Arg.Jrs').replace('Barracas C.','Barracas').replace('Unión Santa Fe','Unión').replace('Central Córdoba','C.Córdoba').replace('Ind. Rivadavia','Ind.Riv').replace('San Martín (SJ)','S.Martín');
+  // Última fecha jugada, agrupada por zona
+  const playedFix=(G.arFix||[]).filter(f=>f.played);
+  const lastFecha=playedFix.length?Math.max(...playedFix.map(f=>f.fecha||0)):0;
+  const lastPhase=playedFix.length?(playedFix.filter(f=>(f.fecha||0)===lastFecha).slice(-1)[0]||{}).phase:null;
+  const roundFix=playedFix.filter(f=>(f.fecha||0)===lastFecha&&f.phase===lastPhase);
+  const zoneBlock=(z,label)=>{
+    const fs=roundFix.filter(f=>f.zone===z);
+    if(!fs.length)return '';
+    return `<div style="font-size:9px;color:var(--t3);font-family:'Rajdhani';font-weight:700;letter-spacing:.06em;margin:5px 0 2px">${label}</div>`+
+      fs.map(f=>{
+        const mine=f.home===tn||f.away===tn;
+        return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(246,211,24,.10)':''}">
+          <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;${f.result==='H'?'color:#fff;font-weight:700':'color:var(--t2)'}">${sn2(f.home)}</span>
+          <span style="color:var(--gold);font-weight:800;min-width:30px;text-align:center">${f.score||'-'}</span>
+          <span style="flex:1;overflow:hidden;white-space:nowrap;${f.result==='A'?'color:#fff;font-weight:700':'color:var(--t2)'}">${sn2(f.away)}</span>
+        </div>`;
+      }).join('');
+  };
+  // Próxima fecha
+  const nextFix=(G.arFix||[]).filter(f=>!f.played).sort((a,b)=>a.week-b.week);
+  const nextWk=nextFix.length?nextFix[0].week:null;
+  const nextRound=nextFix.filter(f=>f.week===nextWk).slice(0,10);
   const tableHtml=`
+  ${roundFix.length?`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">📋 Fecha ${lastFecha} · Torneo ${lastPhase==='clausura'?'Clausura':'Apertura'} — resultados</div>
+    ${zoneBlock('A','ZONA A')}${zoneBlock('B','ZONA B')}${zoneBlock('INT','INTERZONAL')}
+  </div>`:(lastR.length?`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">📋 Última fecha — otros resultados</div>
+    ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
+      <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${r.h}</span><span style="color:var(--gold);font-weight:700;min-width:26px;text-align:center">${r.s}</span><span style="flex:1;overflow:hidden;white-space:nowrap">${r.a}</span>
+    </div>`).join('')}
+  </div>`:'')}
+  ${nextRound.length?`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">📅 Próxima fecha (semana ${nextWk})</div>
+    ${nextRound.map(f=>{
+      const mine=f.home===tn||f.away===tn;
+      return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':'color:var(--t2)'}">
+        <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${sn2(f.home)}</span>
+        <span style="color:var(--t3);min-width:22px;text-align:center">vs</span>
+        <span style="flex:1;overflow:hidden;white-space:nowrap">${sn2(f.away)}</span>
+      </div>`;}).join('')}
+  </div>`:''}
   <div class="card" style="margin-bottom:9px">
-    <div class="ctitle">🏆 Tabla de posiciones — Liga Profesional</div>
+    <div class="ctitle">📅 Tabla anual — Liga Profesional</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.</div>
     <div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
       <span>#</span><span>Club</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>DIF</span><span>PTS</span>
     </div>
     ${rows.map(r=>{
       const mine=r.club===tn;
-      const zone=r.pos===1?'var(--gold)':r.pos<=4?'var(--green)':r.pos>=rows.length-1?'var(--red)':'transparent';
+      const zone=r.pos===1?'var(--gold)':r.pos<=8?'var(--green)':r.pos>rows.length-nDown?'var(--red)':'transparent';
       return `<div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${zone};${mine?'background:rgba(246,211,24,.10);font-weight:700;color:var(--gold)':''}">
-        <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.club}</span>
+        <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sn2(r.club)}</span>
         <span>${r.pj}</span><span style="color:var(--green)">${r.g}</span><span>${r.e}</span><span style="color:var(--red)">${r.p}</span>
         <span>${r.gf-r.gc>=0?'+':''}${r.gf-r.gc}</span><span style="font-weight:700">${r.pts}</span>
       </div>`;
     }).join('')}
-    <div style="font-size:8px;color:var(--t3);margin-top:4px">🟡 Campeón · 🟢 Copas · 🔴 Descenso</div>
+    <div style="font-size:8px;color:var(--t3);margin-top:4px">🟡 Puntero · 🟢 Zona de copas · 🔴 Descenso (últimos ${nDown})</div>
   </div>
   ${scor.length?`<div class="card" style="margin-bottom:9px">
     <div class="ctitle">⚽ Goleadores de la Liga</div>
-    ${scor.map(([nm,s],i)=>`<div style="display:flex;gap:6px;font-size:10px;padding:3px 4px;${s.club===tn?'color:var(--gold);font-weight:700':''}">
-      <span style="min-width:16px;color:var(--t3)">${i+1}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nm} <span style="color:var(--t3);font-weight:400">(${s.club})</span></span><span style="font-weight:700">${s.goals}</span>
-    </div>`).join('')}
-  </div>`:''}
-  ${lastR.length?`<div class="card" style="margin-bottom:9px">
-    <div class="ctitle">📋 Última fecha — otros resultados</div>
-    ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
-      <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${r.h}</span><span style="color:var(--gold);font-weight:700;min-width:26px;text-align:center">${r.s}</span><span style="flex:1;overflow:hidden;white-space:nowrap">${r.a}</span>
-    </div>`).join('')}
+    ${scor.map(([nm,s],i)=>{
+      const med=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+      return `<div style="display:flex;gap:6px;align-items:center;font-size:10px;padding:3px 4px;${s.club===tn?'color:var(--gold);font-weight:700':''}">
+      <span style="min-width:18px;color:var(--t3)">${med||i+1}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nm} <span style="color:var(--t3);font-weight:400">(${sn2(s.club)})</span></span>
+      <span style="font-weight:800;font-family:'Rajdhani';font-size:13px">${s.goals}</span>
+    </div>`;}).join('')}
   </div>`:''}
   <div id="otherLeaguesBox"></div>`;
   setTimeout(()=>{try{rOtherLeagues();}catch(e){}},0);
