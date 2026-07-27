@@ -46,14 +46,34 @@ exports.handler = async function (event) {
         return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach: null, upstream: res.status }) };
       }
       const html = await res.text();
-      const m = html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"[^>]*>([^<]{3,60})</) ||
-                html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"/);
+      // Transfermarkt sirve el DT de formas distintas según el layout, y a veces
+      // devuelve una página de bloqueo. Probamos varios patrones y, si no hay
+      // ninguno, informamos POR QUÉ en vez de devolver null a secas.
+      const pats = [
+        /href="\/([^"\/]+)\/profil\/trainer\/(\d+)"[^>]*>([^<]{3,60})</,
+        /href="\/([^"\/]+)\/profil\/trainer\/(\d+)"/,
+        /\/profil\/trainer\/(\d+)[^>]*>\s*([^<]{3,60})</,
+        /"trainer"[^}]*"name"\s*:\s*"([^"]{3,60})"/i,
+      ];
       let coach = null;
-      if (m) {
-        const fromSlug = m[1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        coach = { name: (m[3] || '').trim() || fromSlug, id: m[2] };
+      for (const re of pats) {
+        const m = html.match(re);
+        if (!m) continue;
+        if (re === pats[2]) { coach = { name: (m[2] || '').trim(), id: m[1] }; }
+        else if (re === pats[3]) { coach = { name: m[1].trim(), id: '' }; }
+        else {
+          const fromSlug = m[1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          coach = { name: (m[3] || '').trim() || fromSlug, id: m[2] };
+        }
+        if (coach && coach.name) break;
+        coach = null;
       }
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach }) };
+      const blocked = /captcha|just a moment|access denied|cf-browser-verification|challenge/i.test(html);
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({
+        coach,
+        // pistas para diagnosticar sin adivinar
+        diag: coach ? undefined : { blocked, htmlLen: html.length, hasTrainerWord: /trainer/i.test(html) },
+      }) };
     }
 
     // ── Resto: SportDB o la TM-API libre ──

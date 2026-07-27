@@ -926,6 +926,38 @@ function mapPos(pos) {
 // gratuitas aparte. Si el proxy que estás usando no las conoce, devuelve 400
 // y termina con todas las nacionalidades en 'UNK' y sin ningún DT — que es
 // exactamente lo que pasaba. Este botón te dice cuál de las dos falla.
+// Pide una URL cruda y devuelve status + cuerpo, sin interpretar nada.
+// Sirve para ver EXACTAMENTE qué contesta cada fuente cuando algo falla.
+async function rawGet(apiType, path) {
+  const url = '/.netlify/functions/sportdb?api=' + apiType +
+    '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+  try {
+    const r = await fetch(url);
+    const t = await r.text();
+    return { status: r.status, body: t.slice(0, 400) };
+  } catch (e) { return { status: 0, body: 'FETCH ERROR: ' + e.message }; }
+}
+
+// ═══ SONDA: prueba varias formas de endpoint hasta encontrar una que sirva ═══
+async function probeNats() {
+  log('── Buscando de dónde sacar las nacionalidades ──');
+  const tries = [
+    ['tmapi', '/clubs/189/players'],
+    ['tmapi', '/clubs/189/profile'],
+    ['tmapi', '/players/search/Cavani'],
+    ['transfermarkt', '/clubs/189/players'],
+    ['transfermarkt', '/players/17121'],
+    ['transfermarkt', '/players/17121/profile'],
+  ];
+  for (const [api, p] of tries) {
+    const r = await rawGet(api, p);
+    const hasNat = /nationalit|citizenship|country/i.test(r.body);
+    log(`  ${api} ${p}\n    → HTTP ${r.status}${hasNat ? '  ✅ TRAE NACIONALIDAD' : ''}\n    ${r.body.slice(0, 220)}`);
+    if (r.status === 200 && hasNat) { log('  ✅ Esta fuente sirve. Pasame esta línea y la conecto.'); break; }
+    await sleep(700);
+  }
+}
+
 async function testExtras() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const cfW = (document.getElementById('cfWorker') || {value:''}).value.trim();
@@ -962,9 +994,15 @@ async function testExtras() {
 
   if (workerLacksFree) {
     log('ℹ️ Tu Worker es viejo: nacionalidades y DTs van por Netlify automáticamente.');
-    log('   Funciona igual, sólo que sin caché para esas dos fuentes.');
   }
-  log('Si alguna sigue fallando, la fuente libre puede estar caída: avisame qué dice acá.');
+  // Si alguna falló, mostramos la respuesta CRUDA y sondeamos alternativas
+  log('── Respuestas crudas (para saber quién falla de verdad) ──');
+  const r1 = await rawGet('tmapi', '/clubs/189/players');
+  log(`  tmapi   HTTP ${r1.status} → ${r1.body.slice(0,250)}`);
+  const r2 = await rawGet('tmcoach', '/verein/189');
+  log(`  tmcoach HTTP ${r2.status} → ${r2.body.slice(0,250)}`);
+  if (r1.status !== 200 || !/nationalit/i.test(r1.body)) await probeNats();
+  log('Copiame TODO este bloque y conecto la fuente que haya respondido bien.');
   log('══════════════════════════════════════');
 }
 
