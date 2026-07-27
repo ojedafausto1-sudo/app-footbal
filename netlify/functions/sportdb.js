@@ -69,11 +69,19 @@ exports.handler = async function (event) {
         coach = null;
       }
       const blocked = /captcha|just a moment|access denied|cf-browser-verification|challenge/i.test(html);
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({
-        coach,
-        // pistas para diagnosticar sin adivinar
-        diag: coach ? undefined : { blocked, htmlLen: html.length, hasTrainerWord: /trainer/i.test(html) },
-      }) };
+      let diag;
+      if (!coach) {
+        // Mostramos el markup REAL alrededor de las palabras candidatas para
+        // poder ajustar el patrón sin adivinar cómo quedó la página.
+        const hints = [];
+        for (const w of ['trainer', 'manager', 'coach', 'entrenador', 'Cheftrainer']) {
+          const i = html.toLowerCase().indexOf(w.toLowerCase());
+          if (i >= 0) hints.push(w + ' @' + i + ': ' + html.slice(Math.max(0, i - 90), i + 130).replace(/\s+/g, ' '));
+          if (hints.length >= 3) break;
+        }
+        diag = { blocked, htmlLen: html.length, title: (html.match(/<title>([^<]*)</i) || [, ''])[1].slice(0, 90), hints };
+      }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach, diag }) };
     }
 
     // ── Resto: SportDB o la TM-API libre ──

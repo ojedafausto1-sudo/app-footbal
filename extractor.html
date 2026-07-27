@@ -939,23 +939,43 @@ async function rawGet(apiType, path) {
 }
 
 // ═══ SONDA: prueba varias formas de endpoint hasta encontrar una que sirva ═══
+// ¿La respuesta trae una nacionalidad CON DATOS? (no alcanza con que exista el
+// campo: SportDB devuelve "nationality":[] vacío en el listado del plantel)
+function hasRealNat(body) {
+  const m = body.match(/"(?:nationality|nationalities|citizenship|country)"\s*:\s*(\[[^\]]*\]|"[^"]*")/i);
+  if (!m) return false;
+  const v = m[1];
+  return v !== '[]' && v !== '""' && v !== '[""]' && v.length > 3;
+}
 async function probeNats() {
   log('── Buscando de dónde sacar las nacionalidades ──');
-  const tries = [
-    ['tmapi', '/clubs/189/players'],
-    ['tmapi', '/clubs/189/profile'],
-    ['tmapi', '/players/search/Cavani'],
-    ['transfermarkt', '/clubs/189/players'],
-    ['transfermarkt', '/players/17121'],
-    ['transfermarkt', '/players/17121/profile'],
-  ];
+  // 1) Sacamos un ID de jugador REAL del plantel (ese endpoint sí funciona)
+  let pid = '', pname = '';
+  const club = await rawGet('transfermarkt', '/clubs/189/players');
+  const mid = club.body.match(/"id"\s*:\s*"(\d+)"\s*,\s*"name"\s*:\s*"([^"]+)"/);
+  if (mid) { pid = mid[1]; pname = mid[2]; log(`  Jugador de prueba: ${pname} (id ${pid})`); }
+
+  // 2) Probamos endpoints de DETALLE, que es donde suele venir la nacionalidad
+  const tries = [];
+  if (pid) tries.push(
+    ['transfermarkt', `/players/${pid}`],
+    ['transfermarkt', `/players/${pid}/profile`],
+    ['transfermarkt', `/player/${pid}`],
+    ['transfermarkt', `/players/${pid}/data`],
+  );
+  tries.push(['transfermarkt', '/clubs/189/players?detailed=true']);
+  tries.push(['tmapi', `/players/${pid || '292985'}/profile`]);
+
+  let win = null;
   for (const [api, p] of tries) {
     const r = await rawGet(api, p);
-    const hasNat = /nationalit|citizenship|country/i.test(r.body);
-    log(`  ${api} ${p}\n    → HTTP ${r.status}${hasNat ? '  ✅ TRAE NACIONALIDAD' : ''}\n    ${r.body.slice(0, 220)}`);
-    if (r.status === 200 && hasNat) { log('  ✅ Esta fuente sirve. Pasame esta línea y la conecto.'); break; }
+    const ok = r.status === 200 && hasRealNat(r.body);
+    log(`  ${api} ${p}\n    → HTTP ${r.status}${ok ? '  ✅ NACIONALIDAD CON DATOS' : (r.status === 200 ? '  (200 pero sin nacionalidad útil)' : '')}\n    ${r.body.slice(0, 260)}`);
+    if (ok) { win = [api, p]; break; }
     await sleep(700);
   }
+  if (win) log(`  ✅ SIRVE: ${win[0]} ${win[1]} — pasame esta línea y la conecto al extractor.`);
+  else log('  ❌ Ninguna trae nacionalidad con datos. Copiame el bloque y busco otra fuente.');
 }
 
 async function testExtras() {
