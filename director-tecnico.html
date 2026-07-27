@@ -3384,7 +3384,8 @@ function renderMkt(){
   const totalFound=pl.length;
   pl = pl.slice(0,150);
   const winOpen=isTransferWindowOpen();
-  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>`;
+  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
+  <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
   el.innerHTML = winBanner+pl.map(p=>{
     const tag = p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>':p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>':p.rat>=78&&p.age<=23?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':'';
     const vb = vbadges(p);
@@ -3394,10 +3395,14 @@ function renderMkt(){
       <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="font-size:9px;color:var(--t2)">${p.lg.split(' ')[0]}</div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
-      <div class="vc">${fv(p.val)}${mktTrend(p)}</div>
+      <div class="vc">${fv(p.val)}${mktTrend(p)}${(()=>{const m=contractMonths(p);
+        if(isFreeAgent(p))return '<div style="font-size:8px;color:var(--green);font-weight:700">🆓 LIBRE</div>';
+        if(m<=6)return `<div style="font-size:8px;color:var(--gold)" title="Le quedan ${m} meses: se abarata y podés firmar precontrato">📝 ${m}m · ${fv(askingPrice(p))}</div>`;
+        if(m<=12)return `<div style="font-size:8px;color:var(--ora)" title="Contrato corto: pide menos">⏳ ${m}m · ${fv(askingPrice(p))}</div>`;
+        return '';})()}${p.forceSale?'<div style="font-size:8px;color:var(--red)">🔥 QUIERE SALIR</div>':''}</div>
       <div>${rb(p.pot)}</div>
       <div style="display:flex;gap:3px">
-        <button class="btn bg bs" onclick="event.stopPropagation();openNeg('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'}>🤝 Neg.</button>
+        <button class="btn bg bs" onclick="event.stopPropagation();negStartPlayer('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'} title="Arreglar primero con el jugador, después con el club">🤝 Fichar</button>
         <button class="btn bo bs" onclick="event.stopPropagation();loanIn('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'}>📥</button>
       </div>
     </div>`;
@@ -7216,6 +7221,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyOffers();
   weeklyChats();
   weeklyMarketEvolution();
+  weeklyNegotiations();      // las operaciones abiertas avanzan con el tiempo
   weeklyAITransfers();
   weeklyDtMoves();
   processInstallments();
@@ -13636,6 +13642,273 @@ function negotiateAgentOffer(offId){
   openNeg(off.pid);
 }
 // ═══ MERCADO VIVO: los demás clubes fichan entre sí (realista) ═══
+// ═══════════════════════════════════════════════════════════════
+// MERCADO CON TIEMPOS REALES
+// Una operación no se cierra apretando un botón: mandás la oferta,
+// el club se toma sus días, te contesta, aparecen otros clubes
+// interesados y hay que decidir con plazos. También podés arreglar
+// primero con el JUGADOR y después pelear con el club — y si el club
+// se niega, el jugador empieza a presionar para salir.
+// ═══════════════════════════════════════════════════════════════
+function ensureNegs(){ if(!G.negs)G.negs=[]; return G.negs; }
+function negFind(pid){ return (G.negs||[]).find(n=>n.pid===pid&&n.stage!=='cerrada'); }
+// Meses de contrato que le quedan al jugador (aprox, por temporada)
+function contractMonths(p){
+  // p.contract es el AÑO hasta el que tiene vínculo.
+  const until=(p.contract!==undefined?p.contract:G.season+2);
+  const yrs=until-(G.season||2026);
+  if(yrs<0)return 0;                                            // ya venció: está libre
+  const seasonLeft=Math.max(0,12-Math.round(((G.week||1)/40)*12)); // lo que resta de esta temporada
+  return yrs*12+seasonLeft;
+}
+// El valor cae cuando se le termina el contrato: a 6 meses vale mucho menos
+function contractDiscount(p){
+  const m=contractMonths(p);
+  if(m<=0)return 0;            // libre: no se paga ficha
+  if(m<=6)return 0.35;
+  if(m<=12)return 0.62;
+  if(m<=18)return 0.85;
+  return 1;
+}
+function askingPrice(p){
+  return Math.max(0.05,Math.round(p.val*contractDiscount(p)*1.08*100)/100);
+}
+function isFreeAgent(p){ return contractMonths(p)<=0||p.freeAgent; }
+
+// ═══ PASO 1: arreglar con el jugador (términos personales) ═══
+function negStartPlayer(pid){
+  if(!G)return;
+  const p=G.market.find(x=>x.id===pid); if(!p)return;
+  if(negFind(pid)){flash('Ya tenés una negociación abierta por este jugador','draw');return;}
+  const wage=Math.round(_negWageExpect(p)*(1+(p.rat>=82?0.15:0)));
+  const months=contractMonths(p);
+  const free=isFreeAgent(p);
+  const pre=months>0&&months<=6;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🤝 Términos personales — ${p.name}</div>
+    <div class="sr"><span class="sl">Contrato con ${p.club}</span><span class="sv">${free?'<b style="color:var(--green)">LIBRE</b>':months+' meses'}</span></div>
+    <div class="sr"><span class="sl">Valor de mercado</span><span class="sv">${fv(p.val)}</span></div>
+    <div class="sr"><span class="sl">Precio con su contrato</span><span class="sv" style="color:${free?'var(--green)':'var(--gold)'}">${free?'sin ficha':fv(askingPrice(p))}</span></div>
+    <div class="sr"><span class="sl">Pretensión salarial</span><span class="sv">${wage}k/sem</span></div>
+    ${pre?`<div class="note" style="margin:8px 0;border-color:var(--gold)">📝 Le quedan <b>${months} meses</b>: podés firmar un <b>precontrato</b> y que llegue <b>gratis</b> la próxima temporada, sin pagar ficha.</div>`:''}
+    ${free?`<div class="note" style="margin:8px 0;border-color:var(--green)">🆓 Está <b>libre</b>: no hay club con el que negociar. Si acepta los términos, es tuyo.</div>`:''}
+    <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
+      <span style="font-size:11px;color:var(--t3);min-width:60px">Sueldo</span>
+      <input type="range" id="negWg" class="neg-slider" min="${Math.round(wage*0.6)}" max="${Math.round(wage*1.8)}" value="${wage}" oninput="document.getElementById('negWgV').textContent=this.value+'k'">
+      <span id="negWgV" style="font-family:'Rajdhani';font-weight:700;color:var(--gold);min-width:46px;text-align:right">${wage}k</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:11px;color:var(--t3);min-width:60px">Años</span>
+      <input type="range" id="negYr" min="1" max="5" value="3" class="neg-slider" oninput="document.getElementById('negYrV').textContent=this.value">
+      <span id="negYrV" style="font-family:'Rajdhani';font-weight:700;color:var(--gold);min-width:46px;text-align:right">3</span>
+    </div>
+    <button class="btn bg" style="width:100%" onclick="negSendPlayer('${p.id}',${wage},${free?1:0},${pre?1:0})">📨 Enviarle la propuesta al jugador</button>
+    <div style="font-size:9px;color:var(--t3);text-align:center;margin-top:6px">Te va a contestar en unos días.</div>
+  `);
+}
+function negSendPlayer(pid,baseWage,free,pre){
+  const p=G.market.find(x=>x.id===pid); if(!p)return;
+  const wage=+document.getElementById('negWg').value;
+  const years=+document.getElementById('negYr').value;
+  ensureNegs();
+  G.negs.push({pid,name:p.name,club:p.club,stage:'esperando_jugador',wait:1+~~(Math.random()*2),
+    wage,years,free:!!free,pre:!!pre,bid:0,rounds:0,rivals:[],deadline:0,playerOk:false});
+  closeMod();updateUI();
+  flash(`📨 Propuesta enviada a ${p.name}. Esperá su respuesta.`,'draw');
+  lg('📨',`Propuesta de contrato enviada a ${p.name} (${wage}k/sem, ${years} años)`);
+}
+
+// ═══ PASO 2: oferta al club (una vez que el jugador dijo que sí) ═══
+function negOpenClub(pid){
+  const n=negFind(pid); const p=G.market.find(x=>x.id===pid);
+  if(!n||!p)return;
+  const ask=askingPrice(p);
+  const rec=Math.round(ask*1.05*100)/100;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">💰 Oferta a ${p.club} por ${p.name}</div>
+    <div class="note" style="margin-bottom:8px">✅ <b>${p.name} ya arregló con vos</b> (${n.wage}k/sem · ${n.years} años). Falta convencer a su club.</div>
+    <div class="sr"><span class="sl">Piden aproximadamente</span><span class="sv" style="color:var(--gold)">${fv(ask)}</span></div>
+    <div class="sr"><span class="sl">Tu presupuesto</span><span class="sv">${fv(G.budget)}</span></div>
+    ${n.rivals&&n.rivals.length?`<div class="note" style="margin:8px 0;border-color:var(--red)">⚠️ <b>${n.rivals.join(' y ')}</b> ${n.rivals.length>1?'también preguntaron':'también preguntó'} por él. Si te dormís, te lo llevan.</div>`:''}
+    <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
+      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
+      <input type="number" id="negBid" step="0.1" min="0.1" value="${rec}"
+        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px;color:var(--gold);font-family:'Rajdhani';font-size:22px;font-weight:700;text-align:center;outline:none">
+      <span style="font-size:12px;color:var(--t3)">M USD</span>
+    </div>
+    <button class="btn bg" style="width:100%" onclick="negSendClub('${p.id}')">📨 Enviar la oferta</button>
+    <div style="font-size:9px;color:var(--t3);text-align:center;margin-top:6px">${p.club} se va a tomar unos días para responder.</div>
+  `);
+}
+function negSendClub(pid){
+  const n=negFind(pid), p=G.market.find(x=>x.id===pid);
+  if(!n||!p)return;
+  const bid=+document.getElementById('negBid').value;
+  if(bid>G.budget){flash('❌ No te alcanza el presupuesto','loss');return;}
+  n.bid=bid;n.stage='esperando_club';n.wait=1+~~(Math.random()*3);n.rounds++;
+  closeMod();updateUI();
+  flash(`📨 Oferta de ${fv(bid)} enviada a ${p.club}`,'draw');
+  lg('📨',`Oferta de ${fv(bid)} a ${p.club} por ${p.name}`);
+}
+
+// ═══ EL RELOJ CORRE: se procesa cada semana ═══
+function weeklyNegotiations(){
+  if(!G||!G.negs||!G.negs.length)return;
+  const keep=[];
+  G.negs.forEach(n=>{
+    const p=G.market.find(x=>x.id===n.pid);
+    if(!p){return;}                      // ya no está en el mercado: se cae
+    if(n.wait>0){n.wait--;keep.push(n);return;}
+    if(n.stage==='esperando_jugador'){
+      // ¿Le sirve el sueldo? Compara con su pretensión y tu reputación
+      const exp=_negWageExpect(p)*(1+(p.rat>=82?0.15:0));
+      const ratio=n.wage/exp;
+      const repPull=((G.rep||50)-55)/200;
+      const acc=Math.min(0.96,Math.max(0.05,(ratio-0.72)*1.5+repPull+(n.years>=3?0.06:0)));
+      if(Math.random()<acc){
+        n.playerOk=true;
+        if(n.free){ negComplete(n,p,0); return; }
+        n.stage=n.pre?'precontrato_listo':'jugador_ok';
+        addPhoneMsg('agent',p.name,`✅ Arreglamos los términos personales: <b>${n.wage}k/sem por ${n.years} años</b>. ${n.pre?'Firmo el precontrato y me sumo cuando termine mi vínculo actual.':`Ahora hablá con <b>${p.club}</b>. Yo ya les dije que me quiero ir.`}`,'🤝');
+        if(n.pre){ negComplete(n,p,0,true); return; }
+      } else {
+        n.stage='cerrada';
+        addPhoneMsg('agent',p.name,`❌ Gracias por el interés, pero <b>${n.wage}k/sem no me sirve</b>. Pretendo cerca de ${Math.round(exp)}k. Si mejoran, hablamos.`,'🤝');
+        lg('❌',`${p.name} rechazó los términos personales`);
+        return;
+      }
+      keep.push(n);return;
+    }
+    if(n.stage==='esperando_club'){
+      const ask=askingPrice(p);
+      const ratio=n.bid/Math.max(0.05,ask);
+      // El jugador ya arreglado empuja: el club aguanta menos
+      const push=n.playerOk?0.14:0;
+      const acc=Math.min(0.95,Math.max(0.03,(ratio-0.88)*2.2+push+((G.rep||50)-55)/260));
+      if(Math.random()<acc){
+        negComplete(n,p,n.bid);return;
+      }
+      // Contraoferta o rechazo
+      if(n.rounds<3&&ratio>0.6){
+        const want=Math.round(ask*(1.10+Math.random()*0.18)*100)/100;
+        n.stage='contraoferta';n.want=want;
+        addPhoneMsg('agent',p.club,`💬 Recibimos tu oferta de <b>${fv(n.bid)}</b> por ${p.name}. No nos alcanza: queremos <b>${fv(want)}</b>. Si igualás, cerramos.`,'💼');
+      } else {
+        n.stage='rechazada';
+        addPhoneMsg('agent',p.club,`❌ Rechazamos definitivamente la oferta por <b>${p.name}</b>. No está en venta a ese precio.`,'💼');
+        // El jugador que ya arregló con vos se calienta y presiona
+        if(n.playerOk){
+          p.pressuring=(p.pressuring||0)+1;
+          p.val=Math.max(0.05,Math.round(p.val*0.94*100)/100);
+          addPhoneMsg('agent',p.name,`😠 Me enteré que <b>${p.club} rechazó la oferta</b>. Yo ya arreglé con ustedes. Voy a pedir salir: no pienso renovar acá.`,'🤝');
+          lg('🔥',`${p.name} presiona a ${p.club} para salir (${p.pressuring}ª vez)`);
+          if(p.pressuring>=2){
+            p.forceSale=true;
+            addPhoneMsg('agent',p.club,`😞 ${p.name} no quiere seguir acá. Estamos dispuestos a escuchar una oferta razonable por <b>${fv(Math.round(askingPrice(p)*0.82*100)/100)}</b>.`,'💼');
+          }
+        }
+      }
+      keep.push(n);return;
+    }
+    // Si el club te dijo que no pero el jugador ya arregló, él sigue apretando
+    if(n.stage==='rechazada'&&n.playerOk&&Math.random()<0.45){
+      p.pressuring=(p.pressuring||0)+1;
+      p.val=Math.max(0.05,Math.round(p.val*0.95*100)/100);
+      if(p.pressuring===2){
+        p.forceSale=true;
+        addPhoneMsg('agent',p.club,`😞 ${p.name} no entrena, no quiere seguir acá. Aceptamos una oferta razonable: <b>${fv(Math.round(askingPrice(p)*0.80*100)/100)}</b>.`,'💼');
+        lg('🔥',`${p.name} forzó la salida de ${p.club}: bajó el precio`);
+      } else if(p.pressuring>2&&p.pressuring%2===0){
+        addPhoneMsg('agent',p.name,`😤 Sigo esperando. Le repito: no voy a renovar con ${p.club}. Insistan.`,'🤝');
+      }
+    }
+    // Otros clubes se meten en la disputa
+    if((n.stage==='jugador_ok'||n.stage==='contraoferta')&&Math.random()<0.22&&(n.rivals||[]).length<2){
+      const rv=pickBuyer();
+      n.rivals=(n.rivals||[]).concat([rv]);
+      n.deadline=2+~~(Math.random()*2);
+      addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',`⚠️ <b>${rv}</b> también fue por ${p.name}. Tenés <b>${n.deadline} semanas</b> para cerrar o lo perdemos.`,'⏳');
+    }
+    if(n.deadline>0){
+      n.deadline--;
+      if(n.deadline===0){
+        // Un rival se lo lleva
+        if(Math.random()<0.55){
+          const rv=(n.rivals||['un club del exterior'])[0];
+          addPhoneMsg('agent',p.club,`💔 <b>${p.name}</b> arregló con ${rv}. La operación se cayó.`,'💼');
+          lg('💔',`${p.name} se fue a ${rv}: te dormiste en la negociación`);
+          G.market=G.market.filter(x=>x.id!==p.id);
+          return;
+        }
+        n.rivals=[];
+      }
+    }
+    keep.push(n);
+  });
+  G.negs=keep;
+}
+function negComplete(n,p,price,isPre){
+  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
+  const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
+  G.budget=Math.round((G.budget-price-wageCost)*10)/10;
+  G.market=G.market.filter(x=>x.id!==p.id);
+  p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
+  p.pressuring=0;p.forceSale=false;p.freeAgent=false;
+  G.squad.push(p);G.bench.push(p);
+  n.stage='cerrada';
+  const modo=isPre?'con un PRECONTRATO (llega libre)':price>0?`por ${fv(price)}`:'LIBRE, sin costo de ficha';
+  lg('✍️',`${p.name} firmó ${modo} · ${n.wage}k/sem hasta ${p.contract}`);
+  addPhoneMsg('player',p.name,`✍️ ¡Listo presidente! Firmé ${modo}. Vamos a dar pelea.`,'✍️');
+  flash(`✍️ ${p.name} es tuyo ${price>0?'('+fv(price)+')':'(sin ficha)'}`,'win');
+  updateUI();
+}
+
+// ═══ PANEL DE NEGOCIACIONES ABIERTAS ═══
+function openNegsPanel(){
+  ensureNegs();
+  const ns=G.negs.filter(n=>n.stage!=='cerrada');
+  const label={esperando_jugador:'⏳ Esperando al jugador',jugador_ok:'✅ El jugador arregló — falta el club',
+    esperando_club:'⏳ Esperando respuesta del club',contraoferta:'💬 Contraoferta del club',
+    rechazada:'❌ Rechazada',precontrato_listo:'📝 Precontrato firmado'};
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📋 Negociaciones abiertas</div>
+    ${!ns.length?'<div class="note">No tenés operaciones en curso. Buscá un jugador en el mercado y arrancá por los términos personales.</div>':
+      ns.map(n=>{
+        const p=G.market.find(x=>x.id===n.pid);
+        return `<div class="card" style="margin-bottom:7px;padding:9px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><div style="font-weight:700;font-size:12px">${n.name}</div>
+            <div style="font-size:9px;color:var(--t3)">${n.club} · ${n.wage}k/sem · ${n.years} años</div></div>
+            <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} sem</span>`:''}</div>
+          </div>
+          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} sem`:''}</div>`:''}
+          ${n.stage==='jugador_ok'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">💰 Ofertar a ${n.club}</button>`:''}
+          ${n.stage==='contraoferta'&&p?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="negAcceptCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
+            <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
+          ${n.stage==='rechazada'?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">🔁 Volver a ofertar</button>
+            <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
+        </div>`;
+      }).join('')}
+  `);
+}
+function negAcceptCounter(pid){
+  const n=negFind(pid), p=G.market.find(x=>x.id===pid);
+  if(!n||!p)return;
+  if(n.want>G.budget){flash('❌ No te alcanza','loss');return;}
+  negComplete(n,p,n.want);
+  closeMod();
+}
+function negDrop(pid){
+  const n=negFind(pid); if(n)n.stage='cerrada';
+  G.negs=G.negs.filter(x=>x.stage!=='cerrada');
+  closeMod();updateUI();
+  flash('Negociación abandonada','draw');
+}
+
 // ═══ EL MERCADO ESTÁ VIVO: los jugadores suben y bajan cada semana ═══
 // Antes las medias y los valores del mercado eran una foto fija: sólo se tocaban
 // una vez por temporada y encima únicamente a los <=23 y >=35. Ahora cada jugador
@@ -13666,6 +13939,15 @@ function weeklyMarketEvolution(){
       const up=nr>p.rat;
       p.rat=nr;
       (up?risers:fallers).push(p);
+    }
+    // ═══ LOS QUE QUEDAN LIBRES SIGUEN EN EL MERCADO ═══
+    // Antes un contrato vencido no cambiaba nada. Ahora, al terminarse, el
+    // jugador queda LIBRE: no se paga ficha, sólo el sueldo. Y el que tiene
+    // pocos meses se abarata solo (el club prefiere venderlo a perderlo gratis).
+    if(contractMonths(p)<=0&&!p.freeAgent){
+      p.freeAgent=true;p.club='Libre';
+      if(p.rat>=76&&Math.random()<0.35)
+        addPhoneMsg('agent','Mercado de pases',`🆓 <b>${p.name}</b> (${p.rat}) quedó <b>libre</b>. Se lo puede firmar sin pagar ficha, sólo el contrato.`,'🆓');
     }
     // El VALOR se mueve aunque la media no cambie: interés del mercado
     if(p.hype===undefined)p.hype=1;
