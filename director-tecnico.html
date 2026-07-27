@@ -844,7 +844,7 @@ const PERF_ADJ = {
   'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
 };
 function perfAdj(name){ return PERF_ADJ[name]||0; }
-function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm) {
+function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm,pos2,clauseM,gls,ast,aps) {
   const rat = (rat_override > 0) ? Math.min(91,rat_override)
     : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
   const pot = Math.max(rat, valToPot(val, age, pos));
@@ -860,7 +860,11 @@ function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contract
     morale:65+~~(Math.random()*25),
     contract:cUntil,
     height:heightCm||0,
-    goals:0, assists:0, apps:0,
+    pos2:pos2||'',                 // segunda posición: juega ahí sin castigo casi
+    clause:clauseM||0,             // cláusula real (0 = se genera después)
+    // Estadísticas reales de la temporada en curso: el jugador arranca con su
+    // rendimiento de la vida real en vez de todo en cero.
+    goals:gls||0, assists:ast||0, apps:aps||0,
     attrs:genA(pos,rat), injured:false
   };
 }
@@ -1033,7 +1037,7 @@ function squadFromDB(clubName, fallbackFn, overrides){
     let num=r[0];
     while(used.has(num)&&num<50)num++;
     used.add(num);
-    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10]);
+    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15]);
     if(r[8])pl.foot=r[8];
     return pl;
   });
@@ -1064,7 +1068,7 @@ function buildMkt(){
   if(window.PLAYERS_DB && Array.isArray(PLAYERS_DB)){
     for(const r of PLAYERS_DB){
       // r[9]=año de vencimiento de contrato, r[10]=altura en cm (si la base los trae)
-      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10]);
+      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15]);
       if(r[8])pl.foot=r[8];
       m.push(pl);
     }
@@ -1151,7 +1155,13 @@ function ensureDtPool(){
       return;
     }
     const s=seedN(name);
-    const lgPow={'Premier':12,'España':11,'Italia':10,'Alemania':10,'Francia':9,'Brasil':7,'Portugal':7,'Turquía':6,'Grecia':5,'Holanda':6,'MLS':5,'Liga MX':5,'Liga ARG':5}[league]||3;
+    // Ligas que faltaban: sus DTs caían al valor por defecto (3) y quedaban
+    // subvaluados frente a cualquier técnico europeo.
+    const lgPow={'Premier':12,'España':11,'Italia':10,'Alemania':10,'Francia':9,
+      'Brasil':7,'Portugal':7,'Holanda':6,'Turquía':6,'Bélgica':6,'Rusia':6,
+      'Grecia':5,'MLS':5,'Liga MX':5,'Liga ARG':5,
+      'Colombia':4,'Chile':4,'Perú':4,'Ecuador':4,'Paraguay':4,'Uruguay':5,
+      'Bolivia':3,'Venezuela':3}[league]||3;
     G.dtPool.push({
       name,age:age||45+s%20,nat:nat||'—',
       rat:Math.min(90,64+lgPow+s%8),
@@ -2445,6 +2455,15 @@ function weeklyOffers(){
 }
 
 // Penalización por jugar fuera de puesto (0 = posición natural)
+// pen(jugador o posición, puesto). Si el jugador tiene SEGUNDA POSICIÓN real
+// (dato de la base) y el puesto coincide, casi no se lo castiga: es un puesto
+// que juega de verdad, no una improvisación.
+function posPenaltyFor(p, slotPos){
+  if(!p)return 0;
+  if(p.pos===slotPos)return 0;
+  if(p.pos2&&p.pos2===slotPos)return 1;      // puesto alternativo natural
+  return posPenalty(p.pos, slotPos);
+}
 function posPenalty(pos, slotPos){
   if(pos===slotPos) return 0;
   const P={
@@ -2483,7 +2502,7 @@ function autoFill(){
       if(used.has(p.id)||p.injured||p.susp>0)continue;   // lesionado o suspendido: no juega
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
-      let sc=p.rat-posPenalty(p.pos,s.pos)*2.2;
+      let sc=p.rat-posPenaltyFor(p,s.pos)*2.2;
       // Órdenes del presidente que el DT tiene que respetar: si le exigiste que
       // un pibe juegue, no se lo puede borrar al armar el equipo siguiente.
       if(p._forced>0)sc+=40;
@@ -2691,7 +2710,7 @@ function rSq(f){
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -3399,7 +3418,7 @@ function renderMkt(){
     return `
     <div class="mkrow" onclick="openP('${p.id}',false)">
       <div>${rbK(p)}</div>
-      <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
+      <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="font-size:9px;color:var(--t2)">${p.lg.split(' ')[0]}</div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
       <div class="vc">${fv(p.val)}${mktTrend(p)}${(()=>{const m=contractMonths(p);
@@ -9738,6 +9757,8 @@ function loanIn(id){negLoanOffer(id);}
 // (Transfermarkt no publica cláusulas: el juego las genera como los managers)
 function clauseOf(p){
   if(!p)return 0;
+  // Si la base trae la cláusula REAL del contrato, se respeta esa
+  if(p.clause>0)return Math.round(p.clause*10)/10;
   const ageM=p.age<=21?3.0:p.age<=24?2.4:p.age<=28?1.9:p.age<=31?1.5:1.2;
   const starM=p.rat>=87?1.35:p.rat>=83?1.15:1;
   return Math.max(0.5,Math.round(p.val*ageM*starM*10)/10);

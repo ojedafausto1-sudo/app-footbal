@@ -741,6 +741,11 @@ async function extractTM(selected) {
           contractUntil: parseContractYear(p.contract || p.contractUntil || p.contractExpiryDate || p.contractExpires || ''),
           // Altura: sirve para el juego aéreo (cabezazos, córners)
           heightCm: parseHeight(p.height || p.heightCm || ''),
+          // Segunda posición: el juego penaliza jugar fuera de puesto, así que
+          // saber que un DFC también juega de MCD cambia el armado del equipo.
+          pos2: pickSecondPos(p),
+          // Cláusula de rescisión real (el juego ya sabe comprarlas por cláusula)
+          clauseM: parseMarketVal(p.releaseClause || p.clause || p.buyoutClause || ''),
           foot: String(footRaw||'').toLowerCase().includes('izq')||String(footRaw||'').toLowerCase().includes('left')?'izq':String(footRaw||'').toLowerCase().includes('der')||String(footRaw||'').toLowerCase().includes('right')?'der':String(footRaw||'').toLowerCase().includes('both')||String(footRaw||'').toLowerCase().includes('ambi')?'ambi':'',
           playerId: p.id || p.playerId || ''
         });
@@ -897,6 +902,19 @@ function mapPos(pos) {
   return 'MC';
 }
 
+// Segunda posición. Transfermarkt la publica como "otherPosition" / lista de
+// posiciones; agarramos la primera que sea distinta de la principal.
+function pickSecondPos(p) {
+  const main = String(p.position || p.mainPosition || p.pos || '');
+  let cands = p.otherPositions || p.secondaryPositions || p.otherPosition || p.positions || [];
+  if (!Array.isArray(cands)) cands = [cands];
+  for (let c of cands) {
+    if (c && typeof c === 'object') c = c.name || c.position || '';
+    c = String(c || '').trim();
+    if (c && c.toLowerCase() !== main.toLowerCase()) return c;
+  }
+  return '';
+}
 // Año de vencimiento del contrato. Transfermarkt lo manda en varios formatos
 // ("Jun 30, 2027", "2027-06-30", "30.06.2027"): sacamos el año.
 function parseContractYear(v) {
@@ -1044,19 +1062,28 @@ function generateOutput() {
       const val = p.marketVal || 1;
       const num = p.number || (pos === 'ARQ' ? 1 : pos.includes('DF') ? 4 : pos.includes('MC') || pos === 'MCD' ? 8 : 9);
 
-      // El formato de players-db.js suma contrato y altura al final:
-      // [num,nombre,pos,edad,nac,club,liga,valorM,pie,contratoHasta,alturaCm]
+      // Formato de players-db.js (las columnas nuevas van AL FINAL para que
+      // las bases viejas sigan funcionando):
+      // [num,nombre,pos,edad,nac,club,liga,valorM,pie,contratoHasta,alturaCm,
+      //  pos2,clausulaM,goles,asistencias,partidos]
       const foot = p.foot || 'der';
       const cUntil = p.contractUntil || 0;
       const hCm = p.heightCm || 0;
-      js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm}],\n`;
-      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${p.goals||0},${p.assists||0},${p.apps||0},${val},${cUntil||''},${hCm||''}\n`;
+      const p2 = p.pos2 ? mapPos(p.pos2) : '';
+      const cl = p.clauseM || 0;
+      const gl = p.goals || 0, as = p.assists || 0, ap = p.apps || 0;
+      js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm},'${p2}',${cl},${gl},${as},${ap}],\n`;
+      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${gl},${as},${ap},${val},${cUntil||''},${hCm||''},"${p2}",${cl||''}\n`;
     }
 
     js += `  // Total: ${unique.length} jugadores extraidos\n`;
-    const conContrato = unique.filter(p=>p.contractUntil).length;
-    const conAltura = unique.filter(p=>p.heightCm).length;
-    log(`Contratos con fecha: ${conContrato}/${unique.length} · Alturas: ${conAltura}/${unique.length}`);
+    const pct=(n)=>Math.round(n/unique.length*100);
+    const cC = unique.filter(p=>p.contractUntil).length;
+    const cH = unique.filter(p=>p.heightCm).length;
+    const cP = unique.filter(p=>p.pos2).length;
+    const cL = unique.filter(p=>p.clauseM).length;
+    const cS = unique.filter(p=>p.apps).length;
+    log(`Cobertura de datos: contrato ${cC} (${pct(cC)}%) · altura ${cH} (${pct(cH)}%) · 2ª posición ${cP} (${pct(cP)}%) · cláusula ${cL} (${pct(cL)}%) · estadísticas ${cS} (${pct(cS)}%)`);
 
     document.getElementById('output').value = js;
     window._csvData = csv;
@@ -1095,8 +1122,26 @@ function downloadDTs() {
     const k = c.name.toLowerCase() + '|' + c.club;
     if (seen.has(k)) return false; seen.add(k); return true;
   });
+  // Si ya hay un dts-db.js curado a mano (con edades y nacionalidades reales),
+  // se respetan esos datos y sólo se actualiza el club. Antes se pisaba todo
+  // con edad 0 y nacionalidad vacía y se perdía el trabajo hecho a mano.
+  const prev = {};
+  (window.DTS_DB || []).forEach(r => { if (r && r[0]) prev[String(r[0]).toLowerCase()] = r; });
+  let kept = 0;
+  const out = rows.map(c => {
+    const old = prev[c.name.toLowerCase()];
+    const age = (old && old[1]) || c.age || 0;
+    const nat = (old && old[2]) || c.nat || '';
+    if (old && (old[1] || old[2])) kept++;
+    return [c.name, age, nat, c.club, mapLeague(c.country, c.league)];
+  });
+  // Los curados que el scrape no encontró no se pierden
+  const found = new Set(out.map(r => String(r[0]).toLowerCase()));
+  let carried = 0;
+  Object.values(prev).forEach(r => { if (!found.has(String(r[0]).toLowerCase())) { out.push(r); carried++; } });
+  log(`DTs: ${rows.length} extraídos · ${kept} conservaron edad/nacionalidad curada · ${carried} curados sin scrape mantenidos · ${out.length} en total`);
   const js = '// DTs extraídos de la web de Transfermarkt — [nombre,edad,nac,club,liga]\nwindow.DTS_DB=[\n' +
-    rows.map(c => JSON.stringify([c.name, 0, '', c.club, mapLeague(c.country, c.league)])).join(',\n') + '\n];\n';
+    out.map(r => JSON.stringify(r)).join(',\n') + '\n];\n';
   const blob = new Blob([js], { type: 'text/javascript' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
