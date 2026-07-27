@@ -47,6 +47,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="extractDTs" checked style="width:auto;margin:0"> Extraer DTs desde la web de Transfermarkt (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
+  <button class="secondary" onclick="testExtras()">🩺 Probar nacionalidades y DTs</button>
 </div>
 
 <div class="panel" id="leaguePanel" style="display:none">
@@ -902,6 +903,50 @@ function mapPos(pos) {
   return 'MC';
 }
 
+// ═══ DIAGNÓSTICO: ¿funcionan las dos fuentes libres? ═══
+// Las nacionalidades y los DTs NO vienen de SportDB: salen de dos fuentes
+// gratuitas aparte. Si el proxy que estás usando no las conoce, devuelve 400
+// y termina con todas las nacionalidades en 'UNK' y sin ningún DT — que es
+// exactamente lo que pasaba. Este botón te dice cuál de las dos falla.
+async function testExtras() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const cfW = (document.getElementById('cfWorker') || {value:''}).value.trim();
+  log('══════════════════════════════════════');
+  log('Proxy en uso: ' + (cfW ? 'Worker de Cloudflare (' + cfW + ')' : 'Función de Netlify (/.netlify/functions/sportdb)'));
+
+  // 1) Nacionalidades — Boca Juniors es el club 189 en Transfermarkt
+  try {
+    const r = await apiGet('/clubs/189/players', 'tmapi');
+    const list = r && Array.isArray(r.players) ? r.players : [];
+    if (list.length) {
+      const conNat = list.filter(p => p.nationality).length;
+      log(`✅ NACIONALIDADES: OK — ${list.length} jugadores, ${conNat} con nacionalidad.`);
+      log('   Ejemplo: ' + JSON.stringify(list[0]).slice(0, 300));
+    } else if (r && r.error) {
+      log('❌ NACIONALIDADES: el proxy respondió con error → ' + JSON.stringify(r).slice(0, 200));
+      log('   Si dice "api debe ser..." o "Missing API key", tu proxy está desactualizado.');
+    } else {
+      log('⚠️ NACIONALIDADES: respondió pero sin jugadores → ' + JSON.stringify(r).slice(0, 200));
+      log('   La API libre (transfermarkt-api.fly.dev) puede estar caída o cambió de formato.');
+    }
+  } catch (e) { log('❌ NACIONALIDADES: ' + e.message); }
+
+  // 2) DTs
+  try {
+    const r = await apiGet('/verein/189', 'tmcoach');
+    if (r && r.coach && r.coach.name) log('✅ DTs: OK — DT de Boca detectado: ' + r.coach.name);
+    else if (r && r.error) {
+      log('❌ DTs: el proxy respondió con error → ' + JSON.stringify(r).slice(0, 200));
+      log('   Si dice "api debe ser...", tu proxy está desactualizado.');
+    }
+    else log('⚠️ DTs: respondió sin entrenador → ' + JSON.stringify(r).slice(0, 200) + '\n   Transfermarkt puede haber bloqueado el pedido.');
+  } catch (e) { log('❌ DTs: ' + e.message); }
+
+  log('Si alguna falla: en Netlify hacé un redeploy (la función se actualizó),');
+  log('o pegá arriba la URL de tu Worker de Cloudflare con el código nuevo.');
+  log('══════════════════════════════════════');
+}
+
 // Segunda posición. Transfermarkt la publica como "otherPosition" / lista de
 // posiciones; agarramos la primera que sea distinta de la principal.
 function pickSecondPos(p) {
@@ -1116,7 +1161,18 @@ function downloadOutput() {
 // (edad y nacionalidad no vienen de la página del club: el juego las
 // completa solo; si querés precisión, editá el archivo a mano).
 function downloadDTs() {
-  if (!allCoaches.length) { alert('No se extrajeron DTs (activá el checkbox, actualizá el Worker y extraé)'); return; }
+  if (!allCoaches.length) {
+    const cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
+    alert('No se extrajo ningún DT.\n\n' +
+      'Los DTs NO vienen de SportDB: se leen de la web de Transfermarkt a través del proxy.\n' +
+      'Si viste "ERROR 400 en /verein/..." en el log, el proxy no soporta api=tmcoach.\n\n' +
+      'Proxy en uso: ' + (cfW ? 'Worker de Cloudflare' : 'Función de Netlify') + '\n\n' +
+      'Solución:\n' +
+      (cfW ? '• Actualizá el código del Worker con cloudflare-worker/sportdb-cache.js del repo.\n'
+           : '• Hacé un redeploy en Netlify (la función sportdb.js se actualizó para soportar tmcoach).\n') +
+      '• Después usá el botón "🩺 Probar nacionalidades y DTs" para confirmar antes de extraer todo.');
+    return;
+  }
   const seen = new Set();
   const rows = allCoaches.filter(c => {
     const k = c.name.toLowerCase() + '|' + c.club;
