@@ -437,8 +437,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
         </div>
         <button class="hm-play" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
         <div class="hm-alts">
-          <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">📺 RELATO</button>
+          <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">🔍 PREVIA</button>
           <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
+          <button class="btn bo bs" onclick="openContinuousSim()" style="border-color:var(--gold);color:var(--gold)">⏩ SIM CONTINUA</button>
           <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 SIM TÁCTICA 11v11</button>
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
@@ -6905,6 +6906,78 @@ function applyMatchResult(m, gf, ga, providedScorers){
   return {res, scorersList, stats, isLastMatch};
 }
 
+// ═══ SIMULACIÓN CONTINUA: elegís cuántos partidos seguidos jugar ═══
+function openContinuousSim(){
+  if(!G)return;
+  const pend=G.calendar.filter(m=>!m.played).length;
+  if(!pend){flash('No quedan partidos por jugar','draw');return;}
+  const opt=n=>`<button class="btn bo" style="flex:1" onclick="runContinuousSim(${n})">${n>=pend?'Todos ('+pend+')':n}</button>`;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">⏩ Simulación continua</div>
+    <div class="note" style="margin-bottom:10px">Se juegan varios partidos seguidos sin cortar. Al final ves el resumen de toda la seguidilla. Quedan <b>${pend}</b> partidos.</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">${opt(3)}${opt(5)}${opt(10)}</div>
+    <div style="display:flex;gap:5px;align-items:center;margin-bottom:10px">
+      <input type="number" id="contN" min="1" max="${pend}" value="${Math.min(15,pend)}"
+        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px;color:var(--gold);font-family:'Rajdhani';font-size:20px;font-weight:700;text-align:center;outline:none">
+      <button class="btn bg" style="flex:1" onclick="runContinuousSim(+document.getElementById('contN').value)">▶ Simular</button>
+    </div>
+    <button class="btn bo bs" style="width:100%" onclick="runContinuousSim(${pend})">⏭️ Hasta el final de la temporada</button>
+  `);
+}
+function runContinuousSim(n){
+  if(!G)return;
+  closeMod();
+  n=Math.max(1,Math.min(200,~~n||1));
+  const start={w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week};
+  const rows=[]; const titles=[];
+  const trophies0=(G.trophies||[]).length;
+  for(let i=0;i<n;i++){
+    const m=G.calendar.find(x=>!x.played);
+    if(!m)break;
+    const home=m.home,away=m.away,comp=m.comp;
+    simMatch(true);                       // sin modales: acumula y sigue
+    if(!m.played){G.week++;continue;}
+    if(m.week>G.week)G.week=m.week;
+    rows.push({comp,home,away,score:m.score,res:m.result});
+    // si terminó una fecha, avanza la semana para que corra la vida del club
+    if(!G.calendar.some(x=>!x.played&&x.week<=G.week)){
+      try{ if(typeof nextWeek==='function')nextWeek(); else G.week++; }catch(e){G.week++;}
+    }
+  }
+  (G.trophies||[]).slice(trophies0).forEach(t=>titles.push(t.name));
+  updateUI();
+  const W=G.wins-start.w,D=G.draws-start.d,L=G.losses-start.l;
+  const dGf=G.gf-start.gf,dGa=G.ga-start.ga;
+  const dBud=Math.round((G.budget-start.budget)*10)/10;
+  const col=r=>r==='W'?'var(--green)':r==='D'?'var(--gold)':'var(--red)';
+  const ico=r=>r==='W'?'✅':r==='D'?'🟡':'❌';
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">⏩ ${rows.length} partido${rows.length>1?'s':''} simulado${rows.length>1?'s':''}</div>
+    <div style="display:flex;gap:6px;text-align:center;margin-bottom:10px">
+      <div style="flex:1;background:rgba(15,184,102,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--green)">${W}</div><div style="font-size:9px;color:var(--t3)">GANADOS</div></div>
+      <div style="flex:1;background:rgba(246,211,24,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--gold)">${D}</div><div style="font-size:9px;color:var(--t3)">EMPATES</div></div>
+      <div style="flex:1;background:rgba(232,69,69,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--red)">${L}</div><div style="font-size:9px;color:var(--t3)">PERDIDOS</div></div>
+    </div>
+    <div class="sr"><span class="sl">Goles</span><span class="sv">${dGf} a favor · ${dGa} en contra</span></div>
+    <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${dBud>=0?'var(--green)':'var(--red)'}">${dBud>=0?'+':''}${fv(dBud)}</span></div>
+    <div class="sr"><span class="sl">Semana</span><span class="sv">${start.week} → ${G.week}</span></div>
+    ${titles.length?`<div class="note" style="margin:8px 0;border-color:var(--gold)">🏆 <b>${titles.join(' · ')}</b></div>`:''}
+    <div class="ctitle" style="margin-top:10px">📋 Resultados</div>
+    <div style="max-height:230px;overflow:auto">
+      ${rows.map(r=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px;padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span>${ico(r.res)}</span>
+        <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;color:var(--t2)">${r.home}</span>
+        <span style="min-width:34px;text-align:center;font-weight:800;color:${col(r.res)}">${r.score||'-'}</span>
+        <span style="flex:1;overflow:hidden;white-space:nowrap;color:var(--t2)">${r.away}</span>
+      </div><div style="font-size:8px;color:var(--t3);padding:0 4px 3px 22px">${r.comp}</div>`).join('')}
+    </div>
+    <button class="btn bg" style="width:100%;margin-top:10px" onclick="closeMod()">Continuar</button>
+  `);
+  if(G.calendar.every(m=>m.played))setTimeout(()=>checkSeasonEnd(),400);
+}
+
 function simMatch(auto){
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
@@ -6922,7 +6995,9 @@ function simMatch(auto){
   const R = applyMatchResult(m, gf, ga);
   updateUI();
   if(!auto){
-    showMatchLive(m, R.res, gf, ga, R.scorersList, R.stats, R.isLastMatch);
+    // Sin relato jugada a jugada: va directo al resumen del partido
+    G._lastMatch=m; G._lastScorers=R.scorersList; G._lastStats=R.stats;
+    showMatchSummary(m, R.res, gf, ga, R.scorersList, R.stats, R.isLastMatch);
   } else {
     if(R.isLastMatch) checkSeasonEnd();
   }
@@ -7624,12 +7699,38 @@ function derbyOf(a,b){
 }
 function isDerby(m){return m&&derbyOf(m.home,m.away);}
 
+// ¿Es un partido para dar la arenga? (clásico, copa, definición, mala racha)
+function isBigMatch(m){
+  if(!m)return false;
+  if(isDerby&&isDerby(m))return true;                            // clásico
+  const c=m.comp||'';
+  if(/Libertadores|Sudamericana|Copa Argentina/.test(c))return true;
+  if(/Octavos|Cuartos|Semi|Final/.test(c))return true;           // playoffs y llaves
+  const last3=G.calendar.filter(x=>x.played).slice(-3).map(x=>x.result);
+  if(last3.length>=3&&last3.every(r=>r==='L'))return true;       // hay que levantar al plantel
+  if((G.boardConf||50)<=30)return true;                          // tu puesto en juego
+  // Puntero o escolta enfrentando a un rival directo de arriba
+  try{
+    const pos=myLeaguePos();
+    const rival=m.home===G.teamName?m.away:m.home;
+    const rows=leagueSorted();
+    const rp=(rows.find(r=>r.club===rival)||{}).pos||99;
+    if(pos&&pos<=4&&rp<=4)return true;
+  }catch(e){}
+  return false;
+}
+
 // ═══ CHARLA TÉCNICA PRE-PARTIDO (estilo FM): elegí el tono ═══
 function askTeamTalk(then){
   if(!G){then&&then();return;}
   const m=G.calendar.find(x=>!x.played);
   if(!m){then&&then();return;}
   if(G._talkWeek===G.week){then&&then();return;} // ya diste la charla
+  // ═══ SÓLO EN PARTIDOS IMPORTANTES ═══
+  // Antes te frenaba con la arenga en las 40 fechas del año y cansaba.
+  // Ahora aparece cuando de verdad hace falta: clásicos, copas, definiciones,
+  // rachas negativas o partidos con el puesto en juego.
+  if(!isBigMatch(m)){then&&then();return;}
   const S=matchStrengths(m);
   const fav=(S.myS-S.oppS+S.homeBonus);
   const ctx=fav>0.08?'favorito':fav<-0.08?'underdog':'parejo';
@@ -9146,6 +9247,34 @@ function rStats(){
   // ═══ HISTORIAL MULTI-TEMPORADA ═══
   const hist=G.history||[];
   const titulos=hist.filter(h=>h.champion).length;
+  // ═══ PALMARÉS Y RÉCORDS DE TODA LA GESTIÓN ═══
+  const trs=G.trophies||[];
+  const trCount={};trs.forEach(t=>{trCount[t.name]=(trCount[t.name]||0)+1;});
+  const totW=hist.reduce((a,h)=>a+(h.w||0),0)+G.wins;
+  const totD=hist.reduce((a,h)=>a+(h.d||0),0)+G.draws;
+  const totL=hist.reduce((a,h)=>a+(h.l||0),0)+G.losses;
+  const totGF=hist.reduce((a,h)=>a+(h.gf||0),0)+G.gf;
+  const totGA=hist.reduce((a,h)=>a+(h.ga||0),0)+G.ga;
+  const totPJ=totW+totD+totL;
+  const winPct=totPJ?Math.round(totW/totPJ*100):0;
+  const bestPos=hist.length?Math.min(...hist.map(h=>h.pos||99)):null;
+  const seasons=hist.length+1;
+  window._palmaresHtml=`
+  <div class="card" style="margin-bottom:9px">
+    <div class="ctitle">🏛️ Palmarés y récords de tu gestión</div>
+    ${trs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
+      ${Object.entries(trCount).map(([n,c])=>`<span style="background:rgba(246,211,24,.12);border:1px solid var(--gold);border-radius:20px;padding:3px 9px;font-size:10px;color:var(--gold);font-weight:700">🏆 ${n}${c>1?' ×'+c:''}</span>`).join('')}
+    </div>`:'<div class="note" style="margin-bottom:8px">Todavía sin títulos. La primera vez siempre se recuerda.</div>'}
+    <div style="display:flex;gap:6px;text-align:center;margin-bottom:6px">
+      <div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:6px"><div style="font-family:'Rajdhani';font-size:20px;font-weight:900;color:var(--gold)">${seasons}</div><div style="font-size:8px;color:var(--t3)">TEMPORADAS</div></div>
+      <div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:6px"><div style="font-family:'Rajdhani';font-size:20px;font-weight:900;color:var(--green)">${winPct}%</div><div style="font-size:8px;color:var(--t3)">VICTORIAS</div></div>
+      <div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:6px"><div style="font-family:'Rajdhani';font-size:20px;font-weight:900">${totPJ}</div><div style="font-size:8px;color:var(--t3)">PARTIDOS</div></div>
+      <div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:6px"><div style="font-family:'Rajdhani';font-size:20px;font-weight:900;color:${totGF-totGA>=0?'var(--green)':'var(--red)'}">${totGF-totGA>0?'+':''}${totGF-totGA}</div><div style="font-size:8px;color:var(--t3)">DIF. GOLES</div></div>
+    </div>
+    <div class="sr"><span class="sl">Récord total</span><span class="sv">${totW}V · ${totD}E · ${totL}P (${totGF}:${totGA})</span></div>
+    ${bestPos?`<div class="sr"><span class="sl">Mejor puesto en liga</span><span class="sv" style="color:var(--gold)">${bestPos}º</span></div>`:''}
+    <div class="sr"><span class="sl">Reputación del club</span><span class="sv">${G.rep||50}/100</span></div>
+  </div>`;
   window._histHtml=hist.length?`
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">📜 Historial del club ${titulos?`· 🏆×${titulos}`:''}</div>
@@ -9184,7 +9313,7 @@ function rStats(){
     col3('⚽ Goleadores',scorers.slice(0,6),'goals','')+
     col3('🅰️ Asistencias',asis,'assists','')+
     col3('⭐ MVP del partido',mvps,'mvpCount','');
-  el.innerHTML = (window._finHtml||'')+(window._topHtml||'')+(window._histHtml||'')+`
+  el.innerHTML = (window._finHtml||'')+(window._topHtml||'')+(window._palmaresHtml||'')+(window._histHtml||'')+`
     <div class="card" style="margin-bottom:10px">
       <div class="ctitle">📈 Forma Reciente</div>
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
@@ -9981,6 +10110,7 @@ function startFullMatch(watch){
         <button onclick="fmToggleMute(this)" id="fm-mutebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔊</button>
         <button onclick="fmShowHelp()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">?</button>
         <button onclick="fmPause()" id="fm-pausebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">⏸</button>
+        <button onclick="fmOpenSubs()" id="fm-subsbtn" title="Cambios" style="background:rgba(246,211,24,.15);border:1px solid rgba(246,211,24,.55);color:#F6D318;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔄</button>
         <button onclick="fmEnd()" style="background:rgba(246,211,24,.15);border:1px solid #F6D318;color:#F6D318;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
         <button onclick="fmQuit()" style="background:rgba(228,60,60,.12);border:1px solid #e43c3c;color:#e43c3c;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">✕</button>
       </div>
@@ -10168,6 +10298,11 @@ function fmInit(m,W,H){
     learn:{shots:0,longShots:0,passes:0,lofted:0,dribbleTicks:0,laneTop:0,laneMid:0,laneBot:0},
     stat:{my:{shots:0,sot:0,pass:0,corner:0,foul:0,off:0},opp:{shots:0,sot:0,pass:0,corner:0,foul:0,off:0}},
     _pausedBy:null,
+    // ═══ BANCO DE SUPLENTES: hasta 5 cambios, como en la vida real ═══
+    subsLeft:5,
+    subsMade:[],
+    benchPool:(G.squad||[]).filter(q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&q.pos!=='ARQ')
+      .sort((a,b)=>b.rat-a.rat).slice(0,9),
   };
   // El bot juega más rápido/agresivo según lo que aprendió (rubber-band)
   FM.opp.forEach(p=>{ if(!p.isGK) p.spd*=(0.94+adapt.aggr*0.18); });
@@ -10639,6 +10774,63 @@ function fmPause(){
     if(btn)btn.textContent='▶';
     fmMsg('⏸ PAUSA');
   }
+}
+
+// ═══ SUSTITUCIONES EN VIVO ═══
+// Ahora que los jugadores se cansan de verdad, poder refrescar el equipo
+// en el segundo tiempo cambia partidos. Hasta 5 cambios por partido.
+function fmOpenSubs(){
+  const f=FM;if(!f)return;
+  if(f.phase!=='paused')fmPause();
+  const pool=f.benchPool||[];
+  const onField=f.my.map((p,i)=>({p,i})).filter(o=>!o.p.isGK);
+  const stamCol=s=>s>=80?'var(--green)':s>=65?'var(--gold)':'var(--red)';
+  const html=`
+    <button class="mclose" onclick="closeMod();fmPause()">✕</button>
+    <div class="mtitle">🔄 Cambios <span style="font-size:11px;color:var(--t3)">· quedan ${f.subsLeft}</span></div>
+    ${f.subsLeft<=0?'<div class="note">Ya usaste los 5 cambios.</div>':`
+    <div style="font-size:10px;color:var(--t3);margin-bottom:4px">1) Elegí quién SALE (mirá la energía):</div>
+    <select class="sb" id="subOut">
+      ${onField.sort((a,b)=>(a.p.stam||100)-(b.p.stam||100)).map(o=>
+        `<option value="${o.i}">${o.p.name} (${o.p.role}) — ⚡${Math.round(o.p.stam||100)}%</option>`).join('')}
+    </select>
+    <div style="font-size:10px;color:var(--t3);margin:7px 0 4px">2) Elegí quién ENTRA (fresco al 100%):</div>
+    <select class="sb" id="subIn">
+      ${pool.map((q,j)=>`<option value="${j}">${q.name} — ${q.pos} · ${q.rat} · ⚡${q.fit===undefined?100:Math.round(q.fit)}%</option>`).join('')}
+    </select>
+    <button class="btn bg" style="width:100%;margin-top:10px" onclick="fmDoSub()">🔄 Hacer el cambio</button>`}
+    ${(f.subsMade||[]).length?`<div class="ctitle" style="margin-top:10px">Cambios hechos</div>
+      ${f.subsMade.map(s=>`<div style="font-size:10px;padding:2px 0;color:var(--t2)">${s.min}' ↔ Sale <b>${s.out}</b>, entra <b>${s.in}</b></div>`).join('')}`:''}
+  `;
+  showMod(html);
+}
+function fmDoSub(){
+  const f=FM;if(!f||f.subsLeft<=0)return;
+  const oi=+document.getElementById('subOut').value;
+  const bi=+document.getElementById('subIn').value;
+  const out=f.my[oi], inc=(f.benchPool||[])[bi];
+  if(!out||!inc)return;
+  // el que entra hereda la posición pero llega descansado
+  const attrs=(typeof mkAttrs==='function')?mkAttrs(inc.rat||72,out.role,inc):out.attrs;
+  f.my[oi]=Object.assign({},out,{
+    name:inc.name.split(' ').pop().slice(0,7),
+    rat:Math.round(inc.rat||72),
+    attrs:attrs||out.attrs,
+    num:inc.num||out.num,
+    spd:out.isGK?out.spd:(1.30+(((attrs&&attrs.pac)||70)/100)*0.65),
+    stam:Math.max(70,Math.min(100,inc.fit===undefined?100:inc.fit)),
+    _srcId:inc.id,
+  });
+  f.benchPool=f.benchPool.filter((_,j)=>j!==bi);
+  f.subsLeft--;
+  f.subsMade=f.subsMade||[];
+  f.subsMade.push({min:f.minute||0,out:out.name,in:f.my[oi].name});
+  // el que sale suma el partido igual
+  const real=(G.squad||[]).find(q=>q.id===inc.id);
+  if(real){real.apps=(real.apps||0)+1;}
+  fmMsg&&fmMsg(`🔄 ${out.name} ➜ ${f.my[oi].name}`);
+  lg&&lg('🔄',`Cambio en el ${f.minute||0}': sale ${out.name}, entra ${f.my[oi].name}`);
+  closeMod();fmPause();
 }
 
 const FM_MENTS=[
