@@ -119,17 +119,23 @@ function getApiChoice() {
 }
 
 let cacheHits = 0;
+// Workers viejos no conocen tmapi/tmcoach y devuelven 400. En vez de perder
+// las nacionalidades y los DTs, se detecta una vez y a partir de ahí esas dos
+// consultas van por la función de Netlify (que sí las soporta).
+let workerLacksFree = false;
 async function apiGet(path, apiType) {
   apiType = apiType || getApiChoice();
+  const isFree = (apiType === 'tmapi' || apiType === 'tmcoach');
   reqCount++;
   document.getElementById('sReqs').textContent = reqCount + (cacheHits ? ` (${cacheHits} de caché)` : '');
-  const cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
+  let cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
+  // Si ya sabemos que el Worker no soporta las fuentes libres, no lo usamos para ellas
+  if (isFree && workerLacksFree) cfW = '';
   // Con Worker cacheado no hace falta frenar tanto entre requests
   if (reqCount % 3 === 0) await sleep(cfW ? 250 : 1100);
-  const base = cfW
-    ? cfW.replace(/\/+$/,'') + '/?api='
-    : '/.netlify/functions/sportdb?api=';
-  const fnUrl = base + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+  const mkUrl = (w) => (w ? w.replace(/\/+$/,'') + '/?api=' : '/.netlify/functions/sportdb?api=')
+    + apiType + '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+  let fnUrl = mkUrl(cfW);
   for (let intento = 0; intento < 3; intento++) {
     try {
       const res = await fetch(fnUrl);
@@ -141,6 +147,18 @@ async function apiGet(path, apiType) {
       if ((res.status === 429 || res.status === 503) && intento < 2) {
         await sleep(4000 * (intento + 1));
         continue;
+      }
+      // ═══ EL WORKER NO SOPORTA ESTA FUENTE: pasamos a Netlify y seguimos ═══
+      if (res.status === 400 && isFree && cfW) {
+        if (!workerLacksFree) {
+          workerLacksFree = true;
+          log('⚠️ Tu Worker de Cloudflare no soporta ' + apiType + ' (es una versión vieja).');
+          log('   → Uso automático de la función de Netlify para nacionalidades y DTs.');
+          log('   Para recuperar el caché, actualizá el Worker con cloudflare-worker/sportdb-cache.js');
+        }
+        cfW = '';
+        fnUrl = mkUrl('');
+        continue;               // reintento por Netlify
       }
       if (!res.ok) {
         log(`ERROR ${res.status} en ${path}`);
@@ -942,8 +960,11 @@ async function testExtras() {
     else log('⚠️ DTs: respondió sin entrenador → ' + JSON.stringify(r).slice(0, 200) + '\n   Transfermarkt puede haber bloqueado el pedido.');
   } catch (e) { log('❌ DTs: ' + e.message); }
 
-  log('Si alguna falla: en Netlify hacé un redeploy (la función se actualizó),');
-  log('o pegá arriba la URL de tu Worker de Cloudflare con el código nuevo.');
+  if (workerLacksFree) {
+    log('ℹ️ Tu Worker es viejo: nacionalidades y DTs van por Netlify automáticamente.');
+    log('   Funciona igual, sólo que sin caché para esas dos fuentes.');
+  }
+  log('Si alguna sigue fallando, la fuente libre puede estar caída: avisame qué dice acá.');
   log('══════════════════════════════════════');
 }
 
