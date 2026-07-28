@@ -1030,8 +1030,21 @@ async function testExtras() {
       log('❌ NACIONALIDADES: el proxy respondió con error → ' + JSON.stringify(r).slice(0, 200));
       log('   Si dice "api debe ser..." o "Missing API key", tu proxy está desactualizado.');
     } else {
-      log('⚠️ NACIONALIDADES: respondió pero sin jugadores → ' + JSON.stringify(r).slice(0, 200));
-      log('   La API libre (transfermarkt-api.fly.dev) puede estar caída o cambió de formato.');
+      // La API libre está caída: probamos la ruta que SÍ funciona (perfil del
+      // jugador en SportDB, que trae la nacionalidad en la descripción).
+      log('ℹ️ La API libre está caída. Probando la ruta por perfil de SportDB...');
+      const club = await rawGet('transfermarkt', '/clubs/189/players');
+      const mid = club.body.match(/"id"\s*:\s*"(\d+)"\s*,\s*"name"\s*:\s*"([^"]+)"/);
+      if (mid) {
+        const prof = await apiGet(`/players/${mid[1]}/profile`, 'transfermarkt');
+        const nn = natFromProfile(prof);
+        if (nn) {
+          log(`✅ NACIONALIDADES: OK por perfil — ${mid[2]} → ${nn} (${mapNat(nn)})`);
+          log('   Tildá el checkbox amarillo para usarla. Cuesta 1 crédito por jugador.');
+        } else {
+          log('❌ NACIONALIDADES: el perfil tampoco la trae → ' + JSON.stringify(prof).slice(0, 200));
+        }
+      } else log('❌ No pude leer un id de jugador del plantel para probar.');
     }
   } catch (e) { log('❌ NACIONALIDADES: ' + e.message); }
 
