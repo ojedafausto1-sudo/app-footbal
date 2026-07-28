@@ -45,6 +45,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   </div>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="fillNats" checked style="width:auto;margin:0"> Completar nacionalidades con TM-API libre (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8faed4;margin-bottom:8px"><input type="checkbox" id="extractDTs" checked style="width:auto;margin:0"> Extraer DTs desde la web de Transfermarkt (GRATIS, no gasta créditos — requiere Worker actualizado)</label><br>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#f6d318;margin-bottom:8px"><input type="checkbox" id="deepNats" style="width:auto;margin:0"> <b>Nacionalidades desde el perfil de SportDB</b> — ⚠️ GASTA 1 CRÉDITO POR JUGADOR (~13.000). Sólo si la API libre está caída. Con el Worker actualizado quedan cacheadas y no se vuelven a pagar.</label><br>
   <button onclick="testAPI()">1. Probar conexión</button>
   <button class="secondary" onclick="discoverLeagues()">2. Descubrir ligas</button>
   <button class="secondary" onclick="testExtras()">🩺 Probar nacionalidades y DTs</button>
@@ -677,6 +678,7 @@ async function extractTM(selected) {
       // Armamos un mapa nombre→nacionalidad y lo usamos al parsear.
       let natByName = {};
       if (wantNats) {
+        // 1) Intento gratis: la TM-API libre (si está viva)
         const free = await apiGet(`/clubs/${clubId}/players`, 'tmapi');
         const list = free && Array.isArray(free.players) ? free.players : [];
         for (const fp of list) {
@@ -685,10 +687,22 @@ async function extractTM(selected) {
           if (Array.isArray(nn)) nn = nn[0] || '';
           if (nm && nn) natByName[nm] = String(nn);
         }
-        if (ci === 0 && li === 0 && list.length) {
-          log('    TM-API libre ejemplo: ' + JSON.stringify(list[0]).slice(0, 500));
+        if (!list.length && ci === 0 && li === 0) log('    (TM-API libre caída → uso los perfiles de SportDB)');
+
+        // 2) Respaldo confiable: el perfil de cada jugador en SportDB.
+        //    Cuesta 1 request por jugador, así que sólo se hace si lo pediste.
+        if (!list.length && document.getElementById('deepNats').checked) {
+          const ids = playerList.map(p => p.id || p.playerId).filter(Boolean);
+          for (const pid of ids) {
+            const prof = await apiGet(`/players/${pid}/profile`, 'transfermarkt');
+            const nn = natFromProfile(prof);
+            if (nn && prof && prof.name) natByName[String(prof.name).toLowerCase()] = nn;
+          }
+          if (ci === 0 && li === 0) {
+            const ej = Object.entries(natByName)[0];
+            log('    Perfiles SportDB: ' + Object.keys(natByName).length + ' nacionalidades' + (ej ? ` (ej: ${ej[0]} → ${ej[1]})` : ''));
+          }
         }
-        if (!list.length) log('    (TM-API libre sin datos para este club)');
       }
 
       // DT: la web de Transfermarkt muestra al entrenador en la página del
@@ -943,9 +957,29 @@ async function rawGet(apiType, path) {
 // campo: SportDB devuelve "nationality":[] vacío en el listado del plantel)
 function hasRealNat(body) {
   const m = body.match(/"(?:nationality|nationalities|citizenship|country)"\s*:\s*(\[[^\]]*\]|"[^"]*")/i);
-  if (!m) return false;
-  const v = m[1];
-  return v !== '[]' && v !== '""' && v !== '[""]' && v.length > 3;
+  if (m) { const v = m[1]; if (v !== '[]' && v !== '""' && v !== '[""]' && v.length > 3) return true; }
+  return /,\s*from\s+[A-ZÁÉÍÓÚÑ]/.test(body);   // viene dentro de "description"
+}
+
+// ═══ NACIONALIDAD DESDE EL PERFIL DEL JUGADOR ═══
+// El listado del plantel devuelve "nationality":[] vacío, pero el endpoint
+// /players/{id}/profile SÍ la trae, embebida en la descripción:
+//   "Álvaro Montero, 31, from Colombia ➤ CA Boca Juniors, since 2026 ➤ ..."
+// De paso salen el lugar de nacimiento y la fecha, que sirven de respaldo.
+function natFromProfile(prof) {
+  if (!prof) return '';
+  // 1) Campo propio si algún día lo llenan
+  let n = prof.nationality || prof.citizenship || prof.country || '';
+  if (Array.isArray(n)) n = n[0] || '';
+  if (n && String(n).trim()) return String(n).trim();
+  // 2) De la descripción: "..., 31, from Colombia ➤ ..."
+  const d = String(prof.description || '');
+  let m = d.match(/,\s*\d{1,2},\s*from\s+([^➤|]+?)\s*(?:➤|$)/i) || d.match(/\bfrom\s+([^➤|]+?)\s*(?:➤|$)/i);
+  if (m) return m[1].trim();
+  // 3) Último recurso: el país del lugar de nacimiento ("* 29/03/1995 in El Molino, Colombia")
+  m = d.match(/\bin\s+[^,➤]+,\s*([^➤|]+?)\s*(?:➤|$)/i);
+  if (m) return m[1].trim();
+  return '';
 }
 async function probeNats() {
   log('── Buscando de dónde sacar las nacionalidades ──');
