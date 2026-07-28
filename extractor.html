@@ -347,7 +347,13 @@ function getLeagueTier(name, country) {
     'liga portugal','primeira liga','liga nos',
     'süper lig','super lig turkey'
   ];
-  if (tier1.some(t => n.includes(t) || n === t)) return 1;
+  // OJO: la segunda se chequea ANTES que la primera. Las dos listas matchean
+  // por substring y casi todas las segundas contienen el nombre de su primera:
+  // "2. Bundesliga" contiene "bundesliga", "LaLiga 2" contiene "laliga",
+  // "Liga Portugal 2" contiene "liga portugal", "Challenger Pro League"
+  // contiene "pro league" y "LigaPro Serie B" contiene "ligapro". Con el orden
+  // viejo las cinco entraban como primera división.
+  // Al revés no pasa: ningún nombre de primera contiene el de una segunda.
 
   // Known second divisions (tier 2)
   const tier2 = [
@@ -375,6 +381,7 @@ function getLeagueTier(name, country) {
     '1. lig','tff 1. lig','first league turkey'
   ];
   if (tier2.some(t => n.includes(t) || n === t)) return 2;
+  if (tier1.some(t => n.includes(t) || n === t)) return 1;
 
   // Generic pattern matching for "primera" / "first" / "1st" → tier 1
   if (/\b(primera|first|1st|1a|1ère)\b/.test(n) && !/\b(b|nacional)\b/.test(n)) return 1;
