@@ -694,25 +694,7 @@ async function extractTM(selected) {
             : '    ⚠️ TM-API libre caída y el checkbox de perfiles NO está tildado:\n       las nacionalidades van a salir en UNK. Tildá "Nacionalidades desde el perfil".');
         }
 
-        // 2) Respaldo confiable: el perfil de cada jugador en SportDB.
-        //    Cuesta 1 request por jugador, así que sólo se hace si lo pediste.
-        if (!list.length && document.getElementById('deepNats').checked) {
-          const ids = playerList.map(p => p.id || p.playerId).filter(Boolean);
-          for (const pid of ids) {
-            const prof = await apiGet(`/players/${pid}/profile`, 'transfermarkt');
-            const nn = natFromProfile(prof);
-            const n2 = nat2FromProfile(prof);
-            if (nn && prof && prof.name) {
-              const k = String(prof.name).toLowerCase();
-              natByName[k] = nn;
-              if (n2) nat2ByName[k] = n2;
-            }
-          }
-          if (ci === 0 && li === 0) {
-            const ej = Object.entries(natByName)[0];
-            log('    Perfiles SportDB: ' + Object.keys(natByName).length + ' nacionalidades' + (ej ? ` (ej: ${ej[0]} → ${ej[1]})` : ''));
-          }
-        }
+        // (el respaldo por perfiles corre más abajo, cuando playerList ya existe)
       }
 
       // DT: la web de Transfermarkt muestra al entrenador en la página del
@@ -741,6 +723,27 @@ async function extractTM(selected) {
           if (Array.isArray(v) && v.length > 0) {
             playerList.push(...v);
           }
+        }
+      }
+
+      // ═══ RESPALDO DE NACIONALIDADES POR PERFIL ═══
+      // Va acá y no arriba: necesita playerList ya construido. Estaba antes de
+      // su declaración y lanzaba un ReferenceError que cortaba todo el bucle.
+      if (wantNats && !Object.keys(natByName).length && document.getElementById('deepNats').checked) {
+        const ids = playerList.map(x => x.id || x.playerId).filter(Boolean);
+        for (const pid of ids) {
+          const prof = await apiGet(`/players/${pid}/profile`, 'transfermarkt');
+          const nn = natFromProfile(prof);
+          const n2 = nat2FromProfile(prof);
+          if (nn && prof && prof.name) {
+            const k = String(prof.name).toLowerCase();
+            natByName[k] = nn;
+            if (n2) nat2ByName[k] = n2;
+          }
+        }
+        if (ci === 0 && li === 0) {
+          const ej = Object.entries(natByName)[0];
+          log('    Perfiles SportDB: ' + Object.keys(natByName).length + ' nacionalidades' + (ej ? ` (ej: ${ej[0]} → ${ej[1]})` : ''));
         }
       }
 
