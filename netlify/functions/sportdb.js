@@ -39,13 +39,30 @@ exports.handler = async function (event) {
     if (api === 'tmcoach') {
       const idm = String(path).match(/(\d+)/);
       if (!idm) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'path debe incluir el id del club' }) };
-      const res = await fetch(`https://www.transfermarkt.com/-/startseite/verein/${idm[1]}`, {
-        headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' },
-      });
-      if (res.status !== 200) {
-        return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach: null, upstream: res.status }) };
+      const id = idm[1];
+      // La página de club dejó de traer al DT en el HTML del servidor. Probamos
+      // varias URLs de Transfermarkt hasta dar con una que sí lo tenga: la de
+      // cuerpo técnico (mitarbeiter) suele seguir siendo server-rendered.
+      const urls = [
+        `https://www.transfermarkt.com/-/mitarbeiter/verein/${id}`,
+        `https://www.transfermarkt.es/-/mitarbeiter/verein/${id}`,
+        `https://www.transfermarkt.de/-/mitarbeiter/verein/${id}`,
+        `https://www.transfermarkt.com/-/startseite/verein/${id}`,
+      ];
+      let html = '', usedUrl = '', lastStatus = 0;
+      for (const u of urls) {
+        try {
+          const r = await fetch(u, { headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' } });
+          lastStatus = r.status;
+          if (r.status !== 200) continue;
+          const t = await r.text();
+          if (/profil\/trainer\//i.test(t)) { html = t; usedUrl = u; break; }
+          if (!html) { html = t; usedUrl = u; }   // guardamos la primera por si ninguna trae el patrón
+        } catch (e) { /* probamos la siguiente */ }
       }
-      const html = await res.text();
+      if (!html) {
+        return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach: null, upstream: lastStatus }) };
+      }
       // Transfermarkt sirve el DT de formas distintas según el layout, y a veces
       // devuelve una página de bloqueo. Probamos varios patrones y, si no hay
       // ninguno, informamos POR QUÉ en vez de devolver null a secas.
@@ -79,9 +96,9 @@ exports.handler = async function (event) {
           if (i >= 0) hints.push(w + ' @' + i + ': ' + html.slice(Math.max(0, i - 90), i + 130).replace(/\s+/g, ' '));
           if (hints.length >= 3) break;
         }
-        diag = { blocked, htmlLen: html.length, title: (html.match(/<title>([^<]*)</i) || [, ''])[1].slice(0, 90), hints };
+        diag = { blocked, url: usedUrl, htmlLen: html.length, title: (html.match(/<title>([^<]*)</i) || [, ''])[1].slice(0, 90), hints };
       }
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach, diag }) };
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ coach, url: usedUrl, diag }) };
     }
 
     // ── Resto: SportDB o la TM-API libre ──
