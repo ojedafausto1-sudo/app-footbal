@@ -676,7 +676,7 @@ async function extractTM(selected) {
       // NACIONALIDADES: SportDB las devuelve vacías, pero la TM-API libre
       // (transfermarkt-api.fly.dev, gratis vía Worker api=tmapi) sí las trae.
       // Armamos un mapa nombre→nacionalidad y lo usamos al parsear.
-      let natByName = {};
+      let natByName = {}, nat2ByName = {};
       if (wantNats) {
         // 1) Intento gratis: la TM-API libre (si está viva)
         const free = await apiGet(`/clubs/${clubId}/players`, 'tmapi');
@@ -696,7 +696,12 @@ async function extractTM(selected) {
           for (const pid of ids) {
             const prof = await apiGet(`/players/${pid}/profile`, 'transfermarkt');
             const nn = natFromProfile(prof);
-            if (nn && prof && prof.name) natByName[String(prof.name).toLowerCase()] = nn;
+            const n2 = nat2FromProfile(prof);
+            if (nn && prof && prof.name) {
+              const k = String(prof.name).toLowerCase();
+              natByName[k] = nn;
+              if (n2) nat2ByName[k] = n2;
+            }
           }
           if (ci === 0 && li === 0) {
             const ej = Object.entries(natByName)[0];
@@ -777,6 +782,8 @@ async function extractTM(selected) {
           // Segunda posición: el juego penaliza jugar fuera de puesto, así que
           // saber que un DFC también juega de MCD cambia el armado del equipo.
           pos2: pickSecondPos(p),
+          // Segunda nacionalidad: define si ocupa cupo de extranjero
+          nat2: nat2ByName[name.toLowerCase()] || '',
           // Cláusula de rescisión real (el juego ya sabe comprarlas por cláusula)
           clauseM: parseMarketVal(p.releaseClause || p.clause || p.buyoutClause || ''),
           foot: String(footRaw||'').toLowerCase().includes('izq')||String(footRaw||'').toLowerCase().includes('left')?'izq':String(footRaw||'').toLowerCase().includes('der')||String(footRaw||'').toLowerCase().includes('right')?'der':String(footRaw||'').toLowerCase().includes('both')||String(footRaw||'').toLowerCase().includes('ambi')?'ambi':'',
@@ -979,6 +986,23 @@ function natFromProfile(prof) {
   // 3) Último recurso: el país del lugar de nacimiento ("* 29/03/1995 in El Molino, Colombia")
   m = d.match(/\bin\s+[^,➤]+,\s*([^➤|]+?)\s*(?:➤|$)/i);
   if (m) return m[1].trim();
+  return '';
+}
+
+// ═══ SEGUNDA NACIONALIDAD ═══
+// En el fútbol argentino, un extranjero nacionalizado NO ocupa cupo. Si el
+// jugador tiene doble ciudadanía hay que saberlo, o contamos mal el cupo.
+function nat2FromProfile(prof) {
+  if (!prof) return '';
+  let arr = prof.nationalities || prof.citizenship || prof.nationality;
+  if (Array.isArray(arr) && arr.length > 1) {
+    const b = arr[1];
+    return String((b && (b.name || b.country)) || b || '').trim();
+  }
+  // La descripción a veces lista las dos: "from Brazil Italy ➤"
+  const d = String(prof.description || '');
+  const m = d.match(/\bfrom\s+([A-ZÁÉÍÓÚÑ][^➤|,]*?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)\s*(?:➤|$)/);
+  if (m) return m[2].trim();
   return '';
 }
 async function probeNats() {
@@ -1221,7 +1245,7 @@ function generateOutput() {
       }
     }
 
-    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm\n';
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Nacionalidad2,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm,Pos2,Clausula\n';
     let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
     for (const p of unique) {
@@ -1241,10 +1265,11 @@ function generateOutput() {
       const cUntil = p.contractUntil || 0;
       const hCm = p.heightCm || 0;
       const p2 = p.pos2 ? mapPos(p.pos2) : '';
+      const nat2 = p.nat2 ? mapNat(p.nat2) : '';
       const cl = p.clauseM || 0;
       const gl = p.goals || 0, as = p.assists || 0, ap = p.apps || 0;
-      js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm},'${p2}',${cl},${gl},${as},${ap}],\n`;
-      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${gl},${as},${ap},${val},${cUntil||''},${hCm||''},"${p2}",${cl||''}\n`;
+      js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm},'${p2}',${cl},${gl},${as},${ap},'${nat2}'],\n`;
+      csv += `"${pName}","${pos}",${p.age||''},"${nat}","${p.foot||''}","${pClub}","${lg}",${gl},${as},${ap},${val},${cUntil||''},${hCm||''},"${p2}",${cl||''},"${nat2}"\n`;
     }
 
     js += `  // Total: ${unique.length} jugadores extraidos\n`;

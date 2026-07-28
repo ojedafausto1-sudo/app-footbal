@@ -844,7 +844,7 @@ const PERF_ADJ = {
   'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
 };
 function perfAdj(name){ return PERF_ADJ[name]||0; }
-function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm,pos2,clauseM,gls,ast,aps) {
+function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm,pos2,clauseM,gls,ast,aps,nat2) {
   const rat = (rat_override > 0) ? Math.min(91,rat_override)
     : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
   const pot = Math.max(rat, valToPot(val, age, pos));
@@ -861,6 +861,7 @@ function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contract
     contract:cUntil,
     height:heightCm||0,
     pos2:pos2||'',                 // segunda posición: juega ahí sin castigo casi
+    nat2:nat2||'',                 // 2ª nacionalidad: si es ARG, no ocupa cupo
     clause:clauseM||0,             // cláusula real (0 = se genera después)
     // Estadísticas reales de la temporada en curso: el jugador arranca con su
     // rendimiento de la vida real en vez de todo en cero.
@@ -949,11 +950,14 @@ function pgr(pos){
 // =============================================
 // FOREIGN QUOTA HELPERS
 // =============================================
-function isForeign(nat){ return nat !== 'ARG'; }
+// Un extranjero NACIONALIZADO no ocupa cupo: si tiene la ciudadanía argentina
+// como segunda nacionalidad, cuenta como local (regla real de la Liga).
+function isForeign(nat,nat2){ return nat !== 'ARG' && nat2 !== 'ARG'; }
+function pIsForeign(p){ return p && isForeign(p.nat, p.nat2); }
 function isMercosur(nat){ return ['URU','PAR','BRA','BOL','CHI','ECU','PER','VEN','COL'].includes(nat); }
-function foreignCount(squad){ return (squad||[]).filter(p=>isForeign(p.nat)).length; }
+function foreignCount(squad){ return (squad||[]).filter(pIsForeign).length; }
 function foreignStats(squad){
-  const all = (squad||[]).filter(p=>isForeign(p.nat));
+  const all = (squad||[]).filter(pIsForeign);
   const mercosur = all.filter(p=>isMercosur(p.nat));
   const nonMercosur = all.filter(p=>!isMercosur(p.nat));
   return {total:all.length, mercosur:mercosur.length, nonMercosur:nonMercosur.length};
@@ -1037,7 +1041,7 @@ function squadFromDB(clubName, fallbackFn, overrides){
     let num=r[0];
     while(used.has(num)&&num<50)num++;
     used.add(num);
-    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15]);
+    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
     if(r[8])pl.foot=r[8];
     return pl;
   });
@@ -1068,7 +1072,7 @@ function buildMkt(){
   if(window.PLAYERS_DB && Array.isArray(PLAYERS_DB)){
     for(const r of PLAYERS_DB){
       // r[9]=año de vencimiento de contrato, r[10]=altura en cm (si la base los trae)
-      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15]);
+      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
       if(r[8])pl.foot=r[8];
       m.push(pl);
     }
@@ -2778,7 +2782,7 @@ function openP(id, inSquad){
         <button class="btn bo bs" onclick="openPromises('${p.id}')">🤝 Promesas</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
-        ${isForeign(p.nat) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
+        ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
       ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
         <button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>
@@ -2976,7 +2980,7 @@ function subNegI(id, demand){
   const plan=window._negPlan||1;
   const payNow=Math.round(offer*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
   if(G.budget<payNow){flash('❌ No te alcanza para la primera cuota ('+fv(payNow)+')','loss');return;}
-  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
   nd.lastOffer=offer;nd.plan=plan;
   // El club valora menos el pago diferido
@@ -3046,7 +3050,7 @@ function accCounter(id, val){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<val){flash('❌ Sin presupuesto','loss');return;}
-  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   const nd=window._negData||{agent:{name:'Agente',wageExp:_negWageExpect(p)}};
   nd.agreedFee=val;
   window._negData=nd;
@@ -3327,7 +3331,7 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
-  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   const agent=_negAgent(p);
   if(Math.random()<rejectChance){
     addPhoneMsg('agent',agent.name,`❌ ${p.club} rechazó el préstamo de <b>${p.name}</b>. ${rejectChance>=0.8?'No ceden a sus figuras.':'Prefieren tenerlo en su plantel.'}`,'🚫');
@@ -4182,8 +4186,10 @@ function confirmNaturalize(id){
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
   const oldNat = p.nat;
-  p.nat = 'ARG';
-  lg('🇦🇷', `${p.name} nacionalizado (${oldNat} → ARG)`);
+  // Se le suma la ciudadanía argentina en vez de borrar la de origen: sigue
+  // siendo brasileño/colombiano, pero ya no ocupa cupo de extranjero.
+  p.nat2 = 'ARG';
+  lg('🇦🇷', `${p.name} nacionalizado (${oldNat} + ARG) — libera cupo`);
   closeMod(); updateUI();
   flash(`🇦🇷 ¡${p.name} ya es argentino! Cupo de extranjero liberado.`,'win');
 }
@@ -9790,7 +9796,7 @@ function confirmClause(id){
   const cl=clauseOf(p);
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   G.budget=Math.round((G.budget-cl)*10)/10;
   G.market=G.market.filter(x=>x.id!==id);
   const wageExp=_negWageExpect(p);
@@ -9862,7 +9868,7 @@ function confirmHalfPass(id){
   const wageCost=Math.round(wageExp*3*4/1000*10)/10;    // 3 años de contrato
   if(G.budget<cost+wageCost){flash(`❌ Presupuesto insuficiente (ficha ${fv(cost)} + salarios ${fv(wageCost)})`,'loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(isForeign(p.nat)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   // ═══ EL CLUB DECIDE: ya no es comprar cualquier jugador con sólo tener la plata ═══
   if(Math.random()>pctInterest(p,pc)){
     p._pctNo=(p._pctNo||0)+1;
