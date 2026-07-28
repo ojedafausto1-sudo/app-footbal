@@ -4742,7 +4742,11 @@ function rDtProfile(){
 function rDtXI(){
   const el=document.getElementById('dtXiList');
   if(!el||!G) return;
-  autoFill();
+  // Esta pestaña muestra el once del DT, así que lo recalcula para que se vea
+  // al día. Pero con un DT personalizado el once lo armás vos: si lo
+  // recalculábamos igual, abrir "MI DT" te borraba el equipo que habías puesto
+  // a mano y lo reemplazaba por el automático.
+  if(!dtIsMine()) autoFill();
   const sl=getForm();
   const tc=TEAMS[G.teamId||'boca'];
   const clr=tc?.color||'#003087';
