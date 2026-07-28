@@ -94,7 +94,10 @@ const TARGET_COUNTRIES_TM = {
   'United States':true,'England':true,'Spain':true,'France':true,
   'Germany':true,'Italy':true,'Netherlands':true,'Russia':true,
   'Belgium':true,'Portugal':true,'Turkey':true,
-  'Türkiye':true,'Turkiye':true,'Greece':true
+  'Türkiye':true,'Turkiye':true,'Greece':true,
+  // 'Saudi' cubre "Saudi Arabia" y el alemán "Saudi-Arabien"; 'Arabia' cubre
+  // "Arabia Saudita" si la fuente devuelve el país en español.
+  'Saudi':true,'Arabia':true
 };
 
 function log(msg) {
@@ -235,6 +238,21 @@ function getLeagueTier(name, country) {
   const n = name.toLowerCase();
   const c = (country||'').toLowerCase();
 
+  // ═══ DESCALIFICADORES DUROS ═══
+  // Van antes que las reglas por país porque ninguna primera ni segunda división
+  // masculina de mayores se llama así. Sin esto, "Saudi Womens Premier League"
+  // matcheaba la regla de Arabia y entraba como Div 1 (y lo mismo pasaba con las
+  // femeninas de Argentina, México, Turquía...).
+  // Ojo: acá NO va 'league 2' — la Super League 2 griega es una segunda de verdad.
+  const hardBlacklist = [
+    'women','femen','feminin','féminin','damen','vrouwen',
+    'youth','juvenil','juniores','sub-','sub ','u17','u18','u19','u20','u21','u23',
+    'reserve','reserva','riserv','academy','primavera',
+    'cup','copa','pokal','coupe','coppa','taca','taça',
+    'futsal','beach','playa','friendly','amistoso'
+  ];
+  if (hardBlacklist.some(b => n.includes(b))) return 0;
+
   // ═══ REGLAS POR PAÍS (corren ANTES de la blacklist): sponsors y nombres locales ═══
   if (c.includes('argentin')) {
     if (/(betano|binance|liga profesional|torneo apertura|torneo clausura|torneo de la liga|superliga|primera divisi)/.test(n)) return 1;
@@ -269,6 +287,12 @@ function getLeagueTier(name, country) {
   if (c.includes('russia')) {
     if (/premier|premjer/.test(n)) return 1;
     if (/(fnl|first league|pervaja|1 division)/.test(n)) return 2;
+  }
+  if (c.includes('saudi') || c.includes('arabia')) {
+    // Ojo: la segunda va PRIMERO. "Saudi First Division League" tiene "first",
+    // y el patrón genérico de más abajo la marcaría como primera división.
+    if (/(first division|1st division|division one|yelo)/.test(n)) return 2;
+    if (/(pro league|professional league|roshn|saudi league|premier league|dawri)/.test(n)) return 1;
   }
 
   // Blacklist: cups, youth, women, reserves, amateur, regional, etc.
@@ -1161,6 +1185,12 @@ function mapNat(nat) {
     'bosnia and herzegovina':'BIH','bosnia-herzegovina':'BIH','kosovo':'KOS',
     'finland':'FIN','iceland':'ISL','israel':'ISR','jamaica':'JAM',
     'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV',
+    // Golfo y alrededores: hacen falta para la Saudi Pro League, si no caían
+    // en el fallback nat.slice(0,3) y salían códigos inventados.
+    'saudi arabia':'ARB','arabia saudita':'ARB','qatar':'QAT','catar':'QAT',
+    'united arab emirates':'UAE','iraq':'IRQ','jordan':'JOR','oman':'OMA',
+    'bahrain':'BRN','kuwait':'KUW','syria':'SIR','lebanon':'LIB',
+    'palestine':'PAL','yemen':'YEM',
     // ═══ Alias en ALEMÁN (Transfermarkt resuelve los IDs de bandera en alemán) ═══
     'argentinien':'ARG','brasilien':'BRA','spanien':'ESP','frankreich':'FRA',
     'italien':'ITA','deutschland':'ALE','niederlande':'HOL','russland':'RUS',
@@ -1233,6 +1263,7 @@ function mapLeague(country, league) {
   if (c.includes('portugal')) return 'Portugal';
   if (c.includes('turkey') || c.includes('türkiye') || c.includes('turkiye')) return 'Turquía';
   if (c.includes('greece') || c.includes('hellas')) return 'Grecia';
+  if (c.includes('saudi') || c.includes('arabia')) return 'Arabia';
   return league || country || 'Otro';
 }
 
