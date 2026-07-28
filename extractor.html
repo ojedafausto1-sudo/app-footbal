@@ -687,7 +687,12 @@ async function extractTM(selected) {
           if (Array.isArray(nn)) nn = nn[0] || '';
           if (nm && nn) natByName[nm] = String(nn);
         }
-        if (!list.length && ci === 0 && li === 0) log('    (TM-API libre caída → uso los perfiles de SportDB)');
+        if (!list.length && ci === 0 && li === 0) {
+          // Sólo prometemos lo que realmente vamos a hacer
+          log(document.getElementById('deepNats').checked
+            ? '    (TM-API libre caída → uso los perfiles de SportDB, 1 crédito por jugador)'
+            : '    ⚠️ TM-API libre caída y el checkbox de perfiles NO está tildado:\n       las nacionalidades van a salir en UNK. Tildá "Nacionalidades desde el perfil".');
+        }
 
         // 2) Respaldo confiable: el perfil de cada jugador en SportDB.
         //    Cuesta 1 request por jugador, así que sólo se hace si lo pediste.
