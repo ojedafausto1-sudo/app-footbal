@@ -79,39 +79,56 @@ export default {
     if (api === 'tmcoach') {
       const idm = path.match(/(\d+)/);
       if (!idm) return json({ error: 'path debe incluir el id del club' }, 400);
-      try {
-        res = await fetch(`https://www.transfermarkt.com/-/startseite/verein/${idm[1]}`, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-        });
-      } catch (e) {
-        return json({ error: 'Upstream: ' + e.message }, 502);
+      const cid = idm[1];
+      // La página de club dejó de traer al DT en el HTML del servidor. Se
+      // recorren varias URLs y se usa la primera que tenga un link de entrenador:
+      // la de cuerpo técnico (mitarbeiter) sí sigue siendo server-rendered.
+      const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+      const urls = [
+        `https://www.transfermarkt.com/-/mitarbeiter/verein/${cid}`,
+        `https://www.transfermarkt.es/-/mitarbeiter/verein/${cid}`,
+        `https://www.transfermarkt.de/-/mitarbeiter/verein/${cid}`,
+        `https://www.transfermarkt.com/-/startseite/verein/${cid}`,
+      ];
+      let html = '', usedUrl = '';
+      for (const u of urls) {
+        try {
+          const r = await fetch(u, { headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' } });
+          if (r.status !== 200) continue;
+          const t = await r.text();
+          if (/profil\/trainer\//i.test(t)) { html = t; usedUrl = u; break; }
+          if (!html) { html = t; usedUrl = u; }
+        } catch (e) { /* siguiente */ }
       }
-      if (res.status !== 200) {
-        return json({ error: 'TM devolvió ' + res.status, coach: null }, res.status === 404 ? 404 : 502);
-      }
-      const html = await res.text();
-      // El DT actual: primer link a /profil/trainer/{id} de la página
-      const m = html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"[^>]*>([^<]{3,60})</) ||
-                html.match(/href="\/([^"\/]+)\/profil\/trainer\/(\d+)"/);
+      if (!html) return json({ coach: null, error: 'TM no respondió en ninguna URL' }, 502);
+      // Varios layouts posibles del link al entrenador
       let coach = null;
-      if (m) {
-        const fromSlug = m[1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        const name = (m[3] || '').trim() || fromSlug;
-        coach = { name, id: m[2] };
+      const pats = [
+        /href="\/([^"\/]+)\/profil\/trainer\/(\d+)"[^>]*>([^<]{3,60})</,
+        /href="\/([^"\/]+)\/profil\/trainer\/(\d+)"/,
+        /\/profil\/trainer\/(\d+)[^>]*>\s*([^<]{3,60})</,
+      ];
+      for (let i = 0; i < pats.length; i++) {
+        const m = html.match(pats[i]);
+        if (!m) continue;
+        if (i === 2) coach = { name: (m[2] || '').trim(), id: m[1] };
+        else {
+          const fromSlug = m[1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          coach = { name: (m[3] || '').trim() || fromSlug, id: m[2] };
+        }
+        if (coach && coach.name) break;
+        coach = null;
       }
+      res = { status: 200 };
       if (!coach) {
         // No cachear los fallos: si TM bloqueó el fetch, reintentar después
-        return new Response(JSON.stringify({ coach: null }), {
+        return new Response(JSON.stringify({ coach: null, url: usedUrl, htmlLen: html.length }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', 'x-cache': 'MISS', ...CORS },
         });
       }
-      text = JSON.stringify({ coach });
-      res = { status: 200 }; // para el guardado en caché de abajo
+      text = JSON.stringify({ coach, url: usedUrl });
+
     } else {
       const upstream = api === 'tmapi'
         ? `https://transfermarkt-api.fly.dev${path}`
