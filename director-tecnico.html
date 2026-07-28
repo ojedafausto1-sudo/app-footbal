@@ -2529,6 +2529,57 @@ function autoFill(){
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
 }
+
+// ═══ CAMBIAR DE ESQUEMA SIN PERDER EL ONCE ═══
+// Con DT personalizado el once lo elegís vos, así que cambiar de formación no
+// tiene por qué borrar lo que armaste: se reubica a los MISMOS once, cada uno
+// en el puesto que menos le cueste, y sólo se recurre al banco para los lugares
+// que el esquema nuevo deje sin cubrir.
+function refillKeeping(){
+  if(!G) return;
+  const sl = getForm();
+  // El lesionado y el suspendido no se reubican: no pueden jugar.
+  const prev = Object.values(G.slots||{})
+    .map(id => G.squad.find(p=>p.id===id))
+    .filter(p => p && !p.injured && !(p.susp>0));
+  if(!prev.length){ autoFill(); return; }
+
+  // Cuánto le cuesta a un jugador cubrir un puesto: primero lo natural, después
+  // el mejor. El castigo pesa mucho más que el rating para que un central no le
+  // gane el lugar a un extremo sólo por tener 3 puntos más.
+  const costo = (p,pos) => posPenaltyFor(p,pos)*10 - p.rat;
+  const pool = prev.slice();
+  const nuevo = {};
+  sl.forEach((s,i)=>{
+    let bi=-1,bc=Infinity;
+    pool.forEach((p,j)=>{
+      if((s.pos==='ARQ') !== (p.pos==='ARQ')) return;   // el arquero sólo al arco
+      const c=costo(p,s.pos);
+      if(c<bc){bc=c;bi=j;}
+    });
+    nuevo[i] = bi>=0 ? pool.splice(bi,1)[0].id : null;
+  });
+  G.slots = nuevo;
+
+  const libres = () => {
+    const used=new Set(Object.values(G.slots).filter(Boolean));
+    return G.squad.filter(p=>!used.has(p.id)&&!p.injured&&!(p.susp>0));
+  };
+  // Huecos: el esquema nuevo pide gente que no estaba en el once (pasar a 5-3-2
+  // necesita un defensor más). Los cubre el mejor disponible del plantel.
+  sl.forEach((s,i)=>{
+    if(G.slots[i]) return;
+    const c = libres().filter(p=>(s.pos==='ARQ')===(p.pos==='ARQ'))
+      .sort((a,b)=>costo(a,s.pos)-costo(b,s.pos))[0];
+    G.slots[i] = c ? c.id : null;
+  });
+  // A propósito NO se cambia a nadie por un especialista del banco. Si el
+  // esquema nuevo achica el ataque, alguno va a terminar jugando fuera de su
+  // puesto (la ficha lo marca), pero los once los elegiste vos: si preferís al
+  // titular del banco, lo ponés a mano.
+  G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
+}
+
 // Antes de cada partido, el DT REAL pone su once (y rota a los cansados).
 // Con un DT personalizado mandás vos: el once que armaste queda intacto.
 function dtPicksXI(){
@@ -3803,7 +3854,7 @@ function toggleFormEditor(){
     // GUARDAR: la formación editada queda como "Personalizada"
     G.editMode=false;
     G.formation='Personalizada';
-    autoFill();
+    if(dtIsMine()) refillKeeping(); else autoFill();
     flash('💾 Formación personalizada guardada','win');
   }else{
     // Entrar al editor partiendo de la formación actual
@@ -3867,7 +3918,9 @@ function setSlotRole(idx,role){
 function setForm(f){
   if(!G) return;
   G.formation = f; selSlot = null;
-  autoFill(); rFBtns(); rFormation(); rXI();
+  // Con DT propio el once es tuyo: se reubica, no se rearma de cero.
+  if(dtIsMine()) refillKeeping(); else autoFill();
+  rFBtns(); rFormation(); rXI();
   flash('🎯 Formación: '+f,'draw');
 }
 
@@ -4675,7 +4728,9 @@ function confirmCustomDT(){
   const customProf={};
   document.querySelectorAll('.cdtProf').forEach(sl=>{customProf[sl.dataset.k]=(+sl.value)/100;});
   G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true,customProf};
-  if(FORMS[style]){ G.formation=style; autoFill(); }
+  // Ya sos vos el DT (recién asignamos customProf), así que el once que había
+  // se reubica al esquema elegido en vez de borrarse.
+  if(FORMS[style]){ G.formation=style; refillKeeping(); }
   rStaff(); closeMod(); updateUI();
   flash(editing ? '💾 DT actualizado: '+name : '✅ DT Personalizado: '+name,'win');
   lg('🛠️',(editing?'DT personalizado editado: ':'DT personalizado creado: ')+name);
