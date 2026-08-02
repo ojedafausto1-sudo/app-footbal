@@ -3388,20 +3388,53 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   const agent=_negAgent(p);
   if(Math.random()<rejectChance){
+    // Antes era sí o no y se terminaba. Ahora, si el no no es rotundo, piden
+    // más cargo por el préstamo y podés seguir negociando.
+    const counter=Math.round(cost*(1.3+Math.random()*0.4)*10)/10;
+    if(rejectChance<0.9&&counter<=G.budget&&!p._loanNo&&Math.random()<0.55){
+      p._loanNo=1;
+      addPhoneMsg('agent',agent.name,`↔️ <b>${p.club}</b> lo cede, pero no por ${fv(cost)}: quieren <b style="color:var(--gold)">${fv(counter)}</b> de cargo.`,'💬');
+      showMod(`
+        <button class="mclose" onclick="closeMod()">✕</button>
+        <div class="mtitle">↔ Contraoferta de ${p.club}</div>
+        <div class="sr"><span class="sl">Tu oferta</span><span class="sv" style="text-decoration:line-through;opacity:.6">${fv(cost)}</span></div>
+        <div class="sr"><span class="sl">Piden de cargo</span><span class="sv" style="color:var(--gold)">${fv(counter)}</span></div>
+        <div class="note" style="margin:8px 0">Por 26 semanas de ${p.name}. Si aceptás, todavía falta que él quiera venir.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn bg" onclick="loanPlayerTerms('${id}',${counter},${buyOption})">✓ Aceptar ${fv(counter)}</button>
+          <button class="btn bR bs" onclick="closeMod()">🚪 Retirarse</button>
+        </div>
+      `);
+      return;
+    }
     addPhoneMsg('agent',agent.name,`❌ ${p.club} rechazó el préstamo de <b>${p.name}</b>. ${rejectChance>=0.8?'No ceden a sus figuras.':'Prefieren tenerlo en su plantel.'}`,'🚫');
     closeMod();flash('❌ Préstamo rechazado','loss');return;
   }
+  loanPlayerTerms(id,cost,buyOption);
+}
+// El club lo cede: ahora el jugador decide si acepta venir y con qué sueldo
+function loanPlayerTerms(id,cost,buyOption){
+  const p=G.market.find(x=>x.id===id); if(!p)return;
+  if(G.budget<cost){flash('❌ Sin presupuesto ('+fv(cost)+')','loss');return;}
   const loanType=window._loanType||'simple';
-  G.budget=Math.round((G.budget-cost)*10)/10;
-  p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';
-  if(loanType==='option') p.loanBuyOption=buyOption;
-  if(loanType==='obligation') p.loanBuyObligation=buyOption;
-  G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
   const extra=loanType==='option'?' con opción de compra ('+fv(buyOption)+')':loanType==='obligation'?' con obligación de compra ('+fv(buyOption)+')':'';
-  lg('📥',`Préstamo: ${p.name} ($${cost}M)${extra}`);
-  addPhoneMsg('agent',agent.name,`✅ ¡Préstamo aprobado! <b>${p.name}</b> se une a ${G.teamName||'tu club'}${extra}.`,'📥');
-  addPhoneMsg('player',p.name,`👋 Llegué a ${G.teamName||'el club'} en préstamo. ¡Voy a demostrar que puedo quedarme!`,'⚽');
-  updateUI();closeMod();flash('✅ '+p.name+' en préstamo'+extra,'win');
+  openPlayerTerms({
+    p, icon:'📥', loan:true, fee:cost, feeLbl:'Cargo del préstamo',
+    note:`✅ <b>${p.club} acepta cederlo</b> por 26 semanas${extra}. Falta convencerlo a él: viene a jugar, no a mirar.`,
+    pull:0.5,   // un préstamo compromete menos: le cuesta menos decir que sí
+    onAccept:(t)=>{
+      if(G.budget<cost){flash('❌ Sin presupuesto','loss');return;}
+      G.budget=Math.round((G.budget-cost)*10)/10;
+      p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';p.wage=t.wage;
+      if(loanType==='option') p.loanBuyOption=buyOption;
+      if(loanType==='obligation') p.loanBuyObligation=buyOption;
+      G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
+      lg('📥',`Préstamo: ${p.name} (${fv(cost)}, ${t.wage}k/sem, ${t.roleLabel})${extra}`);
+      addPhoneMsg('agent',_negAgent(p).name,`✅ ¡Préstamo cerrado! <b>${p.name}</b> se une a ${G.teamName||'tu club'}${extra}.`,'📥');
+      addPhoneMsg('player',p.name,`👋 Llegué a ${G.teamName||'el club'} en préstamo. ¡Voy a demostrar que puedo quedarme!`,'⚽');
+      updateUI();flash('✅ '+p.name+' en préstamo'+extra,'win');
+    }
+  });
 }
 
 function updNeg(){}
@@ -9832,6 +9865,161 @@ function clauseOf(p){
   const starM=p.rat>=87?1.35:p.rat>=83?1.15:1;
   return Math.max(0.5,Math.round(p.val*ageM*starM*10)/10);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// TÉRMINOS PERSONALES — UNA SOLA PUERTA PARA TODOS LOS FICHAJES
+// ═══════════════════════════════════════════════════════════════════════
+// Cláusula, % del pase, canje y préstamo arreglaban con el club (o ni eso) y
+// el jugador aparecía en el plantel sin que nadie le preguntara nada. Ahora
+// las cuatro rutas terminan acá: con el club podés arreglar lo que quieras,
+// pero el que firma es él y puede decir que no.
+const PT_ROLES=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
+function ptRoleExpect(p){ return p.rat>=85?0:p.rat>=80?1:p.rat>=75?2:3; }
+
+// Puntaje de la propuesta: >=3.5 firma seguro, abajo de 0.5 no hay caso, en el
+// medio es moneda cargada. Mismos pesos que la negociación larga.
+function ptScore(p,t){
+  const wageRatio=t.wage/t.wageExp;
+  const roleDiff=t.role-ptRoleExpect(p);
+  let s=0;
+  if(wageRatio>=1.15)s+=3; else if(wageRatio>=1.0)s+=2; else if(wageRatio>=0.85)s+=1; else if(wageRatio<0.7)s-=2;
+  if(roleDiff<=0)s+=2; else if(roleDiff===1)s+=1; else s-=1;
+  if(t.bonus>=2)s+=1; else if(t.bonus>=1)s+=0.5;
+  if(t.years>=4)s+=0.5; else if(t.years<=1&&!t.loan)s-=1;
+  // Los cracks quieren un club a su altura
+  const repGap=p.rat-(G.rep||50);
+  if(repGap>=25)s-=3; else if(repGap>=15)s-=1.5; else if(repGap>=8)s-=0.7;
+  else if(repGap<=-10)s+=0.5;
+  return s+(t.pull||0);
+}
+function ptWhyNo(p,t){
+  const repGap=p.rat-(G.rep||50), wr=t.wage/t.wageExp;
+  if(repGap>=15)return `Con todo respeto, ${G.teamName||'tu club'} todavía no está a mi altura.`;
+  if(wr<0.7)return 'Ese sueldo es una falta de respeto. Ni lo discuto.';
+  if(wr<0.85)return 'Necesito un salario acorde a mi nivel. Hoy gano más donde estoy.';
+  if(t.role-ptRoleExpect(p)>=2)return 'No me voy a mover de club para calentar el banco.';
+  if(t.years<=1&&!t.loan)return '¿Un año? Busco estabilidad, no un contrato de prueba.';
+  return 'Las condiciones no me cierran. Esperaba algo más ambicioso.';
+}
+
+let _PT=null;   // negociación de términos en curso
+// o = {p, icon, title, note, fee, feeLbl, pull, loan, wageMult, onAccept}
+function openPlayerTerms(o){
+  const p=o.p;
+  const wageExp=Math.round(_negWageExpect(p)*(o.wageMult||1));
+  _PT={o,p,wageExp,wage:Math.round(wageExp*1.05),years:o.loan?1:3,
+       role:ptRoleExpect(p),bonus:0,tries:0};
+  ptRender(true);
+}
+function ptRender(first){
+  const s=_PT; if(!s)return;
+  const p=s.p,o=s.o;
+  if(first){
+    const saludo=o.loan?`👋 Un préstamo a ${G.teamName||'tu club'}... escucho. ¿Qué me ofrecen?`
+      :p.rat>=85?`⭐ Sé lo que hicieron para traerme. Pero soy un jugador top: convenceme con los números.`
+      :p.age<=22?`😃 Me ilusiona. Quiero minutos y un proyecto serio.`
+      :`👋 Me interesa. Hablemos de las condiciones.`;
+    addPhoneMsg('player',p.name,saludo,'⚽');
+  }
+  showMod(`
+    <button class="mclose" onclick="ptCancel()">✕</button>
+    <div class="mtitle">${o.icon||'📋'} Términos personales — ${p.name}</div>
+    <div class="note" style="margin-bottom:10px">${o.note}</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      ${rb(p.rat)}
+      <div><div style="font-size:13px;font-weight:700;font-family:'Rajdhani'">${p.name}</div>
+        <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.age} años · ${p.club}</div></div>
+      ${o.fee!==undefined?`<div style="margin-left:auto;text-align:right">
+        <div style="font-size:9px;color:var(--t3)">${o.feeLbl||'Ya acordado con el club'}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--gold);font-family:'Rajdhani'">${fv(o.fee)}</div></div>`:''}
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px">
+        <span style="color:var(--t3)">💰 SUELDO — pide ~${s.wageExp}k</span>
+        <span id="ptWL" style="color:var(--gold);font-weight:700">${s.wage}k</span></div>
+      <input type="range" id="ptW" class="neg-slider" min="${Math.round(s.wageExp*0.5)}" max="${Math.round(s.wageExp*2)}" value="${s.wage}" oninput="ptSetWage(+this.value)">
+    </div>
+    ${o.loan?'':`
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📅 AÑOS DE CONTRATO</div>
+      <div style="display:flex;gap:4px">${[1,2,3,4,5].map(y=>`<button class="btn ${y===s.years?'bg':'bo'} bs ptYr" data-y="${y}" onclick="ptSetYears(${y})" style="flex:1;font-size:11px">${y}a</button>`).join('')}</div>
+    </div>`}
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL — espera <b style="color:var(--gold)">${PT_ROLES[ptRoleExpect(p)]}</b></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${PT_ROLES.map((r,i)=>`<button class="btn ${i===s.role?'bg':'bo'} bs ptRl" data-r="${i}" onclick="ptSetRole(${i})" style="flex:1;font-size:9px;min-width:80px;white-space:nowrap">${r}</button>`).join('')}</div>
+    </div>
+    ${o.loan?'':`
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
+      <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}</div>
+    </div>`}
+    <div class="neg-rx" id="ptRx"></div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn bg" onclick="ptSubmit()">✍️ Ofrecerle el contrato</button>
+      <button class="btn bR bs" onclick="ptCancel()">🚪 Dejarlo</button>
+    </div>
+    ${s.tries?`<div style="font-size:9px;color:var(--t3);text-align:center;margin-top:6px">Intento ${s.tries+1} de 3 — si lo cansás, se cae</div>`:''}
+  `);
+  ptUpd();
+}
+function ptSetWage(v){_PT.wage=v;const l=document.getElementById('ptWL');if(l)l.textContent=v+'k';ptUpd();}
+function ptSetYears(y){_PT.years=y;document.querySelectorAll('.ptYr').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
+function ptSetRole(r){_PT.role=r;document.querySelectorAll('.ptRl').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
+function ptSetBonus(b){_PT.bonus=b;document.querySelectorAll('.ptBn').forEach(x=>{const on=parseFloat(x.dataset.b)===b;x.classList.toggle('bg',on);x.classList.toggle('bo',!on);});ptUpd();}
+function ptTerms(){const s=_PT;return {wage:s.wage,years:s.years,role:s.role,bonus:s.bonus,
+  wageExp:s.wageExp,pull:s.o.pull||0,loan:!!s.o.loan};}
+function ptUpd(){
+  const s=_PT,rx=document.getElementById('ptRx'); if(!s||!rx)return;
+  const sc=ptScore(s.p,ptTerms());
+  let t,c,b;
+  if(sc>=3.5)      {t='🟢 Le encanta — firma seguro';        c='var(--green)';b='rgba(26,170,107,.12)';}
+  else if(sc>=2)   {t='🟡 Le sirve — probablemente acepte';   c='var(--gold)'; b='rgba(246,211,24,.10)';}
+  else if(sc>=0.5) {t='🟠 Lo va a pensar — puede rechazarte';  c='var(--ora)';  b='rgba(240,148,58,.12)';}
+  else             {t='🔴 Así no firma';                       c='var(--red)';  b='rgba(232,69,69,.12)';}
+  rx.textContent=t;rx.style.color=c;rx.style.background=b;rx.style.padding='8px';rx.style.borderRadius='6px';
+}
+function ptCancel(){
+  const s=_PT; _PT=null; closeMod();
+  if(s)flash('Te bajaste de la negociación por '+s.p.name,'draw');
+}
+function ptSubmit(){
+  const s=_PT; if(!s)return;
+  const p=s.p,t=ptTerms();
+  // El tope salarial de la CD manda: ni siquiera llega a la mesa
+  const cur=G.squad.reduce((a,q)=>a+(q.wage||0),0);
+  if(G.wageCap&&cur+t.wage>G.wageCap){
+    flash(`❌ La CD no autoriza: tope ${G.wageCap}k/sem (hoy ${cur}k + ${t.wage}k)`,'loss');return;
+  }
+  const sc=ptScore(p,t), rnd=Math.random();
+  const ok=sc>=3.5||(sc>=2&&rnd>0.35)||(sc>=0.5&&rnd>0.7);
+  if(ok){
+    _PT=null; closeMod();
+    s.o.onAccept({wage:t.wage,years:t.years,role:t.role,bonus:t.bonus,roleLabel:PT_ROLES[t.role]});
+    return;
+  }
+  s.tries++;
+  const why=ptWhyNo(p,t);
+  addPhoneMsg('player',p.name,`❌ ${why}`,'😤');
+  if(s.tries>=3){
+    _PT=null; closeMod();
+    lg('❌',`${p.name} cortó la negociación de contrato`);
+    flash('❌ '+p.name+' se cansó y cortó la negociación','loss');
+    return;
+  }
+  showMod(`
+    <button class="mclose" onclick="ptCancel()">✕</button>
+    <div class="mtitle">❌ ${p.name} no acepta</div>
+    <div style="text-align:center;margin:16px 0">
+      <div style="font-size:40px;margin-bottom:8px">😤</div>
+      <div style="font-size:13px;color:var(--t2)">"${why}"</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:6px">Te quedan ${3-s.tries} intento(s).</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn bg" onclick="ptRender(false)">↔ Mejorar la oferta</button>
+      <button class="btn bR bs" onclick="ptCancel()">🚪 Dejarlo</button>
+    </div>
+  `);
+}
+
 // Pagar la cláusula: el club NO puede negarse. Caro pero directo.
 function payClause(id){
   if(!G)return;
@@ -9845,7 +10033,7 @@ function payClause(id){
     <div class="sr"><span class="sl">Valor de mercado</span><span class="sv">${fv(p.val)}</span></div>
     <div class="sr"><span class="sl">Cláusula de rescisión</span><span class="sv" style="color:var(--red)">${fv(cl)}</span></div>
     <div class="sr"><span class="sl">Tu presupuesto</span><span class="sv" style="color:var(--green)">$${G.budget}M</span></div>
-    <div class="note" style="margin:8px 0">Depositás la cláusula y <b>${p.club} no puede negarse</b>: el jugador queda libre para firmar con vos. Solo falta acordar el contrato con él (sin negociación con el club, sin contraofertas).</div>
+    <div class="note" style="margin:8px 0">Depositás la cláusula y <b>${p.club} no puede negarse</b>: no hay oferta, contraoferta ni rondas. Pero el jugador <b>sí</b> puede decirte que no — recién le pagás al club cuando él firma.</div>
     <div style="display:flex;gap:6px">
       <button class="btn bg" onclick="confirmClause('${p.id}')">💥 Depositar ${fv(cl)}</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
@@ -9860,16 +10048,25 @@ function confirmClause(id){
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
-  G.budget=Math.round((G.budget-cl)*10)/10;
-  G.market=G.market.filter(x=>x.id!==id);
-  const wageExp=_negWageExpect(p);
-  p.club=G.teamName;p.lg='Liga ARG';p.wage=Math.round(wageExp*1.15);p.contract=G.season+3;
-  G.squad.push(p);G.bench.push(p);
-  lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)})`);
-  addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
-  addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Acá estoy, a disposición.','⭐');
-  closeMod();updateUI();
-  flash('💥 '+p.name+' — cláusula pagada','win');
+  // La cláusula saltea AL CLUB, no al jugador: primero tiene que firmar él.
+  // Si dice que no, no se deposita un peso.
+  openPlayerTerms({
+    p, icon:'💥', fee:cl, feeLbl:'Cláusula a depositar',
+    note:`💥 <b>${p.club} ya no puede frenarlo</b>: con la cláusula sobre la mesa no hay negociación con el club. Ahora tenés que convencerlo a él.`,
+    pull:1,   // que hayas puesto la cláusula lo halaga: firma más fácil
+    onAccept:(t)=>{
+      if(G.budget<cl+t.bonus){flash('❌ Presupuesto insuficiente ('+fv(cl+t.bonus)+')','loss');return;}
+      G.budget=Math.round((G.budget-cl-t.bonus)*10)/10;
+      G.market=G.market.filter(x=>x.id!==id);
+      p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
+      G.squad.push(p);G.bench.push(p);
+      lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)}) — ${t.wage}k/sem, ${t.years}a, ${t.roleLabel}`);
+      addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
+      addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
+      updateUI();
+      flash('💥 '+p.name+' — cláusula pagada y contrato firmado','win');
+    }
+  });
 }
 
 // ═══ COMPRA DE PORCENTAJES DEL PASE (25 / 50 / 75%) ═══
@@ -9934,6 +10131,27 @@ function confirmHalfPass(id){
   if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
   // ═══ EL CLUB DECIDE: ya no es comprar cualquier jugador con sólo tener la plata ═══
   if(Math.random()>pctInterest(p,pc)){
+    // Antes era un no seco. Ahora, si hay margen, contraofertan un precio más
+    // alto y la pelota vuelve a tu cancha: eso es negociar.
+    const counter=Math.round(cost*(1.2+Math.random()*0.25)*10)/10;
+    if(counter<=G.budget&&(p._pctNo||0)<2&&Math.random()<0.6){
+      p._pctNo=(p._pctNo||0)+1;
+      lg('➗',`${p.club} contraoferta: pide ${fv(counter)} por el ${Math.round(pc*100)}%`);
+      addPhoneMsg('agent','Mercado de pases',`↔️ <b>${p.club}</b> no cierra la puerta, pero por el ${Math.round(pc*100)}% de ${p.name} quiere <b style="color:var(--gold)">${fv(counter)}</b>.`,'💬');
+      showMod(`
+        <button class="mclose" onclick="closeMod()">✕</button>
+        <div class="mtitle">↔ Contraoferta de ${p.club}</div>
+        <div class="sr"><span class="sl">Tu oferta</span><span class="sv" style="text-decoration:line-through;opacity:.6">${fv(cost)}</span></div>
+        <div class="sr"><span class="sl">Piden</span><span class="sv" style="color:var(--gold)">${fv(counter)}</span></div>
+        <div class="note" style="margin:8px 0">Por el <b>${Math.round(pc*100)}%</b> del pase de ${p.name}. Si aceptás, todavía te falta arreglar con él.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn bg" onclick="pctAccCounter('${id}',${pc},${counter})">✓ Aceptar ${fv(counter)}</button>
+          <button class="btn bo bs" onclick="buyHalfPass('${id}')">↔ Otra oferta</button>
+          <button class="btn bR bs" onclick="closeMod()">🚪 Retirarse</button>
+        </div>
+      `);
+      return;
+    }
     p._pctNo=(p._pctNo||0)+1;
     closeMod();updateUI();
     flash(`❌ ${p.club} rechazó vender el ${Math.round(pc*100)}% de ${p.name}`,'loss');
@@ -9941,18 +10159,35 @@ function confirmHalfPass(id){
     addPhoneMsg('board','Secretaría Deportiva',`📞 ${p.club} rechazó nuestra oferta por <b>${p.name}</b>. ${p.rat>=(48+(G.rep||50)*0.42)?'Nos dijeron que no está a nuestro alcance todavía: hay que ganar prestigio.':'Piden una propuesta mejor.'}`,'🏛️');
     return;
   }
-  // ═══ EL JUGADOR NEGOCIA EL SUELDO ═══
-  if((G.wageCap||99999) < G.squad.reduce((a,q)=>a+(q.wage||0),0)+wageExp){
-    flash('❌ Te pasás del tope salarial que fijó la CD','loss');return;
-  }
-  G.budget=Math.round((G.budget-cost-wageCost)*10)/10;
-  G.market=G.market.filter(x=>x.id!==id);
-  p.club=G.teamName;p.lg='Liga ARG';p.ownedPct=pc;p.wage=wageExp;p.contract=G.season+3;
-  G.squad.push(p);G.bench.push(p);
-  lg('➗',`${p.name} llega con el ${Math.round(pc*100)}% del pase (${fv(cost)} + ${wageExp}k/sem)`);
-  addPhoneMsg('player',p.name,'¡Presidente, gracias por la apuesta! Voy a demostrar que valgo el pase entero.','👤');
-  closeMod();updateUI();
-  flash('➗ '+p.name+' — '+Math.round(pc*100)+'% del pase','win');
+  pctPlayerTerms(id,pc,cost,wageCost);
+}
+// El club aceptó (o le aceptaste la contraoferta): ahora firma él o no hay pase
+function pctAccCounter(id,pc,counter){
+  const p=G.market.find(x=>x.id===id); if(!p)return;
+  if(G.budget<counter){flash('❌ Sin presupuesto','loss');return;}
+  const wageExp=Math.round(_negWageExpect(p)*(1+(1-pc)*0.12));
+  pctPlayerTerms(id,pc,counter,Math.round(wageExp*3*4/1000*10)/10);
+}
+function pctPlayerTerms(id,pc,cost,wageCost){
+  const p=G.market.find(x=>x.id===id); if(!p)return;
+  openPlayerTerms({
+    p, icon:'➗', fee:cost, feeLbl:`${Math.round(pc*100)}% del pase`,
+    // Si comprás poco porcentaje pide más sueldo: se juega parte de su futuro
+    wageMult:1+(1-pc)*0.12,
+    note:`✅ <b>${p.club} aceptó venderte el ${Math.round(pc*100)}%</b> por ${fv(cost)}. Falta que el jugador acepte venir.`,
+    onAccept:(t)=>{
+      const total=cost+wageCost+t.bonus;
+      if(G.budget<total){flash('❌ Presupuesto insuficiente ('+fv(total)+')','loss');return;}
+      G.budget=Math.round((G.budget-total)*10)/10;
+      G.market=G.market.filter(x=>x.id!==id);
+      p.club=G.teamName;p.lg='Liga ARG';p.ownedPct=pc;p.wage=t.wage;p.contract=G.season+t.years;
+      G.squad.push(p);G.bench.push(p);
+      lg('➗',`${p.name} llega con el ${Math.round(pc*100)}% del pase (${fv(cost)} + ${t.wage}k/sem, ${t.years}a, ${t.roleLabel})`);
+      addPhoneMsg('player',p.name,'¡Presidente, gracias por la apuesta! Voy a demostrar que valgo el pase entero.','👤');
+      updateUI();
+      flash('➗ '+p.name+' — '+Math.round(pc*100)+'% del pase','win');
+    }
+  });
 }
 
 // ═══ CANJE: tu jugador + diferencia en efectivo ═══
@@ -10053,23 +10288,33 @@ function confirmSwap(targetId,mineId,mine2Id,cash,interest){
     closeMod();flash('❌ Rechazaron el canje','loss');
     return;
   }
-  G.budget=Math.round((G.budget-cash)*10)/10;
-  const oldClub=p.club;
-  [mine,mine2].filter(Boolean).forEach(m=>{
-    G.squad=G.squad.filter(q=>q.id!==m.id);
-    G.bench=G.bench.filter(q=>q.id!==m.id);
-    Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===m.id)G.slots[k2]=null;});
-    m.club=oldClub;m.lg=p.lg;G.market.push(m);
-  });
-  G.market=G.market.filter(x=>x.id!==targetId);
-  p.club=G.teamName;p.lg='Liga ARG';
-  G.squad.push(p);G.bench.push(p);
+  // El club aceptó el canje. Falta lo que antes no se preguntaba nunca: si el
+  // jugador quiere venir, y con qué contrato (antes entraba con el sueldo y el
+  // vínculo de su club anterior, sin firmar nada).
   const idos=[mine.name,mine2&&mine2.name].filter(Boolean).join(' + ');
-  lg('🔄',`Canje: llegó ${p.name}, se fue ${idos}${cash?' + '+fv(cash):''}`);
-  addPhoneMsg('player',p.name,'¡Presidente! Llegué con toda la ilusión. Gracias por buscarme.','👤');
-  window._swapCash=undefined;
-  closeMod();updateUI();
-  flash('🔄 Canje cerrado: '+p.name,'win');
+  openPlayerTerms({
+    p, icon:'🔄', fee:cash||0, feeLbl:'Diferencia en efectivo',
+    note:`✅ <b>${p.club} aceptó el canje</b> por ${idos}${cash?' + '+fv(cash):''}. Falta que ${p.name} acepte las condiciones.`,
+    onAccept:(t)=>{
+      if(G.budget<cash+t.bonus){flash('❌ No te alcanza para el efectivo + el bono','loss');return;}
+      G.budget=Math.round((G.budget-cash-t.bonus)*10)/10;
+      const oldClub=p.club;
+      [mine,mine2].filter(Boolean).forEach(m=>{
+        G.squad=G.squad.filter(q=>q.id!==m.id);
+        G.bench=G.bench.filter(q=>q.id!==m.id);
+        Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===m.id)G.slots[k2]=null;});
+        m.club=oldClub;m.lg=p.lg;G.market.push(m);
+      });
+      G.market=G.market.filter(x=>x.id!==targetId);
+      p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
+      G.squad.push(p);G.bench.push(p);
+      lg('🔄',`Canje: llegó ${p.name} (${t.wage}k/sem, ${t.years}a), se fue ${idos}${cash?' + '+fv(cash):''}`);
+      addPhoneMsg('player',p.name,'¡Presidente! Llegué con toda la ilusión. Gracias por buscarme.','👤');
+      window._swapCash=undefined;
+      updateUI();
+      flash('🔄 Canje cerrado: '+p.name,'win');
+    }
+  });
 }
 
 // ——— Transfer listing (poner en venta) ———
