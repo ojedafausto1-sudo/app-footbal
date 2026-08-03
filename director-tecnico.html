@@ -542,8 +542,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <input class="sb" type="text" id="mkQ" placeholder="🔍 Buscar nombre, club o liga..." oninput="renderMkt()">
         <div class="frow">
           <select class="fs" id="mkPos" onchange="renderMkt()"><option value="">Todas posiciones</option><option>ARQ</option><option>DFC</option><option>DFD</option><option>DFI</option><option>MCD</option><option>MC</option><option>MCO</option><option>MI</option><option>MD</option><option>EI</option><option>ED</option><option>DC</option></select>
-          <select class="fs" id="mkLg" onchange="renderMkt()"><option value="">Todas ligas</option><option>Liga ARG</option><option>Brasil</option><option>Uruguay</option><option>Colombia</option><option>Chile</option><option>Paraguay</option><option>Ecuador</option><option>Perú</option><option>Bolivia</option><option>Venezuela</option><option>Premier</option><option>Italia</option><option>España</option><option>Alemania</option><option>Francia</option><option>Turquía</option><option>Grecia</option><option>Portugal</option><option>Holanda</option><option>MLS</option><option>Arabia</option><option>Otras</option></select>
-          <select class="fs" id="mkNat" onchange="renderMkt()"><option value="">Todas naciones</option><option>ARG</option><option>URU</option><option>COL</option><option>BRA</option><option>CHI</option><option>PAR</option><option>ESP</option><option>FRA</option></select>
+          <select class="fs" id="mkLg" onchange="fillTeamFilter();renderMkt()"><option value="">Todas ligas</option></select>
+          <select class="fs" id="mkTeam" onchange="renderMkt()"><option value="">Todos los equipos</option></select>
+          <select class="fs" id="mkNat" onchange="renderMkt()"><option value="">Todas naciones</option></select>
           <select class="fs" id="mkMaxV" onchange="renderMkt()"><option value="">Cualquier precio</option><option value="1">≤€1M</option><option value="3">≤€3M</option><option value="8">≤€8M</option><option value="20">≤€20M</option><option value="50">≤€50M</option></select>
           <select class="fs" id="mkMaxAge" onchange="renderMkt()"><option value="">Cualquier edad</option><option value="21">Sub-21</option><option value="24">≤24 años</option><option value="28">≤28 años</option><option value="32">≤32 años</option></select>
           <select class="fs" id="mkMinR" onchange="renderMkt()"><option value="">Cualquier nivel</option><option value="70">70+ OVR</option><option value="75">75+ OVR</option><option value="80">80+ OVR</option><option value="85">85+ OVR</option></select>
@@ -3445,10 +3446,49 @@ function subNeg(){}
 // =============================================
 // MARKET RENDER — SAFE VERSION
 // =============================================
+// ═══ FILTROS ARMADOS DESDE TU BASE, NO A MANO ═══
+// La lista de ligas estaba escrita en el HTML e incluía cuatro (Uruguay,
+// Venezuela, Turquía, MLS) que la base no tiene: filtrabas y no aparecía nadie.
+// Ahora las opciones salen de los jugadores que realmente hay cargados, así
+// que la extracción manda: si mañana entra Arabia, aparece sola.
+function mktLeagues(){
+  if(!G||!G.market)return [];
+  const c={};
+  G.market.forEach(p=>{ if(p.lg)c[p.lg]=(c[p.lg]||0)+1; });
+  return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([lg,n])=>({lg,n}));
+}
+function _fillSel(id,opts,placeholder){
+  const s=document.getElementById(id); if(!s)return;
+  const prev=s.value;
+  s.innerHTML=`<option value="">${placeholder}</option>`+
+    opts.map(o=>`<option value="${o.v}"${o.v===prev?' selected':''}>${o.t}</option>`).join('');
+  if(s.value!==prev)s.value='';
+}
+function fillLeagueFilter(){
+  _fillSel('mkLg',mktLeagues().map(x=>({v:x.lg,t:`${x.lg} (${x.n})`})),'Todas ligas');
+}
+function fillNatFilter(){
+  const c={};
+  (G.market||[]).forEach(p=>{ if(p.nat)c[p.nat]=(c[p.nat]||0)+1; });
+  _fillSel('mkNat',Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,40)
+    .map(([n,k])=>({v:n,t:`${n} (${k})`})),'Todas naciones');
+}
+// Los equipos dependen de la liga elegida: si no elegiste liga, van todos
+function fillTeamFilter(){
+  const lg=(document.getElementById('mkLg')||{value:''}).value;
+  const c={};
+  (G.market||[]).forEach(p=>{ if(!lg||p.lg===lg){ if(p.club)c[p.club]=(c[p.club]||0)+1; } });
+  _fillSel('mkTeam',Object.entries(c).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([club,n])=>({v:club,t:`${club} (${n})`})),'Todos los equipos');
+}
+function refreshMktFilters(){ fillLeagueFilter(); fillNatFilter(); fillTeamFilter(); }
+
 function renderMktSafe(){
   // Safe version called from updateUI - only renders if el exists
   const el = document.getElementById('mkList');
   if(!el||!G) return;
+  const lgSel=document.getElementById('mkLg');
+  if(lgSel&&lgSel.options.length<=1) refreshMktFilters();
   renderMkt();
 }
 
@@ -3475,6 +3515,7 @@ function renderMkt(){
   const q = qEl.value.toLowerCase();
   const pos = (document.getElementById('mkPos')||{value:''}).value;
   const lg2 = (document.getElementById('mkLg')||{value:''}).value;
+  const team = (document.getElementById('mkTeam')||{value:''}).value;
   const nat = (document.getElementById('mkNat')||{value:''}).value;
   const mv = parseFloat((document.getElementById('mkMaxV')||{value:''}).value)||9999;
   const maxAge = parseInt((document.getElementById('mkMaxAge')||{value:''}).value)||99;
@@ -3485,7 +3526,8 @@ function renderMkt(){
   let pl = G.market.filter(p => {
     if(q && !p.name.toLowerCase().includes(q) && !p.club.toLowerCase().includes(q) && !p.lg.toLowerCase().includes(q)) return false;
     if(pos && p.pos!==pos) return false;
-    if(lg2 && (lg2==='Otras' ? ['Liga ARG','Brasil','Uruguay','Colombia','Chile','Paraguay','Ecuador','Perú','Bolivia','Venezuela','Premier','Italia','España','Alemania','Francia','Turquía','Grecia','Portugal','Holanda','MLS','Liga MX','Arabia'].includes(p.lg) : p.lg!==lg2)) return false;
+    if(lg2 && p.lg!==lg2) return false;
+    if(team && p.club!==team) return false;
     if(nat && p.nat!==nat) return false;
     if(p.val>mv) return false;
     if(p.age>maxAge) return false;
@@ -6998,9 +7040,21 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Sólo se recauda de LOCAL (entradas). De visitante no cobrás borderaux.
   // Antes se sumaba el ingreso del estadio en TODOS los partidos, ganando o
   // perdiendo: daban ~6M por partido y en 10 fechas tenías +60M.
+  // El borderó bruto ya no era ganancia pura: un partido de local cuesta plata
+  // (seguridad, operativo, personal, logística) y la cancha se llena según cómo
+  // esté la hinchada. Antes entraba el ingreso fijo del estadio ganando o
+  // perdiendo y el club se hacía rico sin hacer nada.
   const _homeGame = m.home===G.teamName;
-  const matchGate = _homeGame ? Math.round(G.stadium.income*(res==='W'?1:res==='D'?0.9:0.8)*10)/10 : 0;
-  if(matchGate>0)G.budget=Math.round((G.budget+matchGate)*10)/10;
+  let matchGate=0, matchOps=0;
+  if(_homeGame){
+    const humor=0.55+(G.fanMood||55)/100*0.55;           // cancha llena vs media entrada
+    const racha=res==='W'?1:res==='D'?0.92:0.84;
+    const bruto=G.stadium.income*humor*racha*dMul;
+    matchOps=G.stadium.income*0.42;                       // operativo del día de partido
+    matchGate=Math.round((bruto-matchOps)*10)/10;
+    G.budget=Math.round((G.budget+matchGate)*10)/10;
+    G.finGate={bruto:Math.round(bruto*10)/10,ops:Math.round(matchOps*10)/10,neto:matchGate};
+  }
   if(res==='W'){
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); G.rep=Math.min(100,G.rep+1*dMul);
     // Bonos de sponsors por victoria
@@ -7214,7 +7268,10 @@ function applyMatchResult(m, gf, ga, providedScorers){
       const pot=p.pot||Math.min(99,p.rat+Math.max(3,20-Math.max(0,p.age-18)));
       const potGap=pot-p.rat;
       // Age factor: peak growth 18-23, decline after 30
-      let ageFac=p.age<=19?1.8:p.age<=21?1.4:p.age<=23?1.0:p.age<=26?0.5:p.age<=29?0.15:p.age<=32?-0.15:-0.3;
+      // A los 30 ya no se cae nadie: de 30 a 32 es meseta (sólo baja el que
+      // rinde mal) y la merma de verdad arranca a los 33/34, despacio.
+      let ageFac=p.age<=19?1.8:p.age<=21?1.4:p.age<=23?1.0:p.age<=26?0.5:p.age<=29?0.15
+                :p.age<=32?0.05:p.age<=33?-0.10:p.age<=35?-0.22:-0.38;
       // DT Formador potencia a los jóvenes
       if(G.dt&&G.dt.trait==='Formador'&&p.age<=23&&ageFac>0) ageFac*=1.35;
       if(p.formPts>1.0 && ageFac>0 && potGap>=2){
@@ -7226,7 +7283,12 @@ function applyMatchResult(m, gf, ga, providedScorers){
           p.attrs[bestK]=Math.min(99,p.attrs[bestK]+1);
         }
       } else if(p.formPts<-1.2 || ageFac<0){
-        if(Math.random()<(ageFac<0?0.35:0.12)){
+        // La baja depende de la EDAD y del RENDIMIENTO. El veterano que juega
+        // bien aguanta su nivel; el que no rinde se cae aunque sea joven.
+        let caida = ageFac<0 ? 0.10+(-ageFac)*0.55 : 0.12;
+        if(p.formPts>0.8) caida*=0.35;
+        else if(p.formPts<-1.0) caida*=1.5;
+        if(Math.random()<caida){
           p.rat=Math.max(52,p.rat-1); p.val=calcVal(p); lg('📉',`${p.name} baja → ${p.rat}`);
         }
       }
@@ -7362,8 +7424,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
     const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
     const wages=Math.round(wk*4/1000*10)/10;                    // M/mes
     // TV + socios: escala con la masa societaria y el humor, pero sin regalar plata
-    const socInc=(G.socios||20000)/10000*(0.35+(G.fanMood||55)/100*0.35);
-    const tv=Math.round((1.6+(G.rep||50)*0.022+socInc)*10)/10;
+    const socInc=(G.socios||20000)/10000*(0.28+(G.fanMood||55)/100*0.28);
+    const tv=Math.round((1.15+(G.rep||50)*0.017+socInc)*10)/10;
     // Gastos operativos del club: cuerpo técnico, inferiores, estadio, logística.
     // Sin esto el presupuesto sólo subía y la plata dejaba de ser un problema.
     const staffLv=Object.values(G.staffLevels||{}).reduce((a,v)=>a+(v||0),0);
