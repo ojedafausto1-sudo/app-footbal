@@ -3387,32 +3387,13 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   if(!p) return;
   if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
-  const agent=_negAgent(p);
-  if(Math.random()<rejectChance){
-    // Antes era sí o no y se terminaba. Ahora, si el no no es rotundo, piden
-    // más cargo por el préstamo y podés seguir negociando.
-    const counter=Math.round(cost*(1.3+Math.random()*0.4)*10)/10;
-    if(rejectChance<0.9&&counter<=G.budget&&!p._loanNo&&Math.random()<0.55){
-      p._loanNo=1;
-      addPhoneMsg('agent',agent.name,`↔️ <b>${p.club}</b> lo cede, pero no por ${fv(cost)}: quieren <b style="color:var(--gold)">${fv(counter)}</b> de cargo.`,'💬');
-      showMod(`
-        <button class="mclose" onclick="closeMod()">✕</button>
-        <div class="mtitle">↔ Contraoferta de ${p.club}</div>
-        <div class="sr"><span class="sl">Tu oferta</span><span class="sv" style="text-decoration:line-through;opacity:.6">${fv(cost)}</span></div>
-        <div class="sr"><span class="sl">Piden de cargo</span><span class="sv" style="color:var(--gold)">${fv(counter)}</span></div>
-        <div class="note" style="margin:8px 0">Por 26 semanas de ${p.name}. Si aceptás, todavía falta que él quiera venir.</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn bg" onclick="loanPlayerTerms('${id}',${counter},${buyOption})">✓ Aceptar ${fv(counter)}</button>
-          <button class="btn bR bs" onclick="closeMod()">🚪 Retirarse</button>
-        </div>
-      `);
-      return;
-    }
-    addPhoneMsg('agent',agent.name,`❌ ${p.club} rechazó el préstamo de <b>${p.name}</b>. ${rejectChance>=0.8?'No ceden a sus figuras.':'Prefieren tenerlo en su plantel.'}`,'🚫');
-    closeMod();flash('❌ Préstamo rechazado','loss');return;
-  }
+  // El club ya no contesta en el acto. Primero arreglás con el jugador y recién
+  // ahí sale la solicitud; la respuesta llega semanas después, con la chance de
+  // que contraoferten pidiendo más cargo.
+  window._loanRej=rejectChance;
   loanPlayerTerms(id,cost,buyOption);
 }
+
 // El club lo cede: ahora el jugador decide si acepta venir y con qué sueldo
 function loanPlayerTerms(id,cost,buyOption){
   const p=G.market.find(x=>x.id===id); if(!p)return;
@@ -3421,20 +3402,11 @@ function loanPlayerTerms(id,cost,buyOption){
   const extra=loanType==='option'?' con opción de compra ('+fv(buyOption)+')':loanType==='obligation'?' con obligación de compra ('+fv(buyOption)+')':'';
   openPlayerTerms({
     p, icon:'📥', loan:true, fee:cost, feeLbl:'Cargo del préstamo',
-    note:`✅ <b>${p.club} acepta cederlo</b> por 26 semanas${extra}. Falta convencerlo a él: viene a jugar, no a mirar.`,
+    note:`🤝 Primero arreglás con él${extra}. Después la solicitud viaja a <b>${p.club}</b>, que se toma unas semanas para contestar.`,
     pull:0.5,   // un préstamo compromete menos: le cuesta menos decir que sí
-    onAccept:(t)=>{
-      if(G.budget<cost){flash('❌ Sin presupuesto','loss');return;}
-      G.budget=Math.round((G.budget-cost)*10)/10;
-      p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';p.wage=t.wage;
-      if(loanType==='option') p.loanBuyOption=buyOption;
-      if(loanType==='obligation') p.loanBuyObligation=buyOption;
-      G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
-      lg('📥',`Préstamo: ${p.name} (${fv(cost)}, ${t.wage}k/sem, ${t.roleLabel})${extra}`);
-      addPhoneMsg('agent',_negAgent(p).name,`✅ ¡Préstamo cerrado! <b>${p.name}</b> se une a ${G.teamName||'tu club'}${extra}.`,'📥');
-      addPhoneMsg('player',p.name,`👋 Llegué a ${G.teamName||'el club'} en préstamo. ¡Voy a demostrar que puedo quedarme!`,'⚽');
-      updateUI();flash('✅ '+p.name+' en préstamo'+extra,'win');
-    }
+    onAccept:(t)=>negQueueClub({p,kind:'prestamo',terms:t,
+      acc:1-(window._loanRej!==undefined?window._loanRej:0.2),
+      deal:{cost,buyOption,loanType}})
   });
 }
 
@@ -10191,38 +10163,12 @@ function confirmHalfPass(id){
   if(G.budget<cost+wageCost){flash(`❌ Presupuesto insuficiente (ficha ${fv(cost)} + salarios ${fv(wageCost)})`,'loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
-  // ═══ EL CLUB DECIDE: ya no es comprar cualquier jugador con sólo tener la plata ═══
-  if(Math.random()>pctInterest(p,pc)){
-    // Antes era un no seco. Ahora, si hay margen, contraofertan un precio más
-    // alto y la pelota vuelve a tu cancha: eso es negociar.
-    const counter=Math.round(cost*(1.2+Math.random()*0.25)*10)/10;
-    if(counter<=G.budget&&(p._pctNo||0)<2&&Math.random()<0.6){
-      p._pctNo=(p._pctNo||0)+1;
-      lg('➗',`${p.club} contraoferta: pide ${fv(counter)} por el ${Math.round(pc*100)}%`);
-      addPhoneMsg('agent','Mercado de pases',`↔️ <b>${p.club}</b> no cierra la puerta, pero por el ${Math.round(pc*100)}% de ${p.name} quiere <b style="color:var(--gold)">${fv(counter)}</b>.`,'💬');
-      showMod(`
-        <button class="mclose" onclick="closeMod()">✕</button>
-        <div class="mtitle">↔ Contraoferta de ${p.club}</div>
-        <div class="sr"><span class="sl">Tu oferta</span><span class="sv" style="text-decoration:line-through;opacity:.6">${fv(cost)}</span></div>
-        <div class="sr"><span class="sl">Piden</span><span class="sv" style="color:var(--gold)">${fv(counter)}</span></div>
-        <div class="note" style="margin:8px 0">Por el <b>${Math.round(pc*100)}%</b> del pase de ${p.name}. Si aceptás, todavía te falta arreglar con él.</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn bg" onclick="pctAccCounter('${id}',${pc},${counter})">✓ Aceptar ${fv(counter)}</button>
-          <button class="btn bo bs" onclick="buyHalfPass('${id}')">↔ Otra oferta</button>
-          <button class="btn bR bs" onclick="closeMod()">🚪 Retirarse</button>
-        </div>
-      `);
-      return;
-    }
-    p._pctNo=(p._pctNo||0)+1;
-    closeMod();updateUI();
-    flash(`❌ ${p.club} rechazó vender el ${Math.round(pc*100)}% de ${p.name}`,'loss');
-    lg('❌',`${p.club} no negocia el pase de ${p.name} (${p.rat}) con tu reputación actual`);
-    addPhoneMsg('board','Secretaría Deportiva',`📞 ${p.club} rechazó nuestra oferta por <b>${p.name}</b>. ${p.rat>=(48+(G.rep||50)*0.42)?'Nos dijeron que no está a nuestro alcance todavía: hay que ganar prestigio.':'Piden una propuesta mejor.'}`,'🏛️');
-    return;
-  }
+  // El club ya no contesta en el acto: primero arreglás con el jugador y la
+  // oferta sale. pctInterest pasa a ser la chance con la que contestará dentro
+  // de unas semanas, no un dado que se tira ahora.
   pctPlayerTerms(id,pc,cost,wageCost);
 }
+
 // El club aceptó (o le aceptaste la contraoferta): ahora firma él o no hay pase
 function pctAccCounter(id,pc,counter){
   const p=G.market.find(x=>x.id===id); if(!p)return;
@@ -10236,19 +10182,9 @@ function pctPlayerTerms(id,pc,cost,wageCost){
     p, icon:'➗', fee:cost, feeLbl:`${Math.round(pc*100)}% del pase`,
     // Si comprás poco porcentaje pide más sueldo: se juega parte de su futuro
     wageMult:1+(1-pc)*0.12,
-    note:`✅ <b>${p.club} aceptó venderte el ${Math.round(pc*100)}%</b> por ${fv(cost)}. Falta que el jugador acepte venir.`,
-    onAccept:(t)=>{
-      const total=cost+wageCost+t.bonus;
-      if(G.budget<total){flash('❌ Presupuesto insuficiente ('+fv(total)+')','loss');return;}
-      G.budget=Math.round((G.budget-total)*10)/10;
-      G.market=G.market.filter(x=>x.id!==id);
-      p.club=G.teamName;p.lg='Liga ARG';p.ownedPct=pc;p.wage=t.wage;p.contract=G.season+t.years;
-      G.squad.push(p);G.bench.push(p);
-      lg('➗',`${p.name} llega con el ${Math.round(pc*100)}% del pase (${fv(cost)} + ${t.wage}k/sem, ${t.years}a, ${t.roleLabel})`);
-      addPhoneMsg('player',p.name,'¡Presidente, gracias por la apuesta! Voy a demostrar que valgo el pase entero.','👤');
-      updateUI();
-      flash('➗ '+p.name+' — '+Math.round(pc*100)+'% del pase','win');
-    }
+    note:`🤝 Primero arreglás con él por el <b>${Math.round(pc*100)}%</b> de su pase. Después la oferta de ${fv(cost)} viaja a <b>${p.club}</b>.`,
+    onAccept:(t)=>negQueueClub({p,kind:'pct',terms:t,acc:pctInterest(p,pc),
+      deal:{pc,cost,wageCost}})
   });
 }
 
@@ -10335,46 +10271,16 @@ function confirmSwap(targetId,mineId,mine2Id,cash,interest){
   const mine2=mine2Id?G.squad.find(q=>q.id===mine2Id):null;
   if(!p||!mine)return;
   if(G.budget<cash){flash('❌ No te alcanza para el dinero ofrecido','loss');return;}
-  if(Math.random()>interest){
-    // El club contraoferta pidiendo más plata en vez de rechazar seco
-    const credit=mine.val*0.85+(mine2?mine2.val*0.85:0);
-    const need=Math.max(0,Math.round((p.val-credit)*1.25*10)/10);
-    if(need>cash&&need<=G.budget&&Math.random()<0.6){
-      lg('🔄',`${p.club} contraoferta: pide ${fv(need)} para cerrar`);
-      addPhoneMsg('agent','Mercado de pases',`↔️ <b>${p.club}</b> no rechaza el canje, pero pide <b style="color:var(--gold)">${fv(need)}</b> en efectivo para soltar a ${p.name}.`,'💬');
-      window._swapCash=need;updSwapInfo(targetId);
-      flash('↔️ El club pide más dinero','draw');
-      return;
-    }
-    lg('🔄',`${p.club} rechazó el canje por ${p.name}`);
-    closeMod();flash('❌ Rechazaron el canje','loss');
-    return;
-  }
-  // El club aceptó el canje. Falta lo que antes no se preguntaba nunca: si el
-  // jugador quiere venir, y con qué contrato (antes entraba con el sueldo y el
-  // vínculo de su club anterior, sin firmar nada).
+  // Igual que las demás vías: primero el jugador, después la propuesta viaja al
+  // club y tarda. El interés calculado pasa a ser la chance de su respuesta.
   const idos=[mine.name,mine2&&mine2.name].filter(Boolean).join(' + ');
   openPlayerTerms({
     p, icon:'🔄', fee:cash||0, feeLbl:'Diferencia en efectivo',
-    note:`✅ <b>${p.club} aceptó el canje</b> por ${idos}${cash?' + '+fv(cash):''}. Falta que ${p.name} acepte las condiciones.`,
+    note:`🤝 Arreglás con él primero. Después le proponés a <b>${p.club}</b> el canje por ${idos}${cash?' + '+fv(cash):''} y esperás su respuesta.`,
     onAccept:(t)=>{
-      if(G.budget<cash+t.bonus){flash('❌ No te alcanza para el efectivo + el bono','loss');return;}
-      G.budget=Math.round((G.budget-cash-t.bonus)*10)/10;
-      const oldClub=p.club;
-      [mine,mine2].filter(Boolean).forEach(m=>{
-        G.squad=G.squad.filter(q=>q.id!==m.id);
-        G.bench=G.bench.filter(q=>q.id!==m.id);
-        Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===m.id)G.slots[k2]=null;});
-        m.club=oldClub;m.lg=p.lg;G.market.push(m);
-      });
-      G.market=G.market.filter(x=>x.id!==targetId);
-      p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
-      G.squad.push(p);G.bench.push(p);
-      lg('🔄',`Canje: llegó ${p.name} (${t.wage}k/sem, ${t.years}a), se fue ${idos}${cash?' + '+fv(cash):''}`);
-      addPhoneMsg('player',p.name,'¡Presidente! Llegué con toda la ilusión. Gracias por buscarme.','👤');
       window._swapCash=undefined;
-      updateUI();
-      flash('🔄 Canje cerrado: '+p.name,'win');
+      negQueueClub({p,kind:'canje',terms:t,acc:interest,
+        deal:{mineId,mine2Id:mine2Id||null,cash}});
     }
   });
 }
@@ -14157,6 +14063,75 @@ function negSendClub(pid){
   lg('📨',`Oferta de ${fv(bid)} a ${p.club} por ${p.name}`);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// OPERACIONES QUE VIAJAN: canje, préstamo, % del pase y compra directa
+// ═══════════════════════════════════════════════════════════════════════
+// Arreglás con el jugador cara a cara (eso es una charla, es instantánea) y
+// después la propuesta SALE hacia el club: tarda semanas, puede volver con una
+// contraoferta o rebotar. Antes las cuatro se resolvían de un click.
+//
+// OJO: G se guarda con JSON.stringify en localStorage, así que acá no puede
+// haber funciones. Cada operación guarda DATOS y se ejecuta sola al cerrarse.
+function negQueueClub(o){
+  ensureNegs();
+  const p=o.p;
+  G.negs.push({pid:p.id,name:p.name,club:p.club,kind:o.kind,stage:'club_pend',
+    wait:1+~~(Math.random()*3), rounds:0, playerOk:true, rivals:[], deadline:0,
+    wage:o.terms.wage, years:o.terms.years, role:o.terms.role,
+    roleLabel:o.terms.roleLabel, bonus:o.terms.bonus||0,
+    bid:o.bid||0, acc:o.acc, deal:o.deal||{}});
+  closeMod(); updateUI();
+  flash(`📨 ${p.name} ya arregló con vos. La propuesta viaja a ${p.club}.`,'draw');
+  lg('📨',`${KIND_LBL[o.kind]||'Oferta'} enviada a ${p.club} por ${p.name}`);
+}
+const KIND_LBL={compra:'Oferta de compra',canje:'Propuesta de canje',
+  prestamo:'Pedido de préstamo',pct:'Oferta por un % del pase'};
+
+// ¿Cuánta plata sale hoy de la operación?
+function negCashOut(n){
+  const d=n.deal||{};
+  if(n.kind==='canje')    return (d.cash||0)+(n.bonus||0);
+  if(n.kind==='prestamo') return (d.cost||0);
+  if(n.kind==='pct')      return (d.cost||0)+(d.wageCost||0)+(n.bonus||0);
+  return (n.bid||0)+(n.bonus||0);
+}
+// El club aceptó: se ejecuta la operación según su tipo
+function negExecDeal(n,p){
+  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  const out=negCashOut(n);
+  if(out>G.budget){
+    addPhoneMsg('board','Tesorería',`💸 <b>${p.club}</b> aceptó por ${p.name}, pero no tenemos los ${fv(out)}. La operación se cayó.`,'🏛️');
+    n.stage='cerrada';return;
+  }
+  const d=n.deal||{};
+  G.budget=Math.round((G.budget-out)*10)/10;
+  G.market=G.market.filter(x=>x.id!==p.id);
+  if(n.kind==='prestamo'){
+    p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';p.wage=n.wage;
+    if(d.loanType==='option') p.loanBuyOption=d.buyOption;
+    if(d.loanType==='obligation') p.loanBuyObligation=d.buyOption;
+  } else {
+    if(n.kind==='canje'){
+      const oldClub=p.club;
+      [d.mineId,d.mine2Id].filter(Boolean).forEach(mid=>{
+        const m=G.squad.find(q=>q.id===mid); if(!m)return;
+        G.squad=G.squad.filter(q=>q.id!==mid);
+        G.bench=G.bench.filter(q=>q.id!==mid);
+        Object.keys(G.slots).forEach(k=>{if(G.slots[k]===mid)G.slots[k]=null;});
+        m.club=oldClub;m.lg=p.lg;G.market.push(m);
+      });
+    }
+    if(n.kind==='pct') p.ownedPct=d.pc;
+    p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
+  }
+  G.squad.push(p);G.bench.push(p);
+  n.stage='cerrada';
+  lg('✅',`${KIND_LBL[n.kind]} cerrada: ${p.name} (${n.wage}k/sem${n.kind==='prestamo'?'':', '+n.years+'a'}, ${n.roleLabel})`);
+  addPhoneMsg('player',p.name,`🎉 ¡Listo presidente! Ya soy jugador de ${G.teamName||'el club'}. Gracias por la insistencia.`,'⭐');
+  updateUI();
+  flash('✅ '+p.name+' es tuyo','win');
+}
+
 // ═══ EL RELOJ CORRE: se procesa cada semana ═══
 function weeklyNegotiations(){
   if(!G||!G.negs||!G.negs.length)return;
@@ -14182,6 +14157,34 @@ function weeklyNegotiations(){
         addPhoneMsg('agent',p.name,`❌ Gracias por el interés, pero <b>${n.wage}k/sem no me sirve</b>. Pretendo cerca de ${Math.round(exp)}k. Si mejoran, hablamos.`,'🤝');
         lg('❌',`${p.name} rechazó los términos personales`);
         return;
+      }
+      keep.push(n);return;
+    }
+    // ═══ LA PROPUESTA LLEGÓ AL CLUB (canje / préstamo / % / compra) ═══
+    if(n.stage==='club_pend'){
+      // Que el jugador ya haya arreglado empuja: al club le cuesta más aguantar
+      const acc=Math.min(0.92,Math.max(0.03,(n.acc||0.5)+0.06+((G.rep||50)-55)/420));
+      if(Math.random()<acc){ negExecDeal(n,p); keep.push(n); return; }
+      if(n.rounds<2){
+        // Contraoferta: piden más plata y la decisión vuelve a vos
+        const base=negCashOut(n)||Math.max(0.3,p.val*0.2);
+        n.want=Math.round(base*(1.18+Math.random()*0.25)*100)/100;
+        n.rounds++; n.stage='club_contra'; n.wait=0; n.expira=3;
+        addPhoneMsg('agent',p.club,`💬 Por <b>${p.name}</b> no nos alcanza. Queremos <b>${fv(n.want)}</b> para cerrar.`,'💼');
+      } else {
+        n.stage='rechazada';
+        addPhoneMsg('agent',p.club,`❌ No hay acuerdo por <b>${p.name}</b>. La operación se cae.`,'💼');
+        addPhoneMsg('player',p.name,`😞 Me dijeron que no me sueltan. Yo quería ir. Insistan más adelante.`,'🤝');
+      }
+      keep.push(n);return;
+    }
+    // La contraoferta no espera para siempre: si no contestás, se cansan
+    if(n.stage==='club_contra'){
+      n.expira=(n.expira===undefined?3:n.expira)-1;
+      if(n.expira<=0){
+        n.stage='rechazada';
+        addPhoneMsg('agent',p.club,`⌛ Nos cansamos de esperar tu respuesta por <b>${p.name}</b>. La operación se cae.`,'💼');
+        lg('⌛',`${p.club} retiró la contraoferta por ${p.name}: no contestaste`);
       }
       keep.push(n);return;
     }
@@ -14276,7 +14279,8 @@ function openNegsPanel(){
   const ns=G.negs.filter(n=>n.stage!=='cerrada');
   const label={esperando_jugador:'⏳ Esperando al jugador',jugador_ok:'✅ El jugador arregló — falta el club',
     esperando_club:'⏳ Esperando respuesta del club',contraoferta:'💬 Contraoferta del club',
-    rechazada:'❌ Rechazada',precontrato_listo:'📝 Precontrato firmado'};
+    rechazada:'❌ Rechazada',precontrato_listo:'📝 Precontrato firmado',
+    club_pend:'⏳ El club está evaluando',club_contra:'💬 Contraoferta del club'};
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">📋 Negociaciones abiertas</div>
@@ -14286,14 +14290,17 @@ function openNegsPanel(){
         return `<div class="card" style="margin-bottom:7px;padding:9px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><div style="font-weight:700;font-size:12px">${n.name}</div>
-            <div style="font-size:9px;color:var(--t3)">${n.club} · ${n.wage}k/sem · ${n.years} años</div></div>
+            <div style="font-size:9px;color:var(--t3)">${n.kind&&n.kind!=='compra'?KIND_LBL[n.kind]+' · ':''}${n.club} · ${n.wage}k/sem${n.kind==='prestamo'?'':' · '+n.years+' años'}</div></div>
             <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} sem</span>`:''}</div>
           </div>
           ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} sem`:''}</div>`:''}
           ${n.stage==='jugador_ok'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">💰 Ofertar a ${n.club}</button>`:''}
           ${n.stage==='contraoferta'&&p?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="negAcceptCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
             <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
-          ${n.stage==='rechazada'?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">🔁 Volver a ofertar</button>
+          ${n.stage==='club_contra'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="negPayCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
+            <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
+          ${n.stage==='rechazada'&&n.kind&&n.kind!=='compra'?`<button class="btn bR bs" style="width:100%;margin-top:6px" onclick="negDrop('${n.pid}')">✗ Cerrar</button>`:
+            n.stage==='rechazada'?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">🔁 Volver a ofertar</button>
             <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
         </div>`;
       }).join('')}
@@ -14305,6 +14312,23 @@ function negAcceptCounter(pid){
   if(n.want>G.budget){flash('❌ No te alcanza','loss');return;}
   negComplete(n,p,n.want);
   closeMod();
+}
+// Igualar lo que pidió el club en una operación de canje / préstamo / % / compra.
+// La diferencia se carga en el campo de plata que corresponda a cada tipo.
+function negPayCounter(pid){
+  const n=negFind(pid), p=G.market.find(x=>x.id===pid);
+  if(!n||!p||n.stage!=='club_contra')return;
+  const hoy=negCashOut(n), extra=Math.round((n.want-hoy)*100)/100;
+  if(extra>0&&extra>G.budget){flash('❌ No te alcanza la diferencia ('+fv(extra)+')','loss');return;}
+  const d=n.deal||{};
+  if(n.kind==='canje')         d.cash=Math.round(((d.cash||0)+extra)*100)/100;
+  else if(n.kind==='prestamo') d.cost=Math.round(((d.cost||0)+extra)*100)/100;
+  else if(n.kind==='pct')      d.cost=Math.round(((d.cost||0)+extra)*100)/100;
+  else                         n.bid=Math.round(((n.bid||0)+extra)*100)/100;
+  n.stage='club_pend'; n.acc=0.9; n.wait=1;
+  closeMod();updateUI();
+  flash('✅ Igualaste '+fv(n.want)+'. Esperá la confirmación.','draw');
+  lg('💬',`Igualaste la contraoferta de ${p.club} por ${p.name} (${fv(n.want)})`);
 }
 function negDrop(pid){
   const n=negFind(pid); if(n)n.stage='cerrada';
