@@ -448,6 +448,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
       </div>
+      <div id="friendlyBox">
+      </div>
       <div class="g3" style="margin-bottom:10px">
         <div class="card"><div class="ctitle">📊 Stats</div>
           <div class="sr"><span class="sl">PJ/G/E/P</span><span class="sv" id="sLine">0/0/0/0</span></div>
@@ -825,7 +827,22 @@ function ratToVal(rat, age, pos) {
 // Valor efectivo = calculadora × rendimiento de la temporada
 // (así un 28/29 en gran nivel NO se desploma: el rendimiento lo sostiene)
 function calcVal(p){
-  return Math.max(0.1,Math.round(ratToVal(p.rat,p.age,p.pos)*(p.perf||1)*10)/10);
+  return valCap(p,ratToVal(p.rat,p.age,p.pos)*(p.perf||1));
+}
+// ═══ EL VALOR NO SE MULTIPLICA POR CUATRO EN UN AÑO ═══
+// ratToVal es exponencial (bien: así es el mercado real), pero encadenado al
+// crecimiento de media hacía que un pibe pasara de 10M a 46M en una temporada
+// y con una sola venta el presupuesto dejaba de importar. En vez de aplanar la
+// curva —que movería TODOS los precios reales que trae la extracción— se le
+// pone tope a cuánto puede moverse el valor DENTRO de una misma temporada.
+function valCap(p,v){
+  v=Math.max(0.1,Math.round(v*100)/100);
+  if(!p)return v;
+  if(p._valSeason!==G.season){ p._valSeason=G.season; p._valBase=p.val||v; }
+  const base=p._valBase||v;
+  const techo=base*2.1+1.5;    // como mucho se duplica en el año
+  const piso =base*0.45;       // y tampoco se desploma de golpe
+  return Math.max(0.1,Math.round(Math.min(techo,Math.max(piso,v))*100)/100);
 }
 
 function ageLabel(age) {
@@ -1329,6 +1346,12 @@ const SPONSORS = [
 ];
 
 const STAFF_ROLES = [
+  {id:'scout',role:'Jefe de Scouting',icon:'🔭',desc:'Descubre jugadores del mercado que no aparecían en el radar.',
+   levels:[{lv:1,name:'Ojeador regional',cost:3,salary:22},{lv:2,name:'Red nacional',cost:7,salary:48},{lv:3,name:'Scouting internacional',cost:14,salary:95}]},
+  {id:'nutri',role:'Nutricionista',icon:'🥗',desc:'El plantel llega más entero: recupera mejor entre partidos.',
+   levels:[{lv:1,name:'Nutricionista',cost:2,salary:16},{lv:2,name:'Equipo de nutrición',cost:6,salary:40}]},
+  {id:'setpiece',role:'Entrenador de pelota parada',icon:'⛳',desc:'Córners y tiros libres mejor ensayados.',
+   levels:[{lv:1,name:'Ayudante especializado',cost:3,salary:24},{lv:2,name:'Especialista',cost:8,salary:55}]},
   {
     id:'physio', role:'Preparador Físico', icon:'🏋️',
     desc:'Reduce el riesgo y duración de lesiones.',
@@ -1516,6 +1539,11 @@ const STAD_INIT = {
     {id:'tunnel',name:'Túnel y Vestuarios Premium',desc:'Nivel Champions. Impresiona rivales. Rep +3.',cost:10,eff:'rep+3',built:false},
     {id:'recovery',name:'Sala de Recuperación (Crioterapia)',desc:'El plantel recupera condición física más rápido.',cost:16,eff:'recovery',built:false},
     {id:'gym',name:'Gimnasio de Alto Rendimiento',desc:'Físico y potencia. Menos desgaste en la temporada.',cost:14,eff:'recovery',built:false},
+    {id:'palcos',name:'Palcos VIP y Hospitality',desc:'Butacas premium y catering. Entra plata todas las semanas.',cost:20,eff:'inc+0.9',built:false},
+    {id:'pantalla',name:'Pantalla LED gigante',desc:'La cancha se vive distinto. Sube el humor de la hinchada.',cost:12,eff:'rep+2',built:false},
+    {id:'solar',name:'Paneles solares',desc:'El club gasta menos en operar el estadio todos los meses.',cost:13,eff:'ops',built:false},
+    {id:'techo',name:'Techo sobre las tribunas',desc:'Se llena llueva o truene: más borderó y menos suspensiones.',cost:26,eff:'inc+1.4',built:false},
+    {id:'quirofano',name:'Quirófano y consultorios',desc:'Cirugías en el club: las lesiones graves duran menos.',cost:19,eff:'medical',built:false},
   ]
 };
 
@@ -1530,6 +1558,10 @@ function buildYouth(){
       {id:'ys',name:'Red de ojeadores',desc:'Más talentos descubiertos.',cost:6,built:false},
       {id:'yd',name:'Pensionado juvenil',desc:'Retené talentos del interior.',cost:5,built:false},
       {id:'yt',name:'Staff técnico especializado',desc:'Juveniles crecen más rápido.',cost:8,built:false},
+      {id:'yi',name:'Scouting internacional',desc:'Ojeadores en Sudamérica y África: aparecen perlas de afuera.',cost:11,built:false},
+      {id:'ye',name:'Colegio y tutores',desc:'Los pibes no se pierden por afuera de la cancha. Menos fugas.',cost:7,built:false},
+      {id:'yg',name:'Gimnasio para juveniles',desc:'Llegan mejor físicamente a Primera.',cost:9,built:false},
+      {id:'yv',name:'Video y análisis juvenil',desc:'Se corrigen antes los defectos técnicos.',cost:10,built:false},
     ],
     players: positions.map((pos,i) => ({
       id:'y'+(i+1), name:fnames[i]+' '+lnames[i], pos, age:16+~~(Math.random()*3),
@@ -2698,6 +2730,7 @@ function updateUI(){
   rStyle();
   rTacOpts();
   rSetPieces();
+  if(typeof rFriendlies==='function')rFriendlies();
   rInd();
   rStad();
   rJuv();
@@ -3524,6 +3557,7 @@ function renderMkt(){
   pl = pl.slice(0,150);
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
+  <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
   el.innerHTML = winBanner+pl.map(p=>{
     const tag = p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>':p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>':p.rat>=78&&p.age<=23?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':'';
@@ -6916,7 +6950,27 @@ function matchStrengths(m){
   // La CALIDAD DEL PLANTEL manda. Antes la moral pesaba 25% y el DT 20%: una
   // mala racha hundía la moral, eso te hacía perder más y entrabas en una espiral
   // de la que no salías por más equipazo que tuvieras.
-  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + G.morale/100*.14)*fitMod;
+  // ═══ LO QUE DECIDE EL TÉCNICO TAMBIÉN SE JUEGA ═══
+  // La simulación miraba media, ataque, defensa, DT, moral y física. No miraba
+  // NADA de lo que vos elegís al armar el equipo: podías poner un central de
+  // nueve y el resultado era el mismo. Ahora sí pesa.
+  const sl0=(typeof getForm==='function')?getForm():[];
+  let fuera=0;
+  xiIds.forEach((id,i)=>{
+    const q=G.squad.find(x=>x.id===id), sp=sl0[i];
+    if(q&&sp&&typeof posPenaltyFor==='function') fuera+=posPenaltyFor(q,sp.pos);
+  });
+  const posMod = 1 - Math.min(0.11, fuera*0.0035);          // equipo desarmado: hasta -11%
+  const chemMod = 0.97 + ((G.chem===undefined?45:G.chem)/100)*0.06;  // química del plantel
+  // Un capitán designado y con jerarquía ordena al equipo
+  const cap=(G.roles&&G.roles.captain)?G.squad.find(x=>x.id===G.roles.captain&&!x.injured):null;
+  const capMod = cap ? 1+Math.min(0.03,(cap.rat-70)*0.0012+((cap.age||26)>=30?0.008:0)) : 1;
+  // Jugar con menos de once (lesionados/suspendidos sin reemplazo) se paga
+  const validos=xi.filter(q=>!q.injured&&!(q.susp>0)).length;
+  const incompleto = validos>=11 ? 1 : 1-(11-validos)*0.035;
+
+  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + G.morale/100*.14)
+               *fitMod*posMod*chemMod*capMod*incompleto;
   // Moral del rival: estable por club/fecha (no un dado nuevo cada partido).
   // Antes era 55..90 al azar y metía ±9% de ruido: por eso ganaba cualquiera.
   const _sd=(oppName||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)+(m.week||0);
@@ -8165,6 +8219,77 @@ const PRESEASON_TOURS={
   regional:{label:'🌎 Gira regional (Sudamérica)',desc:'Recaudás más y sumás roce. Algo de desgaste.',cost:1,income:5,fit:10,chem:14,rep:2,inj:0.06},
   intl:{label:'✈️ Gira internacional (Europa/Asia)',desc:'Muchísima plata y prestigio, pero cansa y arriesga lesiones.',cost:3,income:14,fit:2,chem:16,rep:5,inj:0.12},
 };
+// ═══ RIVALES DE VERDAD PARA LA GIRA ═══
+// La gira era un número: elegías destino y te sumaba física y plata. Ahora
+// elegís CONTRA QUIÉN, los rivales salen de las ligas que tenés cargadas en la
+// base, y los amistosos se juegan y se pueden mirar como cualquier partido.
+function tourRivals(zona,n){
+  if(!G||!G.market)return [];
+  const LIGAS={regional:['Brasil','Colombia','Chile','Uruguay','Paraguay','Perú','Ecuador','Bolivia'],
+               intl:['Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Grecia','Rusia','Arabia'],
+               local:['Liga ARG']};
+  const ligas=LIGAS[zona]||LIGAS.local;
+  const porClub={};
+  G.market.forEach(p=>{
+    if(!ligas.includes(p.lg)||p.club===G.teamName)return;
+    (porClub[p.club]=porClub[p.club]||[]).push(p.rat);
+  });
+  return Object.entries(porClub)
+    .filter(([,r])=>r.length>=8)
+    .map(([club,r])=>({club,pow:Math.round(r.sort((a,b)=>b-a).slice(0,14).reduce((a,x)=>a+x,0)/Math.min(14,r.length))}))
+    .sort((a,b)=>b.pow-a.pow).slice(0,40)
+    .sort(()=>Math.random()-0.5).slice(0,n);
+}
+// Arma los amistosos y los mete en el calendario para jugarlos de verdad
+function bookFriendlies(zona,cuantos){
+  const rivales=tourRivals(zona,cuantos);
+  if(!rivales.length)return [];
+  G.friendlies=[];
+  rivales.forEach((r,i)=>{
+    G.friendlies.push({week:0,comp:'Amistoso',home:G.teamName,away:r.club,
+      played:false,result:null,score:null,friendly:true,oppPow:r.pow});
+  });
+  return rivales;
+}
+function playFriendly(i,mirar){
+  const m=(G.friendlies||[])[i];
+  if(!m||m.played){flash('Ese amistoso ya se jugó','draw');return;}
+  closeMod();
+  // Un amistoso no reparte puntos ni toca la tabla: sirve para física y química
+  // Fuerza del once contra la del rival de la gira (misma escala de rating)
+  const xiIds=Object.values(G.slots||{}).filter(Boolean);
+  const xi=xiIds.length>=8?xiIds.map(id=>G.squad.find(q=>q.id===id)).filter(Boolean)
+                          :[...G.squad].sort((a,b)=>b.rat-a.rat).slice(0,11);
+  const mi=xi.length?xi.reduce((a,q)=>a+q.rat,0)/xi.length:70;
+  const su=m.oppPow||72;
+  const d=(mi-su)/9;
+  const pois=(l)=>{let L=Math.exp(-l),k=0,pr=1;do{k++;pr*=Math.random();}while(pr>L);return k-1;};
+  const gf=Math.min(6,pois(Math.max(0.3,1.4+d))), ga=Math.min(6,pois(Math.max(0.3,1.4-d)));
+  m.played=true;m.score=gf+'-'+ga;m.result=gf>ga?'W':gf===ga?'D':'A';
+  G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+4);});
+  G.chem=Math.min(100,(G.chem||45)+3);
+  const ing=Math.round((0.6+su*0.03)*10)/10;
+  G.budget=Math.round((G.budget+ing)*10)/10;
+  lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${m.away} (+${fv(ing)})`);
+  addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${m.away}</b>: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
+  flash(`🤝 ${G.teamName} ${gf}-${ga} ${m.away}`,gf>ga?'win':gf===ga?'draw':'loss');
+  updateUI(); rFriendlies();
+}
+function rFriendlies(){
+  const el=document.getElementById('friendlyBox'); if(!el||!G)return;
+  const fs=G.friendlies||[];
+  if(!fs.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="card" style="margin-bottom:9px">
+    <div class="ctitle">🤝 Amistosos de la gira</div>
+    ${fs.map((m,i)=>`<div class="sr">
+      <span class="sl" style="flex:1">${m.away} <span style="color:var(--t3);font-size:9px">(${m.oppPow})</span></span>
+      ${m.played?`<span class="sv" style="color:${m.result==='W'?'var(--green)':m.result==='D'?'var(--gold)':'var(--red)'}">${m.score}</span>`
+        :`<button class="btn bg bs" onclick="playFriendly(${i})">▶ Jugar</button>`}
+    </div>`).join('')}
+    <div style="font-size:9px;color:var(--t3);margin-top:5px">Los amistosos no dan puntos: suman condición física, química y taquilla.</div>
+  </div>`;
+}
+
 function offerPreseason(){
   if(G._preseasonDone===G.season)return;
   showMod(`
@@ -8194,6 +8319,8 @@ function doPreseason(k){
     victim.injuredWeeks=1+~~(Math.random()*2);victim.injTotal=victim.injuredWeeks;
     lg('🤕',`${victim.name} se resintió en la gira (${victim.injuredWeeks} sem)`);
   }
+  const riv=bookFriendlies(k,k==='intl'?4:k==='regional'?3:2);
+  if(riv.length)addPhoneMsg('board','Secretaría del Club',`📋 Cerramos los amistosos de la gira: <b>${riv.map(r=>r.club).join('</b>, <b>')}</b>. Los podés jugar desde la portada.`,'🏛️');
   G._preseasonDone=G.season;
   lg('🧳',`Pretemporada: ${t.label} (+${fv(t.income)}, +${t.fit} física, +${t.chem} química)`);
   addPhoneMsg('board','Secretaría del Club',`🧳 Cerramos la ${t.label}. Ingresos <b style="color:var(--gold)">${fv(t.income)}</b>, el plantel llega a punto para arrancar la temporada.`,'🏛️');
@@ -10860,13 +10987,35 @@ function rSocial(){
     {av:'💬',handle:tnHandle+'_oficial',name:tn+' Oficial',v:true},
     {av:'🌟',handle:'@transfermarkt_ar',name:'Transfermarkt ARG',v:true},
   ];
+  // ═══ LAS REDES SIGUEN LO QUE PASA DE VERDAD ═══
+  // Antes los trending eran casi fijos. Ahora salen de hechos reales: el pase
+  // bomba de la semana, el amistoso de la gira, el lesionado, la racha.
+  const ultPase=(G.transferLog||[])[0];
+  const ultAmis=(G.friendlies||[]).filter(f=>f.played).slice(-1)[0];
+  const lesion=G.squad.filter(p=>p.injured).sort((a,b)=>b.rat-a.rat)[0];
+  const racha=G.calendar.filter(m=>m.played).slice(-3).map(m=>m.result);
   const trending=[
     `#${tn.replace(/\s/g,'')}`,
     lastRes==='W'?'#Victoria':'#Derrota',
     `#${(G.dt.name||'DT').split(' ').pop()}DT`,
     topP?`#${topP.name.split(' ').pop()}`:'#Fichajes',
-    '#TorneoArgentino',
   ];
+  if(ultPase) trending.push('#'+ultPase.name.split(' ').pop()+'Al'+ultPase.to.replace(/\s/g,'').slice(0,10));
+  if(ultAmis) trending.push('#Gira'+tn.replace(/\s/g,'').slice(0,8));
+  if(lesion)  trending.push('#Fuerza'+lesion.name.split(' ').pop());
+  if(racha.length===3&&racha.every(r=>r==='W')) trending.push('#RachaGanadora');
+  if(racha.length===3&&racha.every(r=>r==='L')) trending.push('#CrisisEn'+tn.replace(/\s/g,'').slice(0,8));
+  if((G.boardConf||50)<30) trending.push('#DTAfuera');
+  trending.push('#TorneoArgentino');
+  // Posteos que citan hechos concretos, no frases genéricas
+  const realNews=[];
+  if(ultPase) realNews.push({av:'🌟',handle:'@transfermarkt_ar',name:'Transfermarkt ARG',v:true,
+    txt:`OFICIAL ⚪ <b>${ultPase.name}</b> (${ultPase.rat}) pasa de ${ultPase.from} a <b>${ultPase.to}</b>. Operación cerrada en ${fv(ultPase.fee)}.`});
+  if(ultAmis) realNews.push({av:'📰',handle:'@olé',name:'Diario Olé',v:true,
+    txt:`🤝 Amistoso de pretemporada: <b>${tn} ${ultAmis.score} ${ultAmis.away}</b>. Rodaje para la temporada que viene.`});
+  if(lesion) realNews.push({av:'❤️',handle:'@loco_del_futbol',name:'Hincha Fanático',v:false,
+    txt:`Justo ahora se nos lesiona <b>${lesion.name}</b> 😩 ${lesion.injType||''}. ¡Fuerza que te necesitamos!`});
+  G._socialReal=realNews;
   const topScorer=G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
   const injured=G.squad.filter(p=>p.injured);
   const copaMs=G.calendar.filter(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
@@ -10895,9 +11044,19 @@ function rSocial(){
   const shuffledFans=[...fans].sort(()=>Math.random()-.5);
   const trendHtml=`<div style="background:rgba(9,31,60,.85);border:1px solid rgba(246,211,24,.22);border-radius:10px;padding:11px 13px;margin-bottom:12px">
     <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.06em">🔥 TENDENCIAS EN ARGENTINA</div>
-    ${trending.map((t,i)=>`<div style="margin-bottom:5px;display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--gold);font-weight:700">${t}</span><span style="font-size:9px;color:var(--t3)">${['En tendencia','Fútbol ARG','Deportes','Viral','Nacional'][i]}</span></div>`).join('')}
+    ${trending.map((t,i)=>`<div style="margin-bottom:5px;display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--gold);font-weight:700">${t}</span><span style="font-size:9px;color:var(--t3)">${['En tendencia','Fútbol ARG','Deportes','Viral','Nacional','Pases','Actualidad','Trending'][i%8]}</span></div>`).join('')}
   </div>`;
-  el.innerHTML=trendHtml+shuffled.map((t,i)=>{
+  // Los posteos que citan hechos reales van arriba de todo
+  const realHtml=(G._socialReal||[]).map(r=>`
+    <div style="background:rgba(255,255,255,.035);border:1px solid rgba(246,211,24,.20);border-radius:11px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+        <span style="font-size:16px">${r.av}</span>
+        <b style="font-size:12px">${r.name}</b>${r.v?'<span style="color:#1d9bf0;font-size:11px">✔</span>':''}
+        <span style="font-size:10px;color:var(--t3)">${r.handle}</span>
+      </div>
+      <div style="font-size:12px;line-height:1.45">${r.txt}</div>
+    </div>`).join('');
+  el.innerHTML=trendHtml+realHtml+shuffled.map((t,i)=>{
     const fan=shuffledFans[i%shuffledFans.length];
     const likes=~~(Math.random()*800)+20;
     const rts=~~(Math.random()*220)+3;
@@ -14615,6 +14774,21 @@ function negComplete(n,p,price,isPre){
 }
 
 // ═══ PANEL DE NEGOCIACIONES ABIERTAS ═══
+// Lo que se movió en el mercado mientras vos mirabas: se alimenta de los
+// fichajes que hacen los clubes de la IA, con club de origen, destino y monto.
+function openTransferLog(){
+  const t=G.transferLog||[];
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📰 Últimos pases del mercado</div>
+    ${!t.length?'<div class="note">Todavía no se movió nada. Los clubes fichan durante las ventanas de pases.</div>':
+      t.slice(0,40).map(x=>`<div class="sr">
+        <span class="sl" style="flex:1">${rb(x.rat)} <b>${x.name}</b> <span style="font-size:9px;color:var(--t3)">${x.pos}</span></span>
+        <span style="font-size:10px;color:var(--t2)">${x.from} → <b style="color:#fff">${x.to}</b></span>
+        <span class="sv" style="color:var(--gold);min-width:54px;text-align:right">${fv(x.fee)}</span>
+      </div>`).join('')}
+  `);
+}
 function openNegsPanel(){
   ensureNegs();
   const ns=G.negs.filter(n=>n.stage!=='cerrada');
@@ -14722,7 +14896,7 @@ function weeklyMarketEvolution(){
     if(p.hype===undefined)p.hype=1;
     p.hype=Math.max(0.72,Math.min(1.42,p.hype*0.88+(1+p.mform*0.05)*0.12+(Math.random()-0.5)*0.03));
     const base=ratToVal(p.rat,p.age,p.pos)*(p.perf||1);
-    p.val=Math.max(0.05,Math.round(base*p.hype*100)/100);
+    p.val=valCap(p,base*p.hype);
   });
   // Noticia ocasional de los que más se movieron (color, no spam)
   if(risers.length&&Math.random()<0.5){
@@ -14788,6 +14962,10 @@ function weeklyAITransfers(){
     p.club=buyClub;p.lg=buyLg;
     p.val=Math.round(p.val*1.1*10)/10;
     const posN={ARQ:'un arquero',DEF:'un defensor',MED:'un mediocampista',DEL:'un delantero'}[needPos];
+    // Queda registrado para que el mercado se VEA vivo, no sólo en el log
+    G.transferLog=(G.transferLog||[]);
+    G.transferLog.unshift({name:p.name,rat:p.rat,pos:p.pos,from:oldClub,to:buyClub,lg:buyLg,fee,week:G.week,season:G.season});
+    if(G.transferLog.length>60)G.transferLog.length=60;
     lg('💸',`${buyClub} reforzó ${posN}: ${p.name} (${oldClub}) por ${fv(fee)}`);
     if(fee>=12)addPhoneMsg('agent','Mercado de pases',`💸 <b>${buyClub}</b> necesitaba ${posN} y se llevó a <b>${p.name}</b> desde ${oldClub} por <b style="color:var(--gold)">${fv(fee)}</b>.`,'📰');
   }
