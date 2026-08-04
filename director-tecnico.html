@@ -7246,8 +7246,14 @@ function applyMatchResult(m, gf, ga, providedScorers){
                 :p.age<=32?0.05:p.age<=33?-0.10:p.age<=35?-0.22:-0.38;
       // DT Formador potencia a los jóvenes
       if(G.dt&&G.dt.trait==='Formador'&&p.age<=23&&ageFac>0) ageFac*=1.35;
-      if(p.formPts>1.0 && ageFac>0 && potGap>=2){
+      // TECHO DE CRECIMIENTO POR TEMPORADA. Sin esto un pibe sumaba +7 de media
+      // en un año y, como el valor es exponencial, pasaba de valer 2M a 65M:
+      // vendías uno y el presupuesto del club dejaba de importar.
+      if(p._upSeason!==G.season){ p._upSeason=G.season; p._upCount=0; }
+      const techoAnual = p.age<=21?4 : p.age<=24?3 : 2;
+      if(p.formPts>1.0 && ageFac>0 && potGap>=2 && (p._upCount||0)<techoAnual){
         if(Math.random()<Math.min(0.75,ageFac*(0.3+potGap/40))){
+          p._upCount=(p._upCount||0)+1;
           p.rat=Math.min(pot,p.rat+1); p.val=calcVal(p); lg('📈',`${p.name} mejora → ${p.rat}`);
           // Su mejor atributo también crece
           ensureAttrs(p);
@@ -10458,7 +10464,76 @@ function submitContract(id,expected){
 function resolveWantsOut(p){
   if(p&&p.wantsOut){p.wantsOut=false;}
 }
-function accOff(i){ if(!G) return; accOffAt(i,G.offers[i].amount); }
+// ═══════════════════════════════════════════════════════════════════════
+// VENDER NO ES SOLO ACEPTAR LA PLATA: EL JUGADOR TIENE QUE QUERER IRSE
+// ═══════════════════════════════════════════════════════════════════════
+// Antes aceptabas la oferta y el pase se hacía solo. Como los clubes ofertan
+// todas las semanas, eso convertía al plantel en un cajero automático: medí
+// temporadas que terminaban con +157M sin hacer nada. Ahora el que se sube al
+// avión es él, y un titular contento en un club grande te dice que no.
+function sellWillingness(p,o){
+  if(p.wantsOut||p.forceSale) return 0.97;              // ya pidió salir
+  let w=0.55;
+  const esTitular=Object.values(G.slots||{}).includes(p.id);
+  w += esTitular?-0.18:0.14;
+  // ¿Es un salto de calidad? Compara al comprador con vos
+  let compRep=68;
+  try{ const cp=clubPower(o.from); if(cp) compRep=cp; }catch(e){}
+  w += (compRep-(G.rep||50))/130;
+  const mor=(p.morale===undefined?60:p.morale);
+  if(mor<45) w+=0.18; else if(mor>75) w-=0.14;
+  const ed=p.age||26;
+  if(ed>=33) w+=0.10;            // el veterano acepta el último gran contrato
+  else if(ed<=21) w-=0.08;       // el pibe quiere hacerse acá
+  if((p.seasonsAtClub||0)>=4) w-=0.10;   // el de la casa no se va fácil
+  return Math.max(0.03,Math.min(0.97,w));
+}
+function sellWhyNo(p,o){
+  const esTitular=Object.values(G.slots||{}).includes(p.id);
+  if((p.seasonsAtClub||0)>=4) return 'Este club es mi casa, presidente. Acá me hicieron. No me quiero ir.';
+  if(esTitular&&(p.morale||60)>70) return 'Estoy jugando, estoy bien, la gente me quiere. ¿Para qué me voy a mover?';
+  if((p.age||26)<=21) return 'Todavía me falta. Quiero ganarme el puesto acá antes de irme a ningún lado.';
+  return `No me convence ${o.from}. Prefiero quedarme y pelearla.`;
+}
+function accOff(i){
+  if(!G||!G.offers[i]) return;
+  const o=G.offers[i], p=o.player;
+  // El préstamo saliente lo decide el club: no le preguntamos
+  if(o.type==='préstamo'){ accOffAt(i,o.amount); return; }
+  askPlayerToLeave(i,o.amount,false);
+}
+// Le preguntamos si se quiere ir. Podés insistir una vez, pero te cuesta.
+function askPlayerToLeave(i,val,insistiendo){
+  const o=G.offers[i]; if(!o)return;
+  const p=o.player;
+  let ch=sellWillingness(p,o);
+  if(insistiendo) ch=Math.min(0.9,ch+0.28);
+  if(Math.random()<ch){ accOffAt(i,val); return; }
+  const why=sellWhyNo(p,o);
+  addPhoneMsg('player',p.name,`🙅 ${why}`,'😐');
+  lg('🙅',`${p.name} no quiere ir a ${o.from}`);
+  if(insistiendo){
+    // Ya lo apretaste una vez: se queda y queda dolido
+    p.morale=Math.max(10,(p.morale||60)-12);
+    if(typeof setDtRel==='function')setDtRel(-3,'Apretaste a un jugador para que se vaya');
+    closeMod();updateUI();
+    flash('❌ '+p.name+' se planta. Se queda, y quedó dolido.','loss');
+    return;
+  }
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🙅 ${p.name} no se quiere ir</div>
+    <div style="text-align:center;margin:14px 0">
+      <div style="font-size:38px;margin-bottom:8px">😐</div>
+      <div style="font-size:13px;color:var(--t2)">"${why}"</div>
+    </div>
+    <div class="note" style="margin-bottom:10px">Podés forzarlo, pero si vuelve a negarse se queda <b>y con la moral por el piso</b>. Un jugador enojado rinde menos.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn bo" onclick="askPlayerToLeave(${i},${val},true)">💬 Insistir igual</button>
+      <button class="btn bR bs" onclick="closeMod()">Dejarlo donde está</button>
+    </div>
+  `);
+}
 function accOffAt(i, val){
   if(!G||!G.offers[i]) return;
   const o = G.offers[i];
