@@ -531,7 +531,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     </div>
     <!-- hidden pitch elements needed by rFormation/autoFill -->
     <div style="display:none"><div id="pitchSlots"></div><div id="roleBox"></div>
-      <div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div></div>
+      <div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div><div id="setPieces" style="margin-top:8px"></div></div>
 
     <!-- MERCADO -->
     <div id="tab-mkt" class="tc">
@@ -2697,6 +2697,7 @@ function updateUI(){
   rFBtns();
   rStyle();
   rTacOpts();
+  rSetPieces();
   rInd();
   rStad();
   rJuv();
@@ -3883,6 +3884,7 @@ function rXI(){
     ${mine?'⭐ <b>Vos dirigís</b>: elegís el once, la táctica y los cambios.'
           :`👔 El once lo pone <b>${(G.dt&&G.dt.name)||'el DT'}</b> (${(G.dt&&G.dt.style)||'—'} · ${(G.dt&&G.dt.trait)||'—'}). Sos el presidente: si no te gusta, cambiá de técnico.`}
   </div>`;
+  if(typeof rSetPieces==='function')setTimeout(rSetPieces,0);
   el.innerHTML = hdr + sl.map((s,i) => {
     const p = G.slots[i] ? G.squad.find(x=>x.id===G.slots[i]) : null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
@@ -4014,6 +4016,88 @@ function rTacOpts(){
   `).join('');
 }
 function setTac(k,v){ if(!G) return; G[k]=v; rTacOpts(); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// DESIGNADOS: capitán, pateadores, quién sube al córner y marca personal
+// ═══════════════════════════════════════════════════════════════════════
+// Antes el juego elegía solo al que pateaba cada pelota parada (siempre "el de
+// mejor TIR") y a los córners no subía nadie: se tiraba el centro al vacío.
+// Ahora lo decide el técnico, y la elección se ve en la cancha.
+function ensureRoles(){
+  if(!G.roles)G.roles={captain:null,pk:null,fk:null,ck:null,runners:[],mark:null};
+  if(!G.roles.runners)G.roles.runners=[];
+  return G.roles;
+}
+// El designado tiene que estar disponible; si no, elige el mejor del puesto
+function roleTaker(kind,pool){
+  const R=ensureRoles();
+  const id=R[kind];
+  const p=id&&(pool||G.squad).find(x=>x.id===id&&!x.injured&&!(x.susp>0));
+  if(p)return p;
+  const A=(q,k)=>(q.attrs&&q.attrs[k])||q.rat||70;
+  const cand=(pool||G.squad).filter(q=>!q.injured&&!(q.susp>0)&&q.pos!=='ARQ');
+  if(!cand.length)return null;
+  if(kind==='pk') return [...cand].sort((a,b)=>A(b,'TIR')-A(a,'TIR'))[0];
+  if(kind==='fk') return [...cand].sort((a,b)=>(A(b,'TIR')+A(b,'PAS'))-(A(a,'TIR')+A(a,'PAS')))[0];
+  return [...cand].sort((a,b)=>A(b,'PAS')-A(a,'PAS'))[0];   // córner: el mejor centrador
+}
+// Los que suben a cabecear. Si no elegiste, suben los centrales y el más alto,
+// que es lo que hace cualquier equipo de verdad.
+function cornerRunners(){
+  const R=ensureRoles();
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  const eleg=xi.filter(p=>R.runners.includes(p.id));
+  if(eleg.length)return eleg.slice(0,4);
+  return xi.filter(p=>p.pos!=='ARQ')
+    .sort((a,b)=>((b.alturaCm||180)+((b.attrs&&b.attrs.FIS)||b.rat))-((a.alturaCm||180)+((a.attrs&&a.attrs.FIS)||a.rat)))
+    .slice(0,3);
+}
+function rSetPieces(){
+  const el=document.getElementById('setPieces'); if(!el||!G)return;
+  const R=ensureRoles();
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  if(!xi.length){el.innerHTML='';return;}
+  const sel=(kind,label,icon,filtro)=>{
+    const opts=(filtro?xi.filter(filtro):xi);
+    const auto=roleTaker(kind,xi);
+    return `<div class="sr"><span class="sl" style="width:86px">${icon} ${label}</span>
+      <select class="fs" style="flex:1;margin:0" onchange="setRole('${kind}',this.value)">
+        <option value="">Automático${auto?' ('+auto.name+')':''}</option>
+        ${opts.map(p=>`<option value="${p.id}"${R[kind]===p.id?' selected':''}>${p.name} (${p.rat})</option>`).join('')}
+      </select></div>`;
+  };
+  const runners=cornerRunners();
+  el.innerHTML=`
+    <div class="ctitle">🎖️ Designados</div>
+    ${sel('captain','Capitán','©')}
+    ${sel('pk','Penales','🎯')}
+    ${sel('fk','Tiros libres','🟡')}
+    ${sel('ck','Córners','⛳')}
+    <div style="font-size:9px;color:var(--t3);margin:6px 0 3px">⬆️ SUBEN AL CÓRNER — tocá para elegir (si no elegís, suben los más altos)</div>
+    <div style="display:flex;gap:3px;flex-wrap:wrap">
+      ${xi.filter(p=>p.pos!=='ARQ').map(p=>{
+        const on=R.runners.includes(p.id);
+        return `<button class="btn ${on?'bg':'bo'} bs" style="font-size:9px" onclick="toggleRunner('${p.id}')">${on?'⬆️ ':''}${p.name.split(' ').slice(-1)[0]}</button>`;
+      }).join('')}
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:5px">Suben: <b style="color:var(--gold)">${runners.map(p=>p.name.split(' ').slice(-1)[0]).join(', ')||'—'}</b></div>
+    <div class="sr" style="margin-top:7px"><span class="sl" style="width:86px">🔒 Marca personal</span>
+      <select class="fs" style="flex:1;margin:0" onchange="setRole('mark',this.value)">
+        <option value="">Sin marca personal</option>
+        ${xi.filter(p=>p.pos!=='ARQ').map(p=>`<option value="${p.id}"${R.mark===p.id?' selected':''}>${p.name} marca al crack rival</option>`).join('')}
+      </select></div>`;
+}
+function setRole(kind,val){ ensureRoles()[kind]=val||null; rSetPieces();
+  flash(val?'🎖️ Designado actualizado':'🎖️ Vuelve a automático','draw'); }
+function toggleRunner(id){
+  const R=ensureRoles();
+  if(R.runners.includes(id))R.runners=R.runners.filter(x=>x!==id);
+  else if(R.runners.length<4)R.runners.push(id);
+  else flash('Máximo 4 jugadores al córner','draw');
+  rSetPieces();
+}
 
 // =============================================
 // TRAINING (estilo FM: intensidad + foco + desarrollo semanal)
@@ -8526,12 +8610,16 @@ function startSituation(ev){
   const A=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
   // El ejecutante es el MEJOR para cada situación (no al azar)
   let mainP;
-  if(ev.type==='penalty'||ev.type==='attack'){
+  // El que patea lo decide el TÉCNICO (pestaña Táctica → Designados). Si no
+  // designó a nadie, roleTaker cae al mejor del puesto, como antes.
+  if(ev.type==='penalty'){
+    mainP=(typeof roleTaker==='function'&&roleTaker('pk',pool))||[...pool].sort((a,b)=>A(b,'TIR')-A(a,'TIR'))[0];
+  } else if(ev.type==='attack'){
     mainP=[...pool].sort((a,b)=>A(b,'TIR')-A(a,'TIR'))[0]; // el mejor definidor
   } else if(ev.type==='freekick'){
-    mainP=[...pool].sort((a,b)=>(A(b,'TIR')+A(b,'PAS'))-(A(a,'TIR')+A(a,'PAS')))[0]; // pegada + técnica
+    mainP=(typeof roleTaker==='function'&&roleTaker('fk',pool))||[...pool].sort((a,b)=>(A(b,'TIR')+A(b,'PAS'))-(A(a,'TIR')+A(a,'PAS')))[0];
   } else if(ev.type==='corner'){
-    mainP=[...pool].sort((a,b)=>A(b,'PAS')-A(a,'PAS'))[0]; // el mejor centrador
+    mainP=(typeof roleTaker==='function'&&roleTaker('ck',pool))||[...pool].sort((a,b)=>A(b,'PAS')-A(a,'PAS'))[0];
   } else {
     const att=pool.filter(p=>['DC','EI','ED','MCO'].includes(p.pos));
     mainP=(att.length?att:pool)[~~(Math.random()*(att.length||pool.length))]||pool[0];
@@ -9317,6 +9405,19 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   // Arquero en la línea y 2 centrales marcando
   s.gkWx=0; s.swayT=0;
   s.defs=[{wx:-0.34,wz:0.74},{wx:0.30,wz:0.80}];
+  // ═══ LOS QUE SUBEN A CABECEAR ═══
+  // El córner ya no se tira al vacío: los designados por el técnico (o los más
+  // altos si no designó) se paran repartidos en el área, cada uno con su
+  // marca encima, y se mueven buscando el centro.
+  const suben=(typeof cornerRunners==='function')?cornerRunners().filter(q=>q.id!==mainP.id):[];
+  const puestos=[{wx:-0.46,wz:0.66},{wx:0.14,wz:0.80},{wx:0.52,wz:0.60},{wx:-0.10,wz:0.50}];
+  s.mates=suben.slice(0,4).map((q,i)=>({
+    name:q.name.split(' ').pop(), rat:q.rat,
+    hd:Math.round(((q.alturaCm||180)-165)*0.8+(((q.attrs&&q.attrs.FIS)||q.rat)-60)*0.5), // cabeceo
+    wx:puestos[i].wx, wz:puestos[i].wz, bx:puestos[i].wx, bz:puestos[i].wz, t:Math.random()*6
+  }));
+  // Cada atacante que sube arrastra un marcador
+  s.mateMarks=s.mates.map(m=>({wx:m.wx+(m.wx>0?0.10:-0.10), wz:Math.min(0.92,m.wz+0.07)}));
   // El centro viene de una banda cruzando el área
   const fromRight=Math.random()>.5;
   s.fromRight=fromRight;
@@ -9338,6 +9439,16 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       s.ball.wy=0.16+s.ballH*0.62;
       // el arquero achica siguiendo el centro
       s.gkWx=sC(s.gkWx+((s.ball.wx*0.34)-s.gkWx)*0.05*dt,-0.42,0.42);
+      // Los que subieron atacan la pelota; sus marcas los siguen medio paso atrás
+      (s.mates||[]).forEach((m,i)=>{
+        m.t+=dt*0.05;
+        const atrae=Math.min(1,s.crossT/s.crossDur);
+        m.wx=m.bx+(s.ball.wx-m.bx)*0.35*atrae+Math.sin(m.t)*0.03;
+        m.wz=m.bz+(s.ball.wz-m.bz)*0.30*atrae;
+        const mk=(s.mateMarks||[])[i];
+        if(mk){ mk.wx+=((m.wx+(m.wx>0?0.09:-0.09))-mk.wx)*0.06*dt;
+                mk.wz+=((m.wz+0.06)-mk.wz)*0.06*dt; }
+      });
       // los centrales acompañan
       s.defs.forEach((d,i)=>{d.wx+=((s.ball.wx*(i?0.5:0.35))-d.wx)*0.03*dt;});
       const dBall=Math.abs(s.stWx-s.ball.wx)+Math.abs(s.stWz-s.ball.wz)*0.7;
@@ -9415,8 +9526,19 @@ function sitSetupCorner(W,H,oR,mainP,pool){
     const rkit=kitFor(LM.rival);
     s.defs.forEach((d,i)=>{const dp=proj(d.wx,d.wz,0);
       sitDrawFigure(ctx,dp.x,dp.y,64*dp.sc,rkit.c1,'#fff',{hair:i%2?'#2a1a0e':'#3a2415'});});
-    // rematador (vos)
+    // ═══ LOS QUE SUBIERON AL ÁREA (y quien los marca) ═══
+    // Se dibujan de atrás para adelante para que la profundidad se lea bien.
     const mkit=kitFor(LM.myName);
+    const orden=(s.mates||[]).map((m,i)=>({m,i})).sort((a,b)=>a.m.wz-b.m.wz);
+    orden.forEach(({m,i})=>{
+      const mk=(s.mateMarks||[])[i];
+      if(mk){const kp=proj(mk.wx,mk.wz,0);
+        sitDrawFigure(ctx,kp.x,kp.y,62*kp.sc,rkit.c1,'#fff',{hair:i%2?'#2a1a0e':'#3a2415'});}
+      const mp=proj(m.wx,m.wz,0);
+      sitDrawFigure(ctx,mp.x,mp.y,66*mp.sc,mkit.c1,'#fff',
+        {run:(s.t*0.05+i*0.3)%1,face:1,label:m.name.slice(0,7)});
+    });
+    // rematador (vos)
     const sp2=proj(s.stWx,s.stWz,0);
     sitDrawFigure(ctx,sp2.x,sp2.y,70*sp2.sc,mkit.c1,'#fff',
       {run:s.phase==='cross'?(s.t*0.06)%1:(s.flightT*0.2)%1,face:1,isCtrl:s.phase==='cross',
