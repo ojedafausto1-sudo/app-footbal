@@ -436,6 +436,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
         </div>
         <button class="hm-play" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
+        <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center">
+          <button class="btn bo bs" id="dayBtn" onclick="advanceDay()" style="border-color:var(--gold);color:var(--gold)">📅 AVANZAR DÍA</button>
+          <span id="dayLbl" style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif"></span>
+        </div>
         <div class="hm-alts">
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">🔍 PREVIA</button>
           <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
@@ -1991,6 +1995,7 @@ function initGame(teamId){
   G.stadium.income = tc.stadInc;
   G.diff = (window._selectedDiff !== undefined) ? window._selectedDiff : 1;
   G.tactic = {style:'Posesión', mentality:'Equilibrado'};
+  G.day=1; G._daysTicked=0;
   G.socialPosts = [];
   G.tourney = buildTourney();
   G.offers = genOffers();
@@ -2634,7 +2639,7 @@ function updateUI(){
   if(!G||!G.squad) return;
   const $ = id => document.getElementById(id);
   $('bTop').textContent='$'+G.budget+'M';
-  $('wTop').textContent='S'+G.week;
+  $('wTop').textContent=(DIAS[curDay()-1]||'').slice(0,3)+' S'+G.week;
   $('rTop').textContent=G.wins+'-'+G.draws+'-'+G.losses;
   $('repTop').textContent=G.rep;
   if($('stadTop'))$('stadTop').textContent=G.stadium.name.replace('La ','').replace('El ','');
@@ -2676,6 +2681,8 @@ function updateUI(){
   }
   if($('sqCount'))$('sqCount').textContent='('+G.squad.length+' jugadores)';
   if($('offCnt'))$('offCnt').textContent=G.offers.length;
+  if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=dayLabel()+(q>0?' · faltan '+q+' d':' · día de partido');}
+  if($('dayBtn'))$('dayBtn').style.opacity=curDay()>=7?'.4':'1';
   rSq('all');
   rStand();
   rNews();
@@ -7389,7 +7396,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyOffers();
   weeklyChats();
   weeklyMarketEvolution();
-  weeklyNegotiations();      // las operaciones abiertas avanzan con el tiempo
+  // Las operaciones avanzan por DÍA. Si el presidente se fue directo al partido
+  // sin pasar los días a mano, acá se corren los que faltaron: la negociación
+  // avanza igual, juegues como juegues.
+  for(let _d=(G._daysTicked||0);_d<7;_d++) negotiationsTick();
+  G.day=1; G._daysTicked=0;
   weeklyAITransfers();
   weeklyDtMoves();
   processInstallments();
@@ -14097,7 +14108,7 @@ function negSendPlayer(pid,baseWage,free,pre){
   const wage=+document.getElementById('negWg').value;
   const years=+document.getElementById('negYr').value;
   ensureNegs();
-  G.negs.push({pid,name:p.name,club:p.club,stage:'esperando_jugador',wait:1+~~(Math.random()*2),
+  G.negs.push({pid,name:p.name,club:p.club,stage:'esperando_jugador',wait:3+~~(Math.random()*7),
     wage,years,free:!!free,pre:!!pre,bid:0,rounds:0,rivals:[],deadline:0,playerOk:false});
   closeMod();updateUI();
   flash(`📨 Propuesta enviada a ${p.name}. Esperá su respuesta.`,'draw');
@@ -14132,7 +14143,7 @@ function negSendClub(pid){
   if(!n||!p)return;
   const bid=+document.getElementById('negBid').value;
   if(bid>G.budget){flash('❌ No te alcanza el presupuesto','loss');return;}
-  n.bid=bid;n.stage='esperando_club';n.wait=1+~~(Math.random()*3);n.rounds++;
+  n.bid=bid;n.stage='esperando_club';n.wait=4+~~(Math.random()*10);n.rounds++;
   closeMod();updateUI();
   flash(`📨 Oferta de ${fv(bid)} enviada a ${p.club}`,'draw');
   lg('📨',`Oferta de ${fv(bid)} a ${p.club} por ${p.name}`);
@@ -14151,7 +14162,7 @@ function negQueueClub(o){
   ensureNegs();
   const p=o.p;
   G.negs.push({pid:p.id,name:p.name,club:p.club,kind:o.kind,stage:'club_pend',
-    wait:1+~~(Math.random()*3), rounds:0, playerOk:true, rivals:[], deadline:0,
+    wait:4+~~(Math.random()*12), rounds:0, playerOk:true, rivals:[], deadline:0,
     wage:o.terms.wage, years:o.terms.years, role:o.terms.role,
     roleLabel:o.terms.roleLabel, bonus:o.terms.bonus||0,
     bid:o.bid||0, acc:o.acc, deal:o.deal||{}});
@@ -14207,7 +14218,46 @@ function negExecDeal(n,p){
   flash('✅ '+p.name+' es tuyo','win');
 }
 
-// ═══ EL RELOJ CORRE: se procesa cada semana ═══
+// ═══════════════════════════════════════════════════════════════════════
+// EL RELOJ AHORA CORRE DÍA A DÍA, NO PARTIDO A PARTIDO
+// ═══════════════════════════════════════════════════════════════════════
+// Antes la única forma de que pasara el tiempo era jugar: cada partido movía
+// una semana entera y las negociaciones avanzaban de un saque. Ahora entre
+// partido y partido tenés 7 días que podés ir pasando de a uno, y las
+// operaciones esperan en DÍAS. Así hay tiempo real para negociar.
+const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+function curDay(){ return Math.max(1,Math.min(7,G&&G.day||1)); }
+function dayLabel(){ return DIAS[curDay()-1]+' · S'+(G&&G.week||1); }
+function advanceDay(){
+  if(!G)return;
+  if(curDay()>=7){
+    flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
+    return;
+  }
+  G.day=curDay()+1; G._daysTicked=(G._daysTicked||0)+1;
+  dailyTick();
+  updateUI();
+  const quedan=7-G.day;
+  flash(`📅 ${dayLabel()}${quedan?' · faltan '+quedan+' días para el partido':' · ¡mañana se juega!'}`,'draw');
+}
+// Lo que pasa en un día cualquiera: las operaciones avanzan, el plantel se
+// recupera y de vez en cuando suena el teléfono.
+function dailyTick(){
+  if(!G)return;
+  negotiationsTick();
+  // Recuperación diaria: descansar entre partidos sirve
+  const rec=(G.trainIntensity==='suave'?1.6:G.trainIntensity==='fuerte'?0.5:1.0);
+  G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(100,p.fit+rec); });
+  if(Math.random()<0.22&&typeof weeklyChats==='function')weeklyChats();
+  if(Math.random()<0.18&&typeof weeklyOffers==='function')weeklyOffers();
+}
+
+// Un tick = un día. El motor es el mismo; lo que cambió es que n.wait ahora
+// se cuenta en días, así una operación tarda una o dos semanas de calendario
+// en vez de resolverse en el próximo partido.
+function negotiationsTick(){ return weeklyNegotiations(); }
+
+// ═══ EL MOTOR DE LAS OPERACIONES (corre una vez por día) ═══
 function weeklyNegotiations(){
   if(!G||!G.negs||!G.negs.length)return;
   const keep=[];
@@ -14244,7 +14294,7 @@ function weeklyNegotiations(){
         // Contraoferta: piden más plata y la decisión vuelve a vos
         const base=negCashOut(n)||Math.max(0.3,p.val*0.2);
         n.want=Math.round(base*(1.18+Math.random()*0.25)*100)/100;
-        n.rounds++; n.stage='club_contra'; n.wait=0; n.expira=3;
+        n.rounds++; n.stage='club_contra'; n.wait=0; n.expira=14;
         addPhoneMsg('agent',p.club,`💬 Por <b>${p.name}</b> no nos alcanza. Queremos <b>${fv(n.want)}</b> para cerrar.`,'💼');
       } else {
         n.stage='rechazada';
@@ -14258,7 +14308,7 @@ function weeklyNegotiations(){
       n.expira=(n.expira===undefined?3:n.expira)-1;
       if(n.expira<=0){
         n.stage='rechazada';
-        addPhoneMsg('agent',p.club,`⌛ Nos cansamos de esperar tu respuesta por <b>${p.name}</b>. La operación se cae.`,'💼');
+        addPhoneMsg('agent',p.club,`⌛ Se nos acabó la paciencia esperando tu respuesta por <b>${p.name}</b>. La operación se cae.`,'💼');
         lg('⌛',`${p.club} retiró la contraoferta por ${p.name}: no contestaste`);
       }
       keep.push(n);return;
@@ -14310,8 +14360,8 @@ function weeklyNegotiations(){
     if((n.stage==='jugador_ok'||n.stage==='contraoferta')&&Math.random()<0.22&&(n.rivals||[]).length<2){
       const rv=pickBuyer();
       n.rivals=(n.rivals||[]).concat([rv]);
-      n.deadline=2+~~(Math.random()*2);
-      addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',`⚠️ <b>${rv}</b> también fue por ${p.name}. Tenés <b>${n.deadline} semanas</b> para cerrar o lo perdemos.`,'⏳');
+      n.deadline=10+~~(Math.random()*11);
+      addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',`⚠️ <b>${rv}</b> también fue por ${p.name}. Tenés <b>${n.deadline} días</b> para cerrar o lo perdemos.`,'⏳');
     }
     if(n.deadline>0){
       n.deadline--;
@@ -14366,9 +14416,9 @@ function openNegsPanel(){
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><div style="font-weight:700;font-size:12px">${n.name}</div>
             <div style="font-size:9px;color:var(--t3)">${n.kind&&n.kind!=='compra'?KIND_LBL[n.kind]+' · ':''}${n.club} · ${n.wage}k/sem${n.kind==='prestamo'?'':' · '+n.years+' años'}</div></div>
-            <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} sem</span>`:''}</div>
+            <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} d</span>`:''}</div>
           </div>
-          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} sem`:''}</div>`:''}
+          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} d`:''}</div>`:''}
           ${n.stage==='jugador_ok'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">💰 Ofertar a ${n.club}</button>`:''}
           ${n.stage==='contraoferta'&&p?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="negAcceptCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
             <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
@@ -14400,7 +14450,7 @@ function negPayCounter(pid){
   else if(n.kind==='prestamo') d.cost=Math.round(((d.cost||0)+extra)*100)/100;
   else if(n.kind==='pct')      d.cost=Math.round(((d.cost||0)+extra)*100)/100;
   else                         n.bid=Math.round(((n.bid||0)+extra)*100)/100;
-  n.stage='club_pend'; n.acc=0.9; n.wait=1;
+  n.stage='club_pend'; n.acc=0.9; n.wait=3+~~(Math.random()*5);
   closeMod();updateUI();
   flash('✅ Igualaste '+fv(n.want)+'. Esperá la confirmación.','draw');
   lg('💬',`Igualaste la contraoferta de ${p.club} por ${p.name} (${fv(n.want)})`);
