@@ -9398,7 +9398,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   s.proj=proj;
   const GOAL_HW=0.60, BAR=0.84;
   s.label=`⚡ <span style="color:var(--gold)">¡CENTRO AL ÁREA!</span> ${mainP.name.split(' ').pop()} a definir`;
-  s.hint='← → (o joystick): enganchá el centro · Z/toque cuando te llega: alto=cabezazo · bajo=volea';
+  s.hint='CENTRO: ← → ↑ ↓ mové la mira · mantené Z para cargar y soltá para tirarlo';
   s.finQ=(mainP.attrs&&Math.max(mainP.attrs.TIR||70,mainP.attrs.FIS||70))||mainP.rat||72;
   // El rematador se mueve por el área, a media profundidad
   s.stWx=0; s.stWz=0.55;
@@ -9423,11 +9423,39 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   s.fromRight=fromRight;
   s.cross={x0:fromRight?1.30:-1.30, x1:fromRight?-0.55:0.55, z0:0.88, z1:0.42};
   s.crossT=0; s.crossDur=118+~~(Math.random()*36);   // lento: te da tiempo a leerlo
-  s.ball={wx:s.cross.x0,wz:s.cross.z0,wy:0.30};
-  s.phase='cross'; s.struck=false; s.flightT=0;
+  s.ball={wx:s.cross.x0,wz:s.cross.z0,wy:0.06};
+  // ═══ EL CENTRO LO TIRÁS VOS ═══
+  // Antes la pelota salía sola desde el banderín y vos sólo cabeceabas. Ahora
+  // primero apuntás dónde querés el centro y con cuánta fuerza; la puntería
+  // del que patea (PAS) define cuánto se te puede desviar.
+  s.phase='aim'; s.struck=false; s.flightT=0;
+  s.aimWx=0; s.aimWz=0.62; s.crossPow=0; s.crossCharging=false; s.aimT=0;
+  s.ckQ=(mainP.attrs&&mainP.attrs.PAS)||mainP.rat||70;
 
   s.update=function(dt){
     const k=s.keys;
+    if(s.phase==='aim'){
+      s.aimT+=dt;
+      const dx=(k.right?1:0)-(k.left?1:0);
+      const dz=(k.down?1:0)-(k.up?1:0);
+      s.aimWx=sC(s.aimWx+dx*0.016*dt,-0.85,0.85);
+      s.aimWz=sC(s.aimWz+dz*0.010*dt,0.38,0.92);
+      if(k.shoot||s._clickFire){ s.crossCharging=true; s.crossPow=Math.min(1,s.crossPow+0.020*dt); }
+      else if(s.crossCharging||s.aimT>320){
+        // Soltaste (o te dormiste y sale igual): la puntería depende del ejecutante
+        const err=(95-Math.min(95,s.ckQ))*0.0045;
+        s.cross.x1=sC(s.aimWx+(Math.random()*2-1)*err*3.2,-0.95,0.95);
+        s.cross.z1=sC(s.aimWz+(Math.random()*2-1)*err*2.2,0.35,0.95);
+        s.crossDur=Math.round(155-Math.max(0.25,s.crossPow)*78);   // más fuerza, llega antes
+        s.hint='← → acomodá el cuerpo · Z/toque cuando te llega: alto=cabezazo · bajo=volea';
+        s.phase='cross'; s.crossT=0; s._clickFire=false;
+        fmSndKick&&fmSndKick(0.45+s.crossPow*0.45);
+      }
+      // el arquero y las marcas ya se acomodan mientras apuntás
+      s.gkWx=sC(s.gkWx+((s.aimWx*0.28)-s.gkWx)*0.02*dt,-0.42,0.42);
+      (s.mates||[]).forEach(m=>{ m.t+=dt*0.03; m.wx=m.bx+Math.sin(m.t)*0.035; });
+      return;
+    }
     if(s.phase==='cross'){
       const dx=(k.right?1:0)-(k.left?1:0);
       s.stWx=sC(s.stWx+dx*0.019*dt,-0.95,0.95);
@@ -9538,9 +9566,38 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       sitDrawFigure(ctx,mp.x,mp.y,66*mp.sc,mkit.c1,'#fff',
         {run:(s.t*0.05+i*0.3)%1,face:1,label:m.name.slice(0,7)});
     });
+    // ═══ MIRA DEL CENTRO (mientras apuntás) ═══
+    if(s.phase==='aim'){
+      const a=proj(s.aimWx,s.aimWz,0);
+      ctx.save();
+      ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.ellipse(a.x,a.y,22*a.sc+8,9*a.sc+4,0,0,7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(a.x-13,a.y);ctx.lineTo(a.x+13,a.y);
+      ctx.moveTo(a.x,a.y-7);ctx.lineTo(a.x,a.y+7);ctx.stroke();
+      // línea punteada desde el banderín hasta donde apuntás
+      const o0=proj(s.cross.x0,s.cross.z0,0.05);
+      ctx.setLineDash([5,5]);ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.moveTo(o0.x,o0.y);ctx.lineTo(a.x,a.y);ctx.stroke();
+      ctx.setLineDash([]);
+      // barra de fuerza
+      const bw=W*0.42,bx=(W-bw)/2,by=H-30;
+      ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(bx,by,bw,9);
+      const pw=bw*Math.max(0,Math.min(1,s.crossPow));
+      const pg2=ctx.createLinearGradient(bx,0,bx+bw,0);
+      pg2.addColorStop(0,'#1aaa6b');pg2.addColorStop(0.6,'#f6d318');pg2.addColorStop(1,'#e84545');
+      ctx.fillStyle=pg2;ctx.fillRect(bx,by,pw,9);
+      ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,9);
+      ctx.fillStyle='#fff';ctx.font='bold 10px Rajdhani,sans-serif';ctx.textAlign='center';
+      ctx.fillText(s.crossCharging?'SOLTÁ PARA CENTRAR':'MANTENÉ Z PARA CARGAR',W/2,by-4);
+      ctx.restore();
+      // el que ejecuta, parado en el banderín
+      const ek=kitFor(LM.myName), ep=proj(s.cross.x0,s.cross.z0,0);
+      sitDrawFigure(ctx,ep.x,ep.y,66*ep.sc,ek.c1,'#fff',
+        {face:1,isCtrl:true,label:mainP.name.split(' ').pop().slice(0,7)});
+    }
     // rematador (vos)
     const sp2=proj(s.stWx,s.stWz,0);
-    sitDrawFigure(ctx,sp2.x,sp2.y,70*sp2.sc,mkit.c1,'#fff',
+    if(s.phase!=='aim') sitDrawFigure(ctx,sp2.x,sp2.y,70*sp2.sc,mkit.c1,'#fff',
       {run:s.phase==='cross'?(s.t*0.06)%1:(s.flightT*0.2)%1,face:1,isCtrl:s.phase==='cross',
        label:mainP.name.split(' ').pop().slice(0,7)});
     // pelota + sombra
@@ -10913,7 +10970,7 @@ function fmBodyBall(p,b,team){
   const R=p.r+6.5;
   let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
   if(d>=R)return false;
-  if(team&&FM)FM._lastTouch=team;
+  if(team&&FM){FM._lastTouch=team;FM._fmScorer=p;}   // quién la tocó: sirve para el festejo
   const nx=ddx/d,ny=ddy/d;
   b.x=p.x+nx*(R+.5);b.y=p.y+ny*(R+.5);
   const rvn=(b.vx-p.vx)*nx+(b.vy-p.vy)*ny;
@@ -11819,22 +11876,53 @@ function fmLoop(ts){
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
+// ═══ QUE NO SE CONGELEN EN LAS PAUSAS ═══
+// kickoff, saques, gol y entretiempo devolvían sin mover a NADIE: 22 estatuas
+// durante casi tres segundos, cada vez. Medido: en la fase de gol se quedaban
+// quietos los 22. Ahora la gente sigue caminando aunque la pelota esté parada.
+function fmIdleMove(dt,festeja){
+  const f=FM; if(!f)return;
+  const acomodar=(arr,festejan)=>{
+    arr.forEach((p,i)=>{
+      let tx=p.hx,ty=p.hy,acc=0.030;
+      if(festeja&&festejan){
+        // El que la metió se va a festejar contra la raya; el resto lo abraza
+        const sc=f._fmScorer&&arr.indexOf(f._fmScorer)>=0?f._fmScorer:arr[i%arr.length];
+        if(p===sc&&!p.isGK){
+          if(p._cx===undefined){p._cx=p.x+(Math.random()<0.5?-1:1)*260;p._cy=p.y+(Math.random()*2-1)*300;}
+          tx=p._cx;ty=p._cy;acc=0.075;
+        } else if(!p.isGK){ tx=sc.x+((i%4)-1.5)*80; ty=sc.y+((i%3)-1)*80; acc=0.060; }
+      } else if(festeja&&!festejan&&!p.isGK){
+        acc=0.020;   // los que recibieron el gol vuelven caminando, cabizbajos
+      }
+      if(tx!==undefined&&ty!==undefined) fmMove(p,tx-p.x,ty-p.y,dt,acc);
+    });
+  };
+  const golMio=f.phase==='goal_my';
+  acomodar(f.my,golMio); acomodar(f.opp,!golMio);
+  if(!festeja){ f.my.forEach(p=>{p._cx=undefined;p._cy=undefined;});
+                f.opp.forEach(p=>{p._cx=undefined;p._cy=undefined;}); }
+}
+
 function fmTick(dt){
   const f=FM,k=f.keys;
   if(f.phase==='paused'||f.phase==='help')return;
-  if(f.phase==='kickoff'){f.phaseT+=dt;if(f.phaseT>90){f.phase='play';f.phaseT=0;}return;}
+  if(f.phase==='kickoff'){f.phaseT+=dt;fmIdleMove(dt,false);if(f.phaseT>90){f.phase='play';f.phaseT=0;}return;}
   if(f.phase==='restart'){
     f.phaseT+=dt;
+    fmIdleMove(dt,false);
     if(f.phaseT>72){fmDoRestart();f.phase='play';f.phaseT=0;}
     return;
   }
   if(f.phase==='goal_my'||f.phase==='goal_opp'){
     f.phaseT+=dt;
+    fmIdleMove(dt,true);
     if(f.phaseT>165){fmReset(f.phase==='goal_my'?'opp':'my');f.phase='kickoff';f.phaseT=0;}
     return;
   }
   if(f.phase==='half'){
     f.phaseT+=dt;
+    fmIdleMove(dt,false);
     if(f.phaseT>200){f.half=2;fmFlip();fmReset('my');f.phase='kickoff';f.phaseT=0;}
     return;
   }
@@ -12715,6 +12803,12 @@ function fmAI(p,team,idx,dt){
       tx=attRight?Math.min(homeX+supX,f.rightGL-40):Math.max(homeX-supX,f.leftGL+40);
     }
     ty=Math.max(40,Math.min(f.VH-40,ty));
+    // NADIE QUEDA CLAVADO. El que llegaba a su posición se congelaba y en la
+    // cancha se veían estatuas. Un futbolista sin pelota nunca está quieto:
+    // se perfila, achica, corrige. Este vaivén chico lo mantiene vivo.
+    const vivo=28+(p.rat||70)*0.12;
+    tx+=Math.sin(f.ticks*0.021+idx*1.7)*vivo;
+    ty+=Math.cos(f.ticks*0.017+idx*2.3)*vivo*0.8;
     fmMove(p,tx-p.x+sepX*0.6,ty-p.y+sepY*0.6,dt,acc2);
   }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
