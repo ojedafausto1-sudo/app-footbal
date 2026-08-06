@@ -3759,18 +3759,38 @@ function rFormation(){
 function rBench(){
   const el = document.getElementById('benchArea');
   if(!el||!G) return;
-  el.innerHTML = G.bench.map(p => {
+  const mio=(typeof dtIsMine==='function')&&dtIsMine();
+  const conv=G.benchList||[];
+  // Con DT propio elegís los 9 que van al banco. Sin marcar nada, van los
+  // mejores disponibles (y siempre un arquero suplente).
+  const hdr=mio?`<div style="width:100%;font-size:9px;color:var(--t3);margin-bottom:4px;font-family:'Rajdhani',sans-serif">
+      🎽 BANCO — tocá ⭐ para convocar (${conv.length}/9)${conv.length?'':' · sin marcar van los mejores'}
+      ${conv.length?`<button class="btn bo bs" style="font-size:8px;padding:1px 5px;margin-left:5px" onclick="G.benchList=[];rBench()">limpiar</button>`:''}
+    </div>`:'';
+  el.innerHTML = hdr + G.bench.map(p => {
     const isSel = selSlot==='bench_'+p.id;
+    const on = conv.includes(p.id);
     return `
-      <div class="bp" onclick="clickBench('${p.id}')" title="${p.name}">
-        <div class="pcircle${isSel?' sel-slot':''}">
+      <div class="bp" style="position:relative" title="${p.name}">
+        <div class="pcircle${isSel?' sel-slot':''}" onclick="clickBench('${p.id}')"
+             style="${on?'box-shadow:0 0 0 2px var(--gold)':''}">
           <div class="ps-rat" style="color:${p.rat>=85?'var(--pur)':p.rat>=80?'var(--green)':p.rat>=75?'var(--gold)':p.rat>=70?'var(--ora)':'var(--t2)'}">${p.rat}</div>
           <div class="ps-name">${p.name.split(' ').pop().substr(0,7)}</div>
         </div>
+        ${mio?`<div onclick="event.stopPropagation();toggleConvocado('${p.id}')"
+          style="position:absolute;top:-3px;right:-3px;font-size:12px;cursor:pointer;line-height:1;opacity:${on?1:.32}">⭐</div>`:''}
         <div class="pslot-lbl">${p.pos}</div>
       </div>
     `;
   }).join('');
+}
+function toggleConvocado(id){
+  if(!G)return;
+  G.benchList=G.benchList||[];
+  if(G.benchList.includes(id)) G.benchList=G.benchList.filter(x=>x!==id);
+  else if(G.benchList.length<9) G.benchList.push(id);
+  else { flash('El banco es de 9: sacá a alguno primero','draw'); return; }
+  rBench();
 }
 
 function clickSlot(idx){
@@ -6881,7 +6901,9 @@ function nextSeason(){
   G.tourney = buildTourney();
   G.trainedWeek = 0;
   if(!G.news)G.news=[];
-  autoFill();
+  // Arrancar temporada rearmaba el once de cero. Con DT propio el once es tuyo:
+  // se reubica al plantel nuevo, no se tira a la basura.
+  if(dtIsMine()) refillKeeping(); else autoFill();
   G.league=null;ensureLeague();
   setBoardTarget();
   lg('🏁', 'Temporada '+G.season+' iniciada!');
@@ -11383,8 +11405,11 @@ function fmInit(m,W,H){
     // ═══ BANCO DE SUPLENTES: hasta 5 cambios, como en la vida real ═══
     subsLeft:5,
     subsMade:[],
-    benchPool:(G.squad||[]).filter(q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&q.pos!=='ARQ')
-      .sort((a,b)=>b.rat-a.rat).slice(0,9),
+    // ═══ EL BANCO LO ELEGÍS VOS ═══
+    // Antes se armaba solo: los 9 de mejor media que no fueran titulares, y sin
+    // ningún arquero, así que si se lesionaba el tuyo no tenías recambio. Ahora
+    // si marcaste convocados (G.benchList) mandan ésos.
+    benchPool:buildBenchPool(myXI),
   };
   // El bot juega más rápido/agresivo según lo que aprendió (rubber-band)
   FM.opp.forEach(p=>{ if(!p.isGK) p.spd*=(0.94+adapt.aggr*0.18); });
@@ -11393,6 +11418,24 @@ function fmInit(m,W,H){
   FM.ctrl=strikerIdx>=0?strikerIdx:myXI.length-1;
   FM.my[FM.ctrl].x=VW/2-20;FM.my[FM.ctrl].y=VH/2+10;
   FM.phase='help'; // pantalla de controles antes de arrancar
+}
+
+// Arma el banco del partido. Con DT propio manda tu lista de convocados; si no
+// marcaste a nadie, se completa con los mejores disponibles — pero siempre
+// entra un arquero suplente, que antes no iba nunca.
+function buildBenchPool(myXI){
+  const libre=q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&!(q.susp>0);
+  const todos=(G.squad||[]).filter(libre);
+  const elegidos=(G.benchList||[]).map(id=>todos.find(q=>q.id===id)).filter(Boolean);
+  let pool=elegidos.slice(0,9);
+  if(pool.length<9){
+    const resto=todos.filter(q=>!pool.some(x=>x.id===q.id)).sort((a,b)=>b.rat-a.rat);
+    // primero un arquero, después los mejores
+    const gk=resto.find(q=>q.pos==='ARQ');
+    if(gk&&!pool.some(q=>q.pos==='ARQ'))pool.push(gk);
+    resto.forEach(q=>{ if(pool.length<9&&!pool.some(x=>x.id===q.id))pool.push(q); });
+  }
+  return pool.slice(0,9);
 }
 
 // ═══ MODO SIMULACIÓN TÁCTICA: se mira, no se juega — los DTs dirigen ═══
