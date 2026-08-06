@@ -1915,9 +1915,56 @@ function applyTeamTheme(teamId){
 // =============================================
 const SAVE_KEY = 'dtg_v7';
 
+// ═══════════════════════════════════════════════════════════════════════
+// GUARDADO COMPACTO
+// ═══════════════════════════════════════════════════════════════════════
+// G.market son 12.700 jugadores y era el 97% del save: 4,4 MB de los 4,5 MB
+// totales, contra un límite de localStorage de ~5 MB. Con la base completa de
+// las 19 ligas se pasaba y el guardado fallaba EN SILENCIO (el try/catch se
+// comía el error y perdías la partida sin enterarte).
+// El grueso no eran los datos sino los nombres de campo repetidos 12.700 veces.
+// Cada jugador se guarda como una fila de valores; los atributos van sólo como
+// números, porque el juego de claves lo define el puesto (ATTR_PROFILES).
+const MKT_F=['id','num','name','pos','age','nat','club','lg','val','rat','wage','pot','perf',
+             'morale','contract','height','pos2','nat2','clause','goals','assists','apps','foot','injured'];
+function _attrKeys(pos){ return Object.keys(ATTR_PROFILES[pos]||ATTR_PROFILES.MC); }
+function packPlayer(p){
+  const row=MKT_F.map(k=>p[k]===undefined?null:p[k]);
+  row.push(p.attrs?_attrKeys(p.pos).map(k=>p.attrs[k]===undefined?null:p.attrs[k]):0);
+  // Lo que no está en la lista (ownedPct, freeAgent, mform, hype...) no se pierde
+  const ex={};
+  for(const k in p){ if(k!=='attrs'&&MKT_F.indexOf(k)<0) ex[k]=p[k]; }
+  row.push(Object.keys(ex).length?ex:0);
+  return row;
+}
+function unpackPlayer(row){
+  const p={};
+  MKT_F.forEach((k,i)=>{ if(row[i]!==null&&row[i]!==undefined)p[k]=row[i]; });
+  const av=row[MKT_F.length];
+  if(av){ p.attrs={}; _attrKeys(p.pos).forEach((k,i)=>{ if(av[i]!=null)p.attrs[k]=av[i]; }); }
+  const ex=row[MKT_F.length+1];
+  if(ex&&typeof ex==='object') Object.assign(p,ex);
+  return p;
+}
 function saveGame(){
   if(!G) return;
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch(e){}
+  try{
+    const snap={};
+    for(const k in G) snap[k]=G[k];
+    snap.market=(G.market||[]).map(packPlayer);
+    snap._mktPacked=1;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    G._saveFail=false;
+  } catch(e){
+    // Antes esto era un catch vacío: el jugador seguía jugando creyendo que se
+    // guardaba y al recargar no había nada.
+    if(!G._saveFail){
+      G._saveFail=true;
+      try{ flash('⚠️ No se pudo guardar: el navegador se quedó sin espacio','loss'); }catch(_){}
+      try{ addPhoneMsg('board','Sistema','⚠️ <b>No se pudo guardar la partida</b>: el almacenamiento del navegador está lleno. Cerrá otras pestañas del juego o borrá datos del sitio, o vas a perder el progreso.','💾'); }catch(_){}
+      try{ lg('⚠️','No se pudo guardar: almacenamiento lleno'); }catch(_){}
+    }
+  }
 }
 
 function loadGame(){
@@ -1926,6 +1973,10 @@ function loadGame(){
     if(!raw) return false;
     const saved = JSON.parse(raw);
     if(!saved || !saved.teamId || !saved.teamName) return false;
+    // Saves viejos guardaban el mercado como objetos: se aceptan igual
+    if(saved._mktPacked && Array.isArray(saved.market))
+      saved.market = saved.market.map(r=>Array.isArray(r)?unpackPlayer(r):r);
+    delete saved._mktPacked;
     G = saved;
     if(!G.phoneMsgs) G.phoneMsgs = [];
     // Migración a atributos DLS (saves con formato viejo)
@@ -14821,6 +14872,13 @@ function weeklyNegotiations(){
         }
       }
       keep.push(n);return;
+    }
+    // Las rechazadas no se quedan de por vida. Antes se acumulaban: 25 intentos
+    // fallidos dejaban 22 zombis que se recorrían todos los días y viajaban en
+    // el guardado. Ahora te quedan unas semanas para reintentar y se archivan.
+    if(n.stage==='rechazada'){
+      n.zombi=(n.zombi||0)+1;
+      if(n.zombi>21){ n.stage='cerrada'; return; }
     }
     // Si el club te dijo que no pero el jugador ya arregló, él sigue apretando
     if(n.stage==='rechazada'&&n.playerOk&&Math.random()<0.45){
