@@ -12557,6 +12557,24 @@ function fmTick(dt){
     if(f.phaseT>200){f.half=2;fmFlip();fmReset('my');f.phase='kickoff';f.phaseT=0;}
     return;
   }
+  // Detecta el momento de saltar: mal control del rival, retroceso o banda
+  if(f._trapT===undefined)f._trapT=0;
+  if(f._trapT>0)f._trapT-=dt;
+  if(f.phase==='play'&&f.possSide&&f._trapT<=0){
+    const car=f.poss, bb=f.ball;
+    if(car){
+      const malControl=Math.hypot(car.x-bb.x,car.y-bb.y)>52;      // se le fue larga
+      const haciaAtras=(f.possSide==='my')?(bb.vx*(f.myAttRight?-1:1)>2.2)
+                                          :(bb.vx*(f.myAttRight?1:-1)>2.2);
+      const contraLaRaya=bb.y<f.VH*0.16||bb.y>f.VH*0.84;
+      if(malControl||haciaAtras||contraLaRaya){
+        f._trapTeam=(f.possSide==='my')?'opp':'my';               // presiona el que NO la tiene
+        const pr=((f._trapTeam==='my')?(f.myProfEff||f.myProf):(f.oppProfEff||f.oppProf))||{press:.5};
+        f._trapT=Math.round(70+ (pr.press||0.5)*110);             // el salto dura lo que el DT aguante
+        if(f.watch&&Math.random()<0.20)fmMsg('⚡ PRESIÓN ALTA');
+      }
+    }
+  }
   f.ticks+=dt;
   if(f.ticks>=f.tpm){
     f.ticks-=f.tpm;f.minute++;fmHUD();
@@ -13267,13 +13285,24 @@ function fmAI(p,team,idx,dt){
     // ═══ DEFENSA / PELOTA DIVIDIDA: presionan SOLO los designados ═══
     // Pelota dividida: va únicamente el más cercano. Con rival en posesión:
     // presionan 1-3 según el perfil de presión del DT; el resto mantiene el bloque.
-    const nChasers=!f.possSide?1:(prof.press>0.65?3:prof.press>0.35?2:1);
-    const chaseOk=myRank===0?dists[0].d<950:(myRank<nChasers&&dists[myRank].d<300+prof.press*320);
+    // ═══ EL PRESSING SE DISPARA, NO ES CONSTANTE ═══
+  // Antes se presionaba con la misma intensidad los 90 minutos. Un equipo de
+  // verdad espera y salta todo junto cuando huele la pérdida: un mal control,
+  // un pase hacia atrás o una pelota abierta contra la raya. Durante esos
+  // segundos sube un escalón la cantidad de presionadores.
+  const trampa=(f._trapT||0)>0 && f._trapTeam===team;
+  const nChasers=!f.possSide?1:((prof.press>0.65?3:prof.press>0.35?2:1)+(trampa?1:0));
+    // En el salto no alcanza con sumar un presionador: hay que COMPROMETERSE.
+    // El radio se ensancha, si no el disparador saltaba justo cuando la pelota
+    // quedaba lejos y nadie llegaba (medido: la presión bajaba en vez de subir).
+    const radio=(300+prof.press*320)*(trampa?1.85:1);
+    const chaseOk=myRank===0?dists[0].d<(trampa?1300:950):(myRank<nChasers&&dists[myRank].d<radio);
     if(myRank>=0&&myRank<Math.max(1,nChasers)&&chaseOk){
       if(myRank===0){
         // Presionador principal: va al portador (Marcador/Destructor más intensos)
         const roleAcc=(p.roleStyle==='Marcador'||p.roleStyle==='Destructor')?1.08:1;
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*roleAcc*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
+        // En el salto va con todo: no es sólo ir, es ir MÁS RÁPIDO
+        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*roleAcc*(trampa?1.30:1)*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
         // Falta al gambeteador (solo vs humano)
         if(!f.watch&&!isM){
           const cp4=f.my[f.ctrl];
@@ -13328,12 +13357,12 @@ function fmAI(p,team,idx,dt){
           }
           if(opt){
             const mx=(opt.x+b.x)/2,my=(opt.y+b.y)/2;
-            fmMove(p,mx-p.x+sepX*0.3,my-p.y+sepY*0.3,dt,0.07*(1+prof.aggr*0.06));
+            fmMove(p,mx-p.x+sepX*0.3,my-p.y+sepY*0.3,dt,0.07*(trampa?1.28:1)*(1+prof.aggr*0.06));
           } else fmMove(p,b.x-p.x,b.y-p.y,dt,0.06);
         } else {
           const cutX=b.x+(ownGX-b.x)*(0.18+myRank*0.10);
           const cutY=b.y+(mid-b.y)*0.16+(myRank%2?1:-1)*46;
-          fmMove(p,cutX-p.x+sepX*0.4,cutY-p.y+sepY*0.4,dt,0.072*(1+prof.aggr*0.06));
+          fmMove(p,cutX-p.x+sepX*0.4,cutY-p.y+sepY*0.4,dt,0.072*(trampa?1.25:1)*(1+prof.aggr*0.06));
         }
       }
     } else {
