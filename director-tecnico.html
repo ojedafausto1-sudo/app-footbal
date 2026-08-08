@@ -11366,6 +11366,15 @@ function fmBodyBall(p,b,team){
   return true;
 }
 
+// ═══ LA CALIDAD SE PAGA EN LA PRECISIÓN ═══
+// Los remates y pases de la IA salían todos igual de exactos. Ahora al vector
+// se le suma un error inversamente proporcional al atributo del ejecutante:
+// un 88 la pone donde quiere, un 68 se le va.
+function fmErr(p,tipo,base){
+  const q=(p&&p[tipo])||1;              // 'vis' para pases, 'pun' para remates
+  const e=(base||1)*Math.max(0.05,1.35-q);
+  return (Math.random()*2-1)*e;
+}
 function fmMove(body,dx,dy,dt,acc){
   const mg=Math.hypot(dx,dy)||1;
   if(dx||dy){dx/=mg;dy/=mg;}
@@ -11375,8 +11384,10 @@ function fmMove(body,dx,dy,dt,acc){
   const st=body.stam===undefined?100:body.stam;
   const fatigue=0.72+0.28*(st/100);
   const spd=body.spd*fatigue;
-  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*(acc||.085)*dt;
-  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*spd*(acc||.085)*dt;
+  // El que tiene mejor arranque llega antes a la pelota dividida
+  const ac=(acc||.085)*(body.acel||1);
+  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*ac*dt;
+  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*spd*ac*dt;
   const v=Math.hypot(body.vx,body.vy),vmax=spd*1.28;
   if(v>vmax){body.vx*=vmax/v;body.vy*=vmax/v;}
   body.x+=body.vx*dt;body.y+=body.vy*dt;
@@ -11560,6 +11571,15 @@ function fmInit(m,W,H){
       rat:Math.round(rat),attrs,
       num:(realP&&realP.num)||numFallback||0,
       spd:basePac,
+      // ═══ LO QUE SEPARA A UN 70 DE UN 88 ═══
+      // Antes lo único que dependía del nivel era la velocidad punta, así que
+      // un crack y un suplente se movían casi igual y erraban igual.
+      acel:0.80+(attrs.pac/100)*0.45,          // arranque: quién pica primero
+      tec :0.55+(attrs.dri/100)*0.75,          // control: aguanta la pelota
+      vis :0.50+(attrs.pas/100)*0.85,          // pase: precisión y decisión
+      pun :0.50+(attrs.sho/100)*0.85,          // remate: puntería
+      duel:0.60+((attrs.phy*0.6+attrs.def*0.4)/100)*0.70, // roce y quite
+      lee :0.55+(((attrs.def+attrs.pas)/2)/100)*0.75,     // lectura: anticipa
       // Arranca según la condición física REAL del jugador: si venís de jugar
       // todos los partidos, salís a la cancha ya cansado.
       stam:isGK?undefined:Math.max(62,Math.min(100,(realP&&realP.fit!==undefined)?realP.fit:100)),
@@ -12282,6 +12302,68 @@ function fmLoop(ts){
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
+// Cuánto tarda cada pelota parada en ejecutarse (ticks; ~60 por segundo).
+// El saque de banda es rápido; el córner y el tiro libre necesitan que suban
+// los que van a rematar y que se arme la barrera.
+const SETPIECE_T={throw:80,goalkick:150,corner:260,freekick:230,penalty:150};
+
+// ═══ ACOMODARSE EN LA PELOTA PARADA ═══
+// Durante la espera, cada equipo se ubica según el tipo de jugada: en el córner
+// los altos suben al área y el rival los marca; en el tiro libre se arma la
+// barrera; en el resto se recupera la forma.
+function fmSetPieceShape(dt){
+  const f=FM; if(!f)return;
+  const r=f.restart; if(!r){ fmIdleMove(dt,false); return; }
+  const kind=r.type||'throw';
+  const atacan = r.team==='my' ? f.my : f.opp;
+  const defien = r.team==='my' ? f.opp : f.my;
+  const atacaDer = (r.team==='my') ? f.myAttRight : !f.myAttRight;
+  const arcoX = atacaDer ? f.rightGL : f.leftGL;
+  const mid=f.VH/2;
+
+  if(kind==='corner'){
+    // Suben los más altos/fuertes; el resto aguanta afuera por si rebota
+    const subenN=4;
+    const orden=atacan.filter(p=>!p.isGK)
+      .map(p=>({p,peso:(p.attrs&&(p.attrs.phy*0.6+p.attrs.sho*0.4))||p.rat}))
+      .sort((a,b)=>b.peso-a.peso).map(x=>x.p);
+    orden.forEach((p,i)=>{
+      if(i<subenN){
+        const dx=(atacaDer?-1:1)*(70+i*55);
+        fmMove(p,(arcoX+dx)-p.x,(mid+((i%2?1:-1)*(60+i*45)))-p.y,dt,0.055);
+      } else { fmMove(p,p.hx-p.x,p.hy-p.y,dt,0.035); }
+    });
+    // La defensa marca a los que subieron y mete gente en el área
+    defien.forEach((q,i)=>{
+      if(q.isGK){ fmMove(q,(arcoX+(atacaDer?-24:24))-q.x,mid-q.y,dt,0.05); return; }
+      const marca=orden[i%Math.max(1,subenN)];
+      if(marca) fmMove(q,(marca.x+(atacaDer?18:-18))-q.x,(marca.y+16)-q.y,dt,0.055);
+    });
+    return;
+  }
+  if(kind==='freekick'){
+    // Barrera entre la pelota y el arco propio
+    const bx=f.ball.x, by=f.ball.y;
+    const ax=(r.team==='my')?(f.myAttRight?f.rightGL:f.leftGL):(f.myAttRight?f.leftGL:f.rightGL);
+    const dirx=ax-bx, diry=mid-by, m=Math.hypot(dirx,diry)||1;
+    const px=-diry/m, py=dirx/m;
+    const muro=defien.filter(q=>!q.isGK).sort((a,b)=>
+      Math.hypot(a.x-bx,a.y-by)-Math.hypot(b.x-bx,b.y-by)).slice(0,4);
+    muro.forEach((q,i)=>{
+      const d=270;
+      fmMove(q,(bx+dirx/m*d+px*((i-1.5)*34))-q.x,(by+diry/m*d+py*((i-1.5)*34))-q.y,dt,0.075);
+    });
+    defien.forEach(q=>{ if(muro.indexOf(q)<0&&!q.isGK) fmMove(q,q.hx-q.x,q.hy-q.y,dt,0.04); });
+    atacan.forEach((p,i)=>{
+      if(i<3){ const dx=(atacaDer?-1:1)*(150+i*60);
+        fmMove(p,(arcoX+dx)-p.x,(mid+((i%2?1:-1)*90))-p.y,dt,0.05); }
+      else fmMove(p,p.hx-p.x,p.hy-p.y,dt,0.035);
+    });
+    return;
+  }
+  fmIdleMove(dt,false);
+}
+
 // ═══ QUE NO SE CONGELEN EN LAS PAUSAS ═══
 // kickoff, saques, gol y entretiempo devolvían sin mover a NADIE: 22 estatuas
 // durante casi tres segundos, cada vez. Medido: en la fase de gol se quedaban
@@ -12320,8 +12402,12 @@ function fmTick(dt){
   if(f.phase==='kickoff'){f.phaseT+=dt;fmIdleMove(dt,false);if(f.phaseT>90){f.phase='play';f.phaseT=0;}return;}
   if(f.phase==='restart'){
     f.phaseT+=dt;
-    fmIdleMove(dt,false);
-    if(f.phaseT>72){fmDoRestart();f.phase='play';f.phaseT=0;}
+    fmSetPieceShape(dt);
+    // Cada reinicio lleva su tiempo. Antes TODOS usaban 72 ticks (1,2s): el
+    // córner se ejecutaba antes de que llegara nadie al área y el tiro libre
+    // sin que se armara la barrera.
+    const espera=SETPIECE_T[(f.restart&&f.restart.type)||'throw']||90;
+    if(f.phaseT>espera){fmDoRestart();f.phase='play';f.phaseT=0;}
     return;
   }
   if(f.phase==='goal_my'||f.phase==='goal_opp'){
@@ -12507,8 +12593,8 @@ function fmCtrl(dt){
         dxk=(tgx-b.x)/dd;dyk=(aimY-b.y)/dd;
       }
       const spd=(5.4+(p.attrs.sho/99)*3.4)*pow;
-      b.vx=dxk*spd+(Math.random()-.5)*.14;
-      b.vy=dyk*spd+(Math.random()-.5)*.14;
+      b.vx=dxk*spd+(Math.random()-.5)*.14+fmErr(p,'pun',0.30);
+      b.vy=dyk*spd+(Math.random()-.5)*.14+fmErr(p,'pun',0.42);
       if(pow>0.85)b.air=16; // tiro potente: la pelota se eleva
       f._lastTouch='my';
       p._kickT=9;
@@ -12803,7 +12889,7 @@ function fmAI(p,team,idx,dt){
       if(shortT){
         const dx=shortT.x-b.x,dy=shortT.y-b.y,dd=Math.hypot(dx,dy)||1;
         const pw2=3.4+dd*0.008;
-        b.vx=(dx/dd)*pw2;b.vy=(dy/dd)*pw2;
+        b.vx=(dx/dd)*pw2+fmErr(p,'vis',0.30);b.vy=(dy/dd)*pw2+fmErr(p,'vis',0.30);
         shortT._recvTick=f.ticks;
       }else{
         const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
@@ -12980,19 +13066,19 @@ function fmAI(p,team,idx,dt){
         const aimY=(Math.random()-.5)*f.GH*.62*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.8);fmStat(team,'shots');fmSay('shot',team,p.name);
+        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.55);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.75);f._lastTouch=team;p._kickT=9;fmSndKick(0.8);fmStat(team,'shots');fmSay('shot',team,p.name);
       } else if(canShoot&&!inBox&&Math.random()<(0.026+prof.direct*0.035+Math.max(0,shotAttr-74)/1000)*dt){
         const spread=1.30-Math.min(90,shotAttr)/115;
         const aimY=(Math.random()-.5)*f.GH*.5*spread;
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=6.8+Math.random()*2.4+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
+        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.85);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',1.15);f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
       } else if(longShot&&Math.random()<(0.03+Math.max(0,shotAttr-72)/100*0.06)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const aimY=(Math.random()-.5)*f.GH*(0.5+(85-Math.min(85,shotAttr))/100);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=8.2+Math.random()*1.6+Math.max(0,shotAttr-75)/12;
-        b.vx=(ddx/dd)*pwr;b.vy=(ddy/dd)*pwr;b.air=Math.random()<0.3?4:0;
+        b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(!clearOnGoal&&Math.random()<passBase*dt){
