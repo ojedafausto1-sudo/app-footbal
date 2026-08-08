@@ -405,6 +405,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
   <div class="nav">
     <button class="nb on" onclick="gTab('ov',this)"><span class="ni">🏠</span>INICIO</button>
     <button class="nb" onclick="gTab('sq',this)"><span class="ni">👥</span>PLANTEL</button>
+    <button class="nb" onclick="gTab('tac',this);rTacticaTab()"><span class="ni">⚽</span>TÁCTICA</button>
     <button class="nb" onclick="gTab('dt',this);rDtTab()"><span class="ni">🎯</span>MI DT</button>
     <button class="nb" onclick="gTab('mkt',this)"><span class="ni">💰</span>MERCADO</button>
     <button class="nb" onclick="gTab('stad',this)"><span class="ni">🏟️</span>ESTADIO</button>
@@ -533,9 +534,34 @@ tr:hover td{background:rgba(255,255,255,.025)}
         </div>
       </div>
     </div>
-    <!-- hidden pitch elements needed by rFormation/autoFill -->
-    <div style="display:none"><div id="pitchSlots"></div><div id="roleBox"></div>
-      <div id="benchArea"></div><div id="fBtns"></div><div id="xi"></div><div id="styleOpts"></div><div id="tacOpts"></div><div id="setPieces" style="margin-top:8px"></div></div>
+    <!-- ═══ TÁCTICA: acá se arma el equipo ═══
+         Estos elementos existían pero estaban dentro de un display:none, sólo
+         para que rFormation/autoFill no rompieran. O sea: el once, el banco y
+         la formación NO se podían tocar desde ningún lado. Ahora tienen su
+         pestaña. -->
+    <div id="tab-tac" class="tc">
+      <div class="stitle">⚽ Táctica <span style="font-size:12px;color:var(--t3);font-weight:400">armá el equipo</span></div>
+      <div class="card" style="margin-bottom:9px">
+        <div class="ctitle">🎯 Formación</div>
+        <div id="fBtns" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div>
+      </div>
+      <div class="card" style="margin-bottom:9px">
+        <div class="ctitle">🟩 El once — tocá un puesto para cambiarlo</div>
+        <div id="pitchSlots" style="margin-top:6px"></div>
+        <div id="roleBox"></div>
+      </div>
+      <div class="card" style="margin-bottom:9px">
+        <div class="ctitle">🎽 Suplentes</div>
+        <div id="benchArea" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+      </div>
+      <div class="card" style="margin-bottom:9px"><div id="xi"></div></div>
+      <div class="card" style="margin-bottom:9px">
+        <div class="ctitle">🎛️ Estilo de juego</div>
+        <div id="styleOpts" style="margin-top:6px"></div>
+        <div id="tacOpts" style="margin-top:6px"></div>
+      </div>
+      <div class="card" id="setPieces"></div>
+    </div>
 
     <!-- MERCADO -->
     <div id="tab-mkt" class="tc">
@@ -1926,10 +1952,26 @@ const SAVE_KEY = 'dtg_v7';
 // Cada jugador se guarda como una fila de valores; los atributos van sólo como
 // números, porque el juego de claves lo define el puesto (ATTR_PROFILES).
 const MKT_F=['id','num','name','pos','age','nat','club','lg','val','rat','wage','pot','perf',
-             'morale','contract','height','pos2','nat2','clause','goals','assists','apps','foot','injured'];
+             'morale','contract','height','pos2','nat2','clause','goals','assists','apps','foot','injured',
+             // weeklyMarketEvolution y valCap estampan estos en TODOS los jugadores:
+             // si no están acá van al objeto 'ex' con sus nombres y el save se
+             // vuelve a inflar (medido: +1,5 MB).
+             'mform','_ratF','hype','_valSeason','_valBase','freeAgent'];
 function _attrKeys(pos){ return Object.keys(ATTR_PROFILES[pos]||ATTR_PROFILES.MC); }
+// Los campos internos del mercado son flotantes largos ("_ratF":64.79025992286296
+// = 17 caracteres x 12.700 jugadores). Redondearlos no cambia nada del juego y
+// achica el guardado a la mitad.
+const MKT_ROUND={mform:2,_ratF:2,hype:3,_valSeason:0,_valBase:2,perf:3,val:2};
 function packPlayer(p){
-  const row=MKT_F.map(k=>p[k]===undefined?null:p[k]);
+  const row=MKT_F.map(k=>{
+    let v=p[k];
+    if(v===undefined)return null;
+    if(typeof v==='number'&&MKT_ROUND[k]!==undefined){
+      const f=Math.pow(10,MKT_ROUND[k]);
+      return Math.round(v*f)/f;
+    }
+    return v;
+  });
   row.push(p.attrs?_attrKeys(p.pos).map(k=>p.attrs[k]===undefined?null:p.attrs[k]):0);
   // Lo que no está en la lista (ownedPct, freeAgent, mform, hype...) no se pierde
   const ex={};
@@ -2052,7 +2094,11 @@ function clubInitials(name){
 // Escudo en SVG. size en px. Se usa inline en cualquier lista.
 function clubCrest(name,size){
   const s=size||26, [c1,c2]=clubColors(name), ini=clubInitials(name);
-  const id='cg'+Math.abs(String(name||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0));
+  // La suma de char-codes colisiona (mismo id → el segundo club se dibuja con
+  // los colores del primero). Hash posicional + contador para que sea único.
+  const nm=String(name||'');
+  let hh=5381; for(let i=0;i<nm.length;i++) hh=((hh*33)^nm.charCodeAt(i))>>>0;
+  const id='cg'+hh.toString(36)+'_'+(window._crestN=(window._crestN||0)+1);
   return `<svg width="${s}" height="${s}" viewBox="0 0 40 44" style="flex-shrink:0;display:block" aria-label="${name||''}">
     <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
@@ -4214,7 +4260,7 @@ function cornerRunners(){
   const eleg=xi.filter(p=>R.runners.includes(p.id));
   if(eleg.length)return eleg.slice(0,4);
   return xi.filter(p=>p.pos!=='ARQ')
-    .sort((a,b)=>((b.alturaCm||180)+((b.attrs&&b.attrs.FIS)||b.rat))-((a.alturaCm||180)+((a.attrs&&a.attrs.FIS)||a.rat)))
+    .sort((a,b)=>((b.height||180)+((b.attrs&&b.attrs.FIS)||b.rat))-((a.height||180)+((a.attrs&&a.attrs.FIS)||a.rat)))
     .slice(0,3);
 }
 function rSetPieces(){
@@ -6455,6 +6501,13 @@ function processScouts(){
 // LIGA SIMULADA COMPLETA (estilo Football Manager)
 // Todos los clubes juegan cada fecha; tabla y goleadores reales.
 // =============================================
+// Fuerza de un club cualquiera del mercado, sin atarse a una liga. clubPower
+// filtra por Liga ARG, así que para un comprador extranjero devolvía siempre el
+// valor por defecto y "¿es un salto de calidad?" nunca hacía nada.
+function anyClubPower(club){
+  const r=(G.market||[]).filter(p=>p.club===club).map(p=>p.rat).sort((a,b)=>b-a).slice(0,14);
+  return r.length?Math.round(r.reduce((a,x)=>a+x,0)/r.length):68;
+}
 function clubPower(club){
   G._clubPow=G._clubPow||{};
   if(G._clubPow[club])return G._clubPow[club];
@@ -7087,11 +7140,15 @@ function matchStrengths(m){
   // La simulación miraba media, ataque, defensa, DT, moral y física. No miraba
   // NADA de lo que vos elegís al armar el equipo: podías poner un central de
   // nueve y el resultado era el mismo. Ahora sí pesa.
+  // Ojo: xiIds viene filtrado de nulos, así que NO se puede zipear por índice
+  // contra los 11 puestos — un hueco corría todos los pares y el castigo se
+  // calculaba contra el puesto equivocado. Se lee G.slots por su clave.
   const sl0=(typeof getForm==='function')?getForm():[];
   let fuera=0;
-  xiIds.forEach((id,i)=>{
-    const q=G.squad.find(x=>x.id===id), sp=sl0[i];
-    if(q&&sp&&typeof posPenaltyFor==='function') fuera+=posPenaltyFor(q,sp.pos);
+  sl0.forEach((sp,i)=>{
+    const id=(G.slots||{})[i]; if(!id||!sp)return;
+    const q=G.squad.find(x=>x.id===id);
+    if(q&&typeof posPenaltyFor==='function') fuera+=posPenaltyFor(q,sp.pos);
   });
   const posMod = 1 - Math.min(0.11, fuera*0.0035);          // equipo desarmado: hasta -11%
   const chemMod = 0.97 + ((G.chem===undefined?45:G.chem)/100)*0.06;  // química del plantel
@@ -7299,7 +7356,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(_homeGame){
     const humor=0.55+(G.fanMood||55)/100*0.55;           // cancha llena vs media entrada
     const racha=res==='W'?1:res==='D'?0.92:0.84;
-    const bruto=G.stadium.income*humor*racha*dMul;
+    // dMul es para moral/rep/confianza: si entra acá, un clásico de local
+    // triplicaba la recaudación. El clásico llena la cancha, no la triplica.
+    const bruto=G.stadium.income*humor*racha*(derby?1.35:1);
     matchOps=G.stadium.income*0.42;                       // operativo del día de partido
     matchGate=Math.round((bruto-matchOps)*10)/10;
     G.budget=Math.round((G.budget+matchGate)*10)/10;
@@ -9673,7 +9732,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   const puestos=[{wx:-0.46,wz:0.66},{wx:0.14,wz:0.80},{wx:0.52,wz:0.60},{wx:-0.10,wz:0.50}];
   s.mates=suben.slice(0,4).map((q,i)=>({
     name:q.name.split(' ').pop(), rat:q.rat,
-    hd:Math.round(((q.alturaCm||180)-165)*0.8+(((q.attrs&&q.attrs.FIS)||q.rat)-60)*0.5), // cabeceo
+    hd:Math.round(((q.height||180)-165)*0.8+(((q.attrs&&q.attrs.FIS)||q.rat)-60)*0.5), // cabeceo
     wx:puestos[i].wx, wz:puestos[i].wz, bx:puestos[i].wx, bz:puestos[i].wz, t:Math.random()*6
   }));
   // Cada atacante que sube arrastra un marcador
@@ -10928,7 +10987,7 @@ function sellWillingness(p,o){
   w += esTitular?-0.18:0.14;
   // ¿Es un salto de calidad? Compara al comprador con vos
   let compRep=68;
-  try{ const cp=clubPower(o.from); if(cp) compRep=cp; }catch(e){}
+  try{ const cp=anyClubPower(o.from); if(cp) compRep=cp; }catch(e){}
   w += (compRep-(G.rep||50))/130;
   const mor=(p.morale===undefined?60:p.morale);
   if(mor<45) w+=0.18; else if(mor>75) w-=0.14;
@@ -12200,7 +12259,10 @@ function fmIdleMove(dt,festeja){
       let tx=p.hx,ty=p.hy,acc=0.030;
       if(festeja&&festejan){
         // El que la metió se va a festejar contra la raya; el resto lo abraza
-        const sc=f._fmScorer&&arr.indexOf(f._fmScorer)>=0?f._fmScorer:arr[i%arr.length];
+        // Si el goleador no es de este equipo (gol en contra, desvío), festeja
+        // el delantero más adelantado; antes cada uno se iba para su lado.
+        const sc=(f._fmScorer&&arr.indexOf(f._fmScorer)>=0)?f._fmScorer
+                 :(arr.filter(q=>!q.isGK).sort((a,b)=>(f.myAttRight?b.x-a.x:a.x-b.x))[0]||arr[0]);
         if(p===sc&&!p.isGK){
           if(p._cx===undefined){p._cx=p.x+(Math.random()<0.5?-1:1)*260;p._cy=p.y+(Math.random()*2-1)*300;}
           tx=p._cx;ty=p._cy;acc=0.075;
@@ -14301,6 +14363,11 @@ function rPresTab(){
   }
 }
 
+// Refresca todo lo de la pestaña de táctica al entrar
+function rTacticaTab(){
+  if(!G)return;
+  try{ rFBtns(); rFormation(); rBench(); rXI(); rStyle(); rTacOpts(); rSetPieces(); }catch(e){}
+}
 function gTab(name, btn){
   document.querySelectorAll('#game .main > .tc').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
@@ -14713,6 +14780,13 @@ function negCashOut(n){
 // El club aceptó: se ejecuta la operación según su tipo
 function negExecDeal(n,p){
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  // El cupo se validaba al ENVIAR la oferta. Con varias operaciones en curso
+  // podías cerrarlas todas juntas y pasarte de 5 extranjeros.
+  if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=5){
+    addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de extranjeros está lleno (5/5). La operación se cae.`,'🏛️');
+    lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
+    n.stage='cerrada';return;
+  }
   const out=negCashOut(n);
   if(out>G.budget){
     addPhoneMsg('board','Tesorería',`💸 <b>${p.club}</b> aceptó por ${p.name}, pero no tenemos los ${fv(out)}. La operación se cayó.`,'🏛️');
@@ -14727,6 +14801,16 @@ function negExecDeal(n,p){
     if(d.loanType==='obligation') p.loanBuyObligation=d.buyOption;
   } else {
     if(n.kind==='canje'){
+      // Si vendiste al jugador que ofreciste mientras el club pensaba, el canje
+      // ya no existe: antes se salteaba y te quedabas con el otro de arriba.
+      const faltan=[d.mineId,d.mine2Id].filter(Boolean).filter(mid=>!G.squad.some(q=>q.id===mid));
+      if(faltan.length){
+        G.budget=Math.round((G.budget+out)*10)/10;   // devolvemos lo descontado
+        G.market.push(p);
+        addPhoneMsg('agent',p.club,`❌ El canje por <b>${p.name}</b> se cayó: el jugador que ofrecimos ya no está en el plantel.`,'💼');
+        lg('❌',`Canje por ${p.name} anulado: ya no tenés al jugador ofrecido`);
+        n.stage='cerrada'; return;
+      }
       const oldClub=p.club;
       [d.mineId,d.mine2Id].filter(Boolean).forEach(mid=>{
         const m=G.squad.find(q=>q.id===mid); if(!m)return;
@@ -14881,7 +14965,8 @@ function weeklyNegotiations(){
       if(n.zombi>21){ n.stage='cerrada'; return; }
     }
     // Si el club te dijo que no pero el jugador ya arregló, él sigue apretando
-    if(n.stage==='rechazada'&&n.playerOk&&Math.random()<0.45){
+    // /7: antes corría una vez por semana y ahora una por día
+    if(n.stage==='rechazada'&&n.playerOk&&Math.random()<0.065){
       p.pressuring=(p.pressuring||0)+1;
       p.val=Math.max(0.05,Math.round(p.val*0.95*100)/100);
       if(p.pressuring===2){
@@ -14893,7 +14978,7 @@ function weeklyNegotiations(){
       }
     }
     // Otros clubes se meten en la disputa
-    if((n.stage==='jugador_ok'||n.stage==='contraoferta')&&Math.random()<0.22&&(n.rivals||[]).length<2){
+    if((n.stage==='jugador_ok'||n.stage==='contraoferta')&&Math.random()<0.032&&(n.rivals||[]).length<2){
       const rv=pickBuyer();
       n.rivals=(n.rivals||[]).concat([rv]);
       n.deadline=10+~~(Math.random()*11);
