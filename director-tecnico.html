@@ -2557,7 +2557,8 @@ function setDtRel(delta){
   if(!G)return;
   if(G.dtRel===undefined)G.dtRel=65;
   const before=G.dtRel;
-  G.dtRel=Math.max(0,Math.min(100,G.dtRel+delta));
+  // Se mostraba con la basura del punto flotante (99.27999999999999)
+  G.dtRel=Math.round(Math.max(0,Math.min(100,G.dtRel+delta))*10)/10;
   if(before>=30&&G.dtRel<30){
     addPhoneMsg('board',(G.dt&&G.dt.name)||'El DT',`😠 Presidente, me enteré de sus declaraciones. Así es muy difícil trabajar. Si no me respalda, mejor hablemos de mi salida.`,'👔');
   }
@@ -6523,13 +6524,23 @@ function anyClubPower(club){
   // Varios clubes de la lista de compradores (Sevilla, Galatasaray, Al-Hilal...)
   // no figuran en la base cargada. Antes caían todos al mismo 68; ahora se
   // estima por su liga, así un grande europeo sigue leyéndose como un salto.
-  const BUYER_LG={'Sevilla':'España','Sevilla FC':'España','Galatasaray':'Turquía',
-    'Bayer Leverkusen':'Alemania','Leverkusen':'Alemania','Sporting CP':'Portugal',
-    'Al-Nassr':'Arabia','Al-Hilal':'Arabia','Benfica':'Portugal','Ajax':'Holanda',
-    'Olympique Lyon':'Francia','Monterrey':'Liga MX','Flamengo':'Brasil','Palmeiras':'Brasil'};
+  // Los 22 nombres que devuelve pickBuyer(), tal cual los escribe. Antes había
+  // entradas que nunca salían ('Olympique Lyon' cuando el club es 'Lyon',
+  // 'Monterrey' que ni compra) y 9 compradores sin entrada: si la extracción
+  // les cambia el nombre caen al valor por defecto.
+  const BUYER_LG={'River Plate':'Liga ARG','Racing':'Liga ARG',
+    'Flamengo':'Brasil','Palmeiras':'Brasil','São Paulo':'Brasil',
+    'Benfica':'Portugal','Porto':'Portugal','Sporting CP':'Portugal',
+    'Sevilla':'España','Villarreal':'España','Real Betis':'España',
+    'Ajax':'Holanda','Bologna':'Italia','Atalanta':'Italia',
+    'Lyon':'Francia','Monaco':'Francia','Marseille':'Francia',
+    'Galatasaray':'Turquía','Bayer Leverkusen':'Alemania',
+    'Al-Nassr':'Arabia','Al-Hilal':'Arabia','Wolves':'Premier'};
   const lg=BUYER_LG[club];
   if(lg&&LG_LEVEL[lg])return LG_LEVEL[lg];
-  return 72;
+  // El piso tiene que quedar POR ENCIMA de Liga ARG (73): si no, un club de
+  // afuera sin datos se leía como un paso atrás y el jugador nunca se quería ir.
+  return 76;
 }
 function clubPower(club){
   G._clubPow=G._clubPow||{};
@@ -14819,15 +14830,17 @@ function negCashOut(n){
 }
 // El club aceptó: se ejecuta la operación según su tipo
 function negExecDeal(n,p){
-  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  // En un canje salen jugadores: contarlos como si se quedaran hacía que un
+  // 2x1 con el plantel en 35 se rechazara aunque el neto fuera 34.
+  const _salen=(n.kind==='canje')?[(n.deal||{}).mineId,(n.deal||{}).mine2Id].filter(Boolean):[];
+  const _quedan=G.squad.filter(q=>_salen.indexOf(q.id)<0);
+  if(_quedan.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
   // El cupo se validaba al ENVIAR la oferta. Con varias operaciones en curso
   // podías cerrarlas todas juntas y pasarte de 5 extranjeros.
   // En un canje se van jugadores, así que el cupo se mide descontándolos:
   // extranjero por extranjero no cambia el conteo y antes se caía igual.
   if(typeof pIsForeign==='function'&&pIsForeign(p)){
-    const salen=(n.kind==='canje')?[(n.deal||{}).mineId,(n.deal||{}).mine2Id].filter(Boolean):[];
-    const quedan=G.squad.filter(q=>salen.indexOf(q.id)<0);
-    if(foreignCount(quedan)>=5){
+    if(foreignCount(_quedan)>=5){
       addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de extranjeros está lleno (5/5). La operación se cae.`,'🏛️');
       lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
       n.stage='cerrada';return;
@@ -15053,8 +15066,13 @@ function negComplete(n,p,price,isPre){
   // El cupo se validaba sólo en negExecDeal: por acá entraban libres y
   // precontratos sin control.
   if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=5){
+    // Se llega acá desde un click (igualar contraoferta): si sólo mandaba un
+    // mensaje al teléfono, el modal se cerraba y la operación desaparecía sin
+    // que se entendiera por qué.
+    flash('🛂 Cupo de extranjeros lleno (5/5): no se puede inscribir a '+p.name,'loss');
+    lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
     addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: cupo de extranjeros lleno (5/5).`,'🏛️');
-    n.stage='cerrada';return;
+    n.stage='cerrada';updateUI();return;
   }
   if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
   const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
