@@ -541,13 +541,14 @@ tr:hover td{background:rgba(255,255,255,.025)}
          pestaña. -->
     <div id="tab-tac" class="tc">
       <div class="stitle">⚽ Táctica <span style="font-size:12px;color:var(--t3);font-weight:400">armá el equipo</span></div>
+      <div id="tacWho" style="margin-bottom:8px"></div>
       <div class="card" style="margin-bottom:9px">
         <div class="ctitle">🎯 Formación</div>
         <div id="fBtns" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div>
       </div>
       <div class="card" style="margin-bottom:9px">
         <div class="ctitle">🟩 El once — tocá un puesto para cambiarlo</div>
-        <div id="pitchSlots" style="margin-top:6px"></div>
+        <div id="pitchSlots" class="pitch" style="margin-top:6px;height:430px"></div>
         <div id="roleBox"></div>
       </div>
       <div class="card" style="margin-bottom:9px">
@@ -1980,11 +1981,19 @@ function packPlayer(p){
   return row;
 }
 function unpackPlayer(row){
+  // La lista de columnas creció (se le sumaron mform, _ratF, hype...). Un save
+  // escrito con la lista vieja tiene la fila más corta, y leer attrs/ex por
+  // MKT_F.length los corría de lugar: los atributos caían en p.mform y todos
+  // los jugadores terminaban con rat y val en NaN.
+  // Las columnas nuevas se agregaron AL FINAL, así que las primeras N de una
+  // fila vieja siguen siendo válidas: se deduce N del largo de la fila.
+  const nf=Math.max(0,row.length-2);
+  const campos=(nf===MKT_F.length)?MKT_F:MKT_F.slice(0,nf);
   const p={};
-  MKT_F.forEach((k,i)=>{ if(row[i]!==null&&row[i]!==undefined)p[k]=row[i]; });
-  const av=row[MKT_F.length];
+  campos.forEach((k,i)=>{ if(row[i]!==null&&row[i]!==undefined)p[k]=row[i]; });
+  const av=row[nf];
   if(av){ p.attrs={}; _attrKeys(p.pos).forEach((k,i)=>{ if(av[i]!=null)p.attrs[k]=av[i]; }); }
-  const ex=row[MKT_F.length+1];
+  const ex=row[nf+1];
   if(ex&&typeof ex==='object') Object.assign(p,ex);
   return p;
 }
@@ -6504,9 +6513,23 @@ function processScouts(){
 // Fuerza de un club cualquiera del mercado, sin atarse a una liga. clubPower
 // filtra por Liga ARG, así que para un comprador extranjero devolvía siempre el
 // valor por defecto y "¿es un salto de calidad?" nunca hacía nada.
+const LG_LEVEL={'Premier':84,'España':83,'Italia':82,'Alemania':82,'Francia':80,'Portugal':77,
+  'Holanda':76,'Arabia':76,'Turquía':75,'Bélgica':74,'Rusia':74,'Brasil':76,'Grecia':72,
+  'MLS':72,'Liga MX':73,'Liga ARG':73,'Colombia':70,'Chile':69,'Uruguay':69,'Perú':68,
+  'Ecuador':68,'Paraguay':68,'Bolivia':66,'Venezuela':66};
 function anyClubPower(club){
   const r=(G.market||[]).filter(p=>p.club===club).map(p=>p.rat).sort((a,b)=>b-a).slice(0,14);
-  return r.length?Math.round(r.reduce((a,x)=>a+x,0)/r.length):68;
+  if(r.length) return Math.round(r.reduce((a,x)=>a+x,0)/r.length);
+  // Varios clubes de la lista de compradores (Sevilla, Galatasaray, Al-Hilal...)
+  // no figuran en la base cargada. Antes caían todos al mismo 68; ahora se
+  // estima por su liga, así un grande europeo sigue leyéndose como un salto.
+  const BUYER_LG={'Sevilla':'España','Sevilla FC':'España','Galatasaray':'Turquía',
+    'Bayer Leverkusen':'Alemania','Leverkusen':'Alemania','Sporting CP':'Portugal',
+    'Al-Nassr':'Arabia','Al-Hilal':'Arabia','Benfica':'Portugal','Ajax':'Holanda',
+    'Olympique Lyon':'Francia','Monterrey':'Liga MX','Flamengo':'Brasil','Palmeiras':'Brasil'};
+  const lg=BUYER_LG[club];
+  if(lg&&LG_LEVEL[lg])return LG_LEVEL[lg];
+  return 72;
 }
 function clubPower(club){
   G._clubPow=G._clubPow||{};
@@ -12254,7 +12277,8 @@ function fmLoop(ts){
 // quietos los 22. Ahora la gente sigue caminando aunque la pelota esté parada.
 function fmIdleMove(dt,festeja){
   const f=FM; if(!f)return;
-  const acomodar=(arr,festejan)=>{
+  const acomodar=(arr,festejan,esMio)=>{
+    const atacaDerecha=esMio?f.myAttRight:!f.myAttRight;
     arr.forEach((p,i)=>{
       let tx=p.hx,ty=p.hy,acc=0.030;
       if(festeja&&festejan){
@@ -12262,7 +12286,7 @@ function fmIdleMove(dt,festeja){
         // Si el goleador no es de este equipo (gol en contra, desvío), festeja
         // el delantero más adelantado; antes cada uno se iba para su lado.
         const sc=(f._fmScorer&&arr.indexOf(f._fmScorer)>=0)?f._fmScorer
-                 :(arr.filter(q=>!q.isGK).sort((a,b)=>(f.myAttRight?b.x-a.x:a.x-b.x))[0]||arr[0]);
+                 :(arr.filter(q=>!q.isGK).sort((a,b)=>(atacaDerecha?b.x-a.x:a.x-b.x))[0]||arr[0]);
         if(p===sc&&!p.isGK){
           if(p._cx===undefined){p._cx=p.x+(Math.random()<0.5?-1:1)*260;p._cy=p.y+(Math.random()*2-1)*300;}
           tx=p._cx;ty=p._cy;acc=0.075;
@@ -12274,7 +12298,7 @@ function fmIdleMove(dt,festeja){
     });
   };
   const golMio=f.phase==='goal_my';
-  acomodar(f.my,golMio); acomodar(f.opp,!golMio);
+  acomodar(f.my,golMio,true); acomodar(f.opp,!golMio,false);
   if(!festeja){ f.my.forEach(p=>{p._cx=undefined;p._cy=undefined;});
                 f.opp.forEach(p=>{p._cx=undefined;p._cy=undefined;}); }
 }
@@ -14366,7 +14390,23 @@ function rPresTab(){
 // Refresca todo lo de la pestaña de táctica al entrar
 function rTacticaTab(){
   if(!G)return;
-  try{ rFBtns(); rFormation(); rBench(); rXI(); rStyle(); rTacOpts(); rSetPieces(); }catch(e){}
+  // Con un DT real el once lo pone él: dtPicksXI() lo rehace antes de cada
+  // partido. Antes la pestaña te dejaba mover fichas y los cambios se
+  // esfumaban sin decir nada.
+  const who=document.getElementById('tacWho');
+  if(who){
+    const mio=(typeof dtIsMine==='function')&&dtIsMine();
+    who.innerHTML=`<div class="note" style="margin:0;border-color:${mio?'rgba(246,211,24,.3)':'rgba(255,255,255,.1)'}">
+      ${mio?'⭐ <b>Vos dirigís</b>: el once, el banco, la táctica y las pelotas paradas los elegís vos.'
+           :`👔 El once lo pone <b>${(G.dt&&G.dt.name)||'el DT'}</b> y lo rearma antes de cada partido: lo que muevas acá no se va a respetar. Si querés mandar vos, creá un <b>DT personalizado</b> en Cuerpo Técnico.`}
+    </div>`;
+  }
+  // Cada bloque por separado: si uno falla, los otros igual se dibujan, y el
+  // error queda a la vista en vez de dejar la pestaña a medias sin avisar.
+  [['formación',rFBtns],['cancha',rFormation],['banco',rBench],['once',rXI],
+   ['estilo',rStyle],['táctica',rTacOpts],['designados',rSetPieces]].forEach(([n,fn])=>{
+    try{ fn(); }catch(e){ console.error('Táctica ·',n,e); lg('⚠️','No se pudo dibujar '+n+' en Táctica'); }
+  });
 }
 function gTab(name, btn){
   document.querySelectorAll('#game .main > .tc').forEach(t=>t.classList.remove('on'));
@@ -14782,10 +14822,16 @@ function negExecDeal(n,p){
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
   // El cupo se validaba al ENVIAR la oferta. Con varias operaciones en curso
   // podías cerrarlas todas juntas y pasarte de 5 extranjeros.
-  if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=5){
-    addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de extranjeros está lleno (5/5). La operación se cae.`,'🏛️');
-    lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
-    n.stage='cerrada';return;
+  // En un canje se van jugadores, así que el cupo se mide descontándolos:
+  // extranjero por extranjero no cambia el conteo y antes se caía igual.
+  if(typeof pIsForeign==='function'&&pIsForeign(p)){
+    const salen=(n.kind==='canje')?[(n.deal||{}).mineId,(n.deal||{}).mine2Id].filter(Boolean):[];
+    const quedan=G.squad.filter(q=>salen.indexOf(q.id)<0);
+    if(foreignCount(quedan)>=5){
+      addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de extranjeros está lleno (5/5). La operación se cae.`,'🏛️');
+      lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
+      n.stage='cerrada';return;
+    }
   }
   const out=negCashOut(n);
   if(out>G.budget){
@@ -15004,6 +15050,12 @@ function weeklyNegotiations(){
 }
 function negComplete(n,p,price,isPre){
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  // El cupo se validaba sólo en negExecDeal: por acá entraban libres y
+  // precontratos sin control.
+  if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=5){
+    addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: cupo de extranjeros lleno (5/5).`,'🏛️');
+    n.stage='cerrada';return;
+  }
   if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
   const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
   G.budget=Math.round((G.budget-price-wageCost)*10)/10;
