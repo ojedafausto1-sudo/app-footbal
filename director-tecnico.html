@@ -4,9 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#F6D318;--gold-d:#e8c400;--dark:#08090c;--d2:#0d0f14;--d3:#14171e;--mid:#1b1f28;--tx:#f2f4f8;--t2:#9aa3b2;--t3:#6b7382;--green:#3de84a;--green-d:#1fb32c;--red:#ff4d4d;--ora:#ffa03a;--pur:#c07bff;--bdr:rgba(255,255,255,.09);--card:rgba(255,255,255,.035);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(246,211,24,.4);color:var(--gold);background:rgba(246,211,24,.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle{letter-spacing:.01em}.hm-play{letter-spacing:.06em}
+:root{--gold:#F6D318;--gold-d:#e8c400;--dark:#08090c;--d2:#0d0f14;--d3:#14171e;--mid:#1b1f28;--tx:#f2f4f8;--t2:#9aa3b2;--t3:#6b7382;--green:#3de84a;--green-d:#1fb32c;--red:#ff4d4d;--ora:#ffa03a;--pur:#c07bff;--bdr:rgba(255,255,255,.09);--card:rgba(255,255,255,.035);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(246,211,24,.4);color:var(--gold);background:rgba(246,211,24,.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
+ font-stretch:condensed;letter-spacing:.005em}
+.stitle,.hm-play{font-weight:800;font-style:italic;text-transform:uppercase}
+.stat-tile .sv-n{font-family:'Archivo','Rajdhani',sans-serif;font-weight:800}.hm-play{letter-spacing:.06em}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:var(--dark);color:var(--tx);min-height:100vh;overflow-x:hidden;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em;background-image:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(70,80,100,.10),transparent 60%)}
 h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnum" 1}
@@ -298,7 +301,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
   </div>
   <!-- Team Grid -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px;width:100%;max-width:820px">
-    <div onclick="selectTeam('boca')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,30,100,.8),rgba(0,48,135,.35));border-color:#2244aa">
+    <div onclick="selectTeam('boca')" class="ts-card" style="background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.03));border-color:rgba(255,255,255,.16)">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🟡</div>
       <div class="ts-card-name" style="color:#FFD700">BOCA</div>
       <div class="ts-card-sub">JUNIORS</div>
@@ -333,6 +336,16 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="ts-card-val">Val: €43.6M</div>
       <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
     </div>
+  </div>
+  <div style="width:100%;max-width:820px;margin-top:20px">
+    <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;text-align:center">
+      …O DIRIGÍ A CUALQUIERA DE LA LIGA</div>
+    <div id="tsOtros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px"></div>
+  </div>
+  <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn bo bs" onclick="exportSave()">💾 Exportar partida</button>
+    <button class="btn bo bs" onclick="document.getElementById('impSave').click()">📂 Importar partida</button>
+    <input type="file" id="impSave" accept=".json,.txt" style="display:none" onchange="importSave(this)">
   </div>
   <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
     <button onclick="loadGame()" style="cursor:pointer;background:linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06));border:2px solid rgba(246,211,24,.5);border-radius:12px;padding:14px 32px;font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:800;color:#F6D318;letter-spacing:.08em;transition:.2s;text-shadow:0 0 20px rgba(246,211,24,.3)" onmouseover="this.style.background='linear-gradient(135deg,rgba(246,211,24,.25),rgba(246,211,24,.1))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06))'">▶ CONTINUAR PARTIDA</button>
@@ -2004,6 +2017,9 @@ function saveGame(){
     for(const k in G) snap[k]=G[k];
     snap.market=(G.market||[]).map(packPlayer);
     snap._mktPacked=1;
+    // arFix (71 KB) se deja tal cual a propósito: el fixture se genera barajado,
+    // así que reconstruirlo daría otros cruces y los resultados ya jugados no
+    // encajarían. No vale la pena romper una temporada en curso por 71 KB.
     localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
     G._saveFail=false;
   } catch(e){
@@ -2018,6 +2034,36 @@ function saveGame(){
   }
 }
 
+// ═══ RESPALDO REAL: la partida sale a un archivo ═══
+// Hay un solo slot en localStorage y el navegador lo puede borrar entero.
+function exportSave(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw){ alert('Todavía no hay ninguna partida guardada.'); return; }
+    const blob=new Blob([raw],{type:'application/json'});
+    const a=document.createElement('a');
+    const nom=(JSON.parse(raw).teamName||'partida').replace(/\s+/g,'-').toLowerCase();
+    a.href=URL.createObjectURL(blob);
+    a.download='director-tecnico-'+nom+'-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+  }catch(e){ alert('No se pudo exportar: '+e.message); }
+}
+function importSave(input){
+  const f=input&&input.files&&input.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const d=JSON.parse(rd.result);
+      if(!d||!d.teamId||!d.teamName){ alert('Ese archivo no es una partida de Director Técnico.'); return; }
+      localStorage.setItem(SAVE_KEY, rd.result);
+      if(loadGame()){ try{document.getElementById('teamSelect').style.display='none';}catch(e){} }
+      else alert('El archivo se leyó pero la partida no pudo cargarse.');
+    }catch(e){ alert('No se pudo importar: '+e.message); }
+  };
+  rd.readAsText(f);
+  input.value='';
+}
 function loadGame(){
   try{
     const raw = localStorage.getItem(SAVE_KEY);
@@ -2053,6 +2099,7 @@ function newGame(){
   document.title = 'DIRECTOR TÉCNICO v7 — Fútbol Argentino';
   document.getElementById('game').classList.remove('on');
   document.getElementById('teamSelect').style.display = 'flex';
+  try{ rOtrosTeams(); }catch(e){}
 }
 
 // =============================================
@@ -2127,6 +2174,64 @@ const TEAMS = {
   racing:{name:'Racing Club',     abbr:'RACIN',color:'#003399', badge:'RC',  stadName:'El Cilindro',      stadCap:52000, stadInc:1.6, initBudget:20, initRep:74, initMorale:70, dtIdx:76},
   sanlo: {name:'San Lorenzo',     abbr:'SANLO',color:'#004c97', badge:'SL',  stadName:'Pedro Bidegain',   stadCap:32000, stadInc:1.0, initBudget:18, initRep:72, initMorale:68, dtIdx:77},
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// LOS 30 DE LA LIGA, JUGABLES
+// ═══════════════════════════════════════════════════════════════════════
+// TEAMS tenía 5 clubes escritos a mano. Los otros 25 existían en la liga pero
+// no se podían elegir. Ahora se generan desde AR_CLUBS: la fuerza del plantel
+// sale de la base y de ahí se derivan presupuesto, reputación y estadio.
+// Los 5 curados mandan sobre lo generado (tienen datos reales de cancha).
+function _slugTeam(n){
+  return String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'').slice(0,14)||'club';
+}
+function buildAllTeams(){
+  if(typeof AR_CLUBS==='undefined')return;
+  const db=window.PLAYERS_DB||[];
+  const fuerza={};
+  db.forEach(r=>{ const club=r[5]; if(!club)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
+  AR_CLUBS.forEach(name=>{
+    const id=_slugTeam(name);
+    if(TEAMS[id])return;                       // ya está curado a mano
+    if(Object.values(TEAMS).some(t=>t.name===name))return;
+    const vals=(fuerza[name]||[]).sort((a,b)=>b-a).slice(0,18);
+    const val=vals.reduce((a,x)=>a+x,0);       // valor del plantel en M
+    // Escalas atadas al valor real del plantel, con topes sensatos
+    const rep=Math.max(38,Math.min(76,Math.round(40+Math.sqrt(Math.max(0,val))*4.6)));
+    const cap=Math.max(9000,Math.min(48000,Math.round(6000+val*900)));
+    TEAMS[id]={
+      name, abbr:name.toUpperCase().slice(0,5),
+      color:(typeof clubColors==='function'?clubColors(name)[0]:'#2a4a7a'),
+      badge:(typeof clubInitials==='function'?clubInitials(name):name.slice(0,2).toUpperCase()),
+      stadName:'Estadio de '+name.split(' ')[0],
+      stadCap:cap,
+      stadInc:Math.round((0.35+val*0.022)*10)/10,
+      initBudget:Math.max(2,Math.round(1.5+val*0.28)),
+      initRep:rep, initMorale:Math.max(52,Math.min(72,Math.round(50+rep*0.28))),
+      dtIdx:0, generado:true
+    };
+  });
+}
+
+// Dibuja los clubes generados debajo de los 5 grandes
+function rOtrosTeams(){
+  const el=document.getElementById('tsOtros'); if(!el)return;
+  buildAllTeams();
+  const grandes=['boca','river','indep','racing','sanlo'];
+  const otros=Object.entries(TEAMS).filter(([id])=>grandes.indexOf(id)<0)
+    .sort((a,b)=>b[1].initRep-a[1].initRep);
+  el.innerHTML=otros.map(([id,t])=>`
+    <div onclick="selectTeam('${id}')" style="cursor:pointer;display:flex;align-items:center;gap:7px;
+         background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 8px"
+         onmouseover="this.style.borderColor='rgba(246,211,24,.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,.09)'">
+      ${typeof clubCrest==='function'?clubCrest(t.name,26):''}
+      <div style="min-width:0;flex:1">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.4)">Rep ${t.initRep} · $${t.initBudget}M</div>
+      </div>
+    </div>`).join('');
+}
 
 function selectTeam(teamId){
   applyTeamTheme(teamId);
@@ -11747,12 +11852,42 @@ function fmAdjustProfile(base,dt,diff,minute){
   }
   return o;
 }
+// ═══ EL DT LEE EL PARTIDO, NO SÓLO EL MARCADOR ═══
+// fmAdjustProfile sólo miraba diferencia de gol y minuto. Un técnico también ve
+// que lo están apretando, que su equipo no llega, o que tiene el equipo partido,
+// y corrige. Esto se suma encima del ajuste por resultado.
+function fmCoachRead(f,prof,mio){
+  if(!prof)return prof;
+  const mios=mio?f.my:f.opp, otros=mio?f.opp:f.my;
+  const st=mio?f.stat.my:f.stat.opp, stR=mio?f.stat.opp:f.stat.my;
+  const min=f.minute||0;
+  if(min<12)return prof;
+  const q=Object.assign({},prof);
+  // ¿Nos están rematando mucho más? Achicar y bajar la línea.
+  const dif=(stR.shots||0)-(st.shots||0);
+  if(dif>=4){ q.press=Math.min(1,q.press+0.10); q.line=Math.max(0,q.line-0.12); }
+  // ¿No llegamos al arco? Subir la línea y jugar más directo.
+  if(min>=30&&(st.shots||0)<=2){ q.line=Math.min(1,q.line+0.12); q.direct=Math.min(1,q.direct+0.12); }
+  // ¿El equipo está partido? (defensa y ataque muy separados) → juntar líneas
+  const xs=mios.filter(p=>!p.isGK).map(p=>p.x);
+  if(xs.length){
+    const largo=Math.max(...xs)-Math.min(...xs);
+    if(largo>(f.rightGL-f.leftGL)*0.62){ q.line=Math.max(0,q.line-0.10); q.press=Math.max(0,q.press-0.08); }
+  }
+  // Piernas fundidas: bajar la presión antes de que se rompa alguno
+  const stam=mios.filter(p=>!p.isGK).map(p=>p.stam===undefined?100:p.stam);
+  const media=stam.length?stam.reduce((a,x)=>a+x,0)/stam.length:100;
+  if(media<72){ q.press=Math.max(0,q.press-0.14); q.tempo=Math.max(0,(q.tempo||0.5)-0.10); }
+  q._mode=prof._mode;
+  return q;
+}
+
 function fmUpdateTactics(){
   const f=FM;if(!f||!f.myProf)return;
   const prevMy=f.myProfEff?f.myProfEff._mode:'normal';
   const prevOpp=f.oppProfEff?f.oppProfEff._mode:'normal';
-  f.myProfEff=fmAdjustProfile(f.myProf,G.dt,f.myG-f.oppG,f.minute);
-  f.oppProfEff=fmAdjustProfile(f.oppProf,f.oppDT,f.oppG-f.myG,f.minute);
+  f.myProfEff=fmCoachRead(f,fmAdjustProfile(f.myProf,G.dt,f.myG-f.oppG,f.minute),true);
+  f.oppProfEff=fmCoachRead(f,fmAdjustProfile(f.oppProf,f.oppDT,f.oppG-f.myG,f.minute),false);
   // Anunciar cambios de plan (y reflejarlos en los chips de los DTs)
   const MODES={allout:'🔥 TODO AL ATAQUE',push:'📈 ADELANTA LÍNEAS',hold:'🧊 DUERME EL PARTIDO',settle:'🔒 ASEGURA EL PUNTO',normal:''};
   const upd=(id,dt,mode)=>{
