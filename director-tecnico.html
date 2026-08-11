@@ -10474,6 +10474,63 @@ function sitSetupDefense(W,H,oR){
 // =============================================
 // STATS TAB
 // =============================================
+// ═══════════════════════════════════════════════════════════════════════
+// TARJETA DE CARRERA
+// ═══════════════════════════════════════════════════════════════════════
+// Los datos ya se guardaban (G.history por temporada, G.trophies por título)
+// y la pestaña STATS los desglosaba, pero no había un lugar donde ver la
+// gestión entera de un vistazo. Esto es ese resumen.
+function careerCard(){
+  if(!G)return '';
+  const h=G.history||[], trs=G.trophies||[];
+  const temps=h.length+1;                               // las cerradas + la actual
+  const W=h.reduce((a,x)=>a+(x.w||0),0)+G.wins;
+  const D=h.reduce((a,x)=>a+(x.d||0),0)+G.draws;
+  const L=h.reduce((a,x)=>a+(x.l||0),0)+G.losses;
+  const GF=h.reduce((a,x)=>a+(x.gf||0),0)+G.gf;
+  const GA=h.reduce((a,x)=>a+(x.ga||0),0)+G.ga;
+  const pj=W+D+L, pts=W*3+D;
+  const efi=pj?Math.round(pts/(pj*3)*100):0;
+  const titulos=trs.length+h.filter(x=>x.champion).length;
+  // Rango según lo ganado y lo aguantado: el mote que te ponés en la vitrina
+  const rango= titulos>=8?{t:'LEYENDA',c:'var(--gold)',e:'🗿'}
+             : titulos>=4?{t:'ÍDOLO',c:'var(--gold)',e:'⭐'}
+             : titulos>=1?{t:'CAMPEÓN',c:'var(--green)',e:'🏆'}
+             : temps>=3?{t:'DE LA CASA',c:'var(--t2)',e:'🧱'}
+             : {t:'RECIÉN LLEGADO',c:'var(--t3)',e:'🌱'};
+  const cont={}; trs.forEach(t=>cont[t.name]=(cont[t.name]||0)+1);
+  h.filter(x=>x.champion).forEach(()=>cont['Liga Argentina']=(cont['Liga Argentina']||0)+1);
+  const tile=(n,l)=>`<div class="stat-tile"><div class="sv-n">${n}</div><div class="sv-l">${l}</div></div>`;
+  return `<div class="card" style="margin-bottom:10px;border-color:rgba(246,211,24,.28);
+       background:linear-gradient(150deg,rgba(246,211,24,.09),rgba(255,255,255,.02))">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      ${typeof clubCrest==='function'?clubCrest(G.teamName,44):''}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:9px;color:var(--t3);letter-spacing:.18em;text-transform:uppercase">Tu gestión</div>
+        <div class="stitle" style="font-size:21px;margin:0;color:${rango.c}">${rango.e} ${rango.t}</div>
+        <div style="font-size:10px;color:var(--t2)">${G.teamName} · ${temps} temporada${temps>1?'s':''} · desde ${(h[0]&&h[0].season)||G.season}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">
+      ${tile(titulos,'Títulos')}${tile(pj,'Partidos')}${tile(efi+'%','Efectividad')}${tile((GF-GA>0?'+':'')+(GF-GA),'Dif. gol')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">
+      ${tile(W,'Ganados')}${tile(D,'Empatados')}${tile(L,'Perdidos')}
+    </div>
+    ${Object.keys(cont).length?`<div style="font-size:9px;color:var(--t3);margin-bottom:4px">VITRINA</div>
+      <div>${Object.entries(cont).sort((a,b)=>b[1]-a[1]).map(([n,c])=>
+        `<span class="chip gold">🏆 ${c>1?c+'× ':''}${n}</span>`).join('')}</div>`
+      :'<div class="note" style="margin:0">Todavía sin títulos. La vitrina espera.</div>'}
+    ${h.length?`<div style="font-size:9px;color:var(--t3);margin:9px 0 4px">TEMPORADA A TEMPORADA</div>
+      ${h.slice().reverse().map(x=>`<div class="crest-row">
+        <span style="width:42px;font-family:'Rajdhani',sans-serif;color:var(--t3);font-size:11px">${x.season}</span>
+        <span style="flex:1;font-size:11px">${x.champion?'<b style="color:var(--gold)">🏆 Campeón</b>':(x.pos+'º de '+x.clubs)}</span>
+        <span style="font-size:10px;color:var(--t2)">${x.w}-${x.d}-${x.l}</span>
+        <span style="font-size:11px;font-weight:700;min-width:34px;text-align:right">${x.pts} pts</span>
+      </div>`).join('')}`:''}
+  </div>`;
+}
+
 function rStats(){
   const el = document.getElementById('statsContent');
   if(!el||!G) return;
@@ -10560,7 +10617,8 @@ function rStats(){
     col3('⚽ Goleadores',scorers.slice(0,6),'goals','')+
     col3('🅰️ Asistencias',asis,'assists','')+
     col3('⭐ MVP del partido',mvps,'mvpCount','');
-  el.innerHTML = (window._finHtml||'')+(window._topHtml||'')+(window._palmaresHtml||'')+(window._histHtml||'')+`
+  const _career=careerCard();
+  el.innerHTML = _career + (window._finHtml||'')+(window._topHtml||'')+(window._palmaresHtml||'')+(window._histHtml||'')+`
     <div class="card" style="margin-bottom:10px">
       <div class="ctitle">📈 Forma Reciente</div>
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
