@@ -3909,6 +3909,7 @@ function renderMkt(){
   pl = pl.slice(0,150);
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
+  ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
   el.innerHTML = winBanner+pl.map(p=>{
@@ -3916,7 +3917,8 @@ function renderMkt(){
     const vb = vbadges(p);
     return `
     <div class="mkrow" onclick="openP('${p.id}',false)">
-      <div>${rbK(p)}</div>
+      <div style="position:relative">${rbK(p)}<span onclick="event.stopPropagation();cmpToggle('${p.id}')"
+        title="Comparar" style="position:absolute;top:-6px;left:-7px;font-size:11px;cursor:pointer;opacity:${(G._cmp||[]).includes(p.id)?1:.28}">⚖️</span></div>
       <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="display:flex;align-items:center;gap:5px;font-size:9px;color:var(--t2)" title="${p.club}">${clubCrest(p.club,18)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.lg.split(' ')[0]}</span></div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
@@ -15443,6 +15445,63 @@ function negComplete(n,p,price,isPre){
 // ═══ PANEL DE NEGOCIACIONES ABIERTAS ═══
 // Lo que se movió en el mercado mientras vos mirabas: se alimenta de los
 // fichajes que hacen los clubes de la IA, con club de origen, destino y monto.
+// ═══════════════════════════════════════════════════════════════════════
+// COMPARAR DOS JUGADORES LADO A LADO
+// ═══════════════════════════════════════════════════════════════════════
+// En el mercado sólo se podía mirar de a uno y volver atrás. Ahora se marcan
+// dos y se ven enfrentados, atributo por atributo.
+function cmpToggle(id){
+  G._cmp=G._cmp||[];
+  const i=G._cmp.indexOf(id);
+  if(i>=0) G._cmp.splice(i,1);
+  else { G._cmp.push(id); if(G._cmp.length>2) G._cmp.shift(); }
+  renderMkt();
+  if(G._cmp.length===2) openCompare();
+}
+function cmpFind(id){
+  return (G.market||[]).find(p=>p.id===id)||(G.squad||[]).find(p=>p.id===id);
+}
+function openCompare(){
+  const ids=(G._cmp||[]).slice(0,2);
+  const a=cmpFind(ids[0]), b2=cmpFind(ids[1]);
+  if(!a||!b2){ flash('Marcá dos jugadores para comparar','draw'); return; }
+  ensureAttrs(a); ensureAttrs(b2);
+  const mejor=(x,y)=>x>y?'color:var(--green);font-weight:700':x<y?'color:var(--t3)':'';
+  const fila=(lbl,va,vb,fmt)=>{
+    const f=fmt||(v=>v);
+    return `<div style="display:grid;grid-template-columns:1fr 92px 1fr;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="text-align:right;${mejor(va,vb)}">${f(va)}</div>
+      <div style="text-align:center;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">${lbl}</div>
+      <div style="${mejor(vb,va)}">${f(vb)}</div></div>`;
+  };
+  const cab=p=>`<div style="text-align:center">
+    ${typeof clubCrest==='function'?'<div style="display:flex;justify-content:center;margin-bottom:4px">'+clubCrest(p.club,30)+'</div>':''}
+    <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px">${p.name}</div>
+    <div style="font-size:9px;color:var(--t3)">${p.pos} · ${p.club}</div></div>`;
+  // Los atributos comunes a los dos (arquero y jugador de campo no comparten set)
+  const claves=Object.keys(a.attrs).filter(k=>b2.attrs[k]!==undefined);
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">⚖️ Comparar</div>
+    <div style="display:grid;grid-template-columns:1fr 92px 1fr;gap:6px;margin-bottom:10px">
+      ${cab(a)}<div></div>${cab(b2)}
+    </div>
+    ${fila('Media',a.rat,b2.rat)}
+    ${fila('Potencial',a.pot||a.rat,b2.pot||b2.rat)}
+    ${fila('Edad',-a.age,-b2.age,v=>(-v)+' años')}
+    ${fila('Valor',a.val,b2.val,v=>fv(v))}
+    ${fila('Sueldo',-(a.wage||0),-(b2.wage||0),v=>(-v)+'k/sem')}
+    ${fila('Contrato',a.contract||0,b2.contract||0)}
+    ${claves.map(k=>fila(k,a.attrs[k],b2.attrs[k])).join('')}
+    ${a.pos!==b2.pos?'<div class="note" style="margin-top:8px">⚠️ Juegan en puestos distintos: la comparación directa engaña.</div>':''}
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn bo bs" style="flex:1" onclick="closeMod();openP('${a.id}',false)">Ver a ${a.name.split(' ').pop()}</button>
+      <button class="btn bo bs" style="flex:1" onclick="closeMod();openP('${b2.id}',false)">Ver a ${b2.name.split(' ').pop()}</button>
+      <button class="btn bR bs" onclick="G._cmp=[];closeMod();renderMkt()">Limpiar</button>
+    </div>
+  `);
+}
+
 function openTransferLog(){
   const t=G.transferLog||[];
   showMod(`
