@@ -69,6 +69,62 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .tc2{display:grid;grid-template-columns:1fr 290px;gap:10px}
 @media(max-width:680px){.g2,.g3,.g4,.tc2{grid-template-columns:1fr!important}}
+/* ═══════════════════════════════════════════════════════════════════
+   CELULAR — antes había UNA sola media query y todo lo demás estaba
+   pensado para pantalla grande: el encabezado comía media pantalla, la
+   barra de pestañas scrolleaba sin avisar y el botón del celular tapaba
+   la tabla de posiciones.
+   ═══════════════════════════════════════════════════════════════════ */
+@media(max-width:520px){
+  body{font-size:13px}
+  .main{padding:8px!important}
+  .card{padding:10px;border-radius:11px}
+  /* Encabezado más bajo: el club y los datos en una tira compacta */
+  .topbar,.hdr{padding:6px 8px!important;gap:5px!important}
+  .pv{font-size:10px!important}
+  .stitle{font-size:19px!important}
+  /* Barra de pestañas: se desliza con inercia y avisa que hay más */
+  .nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;
+       scrollbar-width:none;position:relative;
+       -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);
+       mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  .nav::-webkit-scrollbar{display:none}
+  .nb{scroll-snap-align:start;flex:0 0 auto;min-width:64px;padding:6px 9px!important;font-size:9.5px!important}
+  .ni{font-size:17px!important}
+  /* Objetivos táctiles cómodos (Apple/Google recomiendan 44px) */
+  .btn{min-height:38px;padding:8px 11px}
+  .btn.bs{min-height:32px}
+  .hm-play{padding:13px!important;font-size:16px!important}
+  select.fs,select.sb,input.sb{min-height:38px;font-size:13px}
+  /* Fichas de estadística: que el número no se corte */
+  .stat-tile{padding:9px 4px}
+  .stat-tile .sv-n{font-size:19px}
+  .stat-tile .sv-l{font-size:7.5px;letter-spacing:.07em}
+  /* Tabla de posiciones legible sin zoom */
+  .mkrow{gap:4px!important}
+  /* El celular: más chico y corrido, para no taparte el contenido */
+  #phoneBtn{width:52px!important;height:52px!important;font-size:22px!important;
+            bottom:calc(12px + env(safe-area-inset-bottom))!important;right:10px!important;
+            border-width:2px!important}
+  #phoneBadge{transform:scale(.85)}
+  /* La cancha de la pestaña Táctica, proporcional a la pantalla */
+  #pitchSlots{height:min(64vh,380px)!important}
+  /* Modales a pantalla casi completa: en el celular no se leen chicos */
+  .mbox{max-height:88vh;width:calc(100vw - 20px);padding:14px}
+  /* Respetar el notch y la barra de gestos */
+  .main{padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
+}
+@media(max-width:380px){
+  .nb{min-width:58px;font-size:9px!important}
+  .stat-tile .sv-n{font-size:17px}
+  .stitle{font-size:17px!important}
+}
+/* En horizontal sólo se compacta: esconder la nav te dejaba sin navegación */
+@media(max-height:480px) and (orientation:landscape){
+  .main{padding:5px!important}
+  .nb{padding:4px 8px!important}
+  .ni{display:none}
+}
 .card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;box-shadow:var(--sh);transition:transform .15s,border-color .15s,box-shadow .15s}
 .card:hover{border-color:rgba(246,211,24,.28);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.4)}
 .ctitle{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
@@ -1938,6 +1994,15 @@ const THEMES = {
   sanlo: { dark:'#010b18', d2:'#011220', d3:'#01182a', mid:'#022038', card:'rgba(1,11,24,.75)',  gold:'#e63946', goldD:'#c0222e', bdr:'rgba(230,57,70,.14)'   },
 };
 
+// Los clubes generados no tenían entrada en THEMES y caían al azul de Boca.
+// buildAllTeams ya calcula el color de cada uno: se usa ese.
+function themeForTeam(teamId){
+  if(typeof THEMES!=='undefined'&&THEMES[teamId])return THEMES[teamId];
+  const t=(typeof TEAMS!=='undefined')&&TEAMS[teamId];
+  if(!t)return null;
+  const c=(typeof clubColors==='function')?clubColors(t.name):[t.color||'#2a4a7a','#111'];
+  return {accent:c[0],accent2:c[1]||c[0]};
+}
 function applyTeamTheme(teamId){
   const t = THEMES[teamId] || THEMES.boca;
   const s = document.documentElement.style;
@@ -14763,14 +14828,29 @@ function addPhoneMsg(type, from, body, icon, data){
   updatePhoneBadge();
 }
 
+// ¿Corresponde mostrar el celular? Sólo navegando el club. Durante un partido,
+// una jugada clave o con un modal abierto estorba: antes flotaba encima de la
+// cancha en cualquier modo.
+function phoneShouldShow(){
+  if(!G||!G.week) return false;
+  // Ojo: offsetParent es null en elementos position:fixed, así que no sirve
+  // para saber si están visibles. Se mira sólo el display computado.
+  const vis=id=>{const e=document.getElementById(id);
+    return !!e&&getComputedStyle(e).display!=='none';};
+  if(vis('phoneOverlay')) return false;
+  if(vis('modOv')) return false;                       // hay un modal abierto
+  if(typeof FM!=='undefined'&&FM&&FM.phase!=='done') return false;   // partido 11v11
+  if(typeof SIT!=='undefined'&&SIT) return false;                     // jugada clave
+  if(typeof LM!=='undefined'&&LM&&!LM.done) return false;             // partido en vivo
+  if(vis('lmScreen')||vis('fmScreen')||vis('lmGame')) return false;
+  const g=document.getElementById('game');
+  if(!g||!g.classList.contains('on')) return false;    // intro o selector de equipo
+  return true;
+}
 function updatePhoneBadge(){
   const btn = document.getElementById('phoneBtn');
   const badge = document.getElementById('phoneBadge');
-  if(btn){
-    const gameOn = G && G.week;
-    const phoneOvOpen = document.getElementById('phoneOverlay') && document.getElementById('phoneOverlay').style.display === 'flex';
-    btn.style.display = (gameOn && !phoneOvOpen) ? 'flex' : 'none';
-  }
+  if(btn) btn.style.display = phoneShouldShow() ? 'flex' : 'none';
   if(!badge) return;
   const unread = (G && G.phoneMsgs) ? G.phoneMsgs.filter(m=>!m.read).length : 0;
   if(unread > 0){
@@ -14797,10 +14877,11 @@ function openPhone(){
 function closePhone(){
   const ov = document.getElementById('phoneOverlay');
   if(ov) ov.style.display = 'none';
-  const btn = document.getElementById('phoneBtn');
-  if(btn) btn.style.display = 'flex';
   updatePhoneBadge();
 }
+// El celular se revisa solo: si entrás a un partido desaparece sin que nadie
+// tenga que acordarse de esconderlo.
+setInterval(()=>{ try{ updatePhoneBadge(); }catch(e){} }, 400);
 
 function phTab(tab, el){
   _phTab = tab;
