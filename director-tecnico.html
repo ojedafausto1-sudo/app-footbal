@@ -1125,6 +1125,10 @@ function buildSquad(teamId){
   if(teamId==='indep')  return buildIndependiente();
   if(teamId==='racing') return buildRacing();
   if(teamId==='sanlo')  return buildSanLorenzo();
+  // Los 25 clubes generados caían todos acá y arrancaban con el plantel de
+  // Boca. Cada uno tiene sus jugadores en la base: se arma desde ahí.
+  const t=(typeof TEAMS!=='undefined')&&TEAMS[teamId];
+  if(t&&t.name) return squadFromDB(t.name, buildBoca);
   return buildBoca();
 }
 
@@ -2056,9 +2060,15 @@ function importSave(input){
     try{
       const d=JSON.parse(rd.result);
       if(!d||!d.teamId||!d.teamName){ alert('Ese archivo no es una partida de Director Técnico.'); return; }
+      // Se guarda una copia de lo que había: si el archivo importado no carga,
+      // se restaura. Antes se pisaba la partida antes de saber si servía.
+      const previo=localStorage.getItem(SAVE_KEY);
       localStorage.setItem(SAVE_KEY, rd.result);
       if(loadGame()){ try{document.getElementById('teamSelect').style.display='none';}catch(e){} }
-      else alert('El archivo se leyó pero la partida no pudo cargarse.');
+      else {
+        if(previo!==null) localStorage.setItem(SAVE_KEY, previo); else localStorage.removeItem(SAVE_KEY);
+        alert('El archivo se leyó pero la partida no pudo cargarse. Tu partida anterior quedó intacta.');
+      }
     }catch(e){ alert('No se pudo importar: '+e.message); }
   };
   rd.readAsText(f);
@@ -2066,6 +2076,9 @@ function importSave(input){
 }
 function loadGame(){
   try{
+    // Sin esto, continuar con un club generado dejaba TEAMS[G.teamId] indefinido
+    // (sin color, sin escudo, sin chequeo de Libertadores).
+    try{ buildAllTeams(); }catch(e){}
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return false;
     const saved = JSON.parse(raw);
@@ -2209,7 +2222,10 @@ function buildAllTeams(){
       stadInc:Math.round((0.35+val*0.022)*10)/10,
       initBudget:Math.max(2,Math.round(1.5+val*0.28)),
       initRep:rep, initMorale:Math.max(52,Math.min(72,Math.round(50+rep*0.28))),
-      dtIdx:0, generado:true
+      // Un DT distinto por club (antes los 25 compartían el mismo técnico,
+      // el mismo rasgo y el mismo 4-3-3) y su color para el tema de la interfaz.
+      dtIdx:(function(){let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;return h%80;})(),
+      generado:true
     };
   });
 }
@@ -12534,6 +12550,12 @@ function fmIdleMove(dt,festeja){
 function fmTick(dt){
   const f=FM,k=f.keys;
   if(f.phase==='paused'||f.phase==='help')return;
+  // El salto de presión se descuenta ACÁ, antes de los returns de pelota
+  // parada y festejo: si no, un salto armado justo antes de que saliera la
+  // pelota seguía entero después de un córner de 4 segundos.
+  if(f._trapT===undefined)f._trapT=0;
+  if(f._trapT>0)f._trapT-=dt;
+  if(f.phase!=='play')f._trapT=0;
   if(f.phase==='kickoff'){f.phaseT+=dt;fmIdleMove(dt,false);if(f.phaseT>90){f.phase='play';f.phaseT=0;}return;}
   if(f.phase==='restart'){
     f.phaseT+=dt;
@@ -12557,9 +12579,7 @@ function fmTick(dt){
     if(f.phaseT>200){f.half=2;fmFlip();fmReset('my');f.phase='kickoff';f.phaseT=0;}
     return;
   }
-  // Detecta el momento de saltar: mal control del rival, retroceso o banda
-  if(f._trapT===undefined)f._trapT=0;
-  if(f._trapT>0)f._trapT-=dt;
+
   if(f.phase==='play'&&f.possSide&&f._trapT<=0){
     const car=f.poss, bb=f.ball;
     if(car){
@@ -15853,6 +15873,10 @@ function rejectDtReqPhone(id){
 // PAGE INIT — detect saved game
 // =============================================
 (function(){
+  // Los 25 clubes generados se arman y se dibujan ACÁ, al cargar la página.
+  // Antes sólo se hacía dentro de newGame(), que primero borra la partida: en
+  // una carga normal la grilla quedaba vacía y no se podía elegir ninguno.
+  try{ buildAllTeams(); rOtrosTeams(); }catch(e){}
   try{
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return;
