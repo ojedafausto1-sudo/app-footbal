@@ -920,6 +920,60 @@ function rb(r) {
   return `<span class="rb ${cl}">${r}</span>`;
 }
 // Etiqueta de edad
+// ═══════════════════════════════════════════════════════════════════════
+// TRAYECTORIA DE DESARROLLO: cada jugador tiene SU pico
+// ═══════════════════════════════════════════════════════════════════════
+// Antes todos compartían la misma curva de edad: crecían y caían a la vez.
+// Ahora cada uno tiene su edad de pico y su velocidad de maduración, sacadas
+// de su nombre (siempre las mismas para el mismo jugador). Hay precoces que
+// explotan a los 21 y tardíos que recién arrancan pasados los 27.
+function devSeed(p){
+  const n=String((p&&p.name)||'')+String((p&&p.id)||'');
+  let h=2166136261;
+  for(let i=0;i<n.length;i++){h^=n.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}
+  return h;
+}
+// Edad a la que toca su techo: 24 (precoz) a 32 (tardío), con el grueso en 27-29
+function peakAge(p){
+  if(p._peak)return p._peak;
+  const h=devSeed(p), r=(h%1000)/1000;
+  // Campana simple: los extremos son raros, como en la vida real
+  // OJO: >> es con signo y el hash pasa 2^31, así que daba NEGATIVO (picos
+  // de 20 años y velocidades bajo cero). Con >>> queda siempre positivo.
+  const v=(r+(((h>>>10)%1000)/1000))/2;
+  const pk=Math.round(24+v*8);
+  const arq=p.pos==='ARQ'?2:0;               // los arqueros maduran más tarde
+  return (p._peak=Math.min(34,pk+arq));
+}
+// Qué tan rápido madura: 0.6 (lento, se cocina a fuego lento) a 1.5 (explota ya)
+function devSpeed(p){
+  if(p._devSpd)return p._devSpd;
+  const h=devSeed(p);
+  return (p._devSpd=Math.round((0.6+((h>>>20)%100)/100*0.9)*100)/100);
+}
+// Etiqueta para mostrarle al usuario qué clase de carrera se le viene
+function devLabel(p){
+  const pk=peakAge(p), sp=devSpeed(p);
+  if(pk<=25&&sp>=1.15)return {t:'Precoz',c:'var(--pur)',d:'Explota joven: llega a su techo temprano'};
+  if(pk>=31)          return {t:'Tardío',c:'var(--ora)',d:'Madura tarde: su mejor versión llega pasados los 30'};
+  if(sp>=1.30)        return {t:'Fulgurante',c:'var(--green)',d:'Progresa muy rápido'};
+  if(sp<=0.72)        return {t:'De cocción lenta',c:'var(--t2)',d:'Progresa despacio, pero sostenido'};
+  return {t:'Normal',c:'var(--t3)',d:'Desarrollo estándar'};
+}
+// Factor de crecimiento según la DISTANCIA A SU PROPIO PICO, no a una tabla fija
+function devFactor(p){
+  const a=p.age||26, pk=peakAge(p), sp=devSpeed(p);
+  const d=a-pk;
+  if(d<=-6) return 1.55*sp;      // muy lejos del pico: crece a lo loco
+  if(d<=-3) return 1.15*sp;
+  if(d<=-1) return 0.70*sp;
+  if(d<=1)  return 0.18*sp;      // en su pico: se sostiene
+  if(d<=3)  return 0.02;         // meseta corta después del pico
+  if(d<=5)  return -0.13;
+  if(d<=7)  return -0.25;
+  return -0.40;                  // muy pasado: se cae
+}
+
 function ratToVal(rat, age, pos) {
   const pts=Math.max(0,Math.min(36,rat-55-ageAdj(age)-ratPosMod(pos||'MC')));
   return Math.max(0.1,Math.round(0.1*Math.exp(pts/36*RAT_LNR)*10)/10);
@@ -3225,6 +3279,28 @@ function openP(id, inSquad){
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;color:var(--green);font-family:'Rajdhani',sans-serif">${p.morale}%</div><div style="font-size:9px;color:var(--t3)">Moral</div></div>
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;font-family:'Rajdhani',sans-serif">${p.contract}</div><div style="font-size:9px;color:var(--t3)">Contrato</div></div>
     </div>
+    ${(()=>{ // ═══ TRAYECTORIA: dónde está parado en su carrera ═══
+      if(typeof devLabel!=='function')return '';
+      const dl=devLabel(p), pk=peakAge(p), a=p.age||26;
+      const pct=Math.max(0,Math.min(100,((a-16)/(pk+4-16))*100));
+      const est=a<pk-1?'Todavía en subida':a<=pk+1?'En su mejor momento':a<=pk+4?'Empezando a bajar':'En retirada';
+      return `<div class="card" style="padding:10px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+          <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">📈 Trayectoria</span>
+          <span style="font-size:11px;font-weight:700;color:${dl.c}">${dl.t}</span>
+        </div>
+        <div style="height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;position:relative">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--green),var(--gold),var(--red))"></div>
+          <div style="position:absolute;left:${Math.min(97,((pk-16)/(pk+4-16))*100)}%;top:-2px;width:2px;height:10px;background:#fff"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:3px">
+          <span>${a} años</span><span>pico ~${pk}</span>
+        </div>
+        <div style="font-size:10px;color:var(--t2);margin-top:4px">${est} · ${dl.d}</div>
+      </div>`;
+    })()}
+    <div style="display:none">
+    </div>
     <div style="margin-bottom:11px">${attrs}</div>
     <div style="display:flex;gap:5px;flex-wrap:wrap">
       ${sq ? `
@@ -3262,7 +3338,20 @@ function _negDemand(p){
   const sdDisc=sd>=2?0.86:sd>=1?0.93:1.0;
   return Math.round(p.val*(1.1+Math.random()*.2)*prestige*sdDisc*10)/10;
 }
-function _negWageExpect(p){return Math.max(5,Math.round(p.rat*0.55));}
+// El sueldo que pide depende de EN QUÉ PARTE DE SU CARRERA está: en su pico
+// pide el contratazo, entrando o saliendo negocia. Antes era rat*0.55 para
+// todos, ciego a la edad.
+function _negWageExpect(p){
+  const base=p.rat*0.55;
+  if(typeof peakAge!=='function')return Math.max(5,Math.round(base));
+  const d=(p.age||26)-peakAge(p);
+  const etapa = d<=-5?0.78     // pibe: se conforma con jugar
+              : d<=-2?0.90
+              : d<=1 ?1.18     // en su pico: el contratazo
+              : d<=4 ?1.02
+              : 0.82;          // de salida: negocia
+  return Math.max(5,Math.round(base*etapa));
+}
 function _negStepBar(step){
   const steps=[{l:'1 CONTACTO',k:'contact'},{l:'2 OFERTA',k:'offer'},{l:'3 TÉRMINOS',k:'terms'},{l:'4 FIRMA',k:'sign'}];
   return `<div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">${steps.map((s,i)=>{
@@ -7835,10 +7924,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
       const pot=p.pot||Math.min(99,p.rat+Math.max(3,20-Math.max(0,p.age-18)));
       const potGap=pot-p.rat;
       // Age factor: peak growth 18-23, decline after 30
-      // A los 30 ya no se cae nadie: de 30 a 32 es meseta (sólo baja el que
-      // rinde mal) y la merma de verdad arranca a los 33/34, despacio.
-      let ageFac=p.age<=19?1.8:p.age<=21?1.4:p.age<=23?1.0:p.age<=26?0.5:p.age<=29?0.15
-                :p.age<=32?0.05:p.age<=33?-0.10:p.age<=35?-0.22:-0.38;
+      // Cada uno crece y se cae según SU trayectoria: un precoz toca techo a
+      // los 24 y un tardío recién a los 32. Antes todos usaban la misma tabla.
+      let ageFac=(typeof devFactor==='function')?devFactor(p)
+        :(p.age<=19?1.8:p.age<=21?1.4:p.age<=23?1.0:p.age<=26?0.5:p.age<=29?0.15
+          :p.age<=32?0.05:p.age<=33?-0.10:p.age<=35?-0.22:-0.38);
       // DT Formador potencia a los jóvenes
       if(G.dt&&G.dt.trait==='Formador'&&p.age<=23&&ageFac>0) ageFac*=1.35;
       // TECHO DE CRECIMIENTO POR TEMPORADA. Sin esto un pibe sumaba +7 de media
