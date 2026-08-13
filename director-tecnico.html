@@ -3297,6 +3297,12 @@ function openP(id, inSquad){
           <span>${a} años</span><span>pico ~${pk}</span>
         </div>
         <div style="font-size:10px;color:var(--t2);margin-top:4px">${est} · ${dl.d}</div>
+        ${(()=>{ if(typeof wageLabel!=='function')return '';
+          const w=wageLabel(p);
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)">
+            <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">💰 Pretensión</span>
+            <span style="font-size:11px;font-weight:700;color:${w.c}">${w.t} · ~${_negWageExpect(p)}k/sem</span></div>
+            <div style="font-size:10px;color:var(--t2);margin-top:2px">${w.d}</div>`;})()}
       </div>`;
     })()}
     <div style="display:none">
@@ -3339,20 +3345,60 @@ function _negDemand(p){
   const sdDisc=sd>=2?0.86:sd>=1?0.93:1.0;
   return Math.round(p.val*(1.1+Math.random()*.2)*prestige*sdDisc*10)/10;
 }
-// El sueldo que pide depende de EN QUÉ PARTE DE SU CARRERA está: en su pico
-// pide el contratazo, entrando o saliendo negocia. Antes era rat*0.55 para
-// todos, ciego a la edad.
-function _negWageExpect(p){
-  const base=p.rat*0.55;
-  if(typeof peakAge!=='function')return Math.max(5,Math.round(base));
-  const d=(p.age||26)-peakAge(p);
-  const etapa = d<=-5?0.78     // pibe: se conforma con jugar
-              : d<=-2?0.90
-              : d<=1 ?1.18     // en su pico: el contratazo
-              : d<=4 ?1.02
-              : 0.82;          // de salida: negocia
-  return Math.max(5,Math.round(base*etapa));
+// ═══════════════════════════════════════════════════════════════════════
+// LO QUE PIDE CADA JUGADOR
+// ═══════════════════════════════════════════════════════════════════════
+// Antes era rat*0.55 por una etapa con 5 escalones: 300 jugadores de la misma
+// media pedían uno de sólo 5 sueldos. Y el sueldo de la base tampoco varía
+// (todos los de media 78 figuran con 31k), así que la diferencia hay que
+// sacarla de rasgos propios y estables de cada uno.
+
+// Ambición: 0.72 (se conforma) a 1.38 (viene por la plata). Sale de quién es,
+// así que el mismo jugador siempre pide parecido.
+function wageGreed(p){
+  if(p._greed)return p._greed;
+  const h=(typeof devSeed==='function')?devSeed(p)
+    :String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+  const r=((h>>>7)%1000)/1000, r2=((h>>>17)%1000)/1000;
+  return (p._greed=Math.round((0.72+((r+r2)/2)*0.66)*100)/100);
 }
+// Etiqueta para que se entienda por qué pide lo que pide
+function wageLabel(p){
+  const g=wageGreed(p);
+  if(g>=1.22)return {t:'Ambicioso',c:'var(--red)',d:'Va a pedir bastante más de lo que vale'};
+  if(g>=1.06)return {t:'Exigente',c:'var(--ora)',d:'Pide por encima de la media'};
+  if(g<=0.84)return {t:'Sin vueltas',c:'var(--green)',d:'Se conforma con poco: es una ganga salarial'};
+  if(g<=0.95)return {t:'Razonable',c:'var(--t2)',d:'Pide algo menos de lo esperable'};
+  return {t:'Estándar',c:'var(--t3)',d:'Pretensión acorde a su nivel'};
+}
+function _negWageExpect(p){
+  if(!p)return 5;
+  // Base no lineal: un crack no cuesta proporcionalmente, cuesta MUCHO más
+  const r=p.rat||70;
+  let base=Math.pow(Math.max(40,r)/70,2.35)*38;
+  // 1) Ambición propia
+  base*=wageGreed(p);
+  // 2) Momento de la carrera: en su pico pide el contratazo
+  if(typeof peakAge==='function'){
+    const d=(p.age||26)-peakAge(p);
+    base*= d<=-5?0.78 : d<=-2?0.90 : d<=1?1.18 : d<=4?1.02 : 0.82;
+  }
+  // 3) Su representante: uno ambicioso infla, uno razonable acerca posiciones
+  try{
+    const st=_negAgent(p).style;
+    base*= st==='ambicioso'?1.14 : st==='duro'?1.07 : st==='razonable'?0.93 : 1.0;
+  }catch(e){}
+  // 4) De dónde viene: el que juega en una liga fuerte llega con otro sueldo
+  const LG={'Premier':1.55,'España':1.42,'Italia':1.35,'Alemania':1.35,'Francia':1.25,
+    'Arabia':1.45,'Portugal':1.12,'Holanda':1.10,'Turquía':1.08,'Rusia':1.08,'Bélgica':1.05,
+    'Brasil':1.06,'MLS':1.05,'Liga MX':1.02,'Grecia':1.0,'Liga ARG':1.0};
+  base*=(LG[p.lg]||0.92);
+  // 5) Y si ya está en un grande, no baja los brazos
+  if(/Real Madrid|Barcelona|Man\. City|Liverpool|Bayern|PSG|Chelsea|Inter|Juventus|Al-Hilal|Al-Nassr/.test(p.club||''))
+    base*=1.12;
+  return Math.max(4,Math.round(base));
+}
+
 function _negStepBar(step){
   const steps=[{l:'1 CONTACTO',k:'contact'},{l:'2 OFERTA',k:'offer'},{l:'3 TÉRMINOS',k:'terms'},{l:'4 FIRMA',k:'sign'}];
   return `<div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">${steps.map((s,i)=>{
@@ -10895,7 +10941,8 @@ function ptRender(first){
     </div>
     <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px">
-        <span style="color:var(--t3)">💰 SUELDO — pide ~${s.wageExp}k</span>
+        <span style="color:var(--t3)">💰 SUELDO — pide ~${s.wageExp}k${(()=>{const w=(typeof wageLabel==='function')&&wageLabel(p);
+          return w?` · <b style="color:${w.c}">${w.t}</b>`:'';})()}</span>
         <span id="ptWL" style="color:var(--gold);font-weight:700">${s.wage}k</span></div>
       <input type="range" id="ptW" class="neg-slider" min="${Math.round(s.wageExp*0.5)}" max="${Math.round(s.wageExp*2)}" value="${s.wage}" oninput="ptSetWage(+this.value)">
     </div>
