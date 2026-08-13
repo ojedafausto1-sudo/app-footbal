@@ -80,7 +80,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
   .main{padding:8px!important}
   .card{padding:10px;border-radius:11px}
   /* Encabezado más bajo: el club y los datos en una tira compacta */
-  .topbar,.hdr{padding:6px 8px!important;gap:5px!important}
+  .topbar{padding:6px 8px!important;gap:5px!important}
   .pv{font-size:10px!important}
   .stitle{font-size:19px!important}
   /* Barra de pestañas: se desliza con inercia y avisa que hay más */
@@ -109,8 +109,10 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
   #phoneBadge{transform:scale(.85)}
   /* La cancha de la pestaña Táctica, proporcional a la pantalla */
   #pitchSlots{height:min(64vh,380px)!important}
-  /* Modales a pantalla casi completa: en el celular no se leen chicos */
-  .mbox{max-height:88vh;width:calc(100vw - 20px);padding:14px}
+  /* Modales a pantalla casi completa: en el celular no se leen chicos.
+     (La clase es .modal — antes esta regla apuntaba a .mbox, que no existe.) */
+  .ov{padding:6px}
+  .modal{max-height:92vh;padding:14px;border-radius:14px}
   /* Respetar el notch y la barra de gestos */
   .main{padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
 }
@@ -2084,6 +2086,7 @@ function saveGame(){
   try{
     const snap={};
     for(const k in G) snap[k]=G[k];
+    delete snap._cmp;                    // ids de la comparación: basura temporal
     snap.market=(G.market||[]).map(packPlayer);
     snap._mktPacked=1;
     // arFix (71 KB) se deja tal cual a propósito: el fixture se genera barajado,
@@ -7238,6 +7241,38 @@ function archiveSeason(){
   G._clubPow=null; // las fuerzas se recalculan con los planteles nuevos
 }
 
+// ═══ LA CANTERA SOSTIENE AL CLUB ═══
+// Los juveniles sólo subían si el presidente los promovía a mano. Simulando
+// seis temporadas sin tocar nada el plantel pasaba de 30 jugadores con 26,9
+// años de media a 24 con 33,5 y media 65: envejecía y se vaciaba sin piso.
+// Un club de verdad siempre tiene pibes listos. Esto no te saca la decisión,
+// sólo evita que el plantel se muera si no hacés nada.
+function youthSafetyNet(){
+  if(!G||!G.youth||!G.youth.players)return;
+  const MIN=26;
+  const edad=G.squad.length?G.squad.reduce((a,p)=>a+(p.age||26),0)/G.squad.length:26;
+  let faltan=Math.max(0, MIN-G.squad.length);
+  // Ojo: si el plantel ya está grande, sumar por edad lo infla hasta el tope
+  // de 35 y quedás con un plantel enorme de treintañeros.
+  if(edad>29.5&&G.squad.length<30) faltan=Math.max(faltan,2);
+  if(!faltan)return;
+  const listos=[...G.youth.players].sort((a,b)=>(b.pot+b.rat)-(a.pot+a.rat)).slice(0,faltan);
+  const subidos=[];
+  listos.forEach(yp=>{
+    if(G.squad.length>=35)return;
+    const np=P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors',
+              'Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
+    G.squad.push(np); G.bench.push(np);
+    G.youth.players=G.youth.players.filter(x=>x.id!==yp.id);
+    subidos.push(np.name+' ('+np.rat+'/'+np.pot+')');
+  });
+  if(subidos.length){
+    lg('🌱','Suben de inferiores: '+subidos.join(', '));
+    addPhoneMsg('board','Secretaría Deportiva',
+      `🌱 El plantel quedaba corto, así que subimos de inferiores a <b>${subidos.join('</b>, <b>')}</b>. Si querés otra cosa, fichá.`,'🏛️');
+  }
+}
+
 function nextSeason(){
   const finalPos=myLeaguePos()||10;
   archiveSeason();
@@ -7280,6 +7315,7 @@ function nextSeason(){
   G.promises=(G.promises||[]).filter(pr=>!pr.resolved);
   // La CD fija el tope salarial de la nueva temporada
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
+  youthSafetyNet();          // la cantera cubre el hueco antes de armar el calendario
   G.calendar = buildCal(G.teamName);
   arAttachLeague();          // zonas y fixture nuevos para la temporada que arranca
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
