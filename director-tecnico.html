@@ -2954,7 +2954,7 @@ function autoFill(){
   sl.forEach((s,i) => {
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
-      if(used.has(p.id)||p.injured||p.susp>0)continue;   // lesionado o suspendido: no juega
+      if(used.has(p.id)||p.injured||p.susp>0||p.colgado)continue;   // lesionado, suspendido o COLGADO: no juega
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
       let sc=p.rat-posPenaltyFor(p,s.pos)*2.2;
@@ -2992,7 +2992,7 @@ function refillKeeping(){
   // El lesionado y el suspendido no se reubican: no pueden jugar.
   const prev = Object.values(G.slots||{})
     .map(id => G.squad.find(p=>p.id===id))
-    .filter(p => p && !p.injured && !(p.susp>0));
+    .filter(p => p && !p.injured && !(p.susp>0) && !p.colgado);
   if(!prev.length){ autoFill(); return; }
 
   // Cuánto le cuesta a un jugador cubrir un puesto: primero lo natural, después
@@ -3219,7 +3219,7 @@ function rSq(f){
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.colgado?'<span class="badge baR" style="margin-left:4px;font-size:8px" title="Apartado del plantel">🧊 COLGADO</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -3308,6 +3308,7 @@ function openP(id, inSquad){
         <button class="btn bo bs" onclick="loanPlayer('${p.id}')">📤 Ceder</button>
         <button class="btn bo bs" onclick="openPromises('${p.id}')">🤝 Promesas</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
+        <button class="btn bo bs" style="border-color:${p.colgado?'var(--green)':'var(--ora)'};color:${p.colgado?'var(--green)':'var(--ora)'}" onclick="toggleColgado('${p.id}')">${p.colgado?'🤝 Reintegrar':'🧊 Colgar'}</button>
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
         ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
       ` : `
@@ -8005,6 +8006,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   },0);
   if(staffSal>0) G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
   weeklyYouth();
+  weeklyColgados();
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
@@ -10844,6 +10846,10 @@ function ptScore(p,t){
   const repGap=p.rat-(G.rep||50);
   if(repGap>=25)s-=3; else if(repGap>=15)s-=1.5; else if(repGap>=8)s-=0.7;
   else if(repGap<=-10)s+=0.5;
+  // Las cláusulas pesan en su decisión, como en una negociación de verdad
+  if(t.recompra) s-=0.6;      // que lo puedan recomprar no le gusta
+  if(t.bajaDesc) s-=1.2;      // cobrar menos si descienden, menos todavía
+  if(t.bonoComp) s+=0.8;      // un bono por copas lo entusiasma
   return s+(t.pull||0);
 }
 function ptWhyNo(p,t){
@@ -10907,6 +10913,19 @@ function ptRender(first){
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
       <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}</div>
     </div>`}
+    ${o.loan?'':`
+    <div style="background:rgba(255,255,255,.03);border:1px solid var(--bdr);border-radius:8px;padding:10px;margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📜 CLÁUSULAS DEL CONTRATO</div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" id="ptRec" ${s.recompra?'checked':''} onchange="ptSetCl('recompra',this.checked)">
+        <span>🔄 <b>Recompra</b> — si lo revendés, su club anterior puede recomprarlo. Le baja el precio hoy.</span></label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" id="ptDesc" ${s.bajaDesc?'checked':''} onchange="ptSetCl('bajaDesc',this.checked)">
+        <span>📉 <b>Baja por descenso</b> — si el club desciende, cobra 40% menos. Cuesta convencerlo.</span></label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:11px;cursor:pointer">
+        <input type="checkbox" id="ptBono" ${s.bonoComp?'checked':''} onchange="ptSetCl('bonoComp',this.checked)">
+        <span>🏆 <b>Bono por competición</b> — cobra extra si entrás a copas. Le encanta.</span></label>
+    </div>`}
     <div class="neg-rx" id="ptRx"></div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
       <button class="btn bg" onclick="ptSubmit()">✍️ Ofrecerle el contrato</button>
@@ -10916,12 +10935,14 @@ function ptRender(first){
   `);
   ptUpd();
 }
+function ptSetCl(k,v){ if(!_PT)return; _PT[k]=v; ptUpd(); }
 function ptSetWage(v){_PT.wage=v;const l=document.getElementById('ptWL');if(l)l.textContent=v+'k';ptUpd();}
 function ptSetYears(y){_PT.years=y;document.querySelectorAll('.ptYr').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
 function ptSetRole(r){_PT.role=r;document.querySelectorAll('.ptRl').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
 function ptSetBonus(b){_PT.bonus=b;document.querySelectorAll('.ptBn').forEach(x=>{const on=parseFloat(x.dataset.b)===b;x.classList.toggle('bg',on);x.classList.toggle('bo',!on);});ptUpd();}
 function ptTerms(){const s=_PT;return {wage:s.wage,years:s.years,role:s.role,bonus:s.bonus,
-  wageExp:s.wageExp,pull:s.o.pull||0,loan:!!s.o.loan};}
+  wageExp:s.wageExp,pull:s.o.pull||0,loan:!!s.o.loan,
+  recompra:!!s.recompra,bajaDesc:!!s.bajaDesc,bonoComp:!!s.bonoComp};}
 function ptUpd(){
   const s=_PT,rx=document.getElementById('ptRx'); if(!s||!rx)return;
   const sc=ptScore(s.p,ptTerms());
@@ -10948,7 +10969,8 @@ function ptSubmit(){
   const ok=sc>=3.5||(sc>=2&&rnd>0.35)||(sc>=0.5&&rnd>0.7);
   if(ok){
     _PT=null; closeMod();
-    s.o.onAccept({wage:t.wage,years:t.years,role:t.role,bonus:t.bonus,roleLabel:PT_ROLES[t.role]});
+    s.o.onAccept({wage:t.wage,years:t.years,role:t.role,bonus:t.bonus,roleLabel:PT_ROLES[t.role],
+      recompra:t.recompra,bajaDesc:t.bajaDesc,bonoComp:t.bonoComp});
     return;
   }
   s.tries++;
@@ -11277,6 +11299,85 @@ function unlistPlayer(id){
 function renew(id){ openContract(id); }
 
 // ═══ RESCISIÓN: pagás lo que resta del contrato y el jugador queda libre ═══
+// ═══════════════════════════════════════════════════════════════════════
+// COLGAR A UN JUGADOR
+// ═══════════════════════════════════════════════════════════════════════
+// Lo que hizo River con varios: no lo echás ni le pagás la salida, lo mandás a
+// entrenar aparte hasta que acepte irse. Te ahorra parte del sueldo y lo
+// empuja a buscar club, pero le pega al vestuario y a la prensa, y el tipo
+// pierde ritmo. Es una decisión de presidente, con costo.
+function toggleColgado(id){
+  const p=(G.squad||[]).find(x=>x.id===id); if(!p)return;
+  if(p.colgado){
+    p.colgado=false;
+    p.morale=Math.min(99,(p.morale||60)+8);
+    lg('🤝',`${p.name} vuelve a entrenar con el plantel`);
+    addPhoneMsg('player',p.name,'🤝 Gracias por devolverme al grupo, presidente. Voy a demostrarle que se equivocó conmigo.','🤝');
+    flash('🤝 '+p.name+' vuelve al plantel','win');
+    updateUI(); return;
+  }
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🧊 Colgar a ${p.name}</div>
+    <div class="note" style="margin-bottom:10px">Lo apartás del plantel: entrena aparte, no puede ser convocado y queda fuera del once.</div>
+    <div class="sr"><span class="sl">Te ahorrás del sueldo</span><span class="sv" style="color:var(--green)">40% (${Math.round((p.wage||0)*0.4)}k/sem)</span></div>
+    <div class="sr"><span class="sl">Su moral</span><span class="sv" style="color:var(--red)">cae fuerte cada semana</span></div>
+    <div class="sr"><span class="sl">Vestuario</span><span class="sv" style="color:var(--red)">−moral del plantel</span></div>
+    <div class="sr"><span class="sl">Su valor</span><span class="sv" style="color:var(--red)">baja: pierde ritmo</span></div>
+    <div class="note" style="margin:9px 0;border-color:var(--gold)">⚠️ Cuanto más aguante, más chance de que acepte irse o rescinda. Pero si te pasás, el vestuario se te da vuelta.</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn bR" onclick="confirmColgar('${p.id}')">🧊 Colgarlo</button>
+      <button class="btn bo" onclick="closeMod()">Cancelar</button>
+    </div>`);
+}
+function confirmColgar(id){
+  const p=(G.squad||[]).find(x=>x.id===id); if(!p)return;
+  p.colgado=true; p.colgadoSem=0;
+  // Sale del once y del banco de convocados
+  Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===id)G.slots[k]=null; });
+  if(G.benchList)G.benchList=G.benchList.filter(x=>x!==id);
+  p.morale=Math.max(5,(p.morale||60)-22);
+  G.morale=Math.max(0,(G.morale||60)-4);
+  lg('🧊',`${p.name} queda colgado: entrena aparte`);
+  addPhoneMsg('player',p.name,`😤 ¿Me manda a entrenar aparte? Muy bien. Yo tengo contrato y lo voy a hacer valer.`,'😤');
+  addPhoneMsg('agent','Prensa',`🧊 <b>${G.teamName}</b> apartó a <b>${p.name}</b> del plantel. En el vestuario no cayó bien.`,'📰');
+  closeMod(); updateUI();
+  flash('🧊 '+p.name+' quedó colgado','draw');
+}
+// Cada semana: el colgado se pudre, pierde valor y puede terminar aceptando irse
+function weeklyColgados(){
+  if(!G||!G.squad)return;
+  let malestar=0;
+  G.squad.forEach(p=>{
+    if(!p.colgado)return;
+    p.colgadoSem=(p.colgadoSem||0)+1;
+    p.morale=Math.max(3,(p.morale||60)-3);
+    if(p.fit!==undefined)p.fit=Math.max(35,p.fit-2);       // sin fútbol se cae el ritmo
+    p.val=Math.max(0.05,Math.round(p.val*0.985*100)/100);
+    malestar++;
+    // A las pocas semanas empieza a pedir salir; después acepta rescindir
+    if(p.colgadoSem===3){
+      p.wantsOut=true;
+      addPhoneMsg('agent',p.name,`📞 Mi representado quiere salir. Consígale club y esto se termina.`,'🤝');
+    }
+    if(p.colgadoSem>=8&&Math.random()<0.16){
+      addPhoneMsg('player',p.name,`🚪 Me cansé. Acepto rescindir y me voy libre. Usted gana, presidente.`,'🚪');
+      lg('🚪',`${p.name} aceptó rescindir tras ${p.colgadoSem} semanas colgado`);
+      G.squad=G.squad.filter(x=>x.id!==p.id);
+      G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+      p.club='Libre';p.freeAgent=true;p.colgado=false;
+      G.market.push(p);
+      G.morale=Math.max(0,(G.morale||60)-3);
+    }
+  });
+  // Tener gente colgada desgasta al grupo
+  if(malestar){
+    G.morale=Math.max(0,(G.morale||60)-Math.min(3,malestar*0.6));
+    if(malestar>=3&&Math.random()<0.25)
+      addPhoneMsg('board','Vestuario',`😟 Presidente, con ${malestar} compañeros apartados el clima está pesado. Resuelva esas situaciones.`,'🏛️');
+  }
+}
+
 function rescindPlayer(id){
   if(!G)return;
   const p=G.squad.find(x=>x.id===id);
@@ -12020,7 +12121,7 @@ function fmInit(m,W,H){
 // marcaste a nadie, se completa con los mejores disponibles — pero siempre
 // entra un arquero suplente, que antes no iba nunca.
 function buildBenchPool(myXI){
-  const libre=q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&!(q.susp>0);
+  const libre=q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&!(q.susp>0)&&!q.colgado;
   const todos=(G.squad||[]).filter(libre);
   const elegidos=(G.benchList||[]).map(id=>todos.find(q=>q.id===id)).filter(Boolean);
   let pool=elegidos.slice(0,9);
@@ -13244,6 +13345,23 @@ function dtProfile(dt){
     'Claudio Úbeda':      {press:.60,line:.55,tempo:.55,direct:.42,counter:.55,disc:.72},
     'Diego Martínez':     {press:.80,line:.62,tempo:.72,direct:.42,counter:.65,disc:.74},
     'Diego Dabove':       {press:.40,line:.35,tempo:.55,direct:.70,counter:.82,cyn:.70},
+    // ═══ MÁS TÉCNICOS, COMO JUEGAN DE VERDAD ═══
+    'Jürgen Klopp':       {press:.96,line:.78,tempo:.92,direct:.55,aggr:.82,width:.62,counter:.88,flank:.68,cyn:.35,disc:.62},
+    'José Mourinho':      {press:.30,line:.22,tempo:.48,direct:.75,aggr:.88,width:.35,counter:.94,flank:.42,cyn:.94,disc:.92},
+    'Marcelo Bielsa':     {press:.98,line:.90,tempo:.88,direct:.35,aggr:.85,width:.85,counter:.30,flank:.75,cyn:.20,disc:.95},
+    'Mikel Arteta':       {press:.88,line:.80,tempo:.52,direct:.15,width:.78,counter:.28,flank:.58,cyn:.45,disc:.90},
+    'Xabi Alonso':        {press:.82,line:.72,tempo:.55,direct:.25,width:.74,counter:.52,flank:.66,cyn:.48,disc:.88},
+    'Luis Enrique':       {press:.90,line:.85,tempo:.60,direct:.18,width:.80,counter:.32,flank:.60,cyn:.38,disc:.86},
+    'Antonio Conte':      {press:.72,line:.48,tempo:.68,direct:.62,aggr:.85,width:.55,counter:.80,flank:.85,cyn:.75,disc:.94},
+    'Unai Emery':         {press:.66,line:.52,tempo:.58,direct:.45,width:.62,counter:.70,flank:.62,cyn:.66,disc:.88},
+    'Hansi Flick':        {press:.92,line:.86,tempo:.78,direct:.30,width:.76,counter:.55,flank:.62,cyn:.35,disc:.80},
+    'Roberto De Zerbi':   {press:.90,line:.82,tempo:.42,direct:.10,width:.82,counter:.25,flank:.55,cyn:.30,disc:.88},
+    'Martín Demichelis':  {press:.70,line:.62,tempo:.66,direct:.42,counter:.66,flank:.64,cyn:.58,disc:.76},
+    'Eduardo Coudet':     {press:.88,line:.68,tempo:.82,direct:.52,aggr:.82,counter:.72,cyn:.60,disc:.70},
+    'Martín Palermo':     {press:.55,line:.50,tempo:.70,direct:.72,aggr:.75,counter:.66,cyn:.62,disc:.66},
+    'Néstor Gorosito':    {press:.52,line:.48,tempo:.62,direct:.58,counter:.70,flank:.72,cyn:.66,disc:.72},
+    'Ramón Díaz':         {press:.48,line:.45,tempo:.60,direct:.66,counter:.78,cyn:.74,disc:.80},
+    'Marcelo Bielsa (SEL)':{press:.98,line:.90,tempo:.88,direct:.35,width:.85,counter:.30,disc:.95},
   };
   const o=Object.assign({},base,T[t]||{},REAL[(dt&&dt.name)||'']||{});
   if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);o.counter=Math.min(1,o.counter+.10);}
@@ -15349,6 +15467,7 @@ function negQueueClub(o){
     wait:4+~~(Math.random()*12), rounds:0, playerOk:true, rivals:[], deadline:0,
     wage:o.terms.wage, years:o.terms.years, role:o.terms.role,
     roleLabel:o.terms.roleLabel, bonus:o.terms.bonus||0,
+    recompra:!!o.terms.recompra, bajaDesc:!!o.terms.bajaDesc, bonoComp:!!o.terms.bonoComp,
     bid:o.bid||0, acc:o.acc, deal:o.deal||{}});
   closeMod(); updateUI();
   flash(`📨 ${p.name} ya arregló con vos. La propuesta viaja a ${p.club}.`,'draw');
@@ -15418,6 +15537,9 @@ function negExecDeal(n,p){
     }
     if(n.kind==='pct') p.ownedPct=d.pc;
     p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
+    if(n.recompra)p.buyBack=Math.round(p.val*1.6*100)/100;   // su ex club puede recomprarlo
+    if(n.bajaDesc)p.wageDropOnRel=0.4;
+    if(n.bonoComp)p.compBonus=Math.round(Math.max(0.1,p.wage*0.02)*100)/100;
   }
   G.squad.push(p);G.bench.push(p);
   n.stage='cerrada';
@@ -15494,6 +15616,33 @@ function weeklyNegotiations(){
       }
       keep.push(n);return;
     }
+    // ═══ OTROS CLUBES SE METEN, Y CON PLATA ═══
+    // Antes sólo aparecía un nombre y un reloj. Ahora el rival hace una OFERTA
+    // concreta que podés ver y tenés que superar, y cuanto mejor es el jugador
+    // más clubes se prenden. Se meten en CUALQUIER etapa, no sólo en dos.
+    const enCurso=['esperando_jugador','jugador_ok','contraoferta','club_pend','club_contra'].indexOf(n.stage)>=0;
+    // Un crack junta pretendientes rápido: con /100 la chance quedaba tan baja
+    // que en 30 negociaciones por un 84 aparecía UN rival.
+    const atractivo=Math.max(0,(p.rat-68))/45;
+    if(enCurso&&Math.random()<(0.020+atractivo*0.075)&&(n.rivals||[]).length<3){
+      const rv=pickBuyer();
+      if((n.rivals||[]).indexOf(rv)<0){
+        const suOferta=Math.round(askingPrice(p)*(1.02+Math.random()*0.35)*100)/100;
+        n.rivals=(n.rivals||[]).concat([rv]);
+        n.rivalBids=(n.rivalBids||[]).concat([{club:rv,bid:suOferta}]);
+        n.topRival=Math.max(n.topRival||0,suOferta);
+        n.deadline=8+~~(Math.random()*10);
+        addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',
+          `⚠️ <b>${rv}</b> ofertó <b style="color:var(--gold)">${fv(suOferta)}</b> por ${p.name}. Tenés <b>${n.deadline} días</b> para mejorarla o lo perdemos.`,'⏳');
+        lg('⚠️',`${rv} ofertó ${fv(suOferta)} por ${p.name}`);
+      }
+    }
+    // Si tu oferta quedó por debajo de la del rival, el club se inclina por ellos
+    if(n.topRival&&(n.bid||negCashOut(n))<n.topRival*0.95&&Math.random()<0.10){
+      const rv=(n.rivals||['otro club'])[0];
+      addPhoneMsg('agent',p.club,`💬 Con lo que ofrece <b>${rv}</b> sobre la mesa, tu propuesta por ${p.name} queda corta.`,'💼');
+    }
+
     // ═══ LA PROPUESTA LLEGÓ AL CLUB (canje / préstamo / % / compra) ═══
     if(n.stage==='club_pend'){
       // Que el jugador ya haya arreglado empuja: al club le cuesta más aguantar
@@ -15572,13 +15721,6 @@ function weeklyNegotiations(){
       } else if(p.pressuring>2&&p.pressuring%2===0){
         addPhoneMsg('agent',p.name,`😤 Sigo esperando. Le repito: no voy a renovar con ${p.club}. Insistan.`,'🤝');
       }
-    }
-    // Otros clubes se meten en la disputa
-    if((n.stage==='jugador_ok'||n.stage==='contraoferta')&&Math.random()<0.032&&(n.rivals||[]).length<2){
-      const rv=pickBuyer();
-      n.rivals=(n.rivals||[]).concat([rv]);
-      n.deadline=10+~~(Math.random()*11);
-      addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',`⚠️ <b>${rv}</b> también fue por ${p.name}. Tenés <b>${n.deadline} días</b> para cerrar o lo perdemos.`,'⏳');
     }
     if(n.deadline>0){
       n.deadline--;
@@ -15718,7 +15860,7 @@ function openNegsPanel(){
             <div style="font-size:9px;color:var(--t3)">${n.kind&&n.kind!=='compra'?KIND_LBL[n.kind]+' · ':''}${n.club} · ${n.wage}k/sem${n.kind==='prestamo'?'':' · '+n.years+' años'}</div></div>
             <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} d</span>`:''}</div>
           </div>
-          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} d`:''}</div>`:''}
+          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${(n.rivalBids||[]).length?n.rivalBids.map(r=>r.club+' '+fv(r.bid)).join(' · '):n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} d`:''}</div>`:''}
           ${n.stage==='jugador_ok'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">💰 Ofertar a ${n.club}</button>`:''}
           ${n.stage==='contraoferta'&&p?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="negAcceptCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
             <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
