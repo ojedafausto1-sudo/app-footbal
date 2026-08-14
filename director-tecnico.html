@@ -680,7 +680,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <div id="tab-stad" class="tc">
       <div class="stitle">🏟️ Estadio</div>
       <div class="tc2">
-        <div id="stadMain"></div>
+        <div><div id="stadMain"></div><div class="card" style="margin-top:8px" id="ticketBox"></div></div>
         <div id="stadUpgrades"></div>
       </div>
     </div>
@@ -752,6 +752,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="ctitle">🎯 Objetivos de Temporada</div>
             <div id="presObjList"></div>
           </div>
+          <div class="card" style="margin-bottom:8px" id="loanBox"></div>
           <div class="card">
             <div class="ctitle">🎙️ Sala de Prensa</div>
             <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Las conferencias de prensa se activan despues de cada partido.</div>
@@ -2957,7 +2958,7 @@ function autoFill(){
   sl.forEach((s,i) => {
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
-      if(used.has(p.id)||p.injured||p.susp>0||p.colgado)continue;   // lesionado, suspendido o COLGADO: no juega
+      if(used.has(p.id)||p.injured||p.susp>0||p.colgado||p.selUp>0)continue;   // lesionado, suspendido, colgado o EN LA SELECCIÓN
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
       let sc=p.rat-posPenaltyFor(p,s.pos)*2.2;
@@ -3145,6 +3146,8 @@ function updateUI(){
   if(typeof rFriendlies==='function')rFriendlies();
   rInd();
   rStad();
+  rTicket();
+  rLoans();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
   if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
@@ -3306,6 +3309,12 @@ function openP(id, inSquad){
             <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">💰 Pretensión</span>
             <span style="font-size:11px;font-weight:700;color:${w.c}">${w.t} · ~${_negWageExpect(p)}k/sem</span></div>
             <div style="font-size:10px;color:var(--t2);margin-top:2px">${w.d}</div>`;})()}
+        ${(()=>{ if(!sq||typeof pdRelLabel!=='function')return '';
+          const r=pdRelLabel(p), v=pdRel(p);
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)">
+            <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">🎽 Con el DT</span>
+            <span style="font-size:11px;font-weight:700;color:${r.c}">${r.t} · ${Math.round(v)}/100</span></div>
+            ${p.caps?`<div style="font-size:10px;color:var(--t2);margin-top:2px">🌍 ${p.caps} ${p.caps===1?'convocatoria':'convocatorias'} a la selección${p.selUp>0?' · <b style="color:var(--gold)">ahora está en fecha FIFA</b>':''}</div>`:(p.selUp>0?'<div style="font-size:10px;color:var(--gold);margin-top:2px">🌍 En fecha FIFA</div>':'')}`;})()}
       </div>`;
     })()}
     <div style="display:none">
@@ -4727,6 +4736,193 @@ function facilityFxLabel(id,eff){
 // Varias obras estaban sólo de adorno: sumaban un bonus genérico y su
 // descripción prometía cosas que el juego no aplicaba. Acá cada una hace
 // exactamente lo que dice.
+// ═══════════════════════════════════════════════════════════════════════
+// PRECIO DE LA ENTRADA
+// ═══════════════════════════════════════════════════════════════════════
+const TICKET_TIERS=[
+  {v:0.6,l:'Popular',d:'Barato: se llena, pero entra poca plata'},
+  {v:0.8,l:'Accesible',d:'Por debajo del mercado. La gente lo agradece'},
+  {v:1.0,l:'Normal',d:'Precio de siempre'},
+  {v:1.3,l:'Caro',d:'Entra más por cabeza, pero va menos gente'},
+  {v:1.6,l:'Abusivo',d:'Recaudás mucho... hasta que la hinchada estalla'},
+];
+function setTicket(v){
+  if(!G)return;
+  G.ticketPrice=v;
+  const t=TICKET_TIERS.find(x=>x.v===v)||TICKET_TIERS[2];
+  // Tocarle el bolsillo al hincha tiene consecuencias inmediatas
+  const d=(v-1)*-18;
+  G.fanMood=Math.round(Math.max(0,Math.min(100,(G.fanMood||55)+d))*10)/10;
+  lg('🎟️',`Entradas: ${t.l} (x${v})`);
+  if(v>=1.6)addPhoneMsg('agent','Prensa',`🎟️ <b>${G.teamName}</b> aumentó las entradas otra vez. Los hinchas hicieron un banderazo de protesta.`,'📰');
+  rTicket(); updateUI();
+  flash('🎟️ Entradas: '+t.l,'draw');
+}
+function rTicket(){
+  const el=document.getElementById('ticketBox'); if(!el||!G)return;
+  const cur=G.ticketPrice===undefined?1:G.ticketPrice;
+  const t=TICKET_TIERS.find(x=>x.v===cur)||TICKET_TIERS[2];
+  const asis=Math.round(Math.max(0.35,Math.min(1.15,1.28-cur*0.42))*100);
+  el.innerHTML=`
+    <div class="ctitle">🎟️ Precio de la entrada</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin:7px 0">
+      ${TICKET_TIERS.map(x=>`<button class="btn ${x.v===cur?'bg':'bo'} bs" onclick="setTicket(${x.v})">${x.l}</button>`).join('')}
+    </div>
+    <div style="font-size:10px;color:var(--t2)">${t.d}</div>
+    <div class="sr"><span class="sl">Asistencia estimada</span><span class="sv" style="color:${asis>=85?'var(--green)':asis>=60?'var(--gold)':'var(--red)'}">${asis}%</span></div>
+    <div class="sr"><span class="sl">Humor de la hinchada</span><span class="sv">${G.fanMood||55}/100</span></div>
+    ${G.finGate?`<div class="sr"><span class="sl">Último borderó</span><span class="sv">bruto ${fv(G.finGate.bruto)} − operativo ${fv(G.finGate.ops)} = <b style="color:var(--gold)">${fv(G.finGate.neto)}</b></span></div>`:''}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PRÉSTAMOS BANCARIOS
+// ═══════════════════════════════════════════════════════════════════════
+// Plata ya para reforzar, que después hay que devolver con interés todas las
+// semanas. El banco mira la reputación del club y lo que ya debés.
+const BANK_OFFERS=[
+  {monto:8,  semanas:52, tasa:0.18, reqRep:0},
+  {monto:20, semanas:78, tasa:0.24, reqRep:55},
+  {monto:45, semanas:104,tasa:0.32, reqRep:68},
+];
+function deudaTotal(){ return (G.loans||[]).reduce((a,l)=>a+l.resta,0); }
+function rLoans(){
+  const el=document.getElementById('loanBox'); if(!el||!G)return;
+  const deuda=deudaTotal();
+  const cuota=(G.loans||[]).reduce((a,l)=>a+l.cuota,0);
+  el.innerHTML=`
+    <div class="ctitle">🏦 Banco</div>
+    ${deuda>0?`<div class="sr"><span class="sl">Deuda total</span><span class="sv" style="color:var(--red)">${fv(deuda)}</span></div>
+      <div class="sr"><span class="sl">Se descuenta por semana</span><span class="sv" style="color:var(--red)">${fv(cuota)}</span></div>
+      ${(G.loans||[]).map(l=>`<div style="font-size:10px;color:var(--t3)">· ${fv(l.resta)} restantes · ${l.sem} semanas</div>`).join('')}`
+      :'<div class="note" style="margin:0 0 7px">Sin deuda. Podés pedir un crédito para reforzar ahora y pagarlo de a poco.</div>'}
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">
+      ${BANK_OFFERS.map((b,i)=>{
+        const ok=(G.rep||50)>=b.reqRep&&deuda<40;
+        return `<button class="btn bo bs" ${ok?'':'disabled style="opacity:.35;cursor:not-allowed"'} onclick="takeLoan(${i})"
+          title="${ok?'Devolvés '+fv(Math.round(b.monto*(1+b.tasa)*10)/10):'Necesitás '+b.reqRep+' de reputación y menos de 40M de deuda'}">
+          ${fv(b.monto)} · ${Math.round(b.tasa*100)}% · ${b.semanas}sem</button>`;
+      }).join('')}
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:5px">Si te atrasás, la CD lo toma como mala gestión.</div>`;
+}
+function takeLoan(i){
+  const b=BANK_OFFERS[i]; if(!b||!G)return;
+  if((G.rep||50)<b.reqRep){flash('❌ El banco no te da ese monto con tu reputación','loss');return;}
+  if(deudaTotal()>=40){flash('❌ Ya estás muy endeudado','loss');return;}
+  const total=Math.round(b.monto*(1+b.tasa)*10)/10;
+  G.loans=G.loans||[];
+  G.loans.push({monto:b.monto,resta:total,cuota:Math.round(total/b.semanas*100)/100,sem:b.semanas});
+  G.budget=Math.round((G.budget+b.monto)*10)/10;
+  lg('🏦',`Crédito de ${fv(b.monto)} — devolvés ${fv(total)} en ${b.semanas} semanas`);
+  addPhoneMsg('board','Tesorería',`🏦 Tomamos un crédito de <b>${fv(b.monto)}</b>. Devolvemos <b>${fv(total)}</b> en ${b.semanas} semanas: ${fv(Math.round(total/b.semanas*100)/100)} por semana.`,'🏛️');
+  rLoans(); updateUI();
+  flash('🏦 Crédito aprobado: '+fv(b.monto),'win');
+}
+function weeklyLoans(){
+  if(!G||!G.loans||!G.loans.length)return;
+  let pagado=0;
+  G.loans.forEach(l=>{
+    const c=Math.min(l.cuota,l.resta);
+    // dos decimales acá a propósito: redondear a uno pagaba de más cada semana
+    G.budget=Math.round((G.budget-c)*100)/100;
+    l.resta=Math.round((l.resta-c)*100)/100; l.sem--;
+    pagado+=c;
+  });
+  const saldadas=G.loans.filter(l=>l.resta<=0.01).length;
+  G.loans=G.loans.filter(l=>l.resta>0.01);
+  if(saldadas){ lg('🏦','Crédito saldado'); addPhoneMsg('board','Tesorería','🏦 Terminamos de pagar un crédito. Se libera esa cuota semanal.','🏛️'); }
+  // Deber mucho y estar en rojo la CD lo castiga
+  if(G.budget<0&&deudaTotal()>0&&Math.random()<0.12){
+    G.boardConf=Math.max(0,(G.boardConf||50)-3);
+    addPhoneMsg('board','Tesorería','⚠️ Estamos en rojo Y con deuda. La CD no está conforme con el manejo de las finanzas.','🏛️');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SELECCIÓN NACIONAL
+// ═══════════════════════════════════════════════════════════════════════
+// Cada tanto hay fecha FIFA: se te van los internacionales, no juegan la fecha
+// del torneo y vuelven cansados. Es orgullo y es problema, como en la realidad.
+function nivelSeleccion(nat){
+  const A={ARG:86,BRA:85,FRA:86,ESP:84,ING:84,ALE:83,POR:83,HOL:82,ITA:82,URU:80,COL:79,
+           CRO:80,BEL:80,MAR:78,MEX:76,USA:76,JAP:76,COR:75,SEN:77,ECU:75,PER:73,CHI:74,
+           PAR:73,VEN:71,BOL:69};
+  return A[nat]||72;
+}
+function convocables(){
+  return (G.squad||[]).filter(p=>!p.injured&&!p.colgado&&p.rat>=nivelSeleccion(p.nat)-9);
+}
+function fechaFIFA(){
+  if(!G)return;
+  if((G.squad||[]).some(p=>p.selUp>0))return;   // ya hay una fecha FIFA en curso
+  const llamados=convocables().sort((a,b)=>b.rat-a.rat).slice(0,6);
+  if(!llamados.length)return;
+  llamados.forEach(p=>{
+    p.selUp=2;                                   // 2 semanas afuera
+    p.caps=(p.caps||0)+1;
+    p.morale=Math.min(99,(p.morale||60)+7);      // lo llena de orgullo
+    if(p.fit!==undefined)p.fit=Math.max(45,p.fit-14);   // vuelve fundido
+  });
+  G.fifaWeeks=2;
+  // El que se va con la selección no puede estar en el once. Si el DT es de la
+  // máquina, rearma solo; si el DT es tuyo, te avisa que tenés lugares vacíos.
+  const ids=llamados.map(p=>p.id);
+  let huecos=0;
+  Object.keys(G.slots||{}).forEach(k=>{ if(ids.includes(G.slots[k])){ G.slots[k]=null; huecos++; } });
+  G.bench=(G.bench||[]).filter(b=>!ids.includes(b&&b.id?b.id:b));
+  if(huecos){
+    if(typeof dtIsMine==='function'&&dtIsMine())
+      addPhoneMsg('board','Utilería',`⚠️ Te quedaron <b>${huecos}</b> lugares libres en el once por la fecha FIFA. Andá a Táctica y rearmá el equipo.`,'🏛️');
+    else if(typeof autoFill==='function') autoFill();
+  }
+  lg('🌍','Fecha FIFA: '+llamados.map(p=>p.name.split(' ').pop()).join(', '));
+  addPhoneMsg('board','Secretaría del Club',
+    `🌍 <b>Fecha FIFA</b>: se nos van ${llamados.length} jugadores (${llamados.map(p=>'<b>'+p.name+'</b>').join(', ')}). Vuelven en 2 semanas y con las piernas pesadas.`,'🏛️');
+}
+function weeklySeleccion(){
+  if(!G)return;
+  // Cada ~9 semanas hay fecha FIFA
+  if((G.week||1)%9===0) fechaFIFA();
+  (G.squad||[]).forEach(p=>{ if(p.selUp>0){ p.selUp--; if(!p.selUp&&p.caps>=5&&Math.random()<0.25)
+    addPhoneMsg('player',p.name,`🌍 Volví de la selección. ${p.caps} partidos ya con la camiseta nacional. Gracias por bancarme.`,'🌍'); } });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RELACIÓN DE CADA JUGADOR CON EL DT
+// ═══════════════════════════════════════════════════════════════════════
+// G.dtRel era la relación del PRESIDENTE con el técnico. Esto es otra cosa:
+// qué piensa cada jugador de su entrenador. Sube si juega, baja si lo tiene de
+// suplente, y arrastra su moral.
+function pdRel(p){ return p.dtRel===undefined?(p.dtRel=60):p.dtRel; }
+function pdRelLabel(p){
+  const r=pdRel(p);
+  if(r>=80)return {t:'Lo banca a muerte',c:'var(--green)'};
+  if(r>=62)return {t:'Buena relación',c:'var(--t2)'};
+  if(r>=42)return {t:'Relación tibia',c:'var(--gold)'};
+  if(r>=25)return {t:'Está incómodo',c:'var(--ora)'};
+  return {t:'Roto con el DT',c:'var(--red)'};
+}
+function weeklyPlayerDt(){
+  if(!G||!G.squad)return;
+  const xi=Object.values(G.slots||{}).filter(Boolean);
+  G.squad.forEach(p=>{
+    pdRel(p);
+    const juega=xi.includes(p.id);
+    // Al que juega se le acomoda; al que mira desde afuera se le desgasta,
+    // y más si es bueno: un titular relegado se calienta antes.
+    let d= juega?1.6:(p.colgado?-3.2:-(0.8+Math.max(0,(p.rat-70))*0.05));
+    if(p.injured)d=0;
+    p.dtRel=Math.max(0,Math.min(100,Math.round((p.dtRel+d)*10)/10));
+    p.morale=Math.max(3,Math.min(99,Math.round((p.morale||60)+(p.dtRel>=62?0.4:p.dtRel<=30?-0.9:0))));
+    // Si se rompe del todo, pide salir y lo dice
+    if(p.dtRel<=12&&!p.wantsOut&&Math.random()<0.18){
+      p.wantsOut=true;
+      addPhoneMsg('player',p.name,`😤 Con este entrenador no juego más. Le pido que me busque club, presidente.`,'😤');
+      lg('😤',`${p.name} se rompió con el DT y pide salir`);
+    }
+  });
+}
+
 function facilityFx(){
   return {
     // Vestuarios y túnel nivel Champions: intimida al rival de visita
@@ -5419,6 +5615,8 @@ function confirmCustomDT(){
   const customProf={};
   document.querySelectorAll('.cdtProf').forEach(sl=>{customProf[sl.dataset.k]=(+sl.value)/100;});
   G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true,customProf};
+  // Técnico nuevo, borrón y cuenta nueva con el plantel
+  (G.squad||[]).forEach(q=>q.dtRel=58+~~(Math.random()*10));
   // Ya sos vos el DT (recién asignamos customProf), así que el once que había
   // se reubica al esquema elegido en vez de borrarse.
   if(FORMS[style]){ G.formation=style; refillKeeping(); }
@@ -7752,7 +7950,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const _homeGame = m.home===G.teamName;
   let matchGate=0, matchOps=0;
   if(_homeGame){
-    const humor=0.55+(G.fanMood||55)/100*0.55;           // cancha llena vs media entrada
+    // El precio lo fijás vos: más caro entra más por entrada pero va menos
+    // gente, y si abusás la hinchada se enoja. El punto dulce no es el extremo.
+    const pr=G.ticketPrice===undefined?1:G.ticketPrice;
+    const asistencia=Math.max(0.35,Math.min(1.15,1.28-pr*0.42));
+    const humor=(0.55+(G.fanMood||55)/100*0.55)*asistencia*pr;
     const racha=res==='W'?1:res==='D'?0.92:0.84;
     // dMul es para moral/rep/confianza: si entra acá, un clásico de local
     // triplicaba la recaudación. El clásico llena la cancha, no la triplica.
@@ -8057,6 +8259,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(staffSal>0) G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
   weeklyYouth();
   weeklyColgados();
+  weeklyLoans();
+  weeklySeleccion();
+  weeklyPlayerDt();
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
