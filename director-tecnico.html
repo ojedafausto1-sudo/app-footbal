@@ -575,6 +575,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <span>#</span><span>Jugador</span><span>Nac.</span><span>Edad</span><span>Valor TM</span><span>Rating / Edad</span><span>Ctr.</span>
       </div>
       <div id="sqList"></div>
+      <div class="card" style="margin-top:10px" id="vestBox"></div>
     </div>
 
     <!-- MI DT -->
@@ -3151,6 +3152,7 @@ function updateUI(){
   rStad();
   rTicket();
   rLoans();
+  rVestuario();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
   if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
@@ -3312,6 +3314,13 @@ function openP(id, inSquad){
             <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">💰 Pretensión</span>
             <span style="font-size:11px;font-weight:700;color:${w.c}">${w.t} · ~${_negWageExpect(p)}k/sem</span></div>
             <div style="font-size:10px;color:var(--t2);margin-top:2px">${w.d}</div>`;})()}
+        ${(()=>{ if(typeof personaInfo!=='function')return '';
+          const pi=personaInfo(p);
+          const rum=p._rumorActivo?`<div style="font-size:10px;color:var(--gold);margin-top:2px">👀 Suena en ${p._rumorClub}</div>`:'';
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)">
+            <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">🧑 Carácter</span>
+            <span style="font-size:11px;font-weight:700">${pi.e} ${pi.t}${sq?' · peso '+vestPeso(p):''}</span></div>
+            <div style="font-size:10px;color:var(--t2);margin-top:2px">${pi.d}</div>${rum}`;})()}
         ${(()=>{ if(!sq||typeof pdRelLabel!=='function')return '';
           const r=pdRelLabel(p), v=pdRel(p);
           return `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.06)">
@@ -4925,6 +4934,176 @@ function weeklyPlayerDt(){
       lg('😤',`${p.name} se rompió con el DT y pide salir`);
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// VESTUARIO: PERSONALIDADES, LÍDERES Y GRUPOS
+// ═══════════════════════════════════════════════════════════════════════
+// El plantel no es una lista de números: es un grupo humano. Cada jugador
+// tiene carácter, algunos mandan y el resto se acomoda. Los que se juntan
+// (los del país, la camada, los de la casa) se contagian el ánimo entre
+// ellos, y si el que manda se calienta arrastra a los suyos.
+const PERSONAS={
+  lider:      {e:'🧢',t:'Líder',       d:'Habla en el vestuario. El grupo lo sigue.',        peso:2.2, aguante: 0.35},
+  profesional:{e:'💼',t:'Profesional', d:'Cabeza fría. No hace olas aunque no juegue.',      peso:1.2, aguante: 0.55},
+  ambicioso:  {e:'🚀',t:'Ambicioso',   d:'Quiere todo ya. Si no juega, se pudre rápido.',    peso:1.1, aguante:-0.45},
+  humilde:    {e:'🙏',t:'Humilde',     d:'Laburante silencioso. Nunca es problema.',         peso:0.7, aguante: 0.70},
+  temperamental:{e:'🌋',t:'Temperamental',d:'De sangre caliente. Explota y se le pasa.',     peso:1.0, aguante:-0.55},
+  veterano:   {e:'🎖️',t:'Veterano',    d:'Ya vivió de todo. Calma al grupo en la mala.',     peso:1.8, aguante: 0.60},
+};
+// Determinista: el mismo jugador tiene siempre el mismo carácter
+function persona(p){
+  if(p._pers) return p._pers;
+  const h=(typeof devSeed==='function')?devSeed(p):((p.name||'').length*2654435761)>>>0;
+  let k;
+  if((p.age||26)>=32 && (h>>>3)%100<55) k='veterano';
+  else {
+    const ks=['lider','profesional','ambicioso','humilde','temperamental'];
+    const w=[14,26,20,26,14];
+    let r=(h>>>7)%100, i=0;
+    for(;i<w.length;i++){ r-=w[i]; if(r<0) break; }
+    k=ks[Math.min(i,ks.length-1)];
+  }
+  return (p._pers=k);
+}
+function personaInfo(p){ return PERSONAS[persona(p)]||PERSONAS.humilde; }
+
+// Cuánto pesa su palabra: el capitán y el crack de años en el club mandan más
+function vestPeso(p){
+  const base=personaInfo(p).peso;
+  const jerarquia=Math.max(0,((p.rat||70)-68)/10);          // el bueno tiene voz
+  const casa=Math.min(1.2,(p.seasonsAtClub||0)*0.28);       // el de la casa también
+  const cinta=(G.roles&&G.roles.captain===p.id)?1.6:0;
+  const edad=(p.age||26)>=30?0.5:(p.age||26)<=21?-0.4:0;
+  return Math.round((base+jerarquia+casa+cinta+edad)*100)/100;
+}
+// Cómo está el tipo: mezcla su moral con lo que siente por el DT
+function vestAnimo(p){
+  const m=p.morale===undefined?60:p.morale;
+  const r=p.dtRel===undefined?60:p.dtRel;
+  let v=m*0.55+r*0.45;
+  if(p.colgado) v-=22;
+  if(p.wantsOut) v-=12;
+  return Math.max(0,Math.min(100,Math.round(v)));
+}
+function vestLideres(){
+  return (G.squad||[]).filter(p=>!p.colgado)
+    .map(p=>({p,peso:vestPeso(p),animo:vestAnimo(p)}))
+    .sort((a,b)=>b.peso-a.peso).slice(0,3);
+}
+// Los grupos que se arman solos, como en cualquier plantel
+function vestGrupos(){
+  const sq=G.squad||[];
+  if(!sq.length) return [];
+  const gr=[];
+  const extranjeros=sq.filter(p=>typeof isForeign==='function'?isForeign(p.nat,p.nat2):(p.nat&&p.nat!=='ARG'));
+  if(extranjeros.length>=3) gr.push({id:'ext',ic:'🌎',t:'Los de afuera',
+    d:'Extranjeros que hacen rancho aparte',miembros:extranjeros});
+  const casa=sq.filter(p=>(p.seasonsAtClub||0)>=3);
+  if(casa.length>=3) gr.push({id:'casa',ic:'🏠',t:'Los de la casa',
+    d:'Años en el club, se conocen de memoria',miembros:casa});
+  const pibes=sq.filter(p=>(p.age||26)<=22);
+  if(pibes.length>=3) gr.push({id:'pibes',ic:'🌱',t:'La camada joven',
+    d:'Los pibes, siempre juntos',miembros:pibes});
+  const viejos=sq.filter(p=>(p.age||26)>=31);
+  if(viejos.length>=3) gr.push({id:'viejos',ic:'🎖️',t:'Los grandes',
+    d:'Los veteranos que ponen los puntos',miembros:viejos});
+  const relegados=sq.filter(p=>{
+    const xi=Object.values(G.slots||{});
+    return !xi.includes(p.id) && (p.rat||0)>=72 && !p.injured;
+  });
+  if(relegados.length>=3) gr.push({id:'banco',ic:'🪑',t:'Los que no juegan',
+    d:'Buenos jugadores masticando bronca en el banco',miembros:relegados});
+  return gr.map(g=>{
+    const animo=Math.round(g.miembros.reduce((a,p)=>a+vestAnimo(p),0)/g.miembros.length);
+    const cabecilla=g.miembros.slice().sort((a,b)=>vestPeso(b)-vestPeso(a))[0];
+    return {...g,animo,cabecilla};
+  });
+}
+function vestClima(){
+  const sq=(G.squad||[]).filter(p=>!p.injured);
+  if(!sq.length) return {v:60,t:'—',c:'var(--t2)'};
+  // Ponderado por peso: si el que manda está mal, el vestuario está mal
+  let num=0,den=0;
+  sq.forEach(p=>{ const w=vestPeso(p); num+=vestAnimo(p)*w; den+=w; });
+  const v=Math.round(num/Math.max(1,den));
+  const t = v>=78?'Vestuario a full' : v>=62?'Ambiente sano'
+          : v>=45?'Clima tenso' : v>=28?'Vestuario partido' : 'Se prendió fuego';
+  const c = v>=78?'var(--green)' : v>=62?'var(--t2)' : v>=45?'var(--gold)'
+          : v>=28?'var(--ora)' : 'var(--red)';
+  return {v,t,c};
+}
+// Cada semana el grupo se contagia: el que manda arrastra a los suyos
+function weeklyVestuario(){
+  if(!G||!G.squad||!G.squad.length) return;
+  const grupos=vestGrupos();
+  grupos.forEach(g=>{
+    const cab=g.cabecilla; if(!cab) return;
+    const tira=(vestAnimo(cab)-55)/100;          // -0.55 a +0.45
+    const fuerza=personaInfo(cab).peso*0.55;
+    g.miembros.forEach(p=>{
+      if(p.id===cab.id) return;
+      const d=tira*fuerza*(1+((personaInfo(p).aguante<0)?0.5:-0.25));
+      p.morale=Math.max(3,Math.min(99,Math.round(((p.morale===undefined?60:p.morale)+d)*10)/10));
+    });
+  });
+  // El aguante de cada uno modula lo que le pega no jugar (encima de weeklyPlayerDt)
+  const xi=Object.values(G.slots||{}).filter(Boolean);
+  G.squad.forEach(p=>{
+    if(p.injured||xi.includes(p.id)) return;
+    const ag=personaInfo(p).aguante;
+    if(ag<0) p.dtRel=Math.max(0,(p.dtRel===undefined?60:p.dtRel)+ag*0.9);
+  });
+  // Un referente roto revienta el clima y se entera todo el mundo
+  const rotos=vestLideres().filter(l=>l.animo<=25);
+  if(rotos.length && Math.random()<0.22){
+    const l=rotos[0];
+    G.morale=Math.max(20,(G.morale||70)-4);
+    addPhoneMsg('agent','Prensa',
+      `🔥 Se filtró que <b>${l.p.name}</b>, uno de los referentes del plantel, está enfrentado con el cuerpo técnico. El vestuario de <b>${G.teamName}</b> está partido.`,'📰');
+    lg('🔥',`${l.p.name} (referente) rompió el clima del vestuario`);
+  }
+}
+function rVestuario(){
+  const el=document.getElementById('vestBox'); if(!el||!G||!G.squad) return;
+  const cl=vestClima();
+  const lids=vestLideres();
+  const grupos=vestGrupos();
+  const barra=(v,c)=>`<div style="height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden">
+    <div style="width:${v}%;height:100%;background:${c}"></div></div>`;
+  const colorAnimo=v=>v>=75?'var(--green)':v>=58?'var(--t2)':v>=42?'var(--gold)':v>=26?'var(--ora)':'var(--red)';
+  el.innerHTML=`
+    <div class="ctitle">🧑‍🤝‍🧑 Vestuario</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 3px">
+      <span style="font-size:11px;color:var(--t2)">Clima del grupo</span>
+      <span style="font-size:12px;font-weight:700;color:${cl.c}">${cl.t} · ${cl.v}/100</span>
+    </div>
+    ${barra(cl.v,cl.c)}
+    <div style="font-size:9px;color:var(--t3);margin-top:4px">Pesa más lo que sienten los referentes que el promedio del plantel.</div>
+
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:11px 0 5px">Referentes</div>
+    ${lids.map(l=>{const pi=personaInfo(l.p);return `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)">
+        <div style="min-width:0">
+          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(G.roles&&G.roles.captain===l.p.id)?'🅲 ':''}${l.p.name}</div>
+          <div style="font-size:9px;color:var(--t3)">${pi.e} ${pi.t} · peso ${l.peso}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:11px;font-weight:700;color:${colorAnimo(l.animo)}">${l.animo}/100</div>
+          <div style="font-size:9px;color:var(--t3)">${l.animo>=70?'tranquilo':l.animo>=45?'incómodo':'caliente'}</div>
+        </div>
+      </div>`;}).join('')}
+
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:11px 0 5px">Grupos</div>
+    ${grupos.length?grupos.map(g=>`
+      <div style="padding:5px 0;border-top:1px solid rgba(255,255,255,.05)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:11px;font-weight:700">${g.ic} ${g.t} <span style="font-size:9px;color:var(--t3);font-weight:400">(${g.miembros.length})</span></span>
+          <span style="font-size:11px;font-weight:700;color:${colorAnimo(g.animo)}">${g.animo}/100</span>
+        </div>
+        <div style="font-size:9px;color:var(--t3)">${g.d} · los lleva <b>${g.cabecilla.name}</b></div>
+      </div>`).join('')
+      :'<div class="note" style="margin:0">Todavía no se armó ningún grupo definido.</div>'}`;
 }
 
 function facilityFx(){
@@ -6607,6 +6786,104 @@ function rStand(){
 // ——— AI TRANSFERS & NEWS ———
 const AI_CLUBS=['River Plate','Racing','Independiente','San Lorenzo','Vélez','Estudiantes','Flamengo','Palmeiras','São Paulo','América','Cruz Azul','Barcelona SC','Nacional','Peñarol','Sevilla','Porto','Ajax','Lyon','Benfica'];
 
+// ═══════════════════════════════════════════════════════════════════════
+// RUMORES DE MERCADO
+// ═══════════════════════════════════════════════════════════════════════
+// Antes un fichaje aparecía de la nada, ya cerrado. Ahora la prensa lo
+// viene amasando semanas antes: "tal club sigue a tal jugador". Algunos
+// terminan siendo verdad y otros no, que es lo que los hace creíbles —
+// si todos se cumplieran serían un anuncio, no un rumor.
+const RUMOR_TXT={
+  mio:[
+    p=>`👀 En Europa suena fuerte el nombre de <b>${p.name}</b>. Dicen que ${p._rumorClub} mandó gente a verlo.`,
+    p=>`📻 Radio pasillo: ${p._rumorClub} preguntó por <b>${p.name}</b>. Desde el club dicen que no hay nada.`,
+    p=>`🗞️ ${p._rumorClub} tendría un principio de acuerdo con el entorno de <b>${p.name}</b>.`,
+  ],
+  ajeno:[
+    p=>`🔍 ${p._rumorClub} sigue de cerca a <b>${p.name}</b> (${p.rat}) del ${p.club}.`,
+    p=>`💬 Trascendió que ${p._rumorClub} hizo una primera oferta por <b>${p.name}</b>.`,
+    p=>`📋 <b>${p.name}</b> estaría en la carpeta de ${p._rumorClub} para la próxima ventana.`,
+  ],
+  falso:[
+    p=>`❌ Desmentida: el entorno de <b>${p.name}</b> negó cualquier contacto con ${p._rumorClub}. "Está feliz donde está".`,
+    p=>`🤐 Se enfrió la pista que unía a <b>${p.name}</b> con ${p._rumorClub}. No hubo oferta formal.`,
+  ],
+};
+const RUMOR_CLUBES=['Real Madrid','Barcelona','Man City','Bayern Munich','PSG','Liverpool','Arsenal','Inter','Juventus','Chelsea','Atlético de Madrid','Benfica','Porto','Flamengo','Palmeiras'];
+function _pubRumor(msg,tipo){
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+G.week, ic:'📰', msg, type:tipo||'rumor'});
+  if(G.news.length>35) G.news=G.news.slice(0,35);
+}
+function weeklyRumores(){
+  if(!G||!G.market) return;
+  G.rumores=G.rumores||[];
+  // OJO: la limpieza de los vencidos va al FINAL, después de resolverlos. Acá
+  // arriba se los comía antes de que el bloque 3 los viera y no se cumplía ni
+  // se desmentía ninguno: los rumores no llevaban a nada.
+
+  // 1) Rumores sobre MIS jugadores: al tipo le mueve la cabeza
+  if(Math.random()<0.30){
+    const candidatos=(G.squad||[]).filter(p=>p.rat>=74&&!p.injured&&!p._rumorActivo);
+    if(candidatos.length){
+      const p=candidatos[~~(Math.random()*candidatos.length)];
+      p._rumorClub=RUMOR_CLUBES[~~(Math.random()*RUMOR_CLUBES.length)];
+      p._rumorActivo=true;
+      // La mitad son humo. El que es verdad termina en oferta concreta.
+      const real=Math.random()<0.45;
+      G.rumores.push({id:p.id,club:p._rumorClub,real,mio:true,vence:G.week+3+~~(Math.random()*3)});
+      const f=RUMOR_TXT.mio[~~(Math.random()*RUMOR_TXT.mio.length)];
+      _pubRumor(f(p),'rumor');
+      addPhoneMsg('agent','Prensa',f(p),'📰');
+      // Que lo nombren le mueve el piso: se ilusiona o se distrae
+      p.morale=Math.max(3,Math.min(99,(p.morale||60)+(real?4:-2)));
+      lg('👀',`Rumor: ${p._rumorClub} por ${p.name}`);
+    }
+  }
+
+  // 2) Rumores del resto del mercado, que anticipan los fichajes de la IA
+  if(Math.random()<0.45){
+    const pool=G.market.filter(p=>p.rat>=76&&p.club&&p.club!=='Libre');
+    if(pool.length){
+      const p=pool[~~(Math.random()*pool.length)];
+      p._rumorClub=RUMOR_CLUBES[~~(Math.random()*RUMOR_CLUBES.length)];
+      if(p._rumorClub!==p.club){
+        G.rumores.push({id:p.id,club:p._rumorClub,real:Math.random()<0.5,mio:false,vence:G.week+2+~~(Math.random()*4)});
+        const f=RUMOR_TXT.ajeno[~~(Math.random()*RUMOR_TXT.ajeno.length)];
+        _pubRumor(f(p),'rumor');
+      }
+    }
+  }
+
+  // 3) Se resuelven los que vencieron: los de verdad terminan en oferta
+  const vencidos=(G.rumores||[]).filter(r=>r.vence<=G.week);
+  vencidos.forEach(r=>{
+    const p=(r.mio?G.squad:G.market).find(x=>x.id===r.id);
+    if(!p) return;
+    p._rumorActivo=false;
+    if(!r.real){
+      const f=RUMOR_TXT.falso[~~(Math.random()*RUMOR_TXT.falso.length)];
+      p._rumorClub=r.club;
+      _pubRumor(f(p),'rumor');
+      if(r.mio) p.morale=Math.max(3,(p.morale||60)-2);   // lo ilusionaron al pedo
+      return;
+    }
+    if(r.mio){
+      // Era verdad: llega la oferta formal por el jugador
+      const fee=Math.round((p.val||10)*(1.25+Math.random()*0.6)*10)/10;
+      G.endSeasonOffers=G.endSeasonOffers||[];
+      if(!G.endSeasonOffers.some(o=>o.playerId===p.id)){
+        G.endSeasonOffers.push({playerId:p.id,name:p.name,club:r.club,fee});
+        _pubRumor(`💰 Oficial: <b>${r.club}</b> presentó una oferta formal de <b>${fv(fee)}</b> por <b>${p.name}</b>.`,'transfer');
+        addPhoneMsg('agent','Mercado de pases',
+          `💰 Se confirmó lo que venía sonando: <b>${r.club}</b> puso <b>${fv(fee)}</b> sobre la mesa por <b>${p.name}</b>. La decisión es suya, presidente.`,'💰');
+        p.morale=Math.min(99,(p.morale||60)+6);
+      }
+    }
+  });
+  G.rumores=(G.rumores||[]).filter(r=>r.vence>G.week);
+}
+
 function aiTransfers(){
   if(!G||!G.news)G.news=[];
   // Budget-tier system: big clubs spend more
@@ -7735,12 +8012,22 @@ function youthSafetyNet(){
   // de 35 y quedás con un plantel enorme de treintañeros.
   if(edad>29.5&&G.squad.length<30) faltan=Math.max(faltan,2);
   if(!faltan)return;
-  // Si el plantel ya es joven, la secretaría sale a buscar libres hechos en vez
-  // de seguir subiendo pibes: tapar TODAS las bajas con juveniles dejaba un
-  // plantel de 22 años de promedio a las cinco temporadas.
-  if(edad<26.5) faltan-=fichaLibres(faltan, edad<24?2:1);
+  // La mezcla importa más que la edad de hoy: ningún club tapa seis bajas
+  // subiendo seis pibes de 17. Suben como mucho dos por temporada (y ninguno
+  // si el plantel ya está verde); el resto lo cubre la secretaría con libres
+  // hechos. Con la regla vieja el promedio se caía de 26.7 a 24.5 en un año.
+  const sub21=G.squad.filter(p=>(p.age||26)<=21).length;
+  const cupoPibes=(sub21>=6?0 : sub21>=4?1 : 2);
+  // Primero los libres hechos, todos los que hagan falta menos el cupo de pibes
+  const conLibres=Math.max(0, faltan-cupoPibes);
+  if(conLibres>0) faltan-=fichaLibres(faltan, conLibres);
   if(faltan<=0) return;
-  const listos=[...G.youth.players].sort((a,b)=>(b.pot+b.rat)-(a.pot+a.rat)).slice(0,faltan);
+  // Y los pibes hasta su cupo. Si aun así el plantel queda por debajo de 22,
+  // se sube lo que falte: mejor un juvenil que jugar con 20.
+  let cupo=cupoPibes;
+  if(G.squad.length+cupo < 22) cupo = 22-G.squad.length;
+  if(cupo<=0) return;
+  const listos=[...G.youth.players].sort((a,b)=>(b.pot+b.rat)-(a.pot+a.rat)).slice(0,Math.min(faltan,cupo));
   const subidos=[];
   listos.forEach(yp=>{
     if(G.squad.length>=35)return;
@@ -8462,6 +8749,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyLoans();
   weeklySeleccion();
   weeklyPlayerDt();
+  weeklyVestuario();
+  weeklyRumores();
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
