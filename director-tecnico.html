@@ -1028,8 +1028,11 @@ function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contract
   // El vencimiento de contrato viene de la base real cuando está disponible
   // (lo usa todo el mercado: precontratos, libres, descuentos por poco vínculo).
   // Si la base no lo trae, se estima: a los cracks les quedan más años.
-  const cUntil = (contractUntil && contractUntil >= 2026) ? contractUntil
-    : 2026 + (rat>=80 ? 2+~~(Math.random()*2) : ~~(Math.random()*3));
+  // El año base es la temporada EN CURSO, no 2026 fijo: un juvenil que sube en
+  // 2029 tiene que firmar hacia adelante, no nacer con el contrato vencido.
+  const _yr = (typeof G!=='undefined' && G && G.season) ? G.season : 2026;
+  const cUntil = (contractUntil && contractUntil >= _yr) ? contractUntil
+    : _yr + (rat>=80 ? 2+~~(Math.random()*2) : ~~(Math.random()*3));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
     val, rat, wage:wage||~~(rat*.4), pot,
@@ -3315,7 +3318,8 @@ function openP(id, inSquad){
             <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">🎽 Con el DT</span>
             <span style="font-size:11px;font-weight:700;color:${r.c}">${r.t} · ${Math.round(v)}/100</span></div>
             ${p.caps?`<div style="font-size:10px;color:var(--t2);margin-top:2px">🌍 ${p.caps} ${p.caps===1?'convocatoria':'convocatorias'} a la selección${p.selUp>0?' · <b style="color:var(--gold)">ahora está en fecha FIFA</b>':''}</div>`:(p.selUp>0?'<div style="font-size:10px;color:var(--gold);margin-top:2px">🌍 En fecha FIFA</div>':'')}`;})()}
-      </div>`;
+      </div>
+      ${(typeof rCareer==='function')?rCareer(p):''}`;
     })()}
     <div style="display:none">
     </div>
@@ -7379,6 +7383,62 @@ function endSeasonMarket(){
   // Generar ofertas de carrera (otros clubes te quieren) según logros
   genCareerOffers();
 }
+// ═══════════════════════════════════════════════════════════════════════
+// CONTRATOS QUE SE VENCEN DE VERDAD
+// ═══════════════════════════════════════════════════════════════════════
+// El juego te avisaba "si lo dejás llegar al final lo perdés sin plata" y
+// después no pasaba nada: nadie se iba nunca. Ahora sí. Si no renovaste, el
+// jugador decide, y la decisión depende de cómo lo trataste: cómo se lleva
+// con el DT, la moral, si lo tenías colgado y si el club es su casa.
+function seVaLibre(p){
+  let irse=0.55;
+  irse -= ((p.dtRel===undefined?60:p.dtRel)-60)/140;   // buena relación lo retiene
+  irse -= ((p.morale===undefined?60:p.morale)-60)/220;
+  irse -= Math.min(0.18,(p.seasonsAtClub||0)*0.045);   // el de la casa se queda
+  if(p.colgado) irse+=0.35;
+  if(p.wantsOut) irse+=0.25;
+  if(p.rat>=80) irse+=0.12;                            // al crack lo tientan de afuera
+  if(p.age>=35) irse-=0.20;                            // a esa edad no lo busca nadie
+  return Math.random() < Math.max(0.05,Math.min(0.95,irse));
+}
+function expireContracts(){
+  if(!G||!G.squad) return;
+  const sueltos=[];
+  G.squad.slice().forEach(p=>{
+    if(!p.contract || p.contract>G.season) return;     // todavía tiene vínculo
+    if(!seVaLibre(p)){
+      // Se queda: renueva solo, un año, al sueldo que ya cobraba
+      p.contract=G.season+1;
+      addPhoneMsg('player',p.name,`📄 Se me venció el contrato y no llegó nada mejor. Firmo un año más, presidente. Pero el año que viene hablamos en serio.`,'📝');
+      return;
+    }
+    // Se va libre
+    G.squad=G.squad.filter(x=>x.id!==p.id);
+    G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+    Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+    p.club='Libre'; p.freeAgent=true; p.colgado=false; p.lg='Libre';
+    (G.market=G.market||[]).push(p);
+    sueltos.push(p);
+  });
+  if(!sueltos.length) return;
+  const perdido=sueltos.reduce((a,p)=>a+(p.val||0),0);
+  lg('📄','Se van libres: '+sueltos.map(p=>p.name).join(', '));
+  addPhoneMsg('board','Secretaría Deportiva',
+    `📄 Se nos fueron <b>${sueltos.length}</b> jugador${sueltos.length>1?'es':''} con el pase en la mano: ${sueltos.map(p=>'<b>'+p.name+'</b>').join(', ')}. Eran ${fv(perdido)} de mercado que no cobramos.`,'🏛️');
+  // La CD no perdona regalar un crack
+  const crack=sueltos.filter(p=>p.rat>=78).length;
+  if(crack) G.boardConf=Math.max(0,(G.boardConf||50)-crack*4);
+  if(typeof youthSafetyNet==='function') youthSafetyNet();
+  // Los que se fueron dejaron su lugar vacío en el once. Si no se rearma, el
+  // equipo sale a la cancha con 8 y se hunde en la tabla sin que se note por
+  // qué: pasó de 18º a 29º en una temporada.
+  const huecos=Object.values(G.slots||{}).filter(x=>!x).length;
+  if(huecos){
+    if(typeof dtIsMine==='function'&&dtIsMine())
+      addPhoneMsg('board','Utilería',`⚠️ Quedaron <b>${huecos}</b> lugares vacíos en el once tras las bajas. Rearmá el equipo en Táctica antes de la primera fecha.`,'🏛️');
+    else if(typeof autoFill==='function') autoFill();
+  }
+}
 function acceptEndOffer(pid){
   const o=(G.endSeasonOffers||[]).find(x=>x.playerId===pid);
   const p=G.squad.find(x=>x.id===pid);
@@ -7513,6 +7573,62 @@ function showFiredModal(pos,descendio){
 }
 
 // Cierra la temporada: guarda historia y aplica descenso/ascenso real
+// ═══════════════════════════════════════════════════════════════════════
+// HISTORIAL DE CARRERA DE CADA JUGADOR
+// ═══════════════════════════════════════════════════════════════════════
+// Antes, al pasar de temporada se hacía p.goals=0 y listo: los 11 goles del
+// pibe desaparecían para siempre. Ahora cada temporada queda guardada, así se
+// puede ver la carrera entera: dónde jugó, cuánto jugó y cuánto hizo.
+function seasonSnapshot(p){
+  if(!p) return;
+  const apps=p.apps||0;
+  if(!apps && !(p.goals||0)) { p._lastSeason={season:G.season,apps:0,goals:0,assists:0,perf:1}; return; }
+  const fila={ season:G.season, club:p.club||G.teamName, apps:apps,
+               goals:p.goals||0, assists:p.assists||0,
+               perf:Math.round((p.perf===undefined?1:p.perf)*100)/100,
+               rat:p.rat, caps:p.caps||0 };
+  p.hist=p.hist||[];
+  p.hist.push(fila);
+  if(p.hist.length>20) p.hist=p.hist.slice(-20);   // tope: no infla el guardado
+  p._lastSeason=fila;
+}
+function careerTotals(p){
+  const h=p&&p.hist||[];
+  return h.reduce((a,f)=>({apps:a.apps+f.apps,goals:a.goals+f.goals,assists:a.assists+(f.assists||0)}),
+                  {apps:p&&p.apps||0,goals:p&&p.goals||0,assists:p&&p.assists||0});
+}
+function rCareer(p){
+  const h=(p&&p.hist)||[];
+  const t=careerTotals(p);
+  if(!h.length && !t.apps) return '';
+  const filas=h.slice().reverse().slice(0,8).map(f=>`
+    <div style="display:grid;grid-template-columns:44px 1fr 34px 30px 30px;gap:4px;font-size:10px;padding:3px 0;border-top:1px solid rgba(255,255,255,.05)">
+      <span style="color:var(--t3)">${f.season}</span>
+      <span style="color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.club||'—'}</span>
+      <span style="text-align:right">${f.apps}</span>
+      <span style="text-align:right;color:var(--gold)">${f.goals}</span>
+      <span style="text-align:right;color:var(--t2)">${f.assists||0}</span>
+    </div>`).join('');
+  return `<div class="card" style="padding:10px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+      <span style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase">📜 Carrera</span>
+      <span style="font-size:11px;font-weight:700">${t.apps} PJ · <span style="color:var(--gold)">${t.goals}g</span> · ${t.assists}a</span>
+    </div>
+    <div style="display:grid;grid-template-columns:44px 1fr 34px 30px 30px;gap:4px;font-size:9px;color:var(--t3);text-transform:uppercase">
+      <span>Temp.</span><span>Club</span><span style="text-align:right">PJ</span><span style="text-align:right">G</span><span style="text-align:right">A</span>
+    </div>
+    <div style="display:grid;grid-template-columns:44px 1fr 34px 30px 30px;gap:4px;font-size:10px;padding:3px 0;border-top:1px solid rgba(255,255,255,.05);font-weight:700">
+      <span style="color:var(--gold)">${G.season}</span>
+      <span style="color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.club||'—'}</span>
+      <span style="text-align:right">${p.apps||0}</span>
+      <span style="text-align:right;color:var(--gold)">${p.goals||0}</span>
+      <span style="text-align:right;color:var(--t2)">${p.assists||0}</span>
+    </div>
+    ${filas}
+    ${h.length>8?`<div style="font-size:9px;color:var(--t3);margin-top:4px">…y ${h.length-8} temporadas más</div>`:''}
+  </div>`;
+}
+
 function archiveSeason(){
   ensureLeague();
   const t=leagueSorted();
@@ -7584,6 +7700,32 @@ function archiveSeason(){
 // años de media a 24 con 33,5 y media 65: envejecía y se vaciaba sin piso.
 // Un club de verdad siempre tiene pibes listos. Esto no te saca la decisión,
 // sólo evita que el plantel se muera si no hacés nada.
+// La secretaría deportiva sale a buscar jugadores libres y hechos (25-32) para
+// que el plantel no quede lleno de juveniles. Son libres: no cuestan ficha.
+function fichaLibres(faltan, cuantos){
+  if(!G||!G.market) return 0;
+  const cupo=Math.min(faltan, cuantos);
+  if(cupo<=0) return 0;
+  const libres=G.market.filter(p=>p.freeAgent&&p.age>=25&&p.age<=32&&p.rat>=66&&p.rat<=76)
+                       .sort((a,b)=>b.rat-a.rat).slice(0,40);
+  if(!libres.length) return 0;
+  const tomados=[];
+  for(let i=0;i<cupo&&libres.length;i++){
+    const p=libres.splice(~~(Math.random()*Math.min(12,libres.length)),1)[0];
+    G.market=G.market.filter(x=>x.id!==p.id);
+    p.club=G.teamName; p.lg='Liga ARG'; p.freeAgent=false;
+    p.contract=(G.season||2026)+1+~~(Math.random()*2);
+    p.seasonsAtClub=0; p.dtRel=58; p.morale=68; p.goals=0; p.apps=0; p.assists=0;
+    G.squad.push(p); (G.bench=G.bench||[]).push(p);
+    tomados.push(p);
+  }
+  if(tomados.length){
+    lg('🆓','Llegan libres: '+tomados.map(p=>p.name+' ('+p.rat+')').join(', '));
+    addPhoneMsg('board','Secretaría Deportiva',
+      `🆓 El plantel quedaba corto y muy verde, así que cerramos a ${tomados.map(p=>'<b>'+p.name+'</b> ('+p.rat+')').join(' y ')} con el pase libre. Sin ficha, sólo contrato.`,'🏛️');
+  }
+  return tomados.length;
+}
 function youthSafetyNet(){
   if(!G||!G.youth||!G.youth.players)return;
   const MIN=26;
@@ -7593,12 +7735,19 @@ function youthSafetyNet(){
   // de 35 y quedás con un plantel enorme de treintañeros.
   if(edad>29.5&&G.squad.length<30) faltan=Math.max(faltan,2);
   if(!faltan)return;
+  // Si el plantel ya es joven, la secretaría sale a buscar libres hechos en vez
+  // de seguir subiendo pibes: tapar TODAS las bajas con juveniles dejaba un
+  // plantel de 22 años de promedio a las cinco temporadas.
+  if(edad<26.5) faltan-=fichaLibres(faltan, edad<24?2:1);
+  if(faltan<=0) return;
   const listos=[...G.youth.players].sort((a,b)=>(b.pot+b.rat)-(a.pot+a.rat)).slice(0,faltan);
   const subidos=[];
   listos.forEach(yp=>{
     if(G.squad.length>=35)return;
+    // Primer contrato profesional: 3 años desde hoy, como en la vida real
     const np=P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors',
-              'Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
+              'Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot,(G.season||2026)+3);
+    np.seasonsAtClub=1; np.dtRel=65;   // el pibe de la casa arranca bien parado
     G.squad.push(np); G.bench.push(np);
     G.youth.players=G.youth.players.filter(x=>x.id!==yp.id);
     subidos.push(np.name+' ('+np.rat+'/'+np.pot+')');
@@ -7615,6 +7764,10 @@ function nextSeason(){
   archiveSeason();
   endSeasonMarket();
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
+  // La foto de la temporada va ANTES de G.season++, si no queda archivada con
+  // el año siguiente.
+  G.squad.forEach(seasonSnapshot);
+  expireContracts();
   G.season++;
   G.week = 1;
   G.wins = 0; G.draws = 0; G.losses = 0;
@@ -7624,22 +7777,69 @@ function nextSeason(){
     p.age++;
     p.seasonsAtClub = (p.seasonsAtClub || 0) + 1;
     const oldRat = p.rat;
-    if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*3));
-    else if(p.age <= 27) p.rat = Math.min(p.pot, p.rat + (Math.random() > 0.4 ? 1 : 0));
-    else if(p.age <= 30) p.rat = Math.max(55, p.rat + (Math.random() > 0.6 ? 0 : -1));
-    else if(p.age <= 33) p.rat = Math.max(55, p.rat - (Math.random() > 0.5 ? 0 : 1));
-    else p.rat = Math.max(55, p.rat - ~~(Math.random()*2));
+    // El salto de temporada usa la trayectoria PROPIA del jugador (peakAge) y
+    // lo que hizo en la cancha. La tabla vieja era por edad a secas: a los 28
+    // ya te bajaba solo por cumplir años, aunque hubiera sido la figura.
+    const pk = (typeof peakAge==='function') ? peakAge(p) : 28;
+    const d = p.age - pk;
+    const jugo = (p._lastSeason && p._lastSeason.apps) || 0;
+    // rendimiento de la temporada, centrado en 0: arriba de 1 es buena campaña
+    const rend = jugo>=8 ? ((p._lastSeason.perf||1)-1) : -0.15;
+    if(d <= -4)      p.rat = Math.min(p.pot, p.rat + 1 + (Math.random()<0.45+rend?1:0));
+    else if(d <= -1) p.rat = Math.min(p.pot, p.rat + (Math.random()<0.55+rend?1:0));
+    else if(d <= 1)  p.rat = Math.min(p.pot, p.rat + (Math.random()<0.20+rend?1:0));
+    // La caída empieza recién pasado su pico y es lenta; el que sigue rindiendo
+    // se sostiene un año más, el que no juega se apaga antes.
+    else if(d <= 4)  p.rat = Math.max(55, p.rat - (Math.random()<0.30-rend?1:0));
+    else             p.rat = Math.max(55, p.rat - (Math.random()<0.65-rend?1:0) - (p.age>=36?1:0));
     if(p.rat !== oldRat) p.val = calcVal(p);
-    p.goals = 0; p.apps = 0;
-    p.contract--;
+    p.goals = 0; p.apps = 0; p.assists = 0;
+    // p.contract es el AÑO de vencimiento, no los años que faltan: no se resta.
+    // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
+    // subía), y a la tercera temporada se te vencían casi todos los contratos.
   });
+  // Los clubes de la base también renuevan a su gente. Sin esto, los contratos
+  // del mercado (que nacen con vencimiento 2026-2028) quedaban todos en el
+  // pasado y a la cuarta temporada CASI TODA la base figuraba libre: 12.200 de
+  // 12.700 jugadores fichables gratis, el mercado dejaba de existir.
+  let renovados=0, aLaLibertad=0;
   G.market.forEach(p => {
     p.age++;
     const oldRat = p.rat;
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*2));
     else if(p.age >= 35) p.rat = Math.max(55, p.rat - (Math.random()>0.4?1:0));
     if(p.rat !== oldRat) p.val = calcVal(p);
+    if(p.freeAgent) return;                       // ya está libre, no tiene club que lo renueve
+    if(p.contract===undefined || p.contract>G.season) return;
+    // Se le venció: su club decide. Al que rinde lo renuevan casi siempre;
+    // al veterano o al suplente lo dejan ir, y ahí sí queda libre de verdad.
+    const sigue = Math.random() < (p.age>=34?0.45 : p.rat>=78?0.93 : p.rat>=70?0.86 : 0.74);
+    if(sigue){ p.contract=G.season+1+~~(Math.random()*3); renovados++; }
+    else { p._exLg=p.lg; p.freeAgent=true; p.lg='Libre'; p.club='Libre';
+           p.contract=G.season; aLaLibertad++; }
   });
+  // Y un libre no se queda libre para siempre: la mayoría consigue club antes
+  // de que arranque el torneo. Sin esto se acumulaban temporada tras temporada
+  // y a los cuatro años el 43% de la base estaba sin dueño.
+  const clubesPorLiga={};
+  G.market.forEach(p=>{ if(p.freeAgent||!p.club||!p.lg)return;
+    (clubesPorLiga[p.lg]=clubesPorLiga[p.lg]||new Set()).add(p.club); });
+  let colocados=0;
+  G.market.forEach(p=>{
+    if(!p.freeAgent) return;
+    // al bueno lo levantan enseguida; al veterano sin equipo le cuesta
+    const consigue = Math.random() < (p.rat>=78?0.94 : p.rat>=70?0.82 : p.age>=35?0.35 : 0.62);
+    if(!consigue) return;
+    const liga=p._exLg||p.lg;
+    const cl=clubesPorLiga[liga];
+    if(!cl||!cl.size) return;
+    const arr=[...cl];
+    p.club=arr[~~(Math.random()*arr.length)];
+    p.lg=liga; p.freeAgent=false; delete p._exLg;
+    p.contract=G.season+1+~~(Math.random()*3);
+    colocados++;
+  });
+  if(renovados||aLaLibertad) lg('📄',`Mercado: ${renovados} renovaron, ${aLaLibertad} quedaron libres, ${colocados} consiguieron club`);
   // Promesas de aumento se cumplen a fin de temporada
   (G.promises||[]).forEach(pr=>{
     if(pr.type==='sueldo'&&!pr.resolved){
@@ -16264,8 +16464,13 @@ function weeklyMarketEvolution(){
     // Antes un contrato vencido no cambiaba nada. Ahora, al terminarse, el
     // jugador queda LIBRE: no se paga ficha, sólo el sueldo. Y el que tiene
     // pocos meses se abarata solo (el club prefiere venderlo a perderlo gratis).
-    if(contractMonths(p)<=0&&!p.freeAgent){
-      p.freeAgent=true;p.club='Libre';
+    // OJO con la condición: contractMonths llega a 0 al final de CUALQUIER
+    // temporada en la que se venza el vínculo, así que usarla acá dejaba libre
+    // a todo el que estuviera en su último año, antes de que su club pudiera
+    // renovarlo en el salto de temporada. Se libera sólo el que ya arrastra un
+    // vencimiento del año pasado.
+    if(p.contract!==undefined&&p.contract<(G.season||2026)&&!p.freeAgent){
+      p.freeAgent=true;p.club='Libre';p.lg='Libre';
       if(p.rat>=76&&Math.random()<0.35)
         addPhoneMsg('agent','Mercado de pases',`🆓 <b>${p.name}</b> (${p.rat}) quedó <b>libre</b>. Se lo puede firmar sin pagar ficha, sólo el contrato.`,'🆓');
     }
