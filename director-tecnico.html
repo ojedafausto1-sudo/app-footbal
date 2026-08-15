@@ -502,21 +502,25 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <div class="hm-team"><div class="hm-badge opp" id="nABadge">—</div><div class="hm-name" id="nA">—</div></div>
         </div>
         <div class="hm-meta" id="nMeta">—</div>
-        <div style="display:flex;gap:4px;justify-content:center;margin-top:8px;flex-wrap:wrap">
+        <div id="hmMent" style="display:flex;gap:4px;justify-content:center;margin-top:8px;flex-wrap:wrap">
           <button onclick="setTacticM('Defensivo',this)" id="tac-def" class="btn bo bs" style="font-size:9px;padding:2px 6px">🛡️ DEF</button>
           <button onclick="setTacticM('Equilibrado',this)" id="tac-eq" class="btn bg bs" style="font-size:9px;padding:2px 6px">⚖️ EQ</button>
           <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
         </div>
-        <button class="hm-play" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
+        <button class="hm-play" id="btnPlay" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
         <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center">
           <button class="btn bo bs" id="dayBtn" onclick="advanceDay()" style="border-color:var(--gold);color:var(--gold)">📅 AVANZAR DÍA</button>
           <span id="dayLbl" style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif"></span>
         </div>
-        <div class="hm-alts">
+        <div class="hm-alts" id="hmAlts">
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">🔍 PREVIA</button>
           <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
           <button class="btn bo bs" onclick="openContinuousSim()" style="border-color:var(--gold);color:var(--gold)">⏩ SIM CONTINUA</button>
           <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 SIM TÁCTICA 11v11</button>
+        </div>
+        <div id="hmEspera" style="display:none;margin-top:8px">
+          <button class="btn bg" id="btnHastaPartido" onclick="avanzarHastaPartido()" style="width:100%">⏭️ SIMULAR HASTA EL DÍA DEL PARTIDO</button>
+          <div style="font-size:10px;color:var(--t3);margin-top:5px;text-align:center" id="hmEsperaTxt"></div>
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
       </div>
@@ -613,7 +617,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
          la formación NO se podían tocar desde ningún lado. Ahora tienen su
          pestaña. -->
     <div id="tab-tac" class="tc">
-      <div class="stitle">⚽ Táctica <span style="font-size:12px;color:var(--t3);font-weight:400">armá el equipo</span></div>
+      <div class="stitle">⚽ Táctica <span id="tacSub" style="font-size:12px;color:var(--t3);font-weight:400">armá el equipo</span></div>
       <div id="tacWho" style="margin-bottom:8px"></div>
       <div class="card" style="margin-bottom:9px">
         <div class="ctitle">🎯 Formación</div>
@@ -3197,6 +3201,7 @@ function updateUI(){
   if($('offCnt'))$('offCnt').textContent=G.offers.length;
   if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=dayLabel()+(q>0?' · faltan '+q+' d':' · día de partido');}
   if($('dayBtn'))$('dayBtn').style.opacity=curDay()>=7?'.4':'1';
+  rBotonesPartido();
   rSq('all');
   rStand();
   rNews();
@@ -4378,7 +4383,21 @@ function toggleConvocado(id){
   rBench();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LA TÁCTICA ES DEL DT, SALVO QUE EL DT SEAS VOS
+// ═══════════════════════════════════════════════════════════════════════
+// La pestaña Táctica dejaba mover jugadores, cambiar la formación, el estilo
+// y los pateadores aunque el técnico fuera uno real. Eso contradice la regla
+// del juego: sos el PRESIDENTE, el once lo pone el DT. Sólo mandás vos con un
+// DT personalizado. Una sola compuerta y todos los botones pasan por acá.
+function tacBloqueada(){ return !(typeof dtIsMine==='function' && dtIsMine()); }
+function tacAviso(){
+  const n=(G&&G.dt&&G.dt.name)||'el DT';
+  flash('👔 Lo decide '+n+' — sos el presidente','draw');
+  return true;
+}
 function clickSlot(idx){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   if(!G) return;
   // If a bench player is selected → swap with this slot
   if(typeof selSlot === 'string' && selSlot.startsWith('bench_')){
@@ -4467,6 +4486,7 @@ function doSub(idx, pid){
 }
 
 function clickBench(pid){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   if(!G) return;
   if(typeof selSlot === 'number'){
     // Slot was selected, put this bench player in that slot
@@ -4574,6 +4594,7 @@ function cyclePosSlot(idx){
 }
 let _dragSlot=null;
 function startDragSlot(e,idx){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   if(!G||!G.editMode||idx===0)return;
   e.preventDefault();
   _dragSlot=idx;
@@ -4614,6 +4635,7 @@ function setSlotRole(idx,role){
 }
 
 function setForm(f){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   if(!G) return;
   G.formation = f; selSlot = null;
   // Con DT propio el once es tuyo: se reubica, no se rearma de cero.
@@ -4641,7 +4663,8 @@ function rStyle(){
     </div>
   `;
 }
-function setStyle(s){ if(!G) return; G.style=s; lg('🎯','Estilo: '+s); rStyle(); }
+function setStyle(s){ if(!G) return;
+  if(tacBloqueada()) return tacAviso()&&undefined; G.style=s; lg('🎯','Estilo: '+s); rStyle(); }
 
 function rTacOpts(){
   const el = document.getElementById('tacOpts');
@@ -4654,7 +4677,7 @@ function rTacOpts(){
     </div>
   `).join('');
 }
-function setTac(k,v){ if(!G) return; G[k]=v; rTacOpts(); }
+function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undefined; G[k]=v; rTacOpts(); }
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGNADOS: capitán, pateadores, quién sube al córner y marca personal
@@ -4728,9 +4751,11 @@ function rSetPieces(){
         ${xi.filter(p=>p.pos!=='ARQ').map(p=>`<option value="${p.id}"${R.mark===p.id?' selected':''}>${p.name} marca al crack rival</option>`).join('')}
       </select></div>`;
 }
-function setRole(kind,val){ ensureRoles()[kind]=val||null; rSetPieces();
+function setRole(kind,val){ if(tacBloqueada()) return tacAviso()&&undefined;
+  ensureRoles()[kind]=val||null; rSetPieces();
   flash(val?'🎖️ Designado actualizado':'🎖️ Vuelve a automático','draw'); }
 function toggleRunner(id){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   const R=ensureRoles();
   if(R.runners.includes(id))R.runners=R.runners.filter(x=>x!==id);
   else if(R.runners.length<4)R.runners.push(id);
@@ -8351,6 +8376,18 @@ function nextSeason(){
     // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
     // subía), y a la tercera temporada se te vencían casi todos los contratos.
   });
+  // Los cedidos viven en G.loaned, FUERA de G.squad, así que no pasaban por
+  // este bucle: volvían del préstamo con la misma edad con la que se fueron y
+  // sin haber pasado nunca por la regla de retiro. Un tipo cedido dos años
+  // volvía dos años más joven de lo que debía.
+  (G.loaned||[]).forEach(l=>{
+    const q=l&&l.player; if(!q) return;
+    q.age++;
+    const pk=(typeof peakAge==='function')?peakAge(q):28;
+    if(q.age-pk>1 && Math.random()<0.5) bajarRat(q,55);
+    else if(q.age-pk<=-1 && q.rat<(q.pot||99) && Math.random()<0.5) q.rat++;
+    q.goals=0; q.apps=0; q.assists=0;
+  });
   retiros();          // ya con la edad y la media nuevas
   expireContracts();  // y después los que se van libres
   G.season++;
@@ -9038,6 +9075,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
     G.loaned=G.loaned.filter(l=>{
       if(G.week>=l.returnWeek){
         l.player.club=G.teamName;l.player.onLoan=false;l.player.loanedFrom=null;
+        // Si mientras estuvo cedido le llegó la hora, vuelve para retirarse.
+        // Sin esto se colaba de nuevo al plantel saltándose la regla.
+        if(typeof seRetira==='function' && seRetira(l.player)){
+          (G.retirados=G.retirados||[]).push({name:l.player.name,pos:l.player.pos,
+            age:l.player.age,season:G.season,apps:l.player.apps||0,goals:l.player.goals||0,
+            assists:l.player.assists||0,seasons:l.player.seasonsAtClub||0,idolo:false,num:l.player.num});
+          lg('🎓',`${l.player.name} volvió del préstamo y anunció su retiro (${l.player.age} años)`);
+          addPhoneMsg('player',l.player.name,
+            `🎓 Volví de ${l.destClub} para despedirme, presidente. Hasta acá llegué.`,'🎓');
+          return false;
+        }
         G.squad.push(l.player);G.bench.push(l.player);
         lg('🔄',`${l.player.name} volvió del préstamo de ${l.destClub}`);
         flash(l.player.name+' volvió del préstamo ✅','win');
@@ -9183,6 +9231,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
 
 // ═══ SIMULACIÓN CONTINUA: elegís cuántos partidos seguidos jugar ═══
 function openContinuousSim(){
+  // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
+  if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
+    flash('📅 Todavía no es el día del partido — hacé correr los días','draw');
+    return;
+  }
   if(!G)return;
   const pend=G.calendar.filter(m=>!m.played).length;
   if(!pend){flash('No quedan partidos por jugar','draw');return;}
@@ -9420,10 +9473,12 @@ function showPreMatch(m){
         `).join('')}
       </div>
     </div>
-    <div style="display:flex;gap:6px">
+    ${(typeof esDiaDePartido==='function'&&!esDiaDePartido())
+      ? `<div class="note" style="margin:0">📅 Falta para el partido. Esta es la previa: el equipo sale a la cancha el domingo.</div>`
+      : `<div style="display:flex;gap:6px">
       <button class="btn bg" style="flex:1" onclick="closeMod();simMatch(false)">📺 Jugar con relato</button>
       <button class="btn bo" style="flex:1" onclick="closeMod();simMatch(true)">⚡ Resultado directo</button>
-    </div>
+    </div>`}
   `);
 }
 
@@ -10152,6 +10207,11 @@ function doTeamTalk(id,good){
 }
 
 function playMatch(){
+  // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
+  if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
+    flash('📅 Todavía no es el día del partido — hacé correr los días','draw');
+    return;
+  }
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
@@ -12775,6 +12835,7 @@ function setDiff(n, btn){
 }
 
 function setTacticM(mentality, btn){
+  if(tacBloqueada()) return tacAviso()&&undefined;
   if(!G) return;
   G.tactic = G.tactic || {style:'Posesión', mentality:'Equilibrado'};
   G.tactic.mentality = mentality;
@@ -13002,6 +13063,11 @@ function fmMove(body,dx,dy,dt,acc){
 }
 
 function startFullMatch(watch){
+  // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
+  if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
+    flash('📅 Todavía no es el día del partido — hacé correr los días','draw');
+    return;
+  }
   if(!G)return;
   const m=G.calendar.find(x=>!x.played);
   if(!m){flash('No hay partidos pendientes','loss');return;}
@@ -16176,13 +16242,31 @@ function rTacticaTab(){
   // Con un DT real el once lo pone él: dtPicksXI() lo rehace antes de cada
   // partido. Antes la pestaña te dejaba mover fichas y los cambios se
   // esfumaban sin decir nada.
+  const mio=(typeof dtIsMine==='function')&&dtIsMine();
+  const sub=document.getElementById('tacSub');
+  if(sub) sub.textContent = mio ? 'armá el equipo' : 'lo maneja el DT';
   const who=document.getElementById('tacWho');
   if(who){
-    const mio=(typeof dtIsMine==='function')&&dtIsMine();
-    who.innerHTML=`<div class="note" style="margin:0;border-color:${mio?'rgba(246,211,24,.3)':'rgba(255,255,255,.1)'}">
-      ${mio?'⭐ <b>Vos dirigís</b>: el once, el banco, la táctica y las pelotas paradas los elegís vos.'
-           :`👔 El once lo pone <b>${(G.dt&&G.dt.name)||'el DT'}</b> y lo rearma antes de cada partido: lo que muevas acá no se va a respetar. Si querés mandar vos, creá un <b>DT personalizado</b> en Cuerpo Técnico.`}
-    </div>`;
+    who.innerHTML=mio
+      ? `<div class="note" style="margin:0;border-color:rgba(246,211,24,.3)">⭐ <b>Vos dirigís</b>: el once, el banco, la táctica y las pelotas paradas los elegís vos.</div>`
+      : `<div class="note" style="margin:0;border-color:var(--ora);color:var(--t2)">
+           🔒 <b>Táctica bloqueada</b> — el once, la formación, el estilo y los pateadores los decide
+           <b>${(G.dt&&G.dt.name)||'el DT'}</b>. Vos sos el <b>presidente</b>: podés mirar, no tocar.
+           <div style="margin-top:7px">
+             <button class="btn bg bs" onclick="gTab('ct',null);openCustomDTModal&&openCustomDTModal()">🎯 Ponerme de DT</button>
+             <button class="btn bo bs" onclick="gTab('ct',null)">👔 Cambiar de técnico</button>
+           </div>
+         </div>`;
+  }
+  // Que se vea bloqueado, no sólo que no responda: apagado y sin cursor de mano.
+  const tab=document.getElementById('tab-tac');
+  if(tab){
+    ['fBtns','pitchSlots','benchArea','styleOpts','tacOpts','setPieces'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      el.style.opacity   = mio?'':'0.45';
+      el.style.filter    = mio?'':'grayscale(0.7)';
+      el.style.pointerEvents = mio?'':'none';
+    });
   }
   // Cada bloque por separado: si uno falla, los otros igual se dibujan, y el
   // error queda a la vista en vez de dejar la pestaña a medias sin avisar.
@@ -16694,14 +16778,49 @@ function negExecDeal(n,p){
 const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 function curDay(){ return Math.max(1,Math.min(7,G&&G.day||1)); }
 function dayLabel(){ return DIAS[curDay()-1]+' · S'+(G&&G.week||1); }
-function advanceDay(){
+// ═══════════════════════════════════════════════════════════════════════
+// EL PARTIDO SE JUEGA EL DÍA DEL PARTIDO
+// ═══════════════════════════════════════════════════════════════════════
+// Antes tenías JUGAR / SIMULAR / 11v11 disponibles cualquier día de la
+// semana, así que los 7 días entre fecha y fecha eran decorativos: apretabas
+// y se jugaba. Ahora hasta el domingo lo único que podés hacer es que pase el
+// tiempo; recién ese día aparecen los botones de partido.
+function esDiaDePartido(){ return curDay()>=7; }
+function rBotonesPartido(){
+  const dia=esDiaDePartido();
+  const play=document.getElementById('btnPlay');
+  const alts=document.getElementById('hmAlts');
+  const esp =document.getElementById('hmEspera');
+  const txt =document.getElementById('hmEsperaTxt');
+  // La mentalidad (DEF/EQ/OF) es táctica: si la decide el DT, ni se muestra.
+  const ment=document.getElementById('hmMent');
+  if(ment) ment.style.display=(typeof tacBloqueada==='function'&&tacBloqueada())?'none':'';
+  if(play) play.style.display=dia?'':'none';
+  if(alts) alts.style.display=dia?'':'none';
+  if(esp)  esp.style.display =dia?'none':'';
+  if(txt&&!dia){
+    const q=7-curDay();
+    txt.textContent=`Se juega el domingo — ${q===1?'falta 1 día':'faltan '+q+' días'}. Mientras tanto negociá, entrená y arreglá el club.`;
+  }
+}
+// Pasar todos los días de una hasta llegar al partido, sin jugarlo.
+function avanzarHastaPartido(){
+  if(!G)return;
+  if(esDiaDePartido()){ flash('⚽ Ya es día de partido','draw'); return; }
+  let n=0;
+  while(!esDiaDePartido() && n<7){ advanceDay(true); n++; }
+  updateUI();
+  flash(`📅 ${dayLabel()} · llegó el día del partido`,'win');
+}
+function advanceDay(silencioso){
   if(!G)return;
   if(curDay()>=7){
-    flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
+    if(!silencioso) flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
     return;
   }
   G.day=curDay()+1; G._daysTicked=(G._daysTicked||0)+1;
   dailyTick();
+  if(silencioso) return;          // el avance en bloque avisa una sola vez al final
   updateUI();
   const quedan=7-G.day;
   flash(`📅 ${dayLabel()}${quedan?' · faltan '+quedan+' días para el partido':' · ¡mañana se juega!'}`,'draw');
