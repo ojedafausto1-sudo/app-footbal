@@ -576,6 +576,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       </div>
       <div id="sqList"></div>
       <div class="card" style="margin-top:10px" id="vestBox"></div>
+      <div class="card" style="margin-top:10px;display:none" id="retiroBox"></div>
     </div>
 
     <!-- MI DT -->
@@ -2813,12 +2814,52 @@ function setDtRel(delta){
   if(before>=30&&G.dtRel<30){
     addPhoneMsg('board',(G.dt&&G.dt.name)||'El DT',`😠 Presidente, me enteré de sus declaraciones. Así es muy difícil trabajar. Si no me respalda, mejor hablemos de mi salida.`,'👔');
   }
-  if(G.dtRel<=8&&Math.random()<0.5&&!G._dtQuit){
-    G._dtQuit=true;
-    addPhoneMsg('board','Secretaría del Club',`🚪 <b>${(G.dt&&G.dt.name)||'El DT'}</b> presentó la renuncia. Dijo que perdió el respaldo de la dirigencia. Hay que buscar reemplazante.`,'🏛️');
-    lg('🚪',`${(G.dt&&G.dt.name)||'El DT'} renunció por falta de respaldo`);
-    G.boardConf=Math.max(0,(G.boardConf||50)-10);
-  }
+  if(G.dtRel<=8&&Math.random()<0.5) dtRenuncia('perdió el respaldo de la dirigencia');
+}
+// La renuncia estaba a medias: mandaba el mensaje, marcaba G._dtQuit y el DT
+// se quedaba sentado en el banco igual. Ahora se va de verdad y queda el
+// interino, como cuando lo echás.
+function dtRenuncia(motivo){
+  if(!G||!G.dt||G._dtQuit) return false;
+  if(G.dt.custom) return false;          // el DT que armaste vos no renuncia
+  G._dtQuit=true;
+  const nom=G.dt.name||'El DT';
+  if(G.dtPool){ const old=G.dtPool.find(x=>x.name===nom); if(old){old.club=null;old.until=0;} }
+  G.boardConf=Math.max(0,(G.boardConf||50)-10);
+  G.morale=Math.max(25,(G.morale||70)-6);
+  lg('🚪',`${nom} renunció: ${motivo}`);
+  addPhoneMsg('board','Secretaría del Club',
+    `🚪 <b>${nom}</b> presentó la renuncia — ${motivo}. Queda un interino a cargo. Hay que salir a buscar reemplazante ya.`,'🏛️');
+  if(typeof _pubRumor==='function')
+    _pubRumor(`🚪 <b>${nom}</b> dejó de ser el DT de ${G.teamName}. Renunció: ${motivo}.`,'misc');
+  G.dt={name:'DT Interino',nat:'ARG',age:52,rat:62,style:G.formation||'4-4-2',
+        str:'Interinato hasta contratar',salary:15,trait:'Equilibrado',
+        wantedPos:['DC'],philosophy:'Aguantar el barco'};
+  if(typeof rStaff==='function') rStaff();
+  flash('🚪 '+nom+' renunció','loss');
+  return true;
+}
+// Y se revisa cada semana, no sólo cuando algo llama a setDtRel: la relación
+// se desgasta por varios caminos y por la mayoría nunca se evaluaba.
+function weeklyDtRenuncia(){
+  if(!G||!G.dt||G.dt.custom||G._dtQuit) return;
+  const rel=(G.dtRel===undefined?65:G.dtRel);
+  let riesgo=0;
+  if(rel<=10) riesgo+=0.16;
+  else if(rel<=22) riesgo+=0.07;
+  else if(rel<=35) riesgo+=0.025;
+  // Un vestuario roto también lo termina echando
+  const clima=(typeof vestClima==='function')?vestClima().v:60;
+  if(clima<=30) riesgo+=0.05;
+  else if(clima<=42) riesgo+=0.02;
+  // Y si le pisás las decisiones todo el tiempo, se cansa
+  const pisados=(G.squad||[]).filter(p=>p._forced>0).length;
+  if(pisados>=3) riesgo+=0.03;
+  if(riesgo<=0 || Math.random()>=riesgo) return;
+  const motivo = rel<=22 ? 'dijo que no tiene el respaldo del presidente'
+               : clima<=42 ? 'dijo que perdió al vestuario'
+               : 'se cansó de que le manejen el equipo';
+  dtRenuncia(motivo);
 }
 function dtRelLabel(){
   const v=G&&G.dtRel!==undefined?G.dtRel:65;
@@ -3153,6 +3194,7 @@ function updateUI(){
   rTicket();
   rLoans();
   rVestuario();
+  rRetirados();
   rJuv();
   if(G.sponsors!==undefined) rSponsors();
   if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
@@ -3339,6 +3381,7 @@ function openP(id, inSquad){
         <button class="btn bo bs" onclick="loanPlayer('${p.id}')">📤 Ceder</button>
         <button class="btn bo bs" onclick="openPromises('${p.id}')">🤝 Promesas</button>
         <button class="btn bo bs" onclick="renew('${p.id}')">📋 Renovar</button>
+        ${(typeof puedeReconvertir==='function'&&puedeReconvertir(p).length)?`<button class="btn bo bs" onclick="openReconv('${p.id}')">${p.reconv?`⏳ ${p.reconv.a} (${p.reconv.resta} sem)`:'🔁 Reconvertir'}</button>`:''}
         <button class="btn bo bs" style="border-color:${p.colgado?'var(--green)':'var(--ora)'};color:${p.colgado?'var(--green)':'var(--ora)'}" onclick="toggleColgado('${p.id}')">${p.colgado?'🤝 Reintegrar':'🧊 Colgar'}</button>
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
         ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
@@ -7109,6 +7152,24 @@ function rCal(){
       <span style="font-weight:800;font-family:'Rajdhani';font-size:13px">${s.goals}</span>
     </div>`;}).join('')}
   </div>`:''}
+  ${(()=>{
+    // Asistencias y vallas menos vencidas: la liga sólo llevaba goleadores
+    const asis=Object.entries((G.league&&G.league.assists)||{})
+      .sort((a,b)=>b[1].assists-a[1].assists).slice(0,6);
+    const gks=Object.entries((G.league&&G.league.gk)||{})
+      .filter(([,v])=>v.pj>=6)
+      .sort((a,b)=>(b[1].cs-a[1].cs)||((a[1].ga/a[1].pj)-(b[1].ga/b[1].pj))).slice(0,6);
+    if(!asis.length&&!gks.length) return '';
+    const fila=(nm,club,val,sub)=>`<div style="display:flex;gap:6px;align-items:center;font-size:10px;padding:3px 4px;${club===tn?'color:var(--gold);font-weight:700':''}">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nm} <span style="color:var(--t3);font-weight:400">(${sn2(club)})</span></span>
+      <span style="font-weight:800;font-family:'Rajdhani';font-size:13px">${val}</span>${sub?`<span style="font-size:8px;color:var(--t3);min-width:44px;text-align:right">${sub}</span>`:''}
+    </div>`;
+    return `<div class="tc2" style="margin-bottom:9px">
+      ${asis.length?`<div class="card"><div class="ctitle">🅰️ Asistencias</div>
+        ${asis.map(([nm,s])=>fila(nm,s.club,s.assists,'')).join('')}</div>`:'<div></div>'}
+      ${gks.length?`<div class="card"><div class="ctitle">🧤 Vallas menos vencidas</div>
+        ${gks.map(([nm,s])=>fila(nm,s.club,s.cs,(s.ga/s.pj).toFixed(2)+' GC/PJ')).join('')}</div>`:'<div></div>'}
+    </div>`;})()}
   <div id="otherLeaguesBox"></div>`;
   setTimeout(()=>{try{rOtherLeagues();}catch(e){}},0);
   el.innerHTML=banner+tableHtml+Object.entries(byC).map(([c,ms])=>`
@@ -7390,7 +7451,31 @@ function creditScorers(club,n){
     if(!G.league.scorers[nm])G.league.scorers[nm]={club,goals:0};
     G.league.scorers[nm].goals++;
     if(p)p.goals=(p.goals||0)+1;
+    // La asistencia se la lleva otro: alguien se la tuvo que dar
+    if(Math.random()<0.62){
+      const asis=G.market.filter(q=>q.club===club&&q.lg==='Liga ARG'&&
+                 ['MCO','MC','EI','ED','LI','LD'].includes(q.pos)&&(!p||q.id!==p.id))
+                 .sort((a,b)=>b.rat-a.rat).slice(0,6);
+      const q=asis.length?asis[~~(Math.random()*asis.length)]:null;
+      if(q){
+        G.league.assists=G.league.assists||{};
+        if(!G.league.assists[q.name])G.league.assists[q.name]={club,assists:0};
+        G.league.assists[q.name].assists++;
+        q.assists=(q.assists||0)+1;
+      }
+    }
   }
+}
+// Vallas menos vencidas: se lleva la cuenta por club y se le acredita al arquero
+function creditCleanSheet(club,golesRecibidos){
+  if(!G.league)return;
+  G.league.gk=G.league.gk||{};
+  const arq=G.market.filter(p=>p.club===club&&p.pos==='ARQ').sort((a,b)=>b.rat-a.rat)[0];
+  const nm=arq?arq.name:club;
+  if(!G.league.gk[nm])G.league.gk[nm]={club,pj:0,ga:0,cs:0};
+  const r=G.league.gk[nm];
+  r.pj++; r.ga+=golesRecibidos;
+  if(golesRecibidos===0) r.cs++;
 }
 // ═══ LA FECHA SE JUEGA EN PARALELO ═══
 // Antes se emparejaba a los otros clubes AL AZAR cada fecha: no seguían un
@@ -7417,6 +7502,7 @@ function simLeagueRound(rivalPlayed,weekOverride){
         f.result=ga>gb?'H':ga===gb?'D':'A';
         tallyLeague(f.home,f.away,ga,gb);
         creditScorers(f.home,ga);creditScorers(f.away,gb);
+        creditCleanSheet(f.home,gb);creditCleanSheet(f.away,ga);
         results.push({h:f.home,a:f.away,s:ga+'-'+gb,zone:f.zone,fecha:f.fecha});
       });
     // Marca como jugado el partido tuyo en el fixture global
@@ -7435,6 +7521,7 @@ function simLeagueRound(rivalPlayed,weekOverride){
       const [ga,gb]=arSimPair(A,B);
       tallyLeague(A,B,ga,gb);
       creditScorers(A,ga);creditScorers(B,gb);
+      creditCleanSheet(A,gb);creditCleanSheet(B,ga);
       results.push({h:A,a:B,s:ga+'-'+gb});
     }
   }
@@ -8046,6 +8133,130 @@ function youthSafetyNet(){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// RETIRO
+// ═══════════════════════════════════════════════════════════════════════
+// Nadie colgaba los botines nunca. Poniendo el plantel en 36 años y simulando,
+// a las dos temporadas quedaban 18 jugadores de 38 con rating 52: se caían al
+// piso y se quedaban ahí para siempre. Ahora se retiran, y al que dejó una
+// carrera en el club se le hace la despedida como corresponde.
+function chanceRetiro(p){
+  const a=p.age||26;
+  if(a<33) return 0;
+  let c=(a-32)*0.14;                       // 33:0.14 · 36:0.56 · 38:0.84
+  if(p.rat>=78) c-=0.22;                   // al que todavía es bueno lo siguen queriendo
+  else if(p.rat<=62) c+=0.18;              // al que ya no le da, se le nota
+  if(p.pos==='ARQ') c-=0.12;               // los arqueros duran más
+  if((p._lastSeason&&p._lastSeason.apps||0)<6) c+=0.15;   // el que no juega se cansa antes
+  if(p.injured) c+=0.10;
+  return Math.max(0,Math.min(0.92,c));
+}
+function retiros(){
+  if(!G||!G.squad) return;
+  const cuelgan=G.squad.filter(p=>Math.random()<chanceRetiro(p));
+  if(!cuelgan.length) return;
+  cuelgan.forEach(p=>{
+    const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0,assists:0};
+    const temporadas=p.seasonsAtClub||0;
+    const idolo = temporadas>=4 || t.goals>=40 || t.apps>=120;
+    G.squad=G.squad.filter(x=>x.id!==p.id);
+    G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+    Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+    (G.retirados=G.retirados||[]).push({name:p.name,pos:p.pos,age:p.age,season:G.season,
+      apps:t.apps,goals:t.goals,assists:t.assists,seasons:temporadas,idolo,num:p.num});
+    if(G.retirados.length>40) G.retirados=G.retirados.slice(-40);
+    lg('🎓',`${p.name} se retira a los ${p.age} (${t.apps} PJ, ${t.goals} goles)`);
+    if(idolo){
+      // Al ídolo se le retira el número y se le hace el partido despedida
+      (G.numsRetirados=G.numsRetirados||[]).push({num:p.num,name:p.name,season:G.season});
+      G.budget=Math.round((G.budget+1.4)*10)/10;    // recaudación de la despedida
+      G.fanMood=Math.min(100,(G.fanMood||55)+5);
+      addPhoneMsg('board','Secretaría del Club',
+        `🎓 <b>${p.name}</b> anunció su retiro a los ${p.age} años. ${temporadas} temporadas acá, ${t.apps} partidos y ${t.goals} goles. Le organizamos el partido despedida: la cancha se llenó y entraron <b>${fv(1.4)}</b>. Le retiramos la <b>${p.num}</b>.`,'🏛️');
+      if(typeof _pubRumor==='function')
+        _pubRumor(`🎓 Se retira <b>${p.name}</b>. Deja ${t.apps} partidos y ${t.goals} goles con la camiseta de ${G.teamName}. La ${p.num} no se usa más.`,'misc');
+    } else {
+      addPhoneMsg('player',p.name,
+        `🎓 Presidente, hasta acá llegué. Me retiro. Gracias por el aguante.`,'🎓');
+    }
+  });
+  if(typeof youthSafetyNet==='function') youthSafetyNet();
+  const huecos=Object.values(G.slots||{}).filter(x=>!x).length;
+  if(huecos && typeof autoFill==='function' && !(typeof dtIsMine==='function'&&dtIsMine())) autoFill();
+}
+// ═══════════════════════════════════════════════════════════════════════
+// RECONVERSIÓN DE PUESTO
+// ═══════════════════════════════════════════════════════════════════════
+// El lateral que termina de central, el extremo que se hace lateral. Lleva
+// tiempo y no sale gratis: mientras aprende juega peor en los dos puestos.
+const RECONV={
+  ARQ:[], LD:['DFC','MC'], LI:['DFC','MC'], DFC:['MCD','LD','LI'],
+  MCD:['DFC','MC'], MC:['MCD','MCO','LD','LI'], MCO:['MC','EI','ED','DC'],
+  EI:['ED','LI','MCO'], ED:['EI','LD','MCO'], DC:['MCO','EI','ED'],
+};
+function puedeReconvertir(p){ return (RECONV[p.pos]||[]).filter(x=>x!==p.pos2); }
+function openReconv(id){
+  const p=(G.squad||[]).find(x=>x.id===id); if(!p) return;
+  const opts=puedeReconvertir(p);
+  if(!opts.length){ flash('❌ Este puesto no se reconvierte','loss'); return; }
+  if(p.reconv){ flash('⏳ Ya está reconvirtiéndose a '+p.reconv.a,'draw'); return; }
+  const semanas=p.age<=23?10:p.age<=28?16:22;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🔁 Reconvertir a ${p.name}</div>
+    <div class="note" style="margin:8px 0">Juega de <b>${p.pos}</b>. Aprender otro puesto lleva <b>${semanas} semanas</b> y mientras tanto rinde peor: pierde ${p.age<=23?'poco':'bastante'} mientras se acomoda. Al terminar le queda como segunda posición.</div>
+    <div class="sr"><span class="sl">Edad</span><span class="sv">${p.age} años ${p.age<=23?'— aprende rápido':p.age>=30?'— a esta edad cuesta':''}</span></div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:10px">
+      ${opts.map(o=>`<button class="btn bo bs" onclick="startReconv('${p.id}','${o}')">→ ${o}</button>`).join('')}
+    </div>`);
+}
+function startReconv(id,a){
+  const p=(G.squad||[]).find(x=>x.id===id); if(!p) return;
+  const semanas=p.age<=23?10:p.age<=28?16:22;
+  p.reconv={a,resta:semanas,total:semanas};
+  lg('🔁',`${p.name} empieza a reconvertirse de ${p.pos} a ${a} (${semanas} semanas)`);
+  addPhoneMsg('dt',(G.dt&&G.dt.name)||'El DT',
+    `🔁 Arrancamos a trabajar a <b>${p.name}</b> de <b>${a}</b>. Van a ser ${semanas} semanas en las que va a estar incómodo, presidente. Banque el proceso.`,'👔');
+  closeMod(); updateUI(); flash('🔁 '+p.name+' → '+a,'draw');
+}
+function weeklyReconv(){
+  (G.squad||[]).forEach(p=>{
+    if(!p.reconv) return;
+    p.reconv.resta--;
+    if(p.reconv.resta>0) return;
+    const a=p.reconv.a;
+    p.pos2=a; p.reconv=null;
+    lg('🔁',`${p.name} ya juega de ${a} sin problemas`);
+    addPhoneMsg('dt',(G.dt&&G.dt.name)||'El DT',
+      `✅ <b>${p.name}</b> terminó la reconversión: ya lo puedo parar de <b>${a}</b> sin que se note.`,'👔');
+  });
+}
+// Mientras aprende está incómodo en los dos puestos
+function reconvPenal(p){
+  if(!p||!p.reconv) return 1;
+  const avance=1-(p.reconv.resta/Math.max(1,p.reconv.total));
+  return 1-(0.055*(1-avance*0.6));     // arranca en -5,5% y afloja
+}
+
+function rRetirados(){
+  const el=document.getElementById('retiroBox'); if(!el||!G) return;
+  const r=(G.retirados||[]).slice().reverse();
+  const nums=G.numsRetirados||[];
+  if(!r.length){ el.style.display='none'; return; }
+  el.style.display='';
+  el.innerHTML=`
+    <div class="ctitle">🎓 Colgaron los botines</div>
+    ${nums.length?`<div style="font-size:10px;color:var(--t2);margin:5px 0 7px">Números retirados: ${nums.map(n=>`<b>${n.num}</b> (${n.name})`).join(' · ')}</div>`:''}
+    ${r.slice(0,10).map(x=>`
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)">
+        <div style="min-width:0">
+          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.idolo?'⭐ ':''}${x.name}</div>
+          <div style="font-size:9px;color:var(--t3)">${x.pos} · se retiró en ${x.season} a los ${x.age}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-size:10px;color:var(--t2)">${x.apps} PJ · <span style="color:var(--gold)">${x.goals}g</span></div>
+      </div>`).join('')}`;
+}
+
 function nextSeason(){
   const finalPos=myLeaguePos()||10;
   archiveSeason();
@@ -8054,7 +8265,8 @@ function nextSeason(){
   // La foto de la temporada va ANTES de G.season++, si no queda archivada con
   // el año siguiente.
   G.squad.forEach(seasonSnapshot);
-  expireContracts();
+  retiros();          // primero los que cuelgan los botines
+  expireContracts();  // y después los que se van libres
   G.season++;
   G.week = 1;
   G.wins = 0; G.draws = 0; G.losses = 0;
@@ -8242,8 +8454,35 @@ function matchStrengths(m){
   const validos=xi.filter(q=>!q.injured&&!(q.susp>0)).length;
   const incompleto = validos>=11 ? 1 : 1-(11-validos)*0.035;
 
+  // ═══ EL VESTUARIO SE JUEGA EN LA CANCHA ═══
+  // Todo lo del grupo (referentes, camarillas, cómo se lleva cada uno con el
+  // DT) era contabilidad que no llegaba al resultado: podías tener el plantel
+  // prendido fuego y el equipo rendía igual. Estos dos modificadores lo atan.
+  // El clima pesa poco a poco: ±3% entre un vestuario roto y uno a full, que
+  // es el orden de lo que mueve un capitán o la química.
+  let climaMod=1;
+  if(typeof vestClima==='function'){
+    // El centro va en 68, no en 50 ni en 60: es donde se para el clima jugando
+    // normal (medido: 73 tras 45 fechas sin tocar nada). Centrarlo más abajo
+    // convertía en un regalo permanente lo que tiene que ser una desviación.
+    const cv=vestClima().v;                      // 0-100, ponderado por referentes
+    climaMod = 1 + (cv-68)/100*0.075;            // 0.949 .. 1.024
+  }
+  // Y el que juega enojado con el técnico rinde menos, más allá de su ficha.
+  // Se mide sobre EL ONCE, no sobre el plantel: al colgado del banco ya se le
+  // castiga en otro lado, acá pesa el que efectivamente salta a la cancha.
+  let relMod=1;
+  if(xi.length){
+    const relXI = xi.reduce((a,p)=>a+(p.dtRel===undefined?60:p.dtRel),0)/xi.length;
+    relMod = 1 + (relXI-60)/100*0.055;           // 0.967 .. 1.022
+  }
+  // El que está aprendiendo un puesto nuevo anda incómodo mientras dura
+  let reconvMod=1;
+  if(typeof reconvPenal==='function' && xi.length)
+    reconvMod = xi.reduce((a,p)=>a+reconvPenal(p),0)/xi.length;
+
   const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + G.morale/100*.14)
-               *fitMod*posMod*chemMod*capMod*incompleto;
+               *fitMod*posMod*chemMod*capMod*incompleto*climaMod*relMod*reconvMod;
   // Moral del rival: estable por club/fecha (no un dado nuevo cada partido).
   // Antes era 55..90 al azar y metía ±9% de ruido: por eso ganaba cualquiera.
   const _sd=(oppName||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)+(m.week||0);
@@ -8321,7 +8560,7 @@ function matchStrengths(m){
   tacMod+=formMod;
   // Química del equipo: un XI aceitado se potencia
   tacMod+=((G.chem||0)/100-0.5)*0.06;
-  return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod};
+  return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod};
 }
 
 // ═══ AVANCE EN LOS PLAYOFFS DEL APERTURA / CLAUSURA ═══
@@ -8484,6 +8723,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(_isHome)tallyLeague(m.home,m.away,gf,ga);else tallyLeague(m.home,m.away,ga,gf);
     const rival=_isHome?m.away:m.home;
     creditScorers(rival,ga);
+    creditCleanSheet(rival,gf);
+    // Mi arquero también entra en la tabla de vallas: si no, el club del
+    // usuario era el único que nunca aparecía en su propia estadística.
+    (function(){
+      const xiIds=Object.values(G.slots||{}).filter(Boolean);
+      const mio=G.squad.find(p=>p.pos==='ARQ'&&xiIds.includes(p.id))
+              ||G.squad.filter(p=>p.pos==='ARQ').sort((a,b)=>b.rat-a.rat)[0];
+      if(!mio)return;
+      G.league.gk=G.league.gk||{};
+      if(!G.league.gk[mio.name])G.league.gk[mio.name]={club:G.teamName,pj:0,ga:0,cs:0};
+      const r=G.league.gk[mio.name];
+      r.pj++; r.ga+=ga; if(ga===0)r.cs++;
+    })();
     simLeagueRound(rival,m.week);
     // ¿Terminó la fase regular del torneo? Arrancan los playoffs
     if(G.arPhases&&m.phase){
@@ -8751,6 +9003,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyPlayerDt();
   weeklyVestuario();
   weeklyRumores();
+  weeklyDtRenuncia();
+  weeklyReconv();
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
