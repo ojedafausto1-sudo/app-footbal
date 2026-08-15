@@ -946,7 +946,11 @@ function peakAge(p){
   const v=(r+(((h>>>10)%1000)/1000))/2;
   const pk=Math.round(24+v*8);
   const arq=p.pos==='ARQ'?2:0;               // los arqueros maduran más tarde
-  return (p._peak=Math.min(34,pk+arq));
+  // Al crack le da el cuerpo hasta más tarde. Sin esto un 84 podía tener el
+  // pico en 24 y a los 34 estaba diez años pasado: se caía 10 puntos por
+  // temporada y no llegaba vivo a los 37, mucho menos a los 39/40.
+  const clase=(p.rat||70)>=82?3:(p.rat||70)>=76?2:(p.rat||70)>=70?1:0;
+  return (p._peak=Math.min(34,pk+arq+clase));
 }
 // Qué tan rápido madura: 0.6 (lento, se cocina a fuego lento) a 1.5 (explota ya)
 function devSpeed(p){
@@ -964,6 +968,26 @@ function devLabel(p){
   return {t:'Normal',c:'var(--t3)',d:'Desarrollo estándar'};
 }
 // Factor de crecimiento según la DISTANCIA A SU PROPIO PICO, no a una tabla fija
+// ═══ UN SOLO PRESUPUESTO DE CAÍDA POR TEMPORADA ═══
+// Hay tres sistemas que bajan la media: el acumulador p.decl, el semanal por
+// rendimiento y el del salto de temporada. Cada uno tenía su propio criterio y
+// se sumaban: medido, un 78 a los 34 hacía 77 → 71 → 60 y colgaba a los 38.
+// Ahora todos piden permiso acá, así que el tope es del jugador y no de cada
+// sistema por su cuenta. Sin esto no llega nadie a los 39/40 con media.
+function topeBajaAnual(p){
+  const a=p.age||26;
+  return a>=36?4 : a>=33?3 : 2;
+}
+function bajarRat(p,piso){
+  if(!p) return false;
+  const temporada=(typeof G!=='undefined'&&G&&G.season)||0;
+  if(p._downSeason!==temporada){ p._downSeason=temporada; p._downCount=0; }
+  if((p._downCount||0)>=topeBajaAnual(p)) return false;
+  p._downCount=(p._downCount||0)+1;
+  p.rat=Math.max(piso===undefined?52:piso, p.rat-1);
+  if(typeof calcVal==='function') p.val=calcVal(p);
+  return true;
+}
 function devFactor(p){
   const a=p.age||26, pk=peakAge(p), sp=devSpeed(p);
   const d=a-pk;
@@ -5204,11 +5228,12 @@ function weeklyTraining(){
       p.decl+=d*Math.max(0.4,fitCoach);
       if(p.decl>=10){
         p.decl=0;
-        p.rat=Math.max(52,p.rat-1);
-        p.val=calcVal(p);
+        const _bajo=bajarRat(p,52);      // respeta el tope anual del jugador
+        if(_bajo){
         if(p.rat<=(p.pot||99)-6&&!p._declNoted&&p.rat>=70){
           p._declNoted=true;
           addPhoneMsg('board','Cuerpo Técnico',`📉 Presidente, <b>${p.name}</b> (${p.age} años) viene bajando su rendimiento: ya está en <b>${p.rat}</b>. ${badSpell?'Casi no juega y se está oxidando.':'Habría que pensar en un recambio.'}`,'📉');
+        }
         }
       }
     }
@@ -8140,20 +8165,52 @@ function youthSafetyNet(){
 // a las dos temporadas quedaban 18 jugadores de 38 con rating 52: se caían al
 // piso y se quedaban ahí para siempre. Ahora se retiran, y al que dejó una
 // carrera en el club se le hace la despedida como corresponde.
-function chanceRetiro(p){
+// La regla es del usuario y es determinista, sin dados: a los 35, el que ya no
+// llega a 60 de media cuelga; el que todavía la tiene sigue hasta que la
+// pierda. Y a los 41 se retira igual, por más media que tenga. Así quedan unos
+// pocos de 39/40 (los que se mantienen) en vez de un plantel de treintones al
+// piso o una purga pareja por edad.
+const EDAD_RETIRO_MIN=35;      // antes de esta edad no se retira nadie
+const RAT_RETIRO=60;           // por debajo de acá, a los 35+, cuelga
+const EDAD_RETIRO_TOPE=41;     // acá se retira sí o sí
+// Los clubes de la base también hacen debutar juveniles. Se generan con el club
+// y la liga del que se retiró, así cada liga se repone a sí misma en lugar de
+// secarse temporada a temporada.
+const _JUV_FN=['Thiago','Mateo','Luca','Agustín','Franco','Valentín','Ezequiel','Nicolás','Bruno','Ramiro','Benjamín','Bautista','Joaquín','Lautaro','Santino','Dylan','Ian','Tobías'];
+const _JUV_LN=['González','López','Fernández','Rodríguez','Martínez','García','Torres','Herrera','Pérez','Díaz','Acosta','Molina','Cabrera','Ojeda','Sosa','Romero','Benítez','Aguirre'];
+function nuevasCamadas(cuantos){
+  if(!G||!G.market||!cuantos) return 0;
+  // De qué clubes se fue gente: ahí es donde suben los pibes
+  const huecos=(G._retiradosMercado||[]).slice(0,cuantos);
+  if(!huecos.length) return 0;
+  const poss=['ARQ','DFC','LI','LD','MCD','MC','MCO','EI','ED','DC'];
+  let n=0;
+  huecos.forEach(h=>{
+    const pot=68+~~(Math.random()*20);
+    const rat=Math.min(pot,56+~~(Math.random()*12));
+    const np=P(~~(Math.random()*40)+15,
+      _JUV_FN[~~(Math.random()*_JUV_FN.length)]+' '+_JUV_LN[~~(Math.random()*_JUV_LN.length)],
+      poss[~~(Math.random()*poss.length)], 17+~~(Math.random()*3),
+      h.nat||'ARG', h.club, h.lg, 0.3, rat, ~~(rat*0.3), pot, (G.season||2026)+3);
+    np.pot=Math.max(np.pot,pot);
+    G.market.push(np); n++;
+  });
+  G._retiradosMercado=[];
+  return n;
+}
+function seRetira(p){
   const a=p.age||26;
-  if(a<33) return 0;
-  let c=(a-32)*0.14;                       // 33:0.14 · 36:0.56 · 38:0.84
-  if(p.rat>=78) c-=0.22;                   // al que todavía es bueno lo siguen queriendo
-  else if(p.rat<=62) c+=0.18;              // al que ya no le da, se le nota
-  if(p.pos==='ARQ') c-=0.12;               // los arqueros duran más
-  if((p._lastSeason&&p._lastSeason.apps||0)<6) c+=0.15;   // el que no juega se cansa antes
-  if(p.injured) c+=0.10;
-  return Math.max(0,Math.min(0.92,c));
+  if(a>=EDAD_RETIRO_TOPE) return true;
+  return a>=EDAD_RETIRO_MIN && (p.rat||70)<RAT_RETIRO;
+}
+function motivoRetiro(p){
+  return (p.age||26)>=EDAD_RETIRO_TOPE
+    ? 'a los '+p.age+' ya no da para más'
+    : 'sintió que el nivel no le alcanzaba';
 }
 function retiros(){
   if(!G||!G.squad) return;
-  const cuelgan=G.squad.filter(p=>Math.random()<chanceRetiro(p));
+  const cuelgan=G.squad.filter(seRetira);
   if(!cuelgan.length) return;
   cuelgan.forEach(p=>{
     const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0,assists:0};
@@ -8177,7 +8234,7 @@ function retiros(){
         _pubRumor(`🎓 Se retira <b>${p.name}</b>. Deja ${t.apps} partidos y ${t.goals} goles con la camiseta de ${G.teamName}. La ${p.num} no se usa más.`,'misc');
     } else {
       addPhoneMsg('player',p.name,
-        `🎓 Presidente, hasta acá llegué. Me retiro. Gracias por el aguante.`,'🎓');
+        `🎓 Presidente, hasta acá llegué: ${motivoRetiro(p)}. Me retiro. Gracias por el aguante.`,'🎓');
     }
   });
   if(typeof youthSafetyNet==='function') youthSafetyNet();
@@ -8265,13 +8322,9 @@ function nextSeason(){
   // La foto de la temporada va ANTES de G.season++, si no queda archivada con
   // el año siguiente.
   G.squad.forEach(seasonSnapshot);
-  retiros();          // primero los que cuelgan los botines
-  expireContracts();  // y después los que se van libres
-  G.season++;
-  G.week = 1;
-  G.wins = 0; G.draws = 0; G.losses = 0;
-  G.gf = 0; G.ga = 0;
-  // Age all players +1 and adjust ratings for age
+  // ORDEN: primero cumplen años y se les ajusta la media, DESPUÉS se decide
+  // quién cuelga. Al revés, el que llegaba a 35 por debajo de 60 se evaluaba
+  // con la edad del año anterior y se quedaba una temporada de más.
   G.squad.forEach(p => {
     p.age++;
     p.seasonsAtClub = (p.seasonsAtClub || 0) + 1;
@@ -8289,25 +8342,36 @@ function nextSeason(){
     else if(d <= 1)  p.rat = Math.min(p.pot, p.rat + (Math.random()<0.20+rend?1:0));
     // La caída empieza recién pasado su pico y es lenta; el que sigue rindiendo
     // se sostiene un año más, el que no juega se apaga antes.
-    else if(d <= 4)  p.rat = Math.max(55, p.rat - (Math.random()<0.30-rend?1:0));
-    else             p.rat = Math.max(55, p.rat - (Math.random()<0.65-rend?1:0) - (p.age>=36?1:0));
+    else if(d <= 4){ if(Math.random()<0.30-rend) bajarRat(p,55); }
+    else { if(Math.random()<0.65-rend) bajarRat(p,55);
+           if(p.age>=36) bajarRat(p,55); }
     if(p.rat !== oldRat) p.val = calcVal(p);
     p.goals = 0; p.apps = 0; p.assists = 0;
     // p.contract es el AÑO de vencimiento, no los años que faltan: no se resta.
     // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
     // subía), y a la tercera temporada se te vencían casi todos los contratos.
   });
+  retiros();          // ya con la edad y la media nuevas
+  expireContracts();  // y después los que se van libres
+  G.season++;
+  G.week = 1;
+  G.wins = 0; G.draws = 0; G.losses = 0;
+  G.gf = 0; G.ga = 0;
   // Los clubes de la base también renuevan a su gente. Sin esto, los contratos
   // del mercado (que nacen con vencimiento 2026-2028) quedaban todos en el
   // pasado y a la cuarta temporada CASI TODA la base figuraba libre: 12.200 de
   // 12.700 jugadores fichables gratis, el mercado dejaba de existir.
-  let renovados=0, aLaLibertad=0;
+  let renovados=0, aLaLibertad=0, colgaron=0;
   G.market.forEach(p => {
     p.age++;
     const oldRat = p.rat;
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*2));
-    else if(p.age >= 35) p.rat = Math.max(55, p.rat - (Math.random()>0.4?1:0));
+    else if(p.age >= 35) p.rat = Math.max(50, p.rat - 1 - (Math.random()>0.5?1:0));
     if(p.rat !== oldRat) p.val = calcVal(p);
+    if(seRetira(p)){ p._retirado=true; colgaron++;
+      // me guardo club/liga/nacionalidad para que suba un pibe de ese mismo club
+      (G._retiradosMercado=G._retiradosMercado||[]).push({club:p.club,lg:p.lg,nat:p.nat});
+      return; }                                                // misma regla que en tu plantel
     if(p.freeAgent) return;                       // ya está libre, no tiene club que lo renueve
     if(p.contract===undefined || p.contract>G.season) return;
     // Se le venció: su club decide. Al que rinde lo renuevan casi siempre;
@@ -8317,6 +8381,16 @@ function nextSeason(){
     else { p._exLg=p.lg; p.freeAgent=true; p.lg='Libre'; p.club='Libre';
            p.contract=G.season; aLaLibertad++; }
   });
+  // Los que colgaron los botines salen de la base: si no, a las diez temporadas
+  // el mercado se llena de jugadores de 50 años que no se van nunca.
+  if(colgaron) G.market=G.market.filter(p=>!p._retirado);
+  // Pero si sólo sacamos, la base se seca: medido, 12.548 → 7.366 en diez
+  // temporadas. Los clubes también suben juveniles, así que por cada uno que
+  // se retira entra un pibe de las inferiores de ese mismo club.
+  if(colgaron){
+    const camadas=nuevasCamadas(colgaron);
+    if(camadas) lg('🌱',`Debutan ${camadas} juveniles en los clubes de la base`);
+  }
   // Y un libre no se queda libre para siempre: la mayoría consigue club antes
   // de que arranque el torneo. Sin esto se acumulaban temporada tras temporada
   // y a los cuatro años el 43% de la base estaba sin dueño.
@@ -8338,7 +8412,7 @@ function nextSeason(){
     p.contract=G.season+1+~~(Math.random()*3);
     colocados++;
   });
-  if(renovados||aLaLibertad) lg('📄',`Mercado: ${renovados} renovaron, ${aLaLibertad} quedaron libres, ${colocados} consiguieron club`);
+  if(renovados||aLaLibertad||colgaron) lg('📄',`Mercado: ${renovados} renovaron, ${aLaLibertad} quedaron libres, ${colocados} consiguieron club, ${colgaron} se retiraron`);
   // Promesas de aumento se cumplen a fin de temporada
   (G.promises||[]).forEach(pr=>{
     if(pr.type==='sueldo'&&!pr.resolved){
@@ -8943,9 +9017,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
         let caida = ageFac<0 ? 0.10+(-ageFac)*0.55 : 0.12;
         if(p.formPts>0.8) caida*=0.35;
         else if(p.formPts<-1.0) caida*=1.5;
-        if(Math.random()<caida){
-          p.rat=Math.max(52,p.rat-1); p.val=calcVal(p); lg('📉',`${p.name} baja → ${p.rat}`);
-        }
+        if(Math.random()<caida && bajarRat(p,52)) lg('📉',`${p.name} baja → ${p.rat}`);
       }
       p.formPts=0;
     }
