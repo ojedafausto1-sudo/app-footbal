@@ -1291,7 +1291,11 @@ function generateOutput() {
       }
     }
 
-    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Nacionalidad2,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm,Pos2,Clausula\n';
+    // La cabecera tiene que coincidir con el ORDEN REAL de la fila de abajo.
+    // Decía Nacionalidad2 en la 5ª columna cuando ahí va el Pie, y la 2ª
+    // nacionalidad se escribe última: todo lo que leyera este CSV por nombre de
+    // columna quedaba corrido un lugar de la 5ª en adelante.
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm,Pos2,Clausula,Nacionalidad2\n';
     let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
     for (const p of unique) {
