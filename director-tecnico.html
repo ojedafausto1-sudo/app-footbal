@@ -13202,8 +13202,10 @@ function fmAim(f,p,shotAttr,gk,mid,anchoFactor,dist){
   // El arco va de mid-GH a mid+GH. Apuntar a 0,80·GH con dispersión ancha
   // mandaba casi todo afuera: quedaban 15 remates y 0,6 al arco. Se apunta
   // más adentro y el crack afina de verdad.
-  const palo = GH*(anchoFactor===undefined?0.52:anchoFactor*0.64);
-  const disp = GH*(0.26-cal*0.15)*cerca;
+  // Medido: de los remates que le ganaban al arquero, la mitad se iba igual
+  // afuera — apuntaban demasiado al palo y con demasiada dispersión.
+  const palo = GH*(anchoFactor===undefined?0.46:anchoFactor*0.57);
+  const disp = GH*(0.21-cal*0.12)*cerca;
   return lado*palo + (Math.random()*2-1)*disp;
 }
 // ¿la pica? Sólo si el arquero se adelantó y el rematador tiene técnica.
@@ -13221,6 +13223,8 @@ function fmBodyBall(p,b,team){
   // ═══ ARQUERO: manos — ataja fuerte, da rebote o le pasa por al lado ═══
   if(p.isGK&&FM){
     const f=FM;
+    // Ya lo pasó este remate: no vuelve a intervenir sobre la misma pelota
+    if(f._gkPass&&f._gkPass.gk===p&&f.ticks<f._gkPass.until)return false;
     const reachG=p.r+22;                          // alcance con estirada
     const dG=Math.hypot(b.x-p.x,b.y-p.y);
     // sólo interviene si la pelota va HACIA su arco con intención (o la tiene encima)
@@ -13260,6 +13264,13 @@ function fmBodyBall(p,b,team){
                     ref/100*0.99 - power*0.032 - lejos*0.34 + (b.air>2?-0.06:0.04)));
       if(Math.random()>=llega){
         b.isShot=null;                                  // se le escapó: sigue de largo
+        // ═══ Y NO SE LA PUEDE VOLVER A AGARRAR ═══
+        // Sin esto, al tick siguiente la pelota seguía dentro de su alcance,
+        // pero ya sin la marca de remate: entraba por la rama de "pelota
+        // suelta" y el arquero la levantaba con las manos. Medido: de cada
+        // 100 remates, 14 le ganaban al arquero y sólo 4 terminaban en gol.
+        f._gkPass={gk:p,until:f.ticks+45};
+        b._beat=f.ticks;                                // para saber en qué termina
         if(f.learn)f.learn.gkBeaten=(f.learn.gkBeaten||0)+1;
         return false;
       }
@@ -13291,8 +13302,21 @@ function fmBodyBall(p,b,team){
       return true;
     }
   }
-  if(b.air>2)return false; // pelota por el aire: pasa por encima
-  const R=p.r+6.5;
+  // ═══ SE PUEDE CABECEAR ═══
+  // Antes, CUALQUIER pelota por el aire no la tocaba nadie salvo el arquero:
+  // el centro del córner le pasaba por encima a los 22 y caía sola. Ahora vale
+  // la altura real de la parábola — arriba pasa de largo, a la altura de la
+  // cabeza se disputa.
+  // b.air es cuántos frames le quedan de vuelo: mientras sea alto la pelota
+  // viene por arriba y pasa de largo; en los últimos frames baja a la altura
+  // de la cabeza y ahí sí se disputa. (Ojo: NO sirve sin(air/60·π) — con air
+  // grande da 0 y la pelota recién pateada figuraba a ras del piso.)
+  let aereo=false;
+  if(b.air>2){
+    if(b.air>13)return false;   // todavía viene por encima de todos
+    aereo=true;
+  }
+  const R=p.r+6.5-(aereo?3:0);
   let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
   if(d>=R)return false;
   // OJO: esto va DESPUÉS del chequeo de contacto. Puesto antes, se ejecutaba
@@ -13312,12 +13336,77 @@ function fmBodyBall(p,b,team){
     // El COMPAÑERO del que remató casi nunca tapa: va corriendo hacia el arco,
     // no se tira a bloquear a los suyos. Medido, 10 de cada 11 bloqueos eran
     // de compañeros metidos en la trayectoria — el amontonamiento en el área.
+    // Con 0,07 igual salía que el 17% de los remates los tapaba un COMPAÑERO:
+    // el delantero le pegaba y se la comía el otro punta. Baja a casi cero.
     const corta = rival
       ? Math.max(0.10,Math.min(0.62,0.30+(def-70)/220-Math.max(0,vel-6)*0.045))
-      : 0.07;
+      : 0.018;
     if(Math.random()>=corta) return false;      // le pasó
     if(FM&&FM.learn)FM.learn[rival?'blocks':'ownBlocks']=(FM.learn[rival?'blocks':'ownBlocks']||0)+1;
+    // ═══ DE DÓNDE SALEN LOS CÓRNERS ═══
+    // Medido: 0,1 córners por equipo por partido (en la realidad son ~5). El
+    // único que mandaba al córner era el arquero, y al arquero le llegaba el
+    // 17% de los remates. En un partido de verdad la mayoría de los córners
+    // nacen del defensor que mete la pierna y la manda afuera.
+    if(rival&&FM&&!p.isGK){
+      const f2=FM,fw2=f2.rightGL-f2.leftGL;
+      const gx=(p.x<f2.VW/2)?f2.leftGL:f2.rightGL;
+      if(Math.abs(p.x-gx)<fw2*0.22&&Math.random()<0.42){
+        b.x=gx;b.y=b.y<f2.VH/2?18:f2.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
+        const att=team==='my'?'opp':'my';
+        f2._lastTouch=team;
+        fmSetRestart('corner',att,gx+(gx<f2.VW/2?16:-16),b.y,'CÓRNER');
+        fmStat(att,'corner');
+        return true;
+      }
+    }
   }
+  // ═══ EL DESPEJE QUE SE VA AL CÓRNER ═══
+  // La otra mitad de los córners reales no nace de un remate sino del centro o
+  // el pase filtrado que el defensor manda afuera con lo que puede. Sin esto
+  // salían 0,5 córners por partido contra los ~5 de un partido de verdad.
+  if(FM&&team&&!p.isGK&&FM._lastTouch&&FM._lastTouch!==team){
+    const f3=FM,fw3=f3.rightGL-f3.leftGL;
+    const gx3=(p.x<f3.VW/2)?f3.leftGL:f3.rightGL;
+    const haciaMiArco=(gx3<f3.VW/2)?b.vx<-1.2:b.vx>1.2;
+    if(haciaMiArco&&Math.hypot(b.vx,b.vy)>2.0&&
+       Math.abs(p.x-gx3)<fw3*0.19&&Math.abs(p.y-f3.VH/2)<f3.GH*2.6&&
+       Math.random()<0.42){
+      b.x=gx3;b.y=b.y<f3.VH/2?18:f3.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
+      const att3=team==='my'?'opp':'my';
+      f3._lastTouch=team;
+      fmSetRestart('corner',att3,gx3+(gx3<f3.VW/2?16:-16),b.y,'CÓRNER');
+      fmStat(att3,'corner');
+      return true;
+    }
+  }
+  // ═══ CABEZAZO AL ARCO ═══
+  // Si la pelota le llega por el aire dentro del área rival, no la roza: la
+  // cabecea al arco. Es el gol de córner que antes no podía existir.
+  if(aereo&&FM&&team){
+    const f4=FM,fw4=f4.rightGL-f4.leftGL;
+    const atacaDer4=(team==='my')===f4.myAttRight;
+    const gx4=atacaDer4?f4.rightGL:f4.leftGL;
+    const dGol=Math.abs(p.x-gx4);
+    if(dGol<fw4*0.19&&Math.abs(p.y-f4.VH/2)<f4.GH*1.9){
+      const rivs=(team==='my')?f4.opp:f4.my;
+      const gk4=rivs&&rivs.find(q=>q.isGK);
+      const cab=(p.attrs&&(p.attrs.phy||p.attrs.FIS))||p.rat||70;
+      const aimY=fmAim(f4,p,cab,gk4,f4.VH/2,0.68,dGol);
+      const dx4=gx4-p.x,dy4=(f4.VH/2+aimY)-p.y,dd4=Math.hypot(dx4,dy4)||1;
+      const pw4=4.6+Math.random()*1.8+Math.max(0,cab-72)/18;
+      b.x=p.x+dx4/dd4*(R+2);b.y=p.y+dy4/dd4*(R+2);
+      b.vx=dx4/dd4*pw4+fmErr(p,'pun',0.55);
+      b.vy=dy4/dd4*pw4+fmErr(p,'pun',0.75);
+      b.air=0;b.isShot=team;
+      f4._lastTouch=team;f4._fmScorer=p;p._kickT=9;
+      fmSndKick(0.7);fmStat(team,'shots');fmSay('shot',team,p.name);
+      if(f4.learn)f4.learn.headers=(f4.learn.headers||0)+1;
+      return true;
+    }
+  }
+  if(aereo)b.air=Math.min(b.air,9);   // la bajó: deja de volar
+  if(b._beat&&FM&&FM.ticks-b._beat<80){b._beat=0;if(FM.learn)FM.learn.beatTocada=(FM.learn.beatTocada||0)+1;}
   b.isShot=null;            // la tocó un jugador de campo: ya no es un remate
   if(team&&FM){FM._lastTouch=team;FM._fmScorer=p;}   // quién la tocó: sirve para el festejo
   const nx=ddx/d,ny=ddy/d;
@@ -13937,6 +14026,12 @@ function fmDoRestart(){
     ti=squad.findIndex(q=>q.isGK);
     if(ti>=0)taker=squad[ti];
   }
+  // En el córner el pateador ya caminó hasta el banderín durante la espera:
+  // usamos ese mismo, no el que quedó más cerca por casualidad.
+  if(!taker&&r.type==='corner'&&r._taker){
+    const j=squad.indexOf(r._taker);
+    if(j>=0){taker=r._taker;ti=j;}
+  }
   if(!taker){
     let bd2=1e9;
     squad.forEach((q,i)=>{
@@ -13955,18 +14050,10 @@ function fmDoRestart(){
       if(r.type==='corner')taker._forceCross=1;
     }
   }
-  // En un córner: mando delanteros al área (primer palo / penal / segundo palo)
-  if(r.type==='corner'){
-    const atk=r.team==='my'?f.my:f.opp;
-    const attRight=(r.team==='my')?f.myAttRight:!f.myAttRight;
-    const goalX=attRight?f.rightGL:f.leftGL;
-    const dir=attRight?-1:1;
-    const box=(f.rightGL-f.leftGL);
-    const targets=[[goalX+dir*box*0.06,f.VH/2-f.GH*0.5],[goalX+dir*box*0.10,f.VH/2],[goalX+dir*box*0.13,f.VH/2+f.GH*0.55],[goalX+dir*box*0.09,f.VH/2+f.GH*0.9]];
-    // los más ofensivos/altos suben al área
-    const rushers=[...atk].filter(q=>!q.isGK&&q!==taker).sort((a,c)=>((c.attrs&&c.attrs.FIS)||c.rat)-((a.attrs&&a.attrs.FIS)||a.rat)).slice(0,4);
-    rushers.forEach((q,i)=>{const t=targets[i%targets.length];q.x=t[0];q.y=t[1];q.vx=0;q.vy=0;});
-  }
+  // Antes, acá se TELETRANSPORTABAN cuatro delanteros al área en el mismo
+  // instante del centro: por eso parecía que la pelota salía apenas se cobraba
+  // el córner. Ahora suben caminando durante la espera (fmSetPieceShape) y acá
+  // no se toca a nadie.
   f._lastTouch=r.team;
   f.restart=null;
 }
@@ -14329,7 +14416,19 @@ function fmSetPieceShape(dt){
     const orden=atacan.filter(p=>!p.isGK)
       .map(p=>({p,peso:(p.attrs&&(p.attrs.phy*0.6+p.attrs.sho*0.4))||p.rat}))
       .sort((a,b)=>b.peso-a.peso).map(x=>x.p);
+    // El que patea se elige UNA vez y camina hasta el banderín: se lo saca de
+    // los que suben al área para que no le tire el centro a sí mismo.
+    if(!r._taker||orden.indexOf(r._taker)<0){
+      const resto=orden.slice(subenN);
+      const pool=resto.length?resto:orden;
+      r._taker=pool.reduce((a,c)=>
+        Math.hypot(c.x-f.ball.x,c.y-f.ball.y)<Math.hypot(a.x-f.ball.x,a.y-f.ball.y)?c:a);
+    }
+    const kicker=r._taker;
+    const cxs=Math.sign(f.VW/2-f.ball.x)||1, cys=Math.sign(f.VH/2-f.ball.y)||1;
+    fmMove(kicker,(f.ball.x-cxs*14)-kicker.x,(f.ball.y-cys*12)-kicker.y,dt,0.075);
     orden.forEach((p,i)=>{
+      if(p===kicker)return;
       if(i<subenN){
         const dx=(atacaDer?-1:1)*(70+i*55);
         fmMove(p,(arcoX+dx)-p.x,(mid+((i%2?1:-1)*(60+i*45)))-p.y,dt,0.055);
@@ -14953,6 +15052,29 @@ function fmAI(p,team,idx,dt){
 
   if(!activeAI){
     // ═══ EQUIPO DEL JUGADOR (modo jugable): sostener forma + desmarques ═══
+    // ═══ VAN A BUSCAR EL CENTRO ═══
+    // Todo lo de acá abajo pedía !(b.air>2), así que con la pelota por el aire
+    // NINGÚN compañero se movía: tirabas el córner, el centro caía en el área y
+    // los once se quedaban parados mirando. Ahora corren al punto de caída.
+    if(!p.isGK&&b.air>2){
+      const cae=Math.min(b.air,44);
+      const cx=b.x+b.vx*cae, cy=b.y+b.vy*cae;
+      const dCae=Math.hypot(p.x-cx,p.y-cy);
+      if(dCae<420){
+        let mejor=true;
+        for(let qi=0;qi<f.my.length;qi++){
+          const q=f.my[qi];
+          if(qi===idx||q.isGK)continue;
+          if(Math.hypot(q.x-cx,q.y-cy)<dCae-8){mejor=false;break;}
+        }
+        // el mejor ubicado ataca la pelota; los demás se acomodan al rebote
+        const tX=mejor?cx:cx-(attRight?110:-110), tY=mejor?cy:cy+(idx%2?95:-95);
+        fmMove(p,tX-p.x,tY-p.y,dt,mejor?0.080:0.050);
+        p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+        p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+        return;
+      }
+    }
     if(!p.isGK&&bd<360&&!(b.air>2)){
       const cpX=f.my[f.ctrl];
       const ctrlD=cpX?Math.hypot(cpX.x-b.x,cpX.y-b.y):9999;
@@ -14973,7 +15095,22 @@ function fmAI(p,team,idx,dt){
     }
     const push=FM_MENTS[f.mentality||1].push;
     const ballPct=attRight?(b.x-f.leftGL)/fieldW:(f.rightGL-b.x)/fieldW;
-    const fwdShift=Math.max(-fieldW*0.07,(ballPct-0.36)*fieldW*0.24*push);
+    // ═══ EL EQUIPO SE ESTIRA, NO SE DESLIZA COMO UN BLOQUE ═══
+    // Antes TODOS recibían el mismo fwdShift: la formación se movía rígida y
+    // el equipo ocupaba apenas el 24,7% del largo de la cancha (medido). Un
+    // equipo de verdad se alarga cuando ataca —los delanteros se van y los
+    // centrales aguantan— y se junta cuando defiende. Cada línea responde
+    // distinto al lugar donde está la pelota.
+    const _linea = p.isGK?0
+      : ['DFC','DFD','DFI','LD','LI','CB','RB','LB'].includes(p.role)?1
+      : ['MCD','MCO','MC','MD','MI','CM','RM','LM'].includes(p.role)?2 : 3;
+    // atacando: el 3 (ataque) empuja fuerte, el 1 (defensa) sube poco
+    const gAtaque=[0,0.42,0.90,1.45][_linea];
+    // replegando: la defensa retrocede de verdad, el ataque se queda arriba
+    const gRepliegue=[0,1.35,0.85,0.30][_linea];
+    const bruto=(ballPct-0.36)*fieldW*0.30*push;
+    const fwdShift=bruto>=0 ? bruto*gAtaque
+                            : Math.max(-fieldW*0.16,bruto)*gRepliegue;
     let tx=Math.max(f.leftGL+p.r,Math.min(f.rightGL-p.r,p.hx+(attRight?fwdShift:-fwdShift)));
     let ty=Math.max(p.r+8,Math.min(f.VH-p.r-8,p.hy+(b.y-mid)*0.06));
     const cp=f.my[f.ctrl];
@@ -15054,8 +15191,13 @@ function fmAI(p,team,idx,dt){
   const dirF=attRight?1:-1;
   // Profundidad del jugador DENTRO del bloque (0=último defensor, 1=punta)
   const depth01=Math.max(0.06,Math.min(0.97,attRight?(p.hx-f.leftGL)/fieldW:(f.rightGL-p.hx)/fieldW));
-  // Largo del bloque: compacto sin pelota, estirado con pelota o línea alta
-  const blockLen=fieldW*(0.32+prof.line*0.10+((weHave||iHave)?0.10:theyHave?0:0.04));
+  // Largo del bloque: compacto sin pelota, estirado con pelota o línea alta.
+  // OJO: depth01 no llega a cubrir 0..1 (el último defensor está en ~0.15 y el
+  // punta en ~0.85), así que el largo REAL que ocupa el equipo es ~70% de este
+  // número. Medido con los valores viejos daba 24,7% de la cancha: un equipo
+  // aplastado en una franja. Con estos, defendiendo ocupa ~36% y atacando ~48%,
+  // que es lo que ocupa un equipo de verdad.
+  const blockLen=fieldW*(0.46+prof.line*0.12+((weHave||iHave)?0.16:theyHave?0:0.06));
   // Centro del bloque: pegado a la pelota — adelantado si la tenemos, replegado si no
   let bCen=b.x+dirF*((weHave||iHave)?fieldW*0.06:theyHave?-fieldW*0.09:-fieldW*0.02);
   bCen=Math.max(f.leftGL+blockLen*0.45+26,Math.min(f.rightGL-blockLen*0.45-26,bCen));
@@ -15504,10 +15646,14 @@ function fmBall(dt){
     else { const gk=f._gkHold.gk;
       b.vx=0;b.vy=0;b.air=0;
       b.x=gk.x+(gk.x<f.VW/2?15:-15); b.y=gk.y;
-      f._lastTouch=(f.my.indexOf(gk)>=0)?'home':'away';
+      // Ojo: el resto del motor usa 'my'/'opp'. Acá decía 'home'/'away', así que
+      // después de cada pelota retenida por el arquero no coincidía con nada y
+      // los córners y laterales se le daban al equipo equivocado.
+      f._lastTouch=(f.my.indexOf(gk)>=0)?'my':'opp';
     }
   }
   const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH,bR=7,mid2=f.VH/2;
+  const _beatFin=(k)=>{if(b._beat&&f.ticks-b._beat<80){b._beat=0;if(f.learn)f.learn[k]=(f.learn[k]||0)+1;}};
   // ═══ CABEZAZO EN EL ÁREA: centro que baja y un delantero la conecta ═══
   if(b.air>1&&b.air<9){
     const team=f._lastTouch;
@@ -15542,10 +15688,12 @@ function fmBall(dt){
   // LÍNEA DE FONDO IZQUIERDA
   if(b.x<f.leftGL){
     if(b.y>gy1&&b.y<gy2){
+      _beatFin('beatGol');
       if(!f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);fmStat('my','sot');}
       else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);fmStat('opp','sot');}
       fmSndGoal();fmHUD();
     }else{
+      _beatFin('beatFuera');
       const defender=f.myAttRight?'my':'opp'; // ataco a la derecha → defiendo la izquierda
       b.x=f.leftGL;b.vx=0;b.vy=0;
       if(f._lastTouch===defender){
@@ -15560,10 +15708,12 @@ function fmBall(dt){
   // LÍNEA DE FONDO DERECHA
   if(b.x>f.rightGL){
     if(b.y>gy1&&b.y<gy2){
+      _beatFin('beatGol');
       if(f.myAttRight){f.myG++;f.phase='goal_my';fmMsg('⚽ ¡¡GOL!!\n'+G.teamName);fmStat('my','sot');}
       else{f.oppG++;f.phase='goal_opp';fmMsg('GOL DE\n'+f.oppName);fmStat('opp','sot');}
       fmSndGoal();fmHUD();
     }else{
+      _beatFin('beatFuera');
       const defender=f.myAttRight?'opp':'my';
       b.x=f.rightGL;b.vx=0;b.vy=0;
       if(f._lastTouch===defender){
