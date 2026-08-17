@@ -12979,7 +12979,40 @@ function rSocial(){
 // =============================================
 let FM=null;
 
+// ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
+// El apunte era mid + random*GH*0.62, o sea CENTRADO EN EL MEDIO DEL ARCO — y
+// cuanto mejor el jugador, menos dispersión, así que el crack le pegaba más
+// cerca del arquero. Ahora se elige un palo (el más lejano de donde está
+// parado el arquero) y el error se mide contra ESE punto: el bueno la pone
+// junto al poste, al malo se le va al medio o afuera.
+function fmAim(f,p,shotAttr,gk,mid,anchoFactor,dist){
+  const GH=f.GH;
+  // Cerca del arco casi no se erra el marco; de lejos sí. Antes la dispersión
+  // era la misma desde 6 metros que desde 30 y se iba afuera la mitad.
+  const cerca = dist===undefined?1:Math.max(0.42,Math.min(1.25,dist/(f.VW*0.20)));
+  // ¿de qué lado está más descubierto el arco?
+  let lado = (Math.random()<0.5?-1:1);
+  if(gk){ const off=gk.y-mid; if(Math.abs(off)>GH*0.10) lado = off>0?-1:1; }
+  const cal=Math.max(0,Math.min(1,(shotAttr-55)/40));      // 0 = torpe, 1 = crack
+  // El arco va de mid-GH a mid+GH. Apuntar a 0,80·GH con dispersión ancha
+  // mandaba casi todo afuera: quedaban 15 remates y 0,6 al arco. Se apunta
+  // más adentro y el crack afina de verdad.
+  const palo = GH*(anchoFactor===undefined?0.52:anchoFactor*0.64);
+  const disp = GH*(0.26-cal*0.15)*cerca;
+  return lado*palo + (Math.random()*2-1)*disp;
+}
+// ¿la pica? Sólo si el arquero se adelantó y el rematador tiene técnica.
+function fmPicaLa(p,gk,b,f,shotAttr,attRight){
+  if(!gk) return false;
+  const arco = attRight?f.rightGL:f.leftGL;
+  const gkSalido = Math.abs(arco-gk.x) > f.VW*0.045;
+  if(!gkSalido) return false;
+  return Math.random() < 0.16 + Math.max(0,shotAttr-70)/100*0.5;
+}
 function fmBodyBall(p,b,team){
+  // Si la tiene agarrada el arquero, no se la saca nadie: sin esto el delantero
+  // que quedaba parado en el área se la robaba de las manos y volvía a rematar.
+  if(FM&&FM._gkHold&&FM._gkHold.gk!==p) return false;
   // ═══ ARQUERO: manos — ataja fuerte, da rebote o le pasa por al lado ═══
   if(p.isGK&&FM){
     const f=FM;
@@ -12991,25 +13024,63 @@ function fmBodyBall(p,b,team){
     const power=Math.hypot(b.vx,b.vy);
     if(dG<reachG&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
-      const catchProb=Math.max(0.04,Math.min(0.66,ref/100*0.68-power*0.05+(b.air>2?-0.15:0.08)));
+      // ANTES: tope 0.66 y −0.05 por cada punto de potencia. Un arquero de 75
+      // con un remate fuerte atajaba el 21%: el 79% restante eran rebotes que
+      // quedaban picando en el área, el delantero volvía a rematar y salían 50
+      // tiros por equipo por partido. Un arquero de verdad la embolsa casi
+      // siempre, y sólo un misil o una pelota complicada se le escapa.
+      const catchProb=Math.max(0.30,Math.min(0.94,ref/100*1.02-power*0.024+(b.air>2?-0.12:0.06)));
       const shooter=f._lastTouch;                    // quien remató (antes de tocar el arquero)
+      // Sólo es ATAJADA si lo que llega es un REMATE. Antes cualquier pelota
+      // lenta que le rodaba cerca contaba como tiro al arco y como atajada:
+      // por eso salían 116 'atajadas' en un partido con 25 tiros, y el
+      // 'al arco' era mayor que el total de tiros.
+      const esRemate = (b.isShot && b.isShot!==team);
+      b.isShot=null;
+      if(!esRemate){
+        // Pelota suelta o retrocesión: simplemente la toma, sin drama ni stat.
+        b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
+        f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16)};
+        f._lastTouch=team;
+        return true;
+      }
       if(shooter&&shooter!==team)fmStat(shooter,'sot'); // tiro al arco del que disparó
+      // ═══ TERCER RESULTADO: QUE NO LLEGUE ═══
+      // Antes, si la pelota entraba en su radio, el arquero la atajaba o la
+      // rechazaba — NUNCA era gol. Los únicos goles eran los que pasaban fuera
+      // de su alcance, y los partidos terminaban 0-0. Un remate bien puesto
+      // junto al palo y fuerte le gana al arquero: eso es un gol.
+      const lejos = dG/reachG;                          // 0 = a las manos, 1 = al palo
+      const llega = Math.max(0.18,Math.min(0.95,
+                    ref/100*0.99 - power*0.032 - lejos*0.34 + (b.air>2?-0.06:0.04)));
+      if(Math.random()>=llega){
+        b.isShot=null;                                  // se le escapó: sigue de largo
+        if(f.learn)f.learn.gkBeaten=(f.learn.gkBeaten||0)+1;
+        return false;
+      }
       f._lastTouch=team;
       fmSay('save');
       if(Math.random()<catchProb){
+        // LA EMBOLSA: la retiene un momento y después distribuye. El juego se
+        // corta como en la realidad en vez de seguir de largo con la pelota
+        // suelta a un metro de sus manos.
         b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
+        f._gkHold={gk:p,until:f.ticks+34+~~(Math.random()*30)};
+        fmSay('catch');
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
-      }else if(shooter&&shooter!==team&&Math.random()<0.45){
+      }else if(shooter&&shooter!==team&&Math.random()<0.55){
         // la manda al CÓRNER (rebote al lateral fuera de la línea de fondo)
         const gx=(p.x<f.VW/2)?f.leftGL:f.rightGL;
         b.x=gx;b.y=b.y<f.VH/2?18:f.VH-18;b.vx=0;b.vy=0;b.air=0;
         fmSetRestart('corner',shooter,gx+(gx<f.VW/2?16:-16),b.y,'CÓRNER');fmStat(shooter,'corner');
         if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
       }else{
-        // rebote hacia un costado; a veces queda picando en el área (peligro)
+        // Rechaza LEJOS y hacia afuera. El rebote flojo de antes (2,2-4,4) se
+        // le quedaba en los pies al delantero; un arquero manotea la pelota
+        // fuera del área, no se la deja servida.
         const away=(p.x<f.VW/2?1:-1),sy=(b.y<f.VH/2?-1:1);
-        b.vx=away*(2.2+Math.random()*2.2);b.vy=sy*(1.6+Math.random()*2.4);
-        b.air=Math.min(14,power*0.45);
+        b.vx=away*(4.4+Math.random()*3.0);b.vy=sy*(3.6+Math.random()*3.4);
+        b.air=Math.min(18,power*0.55);
         if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
       }
       return true;
@@ -13019,6 +13090,30 @@ function fmBodyBall(p,b,team){
   const R=p.r+6.5;
   let ddx=b.x-p.x,ddy=b.y-p.y,d=Math.hypot(ddx,ddy)||.01;
   if(d>=R)return false;
+  // OJO: esto va DESPUÉS del chequeo de contacto. Puesto antes, se ejecutaba
+  // para cada jugador en cada tick lo tocara o no, así que la marca de remate
+  // se borraba al instante: todos los tiros le llegaban al arquero como
+  // "pelota suelta", se los quedaba sin atajada y no entraba ni un gol.
+  // ═══ NO TODO REMATE SE BLOQUEA ═══
+  // Medido: 28 de 44 remates (64%) los cortaba un jugador de campo, así que al
+  // arquero casi no le llegaba nada y no había goles. En un partido real se
+  // bloquea alrededor del 25-30%. Un cuerpo no tapa por el solo hecho de estar
+  // ahí: hay que llegar. Cuanto más fuerte va la pelota y peor el defensor,
+  // más veces se le escapa entre las piernas o llega tarde.
+  if(b.isShot){
+    const rival = b.isShot!==team;
+    const vel=Math.hypot(b.vx,b.vy);
+    const def=(p.attrs&&(p.attrs.DEF||p.attrs.def))||p.rat||70;
+    // El COMPAÑERO del que remató casi nunca tapa: va corriendo hacia el arco,
+    // no se tira a bloquear a los suyos. Medido, 10 de cada 11 bloqueos eran
+    // de compañeros metidos en la trayectoria — el amontonamiento en el área.
+    const corta = rival
+      ? Math.max(0.10,Math.min(0.62,0.30+(def-70)/220-Math.max(0,vel-6)*0.045))
+      : 0.07;
+    if(Math.random()>=corta) return false;      // le pasó
+    if(FM&&FM.learn)FM.learn[rival?'blocks':'ownBlocks']=(FM.learn[rival?'blocks':'ownBlocks']||0)+1;
+  }
+  b.isShot=null;            // la tocó un jugador de campo: ya no es un remate
   if(team&&FM){FM._lastTouch=team;FM._fmScorer=p;}   // quién la tocó: sirve para el festejo
   const nx=ddx/d,ny=ddy/d;
   b.x=p.x+nx*(R+.5);b.y=p.y+ny*(R+.5);
@@ -14801,25 +14896,33 @@ function fmAI(p,team,idx,dt){
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
-      } else if(inBox&&Math.random()<(0.13+shotAttr/900)*dt){
-        // EN EL ÁREA: define (no la pasa atrás). Puntería según TIR.
-        const spread=1.30-Math.min(90,shotAttr)/115;
-        const aimY=(Math.random()-.5)*f.GH*.62*spread;
+      } else if(inBox&&Math.random()<(0.062+shotAttr/1900)*dt){
+        // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
+        const _gk=rivals.find(q=>q.isGK);
+        const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
+        const pica=fmPicaLa(p,_gk,b,f,shotAttr,attRight);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.55);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.75);f._lastTouch=team;p._kickT=9;fmSndKick(0.8);fmStat(team,'shots');fmSay('shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.026+prof.direct*0.035+Math.max(0,shotAttr-74)/1000)*dt){
-        const spread=1.30-Math.min(90,shotAttr)/115;
-        const aimY=(Math.random()-.5)*f.GH*.5*spread;
+        const pwr=pica?(3.4+Math.random()*1.0):(6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16);
+        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.34);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.46);
+        if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
+        b.isShot=team;                                   // es un remate, no un pase
+        f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
+      } else if(canShoot&&!inBox&&Math.random()<(0.011+prof.direct*0.016+Math.max(0,shotAttr-74)/2400)*dt){
+        const _gk2=rivals.find(q=>q.isGK);
+        const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=6.8+Math.random()*2.4+Math.max(0,shotAttr-75)/16;
-        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.85);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',1.15);f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
-      } else if(longShot&&Math.random()<(0.03+Math.max(0,shotAttr-72)/100*0.06)*dt){
+        b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
+        b.isShot=team;
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
+      } else if(longShot&&Math.random()<(0.013+Math.max(0,shotAttr-72)/100*0.028)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
-        const aimY=(Math.random()-.5)*f.GH*(0.5+(85-Math.min(85,shotAttr))/100);
+        const _gk3=rivals.find(q=>q.isGK);
+        const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=8.2+Math.random()*1.6+Math.max(0,shotAttr-75)/12;
         b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
+        b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(!clearOnGoal&&Math.random()<passBase*dt){
@@ -15190,6 +15293,15 @@ function fmBall(dt){
   const fr=b.air>0?Math.pow(.999,dt):spd>0.3?Math.pow(.9908,dt):Math.pow(.97,dt);
   b.vx*=fr;b.vy*=fr;
   b.x+=b.vx*dt;b.y+=b.vy*dt;
+  // Mientras el arquero la tiene en las manos, la pelota va con él
+  if(f._gkHold){
+    if(f.ticks>=f._gkHold.until || !f._gkHold.gk){ f._gkHold=null; }
+    else { const gk=f._gkHold.gk;
+      b.vx=0;b.vy=0;b.air=0;
+      b.x=gk.x+(gk.x<f.VW/2?15:-15); b.y=gk.y;
+      f._lastTouch=(f.my.indexOf(gk)>=0)?'home':'away';
+    }
+  }
   const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH,bR=7,mid2=f.VH/2;
   // ═══ CABEZAZO EN EL ÁREA: centro que baja y un delantero la conecta ═══
   if(b.air>1&&b.air<9){
@@ -15208,6 +15320,7 @@ function fmBall(dt){
           const dx=goalX-b.x,dy=aimY-b.y,dd=Math.hypot(dx,dy)||1;
           const pwr=5.6+Math.random()*2;
           b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=0;
+          b.isShot=team;
           f._lastTouch=team;fmStat(team,'shots');fmSay('header',team,hd.name);fmSndKick(0.7);
         }
       }
@@ -16048,6 +16161,8 @@ function fmSay(kind,team,name){
     freekick:[`Tiro libre peligroso para ${club}`,`Pelota parada de ${club}`],
     header:[`¡Cabezazo de ${nm||club}!`,`¡De cabeza ${nm||club}!`],
     goalchance:[`¡MANO A MANO!`,`¡Solo frente al arquero!`,`¡Quedó de cara al gol!`],
+    catch:[`La embolsó el arquero`,`Se queda con la pelota el arquero`,`La retiene el arquero`,`Atajó y la guardó`],
+    chip:[`¡Se la picó!`,`¡Qué sutileza, la picó por arriba!`,`Vaselina de ${nm||club}`],
   }[kind];
   if(R)fmRelato(R[~~(Math.random()*R.length)]);
 }
