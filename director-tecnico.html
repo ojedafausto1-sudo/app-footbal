@@ -661,7 +661,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <select class="fs" id="mkMaxAge" onchange="renderMkt()"><option value="">Cualquier edad</option><option value="21">Sub-21</option><option value="24">≤24 años</option><option value="28">≤28 años</option><option value="32">≤32 años</option></select>
           <select class="fs" id="mkMinR" onchange="renderMkt()"><option value="">Cualquier nivel</option><option value="70">70+ OVR</option><option value="75">75+ OVR</option><option value="80">80+ OVR</option><option value="85">85+ OVR</option></select>
           <select class="fs" id="mkVirt" onchange="renderMkt()"><option value="">Toda virtud</option><option value="VEL">⚡ Velocistas</option><option value="TIR">🎯 Goleadores</option><option value="PAS">🎩 Cerebros</option><option value="REG">🪄 Gambeteadores</option><option value="DEF">🧱 Murallas</option><option value="FIS">💪 Tanques</option></select>
-          <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option><option value="ganga">💎 Gangas</option></select>
+          <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="pos">Por puesto</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option><option value="ganga">💎 Gangas</option></select>
         </div>
         <div style="display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;padding:4px 10px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">
           <span>RAT</span><span>Jugador</span><span>Liga</span><span>Edad</span><span>Valor</span><span>POT</span><span>Acción</span>
@@ -758,6 +758,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="ctitle">🎯 Objetivos de Temporada</div>
             <div id="presObjList"></div>
           </div>
+          <div class="card" style="margin-bottom:8px" id="finBox"></div>
           <div class="card" style="margin-bottom:8px" id="loanBox"></div>
           <div class="card">
             <div class="ctitle">🎙️ Sala de Prensa</div>
@@ -2023,10 +2024,14 @@ function buildCal(teamName, teamId){
       sch.push({week:sudWeeks[i*2+1], comp:'Copa Sudamericana - Grupos', home:r, away:teamName, played:false,result:null,score:null});
     });
   }
-  caOpps.forEach((r,i) => {
-    sch.push({week:3+i*9, comp:caRnds[i], home:i%2===0?teamName:r, away:i%2===0?r:teamName, played:false,result:null,score:null});
-  });
-  sch.push({week:35, comp:'Copa Argentina Final', home:teamName, away:caFinalRival, played:false,result:null,score:null});
+  // ═══ LA COPA SE SORTEA RONDA A RONDA ═══
+  // Antes se metían las CINCO rondas en el calendario desde la semana 1, con
+  // rival y fecha ya asignados: sabías en marzo que la final era contra
+  // Independiente. Ahora sólo se programa la primera; la siguiente se sortea
+  // recién cuando ganás (ver caProximaRonda, llamada desde resolveKO).
+  buildCal._caPool=caPool.slice();
+  buildCal._caGrandes=caFinalRivals.slice();
+  sch.push({week:3, comp:caRnds[0], home:teamName, away:caOpps[0], played:false,result:null,score:null});
   return sch.sort((a,b)=>a.week-b.week);
 }
 
@@ -3222,6 +3227,7 @@ function updateUI(){
   rStad();
   rTicket();
   rLoans();
+  rFinanzas();
   rVestuario();
   rRetirados();
   rJuv();
@@ -3288,16 +3294,22 @@ function squadHealthPanel(){
 // =============================================
 // SQUAD
 // =============================================
+// Orden de cancha, de atrás hacia adelante y de izquierda a derecha. Antes se
+// ordenaba sólo por GRUPO, así que dentro de los delanteros salía
+// EI, DC, DC, EI, ED, EI, DC — un revoltijo.
+const POS_ORDEN={ARQ:0,DFC:1,DFI:2,LI:2,DFD:3,LD:3,MCD:4,MC:5,MCO:6,EI:7,ED:8,DC:9};
+function posOrden(pos){ const v=POS_ORDEN[pos]; return v===undefined?5:v; }
+function ordenarPlantel(arr){
+  return arr.slice().sort((a,b)=>
+    posOrden(a.pos)-posOrden(b.pos) || (b.rat||0)-(a.rat||0) || (a.num||0)-(b.num||0));
+}
 function rSq(f){
   const el = document.getElementById('sqList');
   if(!el||!G) return;
   const fs = foreignStats(G.squad);
   const quotaEl = document.getElementById('sqForeignCounter');
   if(quotaEl) quotaEl.innerHTML = `<span style="color:${fs.total>=5?'var(--red)':'var(--gold)'}">Extranjeros: ${fs.total}/5</span>  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`;
-  const pl = G.squad.filter(p=>f==='all'||pgr(p.pos)===f).sort((a,b)=>{
-    const o={ARQ:0,DEF:1,MED:2,DEL:3};
-    return o[pgr(a.pos)]-o[pgr(b.pos)];
-  });
+  const pl = ordenarPlantel(G.squad.filter(p=>f==='all'||pgr(p.pos)===f));
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
@@ -3986,8 +3998,13 @@ function negLoanOffer(id){
     </div>
     <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Cargo por préstamo</span><span style="color:var(--gold);font-weight:700">${fv(cost)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span>26 semanas</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span id="loanDurLbl">26 semanas (medio año)</span></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Prob. aprobación</span><span style="color:${rejectChance>0.7?'var(--red)':rejectChance>0.4?'var(--gold)':'var(--green)'}">${Math.round((1-rejectChance)*100)}%</span></div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Duración de la cesión:</div>
+    <div style="display:flex;gap:4px;margin-bottom:10px">
+      <button class="btn bg bs negDurBtn" data-d="26" onclick="selLoanDur(26)" style="flex:1;font-size:10px">🗓️ Medio año</button>
+      <button class="btn bo bs negDurBtn" data-d="52" onclick="selLoanDur(52)" style="flex:1;font-size:10px">🗓️ Un año</button>
     </div>
     ${p.rat<=82?`
     <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Tipo de préstamo:</div>
@@ -4006,7 +4023,13 @@ function negLoanOffer(id){
       <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
     </div>
   `);
-  window._loanType='simple';
+  window._loanType='simple'; window._loanDur=26;
+}
+function selLoanDur(d){
+  window._loanDur=d;
+  document.querySelectorAll('.negDurBtn').forEach(b=>{const on=+b.dataset.d===d;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});
+  const l=document.getElementById('loanDurLbl');
+  if(l)l.textContent=d+' semanas ('+(d===52?'un año':'medio año')+')';
 }
 function selLoanType(t){window._loanType=t;document.querySelectorAll('.negLoanBtn').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});}
 
@@ -4035,7 +4058,7 @@ function loanPlayerTerms(id,cost,buyOption){
     pull:0.5,   // un préstamo compromete menos: le cuesta menos decir que sí
     onAccept:(t)=>negQueueClub({p,kind:'prestamo',terms:t,
       acc:1-(window._loanRej!==undefined?window._loanRej:0.2),
-      deal:{cost,buyOption,loanType}})
+      deal:{cost,buyOption,loanType,semanas:(window._loanDur||26)}})
   });
 }
 
@@ -4136,7 +4159,8 @@ function renderMkt(){
     if(virt){ ensureAttrs(p); if((p.attrs[virt]||0) < p.rat+2 && (p.attrs[virt]||0) < 80) return false; }
     return true;
   });
-  if(sort==='rat') pl.sort((a,b)=>b.rat-a.rat);
+  if(sort==='pos') pl=ordenarPlantel(pl);        // arqueros, defensa, medio, ataque
+  else if(sort==='rat') pl.sort((a,b)=>b.rat-a.rat);
   else if(sort==='val') pl.sort((a,b)=>b.val-a.val);
   else if(sort==='pot') pl.sort((a,b)=>b.pot-a.pot);
   else if(sort==='ganga') pl.sort((a,b)=>(b.rat/Math.max(0.3,b.val))-(a.rat/Math.max(0.3,a.val)));
@@ -4918,6 +4942,7 @@ function takeLoan(i){
   G.loans=G.loans||[];
   G.loans.push({monto:b.monto,resta:total,cuota:Math.round(total/b.semanas*100)/100,sem:b.semanas});
   G.budget=Math.round((G.budget+b.monto)*10)/10;
+  finAnota('credito',b.monto,'Crédito del banco');
   lg('🏦',`Crédito de ${fv(b.monto)} — devolvés ${fv(total)} en ${b.semanas} semanas`);
   addPhoneMsg('board','Tesorería',`🏦 Tomamos un crédito de <b>${fv(b.monto)}</b>. Devolvemos <b>${fv(total)}</b> en ${b.semanas} semanas: ${fv(Math.round(total/b.semanas*100)/100)} por semana.`,'🏛️');
   rLoans(); updateUI();
@@ -4930,6 +4955,7 @@ function weeklyLoans(){
     const c=Math.min(l.cuota,l.resta);
     // dos decimales acá a propósito: redondear a uno pagaba de más cada semana
     G.budget=Math.round((G.budget-c)*100)/100;
+    finAnota('deuda',c,'Cuota del crédito');
     l.resta=Math.round((l.resta-c)*100)/100; l.sem--;
     pagado+=c;
   });
@@ -7859,6 +7885,7 @@ function acceptEndOffer(pid){
   if(!o||!p)return;
   const cobro=Math.round(o.fee*(p.ownedPct||1)*10)/10;
   G.budget=Math.round((G.budget+cobro)*10)/10;
+  finAnota('ventas',cobro,'Venta de '+p.name+' a '+o.club);
   G.squad=G.squad.filter(x=>x.id!==pid);
   G.bench=(G.bench||[]).filter(x=>x.id!==pid);
   Object.keys(G.slots).forEach(k=>{if(G.slots[k]===pid)G.slots[k]=null;});
@@ -8301,6 +8328,64 @@ function startReconv(id,a){
     `🔁 Arrancamos a trabajar a <b>${p.name}</b> de <b>${a}</b>. Van a ser ${semanas} semanas en las que va a estar incómodo, presidente. Banque el proceso.`,'👔');
   closeMod(); updateUI(); flash('🔁 '+p.name+' → '+a,'draw');
 }
+// ═══ LOS QUE VIENEN A PRÉSTAMO SE VUELVEN ═══
+// Al vencer la cesión el jugador regresa a su club. Si había obligación de
+// compra se ejecuta sola; si había opción, te preguntan si la usás.
+function weeklyPrestamosIn(){
+  if(!G||!G.squad)return;
+  G.squad.slice().forEach(p=>{
+    if(!p.onLoanIn||!p.loanUntil)return;
+    if((G.week||1)<p.loanUntil)return;
+    if(p.loanBuyObligation!==undefined){
+      const precio=p.loanBuyObligation;
+      if(G.budget>=precio){
+        G.budget=Math.round((G.budget-precio)*10)/10;
+        p.onLoanIn=false;p.loanUntil=null;p.club=G.teamName;
+        p.contract=(G.season||2026)+2;
+        delete p.loanBuyObligation;delete p.loanBuyOption;
+        lg('📋',`Obligación de compra ejecutada: ${p.name} queda en el club por ${fv(precio)}`);
+        addPhoneMsg('board','Secretaría Deportiva',
+          `📋 Se ejecutó la obligación de compra de <b>${p.name}</b>: pagamos <b>${fv(precio)}</b> y queda en el club.`,'🏛️');
+        return;
+      }
+      addPhoneMsg('board','Tesorería',
+        `💸 No pudimos pagar la obligación de compra de <b>${p.name}</b> (${fv(precio)}). Vuelve a ${p.loanOrigin}.`,'🏛️');
+    } else if(p.loanBuyOption!==undefined){
+      addPhoneMsg('board','Secretaría Deportiva',
+        `💰 Se termina el préstamo de <b>${p.name}</b>. Tenemos opción de compra por <b>${fv(p.loanBuyOption)}</b>. Si no la usamos, vuelve a ${p.loanOrigin}.`,'🏛️',
+        {accion:'comprarOpcion',pid:p.id});
+    }
+    devolverPrestamo(p);
+  });
+}
+function devolverPrestamo(p){
+  if(!G||!p)return;
+  G.squad=G.squad.filter(x=>x.id!==p.id);
+  G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+  Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+  p.club=p.loanOrigin||p.club.replace(' (prést)','');
+  p.onLoanIn=false;p.loanUntil=null;
+  delete p.loanBuyOption;delete p.loanBuyObligation;delete p.loanOrigin;
+  (G.market=G.market||[]).push(p);
+  lg('📤',`${p.name} terminó su préstamo y volvió a ${p.club}`);
+  addPhoneMsg('player',p.name,`📤 Se terminó mi préstamo, presidente. Vuelvo a ${p.club}. Gracias por todo.`,'📤');
+  const huecos=Object.values(G.slots||{}).filter(x=>!x).length;
+  if(huecos&&typeof autoFill==='function'&&!(typeof dtIsMine==='function'&&dtIsMine())) autoFill();
+}
+// Ejercer la opción de compra del que está a préstamo
+function comprarOpcion(pid){
+  const p=(G.squad||[]).find(x=>x.id===pid);
+  if(!p||p.loanBuyOption===undefined){flash('Ya no hay opción de compra vigente','draw');return;}
+  const precio=p.loanBuyOption;
+  if(G.budget<precio){flash('❌ No te alcanza ('+fv(precio)+')','loss');return;}
+  G.budget=Math.round((G.budget-precio)*10)/10;
+  p.onLoanIn=false;p.loanUntil=null;p.club=G.teamName;
+  p.contract=(G.season||2026)+3;
+  delete p.loanBuyOption;delete p.loanOrigin;
+  lg('💰',`Opción de compra ejecutada: ${p.name} por ${fv(precio)}`);
+  flash('💰 '+p.name+' es tuyo por '+fv(precio),'win');
+  updateUI();
+}
 function weeklyReconv(){
   (G.squad||[]).forEach(p=>{
     if(!p.reconv) return;
@@ -8320,6 +8405,83 @@ function reconvPenal(p){
   return 1-(0.055*(1-avance*0.6));     // arranca en -5,5% y afloja
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LIBRO CONTABLE DEL CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// Se veía el presupuesto pero no de dónde salía ni a dónde se iba. Cada
+// movimiento pasa por acá y queda anotado por rubro y por temporada, así el
+// panel de Finanzas muestra de verdad en qué se gasta y qué entra.
+const FIN_RUBROS={
+  borderó:{e:'🎟️',t:'Borderó (entradas)',in:true},
+  tv:{e:'📺',t:'TV y socios',in:true},
+  sponsors:{e:'🤝',t:'Sponsors',in:true},
+  ventas:{e:'💸',t:'Ventas de jugadores',in:true},
+  premios:{e:'🏆',t:'Premios y bonos',in:true},
+  credito:{e:'🏦',t:'Créditos recibidos',in:true},
+  otros_in:{e:'➕',t:'Otros ingresos',in:true},
+  sueldos:{e:'👥',t:'Sueldos del plantel',in:false},
+  cuerpo:{e:'🧑‍🏫',t:'Cuerpo técnico',in:false},
+  operativo:{e:'🏟️',t:'Operativo del club',in:false},
+  fichajes:{e:'📥',t:'Fichajes',in:false},
+  obras:{e:'🔨',t:'Obras e instalaciones',in:false},
+  inferiores:{e:'🌱',t:'Inferiores',in:false},
+  deuda:{e:'🏦',t:'Cuotas de créditos',in:false},
+  otros_out:{e:'➖',t:'Otros gastos',in:false},
+};
+function finAnota(rubro,monto,detalle){
+  if(!G||!monto)return;
+  G.fin=G.fin||{};
+  const t=G.season||2026;
+  G.fin[t]=G.fin[t]||{};
+  G.fin[t][rubro]=Math.round(((G.fin[t][rubro]||0)+Math.abs(monto))*100)/100;
+  G.finMov=G.finMov||[];
+  G.finMov.unshift({s:t,w:G.week||1,r:rubro,m:Math.round(Math.abs(monto)*100)/100,d:detalle||''});
+  if(G.finMov.length>60)G.finMov.length=60;   // tope: no infla el guardado
+}
+function finTemporada(t){
+  const d=(G.fin&&G.fin[t||G.season])||{};
+  let ing=0,egr=0;
+  Object.entries(d).forEach(([k,v])=>{ if((FIN_RUBROS[k]||{}).in) ing+=v; else egr+=v; });
+  return {d,ing:Math.round(ing*10)/10,egr:Math.round(egr*10)/10,neto:Math.round((ing-egr)*10)/10};
+}
+function rFinanzas(){
+  const el=document.getElementById('finBox'); if(!el||!G)return;
+  const t=G.season||2026;
+  const {d,ing,egr,neto}=finTemporada(t);
+  const barra=(v,tot,col)=>`<div style="height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-top:3px">
+      <div style="width:${tot?Math.round(v/tot*100):0}%;height:100%;background:${col}"></div></div>`;
+  const fila=(k,v,tot,col)=>{const r=FIN_RUBROS[k]||{e:'•',t:k};
+    return `<div style="padding:5px 0;border-top:1px solid rgba(255,255,255,.05)">
+      <div style="display:flex;justify-content:space-between;font-size:11px">
+        <span>${r.e} ${r.t}</span>
+        <span style="font-weight:700;color:${col}">${col==='var(--green)'?'+':'−'}${fv(v)}</span></div>
+      ${barra(v,tot,col)}
+      <div style="font-size:9px;color:var(--t3);margin-top:2px">${tot?Math.round(v/tot*100):0}% del total</div>
+    </div>`;};
+  const ingresos=Object.entries(d).filter(([k])=>(FIN_RUBROS[k]||{}).in).sort((a,b)=>b[1]-a[1]);
+  const egresos =Object.entries(d).filter(([k])=>!(FIN_RUBROS[k]||{}).in).sort((a,b)=>b[1]-a[1]);
+  const deuda=(typeof deudaTotal==='function')?deudaTotal():0;
+  el.innerHTML=`
+    <div class="ctitle">💰 Finanzas · temporada ${t}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0">
+      <div class="stat-tile"><div class="sv-n" style="color:var(--green);font-size:15px">${fv(ing)}</div><div class="sv-l">Ingresos</div></div>
+      <div class="stat-tile"><div class="sv-n" style="color:var(--red);font-size:15px">${fv(egr)}</div><div class="sv-l">Gastos</div></div>
+      <div class="stat-tile"><div class="sv-n" style="color:${neto>=0?'var(--green)':'var(--red)'};font-size:15px">${neto>=0?'+':''}${fv(neto)}</div><div class="sv-l">Resultado</div></div>
+    </div>
+    <div class="sr"><span class="sl">Caja actual</span><span class="sv" style="color:${G.budget>=0?'var(--gold)':'var(--red)'}">${fv(G.budget)}</span></div>
+    ${deuda>0?`<div class="sr"><span class="sl">Deuda con el banco</span><span class="sv" style="color:var(--red)">${fv(deuda)}</span></div>`:''}
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:12px 0 2px">De dónde entra</div>
+    ${ingresos.length?ingresos.map(([k,v])=>fila(k,v,ing,'var(--green)')).join(''):'<div class="note" style="margin:0">Todavía no entró plata esta temporada.</div>'}
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:12px 0 2px">En qué se va</div>
+    ${egresos.length?egresos.map(([k,v])=>fila(k,v,egr,'var(--red)')).join(''):'<div class="note" style="margin:0">Todavía no hubo gastos.</div>'}
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:12px 0 2px">Últimos movimientos</div>
+    ${(G.finMov||[]).slice(0,12).map(m=>{const r=FIN_RUBROS[m.r]||{e:'•',t:m.r};const inn=(FIN_RUBROS[m.r]||{}).in;
+      return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;padding:3px 0;border-top:1px solid rgba(255,255,255,.04)">
+        <span style="color:var(--t3);min-width:38px">S${m.w}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.e} ${m.d||r.t}</span>
+        <span style="color:${inn?'var(--green)':'var(--red)'};font-weight:700">${inn?'+':'−'}${fv(m.m)}</span>
+      </div>`;}).join('')||'<div class="note" style="margin:0">Sin movimientos todavía.</div>'}`;
+}
 function rRetirados(){
   const el=document.getElementById('retiroBox'); if(!el||!G) return;
   const r=(G.retirados||[]).slice().reverse();
@@ -8722,6 +8884,41 @@ function koGoalsFor(mt){
   const iH=mt.home===G.teamName;
   return {mine:iH?h:a,theirs:iH?a:h};
 }
+// Sortea la ronda siguiente de la Copa Argentina cuando avanzás. El rival sale
+// del bombo (los grandes recién de cuartos en adelante, como en la vida real) y
+// la localía se decide ahí, no dos meses antes.
+const CA_RONDAS=['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF','Copa Argentina Final'];
+function caProximaRonda(rndActual){
+  if(!G||!G.calendar)return null;
+  const idx=rndActual;                       // 1=R32 → siguiente es índice 1 (R16)
+  if(idx>=CA_RONDAS.length)return null;
+  const comp=CA_RONDAS[idx];
+  if(G.calendar.some(x=>x.comp===comp))return null;   // ya estaba sorteada
+  const chicos=(typeof buildCal!=='undefined'&&buildCal._caPool)||
+    ['Almagro','Quilmes','Atlanta','Chacarita','All Boys','Temperley','Tristán Suárez',
+     'Sacachispas','Comunicaciones','Deportivo Morón','Los Andes','Almirante Brown'];
+  const grandes=(typeof buildCal!=='undefined'&&buildCal._caGrandes)||
+    ['Racing Club','River Plate','Independiente','San Lorenzo','Vélez Sarsfield'];
+  // De cuartos en adelante aparecen los grandes
+  const bombo=(idx>=2?grandes:chicos).filter(c=>c!==G.teamName);
+  const yaJugados=new Set(G.calendar.filter(x=>/Copa Argentina/.test(x.comp||''))
+                    .map(x=>x.home===G.teamName?x.away:x.home));
+  const libres=bombo.filter(c=>!yaJugados.has(c));
+  const rival=(libres.length?libres:bombo)[~~(Math.random()*(libres.length?libres.length:bombo.length))];
+  if(!rival)return null;
+  // La fecha: unas semanas después de la ronda que se acaba de jugar
+  const ultima=Math.max(...G.calendar.filter(x=>/Copa Argentina/.test(x.comp||'')).map(x=>x.week||1),G.week||1);
+  const semana=Math.min(38,Math.max((G.week||1)+3,ultima+(idx>=3?7:6)));
+  const deLocal=Math.random()<0.5;
+  G.calendar.push({week:semana,comp,home:deLocal?G.teamName:rival,away:deLocal?rival:G.teamName,
+                   played:false,result:null,score:null});
+  G.calendar.sort((a,b)=>a.week-b.week);
+  const nombre=['','32avos','octavos','cuartos','la semifinal','la final'][idx+1]||comp;
+  lg('🎲',`Sorteo de Copa Argentina: ${nombre} contra ${rival} (${deLocal?'local':'visitante'}), semana ${semana}`);
+  addPhoneMsg('board','Secretaría del Club',
+    `🎲 Salió el sorteo: en <b>${nombre}</b> de la Copa Argentina nos toca <b>${rival}</b>, de ${deLocal?'local':'visitante'}, en la semana ${semana}.`,'🏛️');
+  return rival;
+}
 function resolveKO(m){
   if(!m||!m.comp)return;
   const c=m.comp;
@@ -8750,6 +8947,7 @@ function resolveKO(m){
     } else {
       lg('✅',`${G.teamName} avanza en la ${compName} (global ${mine}-${theirs})`);
       flash(`✅ ¡Pasaste de ${rndName}! Global ${mine}-${theirs}`,'win');
+      if(isCA) caProximaRonda(rnd);      // recién ahora se sortea la que viene
     }
     return;
   }
@@ -8800,12 +8998,14 @@ function applyMatchResult(m, gf, ga, providedScorers){
     matchGate=Math.round((bruto-matchOps)*10)/10;
     G.budget=Math.round((G.budget+matchGate)*10)/10;
     G.finGate={bruto:Math.round(bruto*10)/10,ops:Math.round(matchOps*10)/10,neto:matchGate};
+    finAnota('borderó',bruto,'Entradas vs '+(m.away===G.teamName?m.home:m.away));
+    finAnota('operativo',matchOps,'Operativo del partido');
   }
   if(res==='W'){
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); G.rep=Math.min(100,G.rep+1*dMul);
     // Bonos de sponsors por victoria
     const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0)*facilityFx().sponsorMul;
-    if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
+    if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;finAnota('sponsors',spBonus,'Bono de sponsors por ganar');lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
   } else if(res==='D'){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
   } else {
@@ -9115,7 +9315,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
     const lv=G.staffLevels[r.id]||0; if(!lv) return sum;
     return sum+(r.levels.find(l=>l.lv===lv)||{salary:0}).salary;
   },0);
-  if(staffSal>0) G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
+  if(staffSal>0){ G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
+    finAnota('cuerpo',staffSal/1000,'Sueldos del cuerpo técnico'); }
   weeklyYouth();
   weeklyColgados();
   weeklyLoans();
@@ -9125,6 +9326,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyRumores();
   weeklyDtRenuncia();
   weeklyReconv();
+  weeklyPrestamosIn();
   weeklyTraining();
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
@@ -9219,6 +9421,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // Paneles solares y accesos digitales abaratan la operación del club
     const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035-_wfx.opsCut)*10)/10);
     G.budget=Math.round((G.budget-wages+tv-ops)*10)/10;
+    finAnota('sueldos',wages,'Sueldos del plantel');
+    finAnota('tv',tv,'TV y socios');
+    finAnota('operativo',ops,'Gastos operativos');
     const neto=Math.round((tv-wages-ops)*10)/10;
     G.finLast={wages,tv,neto,wk,ops};
     addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · TV y socios <b style="color:var(--green)">+${fv(tv)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
@@ -16843,11 +17048,22 @@ function negExecDeal(n,p){
   }
   const d=n.deal||{};
   G.budget=Math.round((G.budget-out)*10)/10;
+  if(out>0) finAnota('fichajes',out,(n.kind==='prestamo'?'Cargo por préstamo de ':'Fichaje de ')+p.name);
   G.market=G.market.filter(x=>x.id!==p.id);
   if(n.kind==='prestamo'){
+    // ANTES: sólo le cambiaba el nombre del club a "(prést)" y no guardaba NADA
+    // más. Sin fecha de vuelta ni club de origen, el jugador se quedaba para
+    // siempre: pedías una cesión y en la práctica lo comprabas gratis.
+    p.loanOrigin=p.club;
     p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';p.wage=n.wage;
+    p.onLoanIn=true;
+    p.loanUntil=(G.week||1)+((d.semanas)||26);
     if(d.loanType==='option') p.loanBuyOption=d.buyOption;
     if(d.loanType==='obligation') p.loanBuyObligation=d.buyOption;
+    addPhoneMsg('board','Secretaría Deportiva',
+      `📥 <b>${p.name}</b> llega a préstamo de <b>${p.loanOrigin}</b> por ${(d.semanas)||26} semanas`+
+      (d.loanType==='option'?`, con opción de compra de <b>${fv(d.buyOption)}</b>.`:
+       d.loanType==='obligation'?`, con obligación de compra de <b>${fv(d.buyOption)}</b> al final.`:'. Vuelve a su club al terminar.'),'🏛️');
   } else {
     if(n.kind==='canje'){
       // Si vendiste al jugador que ofreciste mientras el club pensaba, el canje
@@ -17130,6 +17346,7 @@ function negComplete(n,p,price,isPre){
   if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
   const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
   G.budget=Math.round((G.budget-price-wageCost)*10)/10;
+  if(price>0) finAnota('fichajes',price,'Ficha de '+p.name);
   G.market=G.market.filter(x=>x.id!==p.id);
   p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
   p.pressuring=0;p.forceSale=false;p.freeAgent=false;
