@@ -15227,9 +15227,12 @@ function fmAI(p,team,idx,dt){
       // ¿está de cara al gol y con poca oposición? (no pasa atrás, define)
       const defsAhead=rivals.reduce((a,o)=>a+(!o.isGK&&(attRight?(o.x>b.x):(o.x<b.x))&&Math.abs(o.y-b.y)<f.GH*1.4?1:0),0);
       const clearOnGoal=distGoal<fieldW*0.55&&defsAhead<=1;
-      // conduce y toca MENOS (antes pasaba apenas recibía)
-      const oneTouch=(0.08+prof.tempo*0.16+counterBoost*0.14)*(holding?0.5:1);
-      const passBase=holding?0.14:(0.05+prof.tempo*0.08+counterBoost*0.05);
+      // Se había bajado tanto para que dejara de tocar apenas recibía que la
+      // pelota pasó a viajar SIEMPRE conducida: 43 pases en 45 minutos entre
+      // los dos equipos, cuando en un partido real son unos 800. Sin pases no
+      // hay circuito, y era exactamente lo que se veía en la cancha.
+      const oneTouch=(0.14+prof.tempo*0.20+counterBoost*0.14)*(holding?0.6:1);
+      const passBase=holding?0.26:(0.15+prof.tempo*0.14+counterBoost*0.05);
       // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
       const wide=Math.abs(b.y-mid)>f.VH*0.27;
       const nearByline=distGoal<fieldW*0.22;
@@ -15243,22 +15246,27 @@ function fmAI(p,team,idx,dt){
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
-      } else if(inBox&&Math.random()<(0.062+shotAttr/1900)*dt){
+      // ═══ UN REMATE NO ES UN PASE FUERTE ═══
+      // Estaban casi a la misma velocidad (pase 5,0-7,6 · remate 6,3-9,5), así
+      // que la pelota tardaba una eternidad en llegar al arco: daba tiempo a
+      // que la cortara cualquiera y el arquero la veía venir. Ahora el remate
+      // va al doble, que además es lo que le baja las manos al arquero.
+      } else if(inBox&&Math.random()<(0.078+shotAttr/1550)*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
         const pica=fmPicaLa(p,_gk,b,f,shotAttr,attRight);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=pica?(3.4+Math.random()*1.0):(6.3+Math.random()*3.2+Math.max(0,shotAttr-75)/16);
+        const pwr=pica?(3.9+Math.random()*1.2):(9.8+Math.random()*3.4+Math.max(0,shotAttr-75)/11);
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.34);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.46);
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
         b.isShot=team;                                   // es un remate, no un pase
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.011+prof.direct*0.016+Math.max(0,shotAttr-74)/2400)*dt){
+      } else if(canShoot&&!inBox&&Math.random()<(0.016+prof.direct*0.021+Math.max(0,shotAttr-74)/1900)*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=6.8+Math.random()*2.4+Math.max(0,shotAttr-75)/16;
+        const pwr=10.6+Math.random()*2.8+Math.max(0,shotAttr-75)/11;
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
@@ -15267,7 +15275,7 @@ function fmAI(p,team,idx,dt){
         const _gk3=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
-        const pwr=8.2+Math.random()*1.6+Math.max(0,shotAttr-75)/12;
+        const pwr=12.4+Math.random()*2.0+Math.max(0,shotAttr-75)/9;
         b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
@@ -15561,7 +15569,7 @@ function fmTeamPass(team,fromIdx){
   squad.forEach((t,i)=>{
     if(i===fromIdx||t.isGK)return;
     const d=Math.hypot(t.x-b.x,t.y-b.y);
-    if(d<55)return;
+    if(d<40)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
     // ¿el receptor está en posición adelantada? (un equipo no le pasa a un offside)
     const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
@@ -15581,11 +15589,16 @@ function fmTeamPass(team,fromIdx){
     // En campo rival, un pase para atrás es poco atractivo (no la pasan atrás con gente arriba)
     const ballAdvanced=attRight?(b.x>f.VW*0.55):(b.x<f.VW*0.45);
     const backwardPen=(ballAdvanced&&fwdScore<-40)?70:0;
+    // Medido: 0 pases cortos en 45 minutos, todos de 19m para arriba. El peso
+    // vertical le ganaba siempre a la distancia y la pelota iba de un área a la
+    // otra. Ahora el pase cómodo (hasta ~9m) no paga nada y el largo se encarece
+    // de verdad: así aparecen los circuitos y no sólo el pelotazo.
     const score=fwdScore*fwdW
-      - d*(holding?0.14:0.10)
+      - d*(holding?0.10:0.05)
+      - Math.max(0,d-260)*(holding?0.30:0.22)
       - near*24                                 // el que está libre vale más
       + flankBias+roleBonus
-      + (isWall?26+((prof.tempo||0.5)*22):0)
+      + (isWall?46+((prof.tempo||0.5)*30):0)    // la pared de vuelta, más buscada
       + Math.random()*40                        // variedad real de pases
       - (blocked?45:0)
       - (suicidal?90:0)
