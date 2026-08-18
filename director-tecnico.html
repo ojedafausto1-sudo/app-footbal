@@ -3033,12 +3033,19 @@ function autoFill(){
   // alguien fundido.
   const pr=(typeof dtProfile==='function')?dtProfile(G.dt):{press:.5,line:.5,direct:.5,counter:.5,tempo:.5};
   const at=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
+  // ═══ EL CUPO DE EXTRANJEROS SE CUMPLE EN LA CANCHA ═══
+  // Medido: el cupo sólo se controlaba al comprar. Por las otras vías de entrada
+  // (libres, canteranos, precontratos) el plantel llegaba a 13 extranjeros y el
+  // DT armaba un once con NUEVE. Un once así no se puede presentar. Acá se
+  // cuenta a medida que se arma, así que nunca salen más de cinco.
+  let _ext=0;
   sl.forEach((s,i) => {
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
       if(used.has(p.id)||p.injured||p.susp>0||p.colgado||p.selUp>0)continue;   // lesionado, suspendido, colgado o EN LA SELECCIÓN
       if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
       if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
+      if(_ext>=CUPO_EXT&&typeof pIsForeign==='function'&&pIsForeign(p))continue;
       let sc=p.rat-posPenaltyFor(p,s.pos)*2.2;
       // Órdenes del presidente que el DT tiene que respetar: si le exigiste que
       // un pibe juegue, no se lo puede borrar al armar el equipo siguiente.
@@ -3057,10 +3064,23 @@ function autoFill(){
       sc += (p.form||0)*1.1;                                          // el que está enchufado, juega
       if(sc>bestScore){bestScore=sc;best=p;}
     }
-    if(best){G.slots[i]=best.id;used.add(best.id);}
+    if(best){
+      G.slots[i]=best.id;used.add(best.id);
+      if(typeof pIsForeign==='function'&&pIsForeign(best))_ext++;
+    }
     else G.slots[i]=null;
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
+}
+// Cuántos extranjeros pueden estar en cancha a la vez
+const CUPO_EXT=5;
+// Extranjeros en el once que está armado ahora
+function extEnOnce(exceptoId){
+  if(typeof pIsForeign!=='function')return 0;
+  return Object.values(G.slots||{}).filter(Boolean)
+    .filter(id=>id!==exceptoId)
+    .map(id=>(G.squad||[]).find(q=>q.id===id))
+    .filter(q=>q&&pIsForeign(q)).length;
 }
 
 // ═══ CAMBIAR DE ESQUEMA SIN PERDER EL ONCE ═══
@@ -3899,6 +3919,7 @@ function submitNegTerms(id){
   const roles=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
   if(accept){
     G.budget=Math.round((G.budget-payNow)*10)/10;
+    if(payNow>0)finAnota('fichajes',payNow,'Ficha de '+p.name);
     const oldClub=p.club;
     if(plan>1){
       G.installments=G.installments||[];
@@ -4427,6 +4448,13 @@ function clickSlot(idx){
   if(typeof selSlot === 'string' && selSlot.startsWith('bench_')){
     const benchPid = selSlot.replace('bench_','');
     const oldSlotPid = G.slots[idx];
+    // No se pueden poner seis extranjeros en cancha
+    const _ent=G.squad.find(q=>q.id===benchPid);
+    if(_ent&&typeof pIsForeign==='function'&&pIsForeign(_ent)&&extEnOnce(oldSlotPid)>=CUPO_EXT){
+      selSlot=null; rFormation(); rXI();
+      flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss');
+      return;
+    }
     G.slots[idx] = benchPid;
     G.bench = G.bench.filter(p=>p.id!==benchPid);
     if(oldSlotPid){
@@ -4501,6 +4529,10 @@ function openSubPicker(idx){
 function doSub(idx, pid){
   if(!G) return;
   const oldPid = G.slots[idx];
+  const _e=G.squad.find(q=>q.id===pid);
+  if(_e&&typeof pIsForeign==='function'&&pIsForeign(_e)&&extEnOnce(oldPid)>=CUPO_EXT){
+    flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss'); return;
+  }
   G.slots[idx] = pid;
   G.bench = G.bench.filter(p=>p.id!==pid);
   if(oldPid){ const oldP=G.squad.find(p=>p.id===oldPid); if(oldP) G.bench.push(oldP); }
@@ -4515,6 +4547,11 @@ function clickBench(pid){
   if(typeof selSlot === 'number'){
     // Slot was selected, put this bench player in that slot
     const oldPid = G.slots[selSlot];
+    const _e2=G.squad.find(q=>q.id===pid);
+    if(_e2&&typeof pIsForeign==='function'&&pIsForeign(_e2)&&extEnOnce(oldPid)>=CUPO_EXT){
+      selSlot=null; rFormation(); rXI();
+      flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss'); return;
+    }
     G.slots[selSlot] = pid;
     G.bench = G.bench.filter(p=>p.id!==pid);
     if(oldPid){ const op=G.squad.find(p=>p.id===oldPid); if(op) G.bench.push(op); }
@@ -5764,6 +5801,7 @@ function fireDT(){
 function confirmFireDT(cost,justified){
   if(G.budget<cost){flash('❌ No podés pagar la cláusula','loss');return;}
   G.budget=Math.round((G.budget-cost)*10)/10;
+  if(cost>0)finAnota('cuerpo',cost,'Cláusula por echar a '+((G.dt&&G.dt.name)||'el DT'));
   ensureDtPool();
   const old=G.dtPool.find(x=>x.name===G.dt.name);
   if(old){old.club=null;old.until=0;}
@@ -5838,6 +5876,7 @@ function confirmDtNeg(buyout){
   }
   // ACEPTA: pagar compensación, liberar clubes, firmar contrato completo
   G.budget=Math.round((G.budget-total)*10)/10;
+  if(total>0)finAnota('cuerpo',total,'Contratación del cuerpo técnico');
   if(G.dt&&G.dt.name&&!G.dt.custom){
     const old=G.dtPool.find(x=>x.name===G.dt.name);
     if(old){old.club=null;old.until=0;}
@@ -7360,6 +7399,7 @@ function scoutOne(id){
   if(!p)return;
   if(G.budget<0.1){flash('❌ Presupuesto insuficiente','loss');return;}
   G.budget=Math.round((G.budget-0.1)*10)/10;
+  finAnota('operativo',0.1,'Informe de ojeador: '+p.name);
   p.scouted=true;
   lg('🔎',`Informe individual: ${p.name} (rating real ${p.rat})`);
   closeMod();openP(id,false);
@@ -7430,6 +7470,7 @@ function sendScout(){
   if(G.scoutMissions.length>=3){flash('❌ Máximo 3 misiones activas','loss');return;}
   if(G.budget<0.5){flash('❌ Presupuesto insuficiente','loss');return;}
   G.budget=Math.round((G.budget-0.5)*10)/10;
+  finAnota('operativo',0.5,'Ojeador enviado a '+liga);
   G.scoutMissions.push({liga,focus,doneWeek:(G.week||1)+2});
   lg('🔭',`Ojeador enviado a ${liga} (${SCOUT_FOCUS[focus].label})`);
   openScouting();
@@ -8128,6 +8169,7 @@ function archiveSeason(){
     if(ok){
       s.obj.done=true;
       G.budget=Math.round((G.budget+s.obj.bonus)*10)/10;
+      finAnota('sponsors',s.obj.bonus,s.name+': bono por objetivo');
       lg('🎯',`${s.name} paga el objetivo cumplido: +${fv(s.obj.bonus)}`);
       addPhoneMsg('board','Marketing',`🎯 <b>${s.name}</b> liberó el bono por objetivo (${s.obj.desc}): <b style="color:var(--gold)">+${fv(s.obj.bonus)}</b>. ¡Gran temporada comercial!`,'💼');
     }
@@ -8152,7 +8194,16 @@ function fichaLibres(faltan, cuantos){
   if(!libres.length) return 0;
   const tomados=[];
   for(let i=0;i<cupo&&libres.length;i++){
-    const p=libres.splice(~~(Math.random()*Math.min(12,libres.length)),1)[0];
+    // El cupo de extranjeros se controlaba SÓLO al comprar. Por acá entraban
+    // libres sin mirar nada: medido, a las tres temporadas el plantel tenía
+    // trece extranjeros.
+    if(typeof pIsForeign==='function'&&foreignCount(G.squad)>=5){
+      const j=libres.findIndex(q=>!pIsForeign(q));
+      if(j<0)break;                       // no quedan libres que puedan inscribirse
+      libres.unshift(libres.splice(j,1)[0]);
+    }
+    const p=libres.splice(typeof pIsForeign==='function'&&foreignCount(G.squad)>=5?0:~~(Math.random()*Math.min(12,libres.length)),1)[0];
+    if(!p)break;
     G.market=G.market.filter(x=>x.id!==p.id);
     p.club=G.teamName; p.lg='Liga ARG'; p.freeAgent=false;
     p.contract=(G.season||2026)+1+~~(Math.random()*2);
@@ -8279,6 +8330,7 @@ function retiros(){
       // Al ídolo se le retira el número y se le hace el partido despedida
       (G.numsRetirados=G.numsRetirados||[]).push({num:p.num,name:p.name,season:G.season});
       G.budget=Math.round((G.budget+1.4)*10)/10;    // recaudación de la despedida
+      finAnota('otros_in',1.4,'Partido despedida de '+p.name);
       G.fanMood=Math.min(100,(G.fanMood||55)+5);
       addPhoneMsg('board','Secretaría del Club',
         `🎓 <b>${p.name}</b> anunció su retiro a los ${p.age} años. ${temporadas} temporadas acá, ${t.apps} partidos y ${t.goals} goles. Le organizamos el partido despedida: la cancha se llenó y entraron <b>${fv(1.4)}</b>. Le retiramos la <b>${p.num}</b>.`,'🏛️');
@@ -8340,6 +8392,7 @@ function weeklyPrestamosIn(){
       const precio=p.loanBuyObligation;
       if(G.budget>=precio){
         G.budget=Math.round((G.budget-precio)*10)/10;
+        if(precio>0)finAnota('fichajes',precio,'Obligación de compra por '+p.name);
         p.onLoanIn=false;p.loanUntil=null;p.club=G.teamName;
         p.contract=(G.season||2026)+2;
         delete p.loanBuyObligation;delete p.loanBuyOption;
@@ -8379,6 +8432,7 @@ function comprarOpcion(pid){
   const precio=p.loanBuyOption;
   if(G.budget<precio){flash('❌ No te alcanza ('+fv(precio)+')','loss');return;}
   G.budget=Math.round((G.budget-precio)*10)/10;
+  if(precio>0)finAnota('fichajes',precio,'Opción de compra por '+p.name);
   p.onLoanIn=false;p.loanUntil=null;p.club=G.teamName;
   p.contract=(G.season||2026)+3;
   delete p.loanBuyOption;delete p.loanOrigin;
@@ -9307,7 +9361,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // Sala de prensa y museo hacen valer más el contrato (era una promesa que
     // la UI mostraba pero el código nunca aplicaba)
     spInc*=facilityFx().sponsorMul;
-    if(spInc>0) G.budget=Math.round((G.budget+spInc)*10)/10;
+    if(spInc>0){ G.budget=Math.round((G.budget+spInc)*10)/10; finAnota('sponsors',spInc,'Contratos de sponsors'); }
   }
   // Staff salary deduction
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
@@ -9368,6 +9422,10 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
   }
   // Heal injured players (con riesgo de recaída si se apuró el regreso)
+  // Red de seguridad: si algún camino marcó la lesión sin ponerle duración, el
+  // bucle de abajo nunca la descuenta y el jugador se queda lesionado para
+  // siempre. Le damos una semana y se cura como cualquiera.
+  G.squad.forEach(p=>{ if(p.injured && !(p.injuredWeeks>0)){ p.injuredWeeks=1; p.injTotal=p.injTotal||1; } });
   G.squad.forEach(p=>{ if(p.injured && p.injuredWeeks>0){ p.injuredWeeks--; if(p.injuredWeeks<=0){
     if(p.reinjuryRisk&&Math.random()<p.reinjuryRisk){
       // RECAÍDA: vuelve a lesionarse unas semanas
@@ -9391,7 +9449,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   // ═══ LO QUE RINDEN LAS INSTALACIONES CADA SEMANA ═══
   const _wfx=facilityFx();
-  if(_wfx.weeklyInc>0)G.budget=Math.round((G.budget+_wfx.weeklyInc)*10)/10;   // tienda, megatienda, hotel
+  if(_wfx.weeklyInc>0){G.budget=Math.round((G.budget+_wfx.weeklyInc)*10)/10;finAnota('otros_in',_wfx.weeklyInc,'Tienda, hotel e instalaciones');}
   if(_wfx.moraleWk>0)G.morale=Math.min(100,G.morale+_wfx.moraleWk);           // residencia, crioterapia
   weeklyOffers();
   weeklyChats();
@@ -10172,6 +10230,7 @@ function playFriendly(i,mirar){
   G.chem=Math.min(100,(G.chem||45)+3);
   const ing=Math.round((0.6+su*0.03)*10)/10;
   G.budget=Math.round((G.budget+ing)*10)/10;
+  finAnota('otros_in',ing,'Amistoso vs '+m.away);
   lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${m.away} (+${fv(ing)})`);
   addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${m.away}</b>: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
   flash(`🤝 ${G.teamName} ${gf}-${ga} ${m.away}`,gf>ga?'win':gf===ga?'draw':'loss');
@@ -10211,6 +10270,8 @@ function doPreseason(k){
   const t=PRESEASON_TOURS[k];if(!t)return;
   if(G.budget<t.cost){flash('❌ Sin presupuesto para esta gira','loss');return;}
   G.budget=Math.round((G.budget-t.cost+t.income)*10)/10;
+  if(t.cost>0)finAnota('operativo',t.cost,'Gira de pretemporada: '+(t.label||k));
+  if(t.income>0)finAnota('otros_in',t.income,'Ingresos de la gira: '+(t.label||k));
   G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+t.fit);});
   G.chem=Math.min(100,(G.chem||45)+t.chem);
   if(t.rep)G.rep=Math.min(100,(G.rep||50)+t.rep);
@@ -12400,6 +12461,7 @@ function confirmClause(id){
     onAccept:(t)=>{
       if(G.budget<cl+t.bonus){flash('❌ Presupuesto insuficiente ('+fv(cl+t.bonus)+')','loss');return;}
       G.budget=Math.round((G.budget-cl-t.bonus)*10)/10;
+      finAnota('fichajes',cl+t.bonus,'Cláusula de rescisión de '+p.name);
       G.market=G.market.filter(x=>x.id!==id);
       p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
       G.squad.push(p);G.bench.push(p);
@@ -12770,6 +12832,7 @@ function confirmRescind(id,cost){
   if(!p)return;
   if(G.budget<cost){flash('❌ No te alcanza para la indemnización','loss');return;}
   G.budget=Math.round((G.budget-cost)*10)/10;
+  if(cost>0)finAnota('otros_out',cost,'Indemnización a '+p.name);
   G.squad=G.squad.filter(x=>x.id!==id);
   G.bench=G.bench.filter(x=>x.id!==id);
   Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===id)G.slots[k2]=null;});
@@ -12838,6 +12901,7 @@ function submitContract(id,expected){
   const accept = ratio>=0.85 || (ratio>=0.7&&Math.random()>0.5);
   if(!accept){ flash('❌ '+p.name+' rechazó — ofrecé más salario o menos años','loss'); lg('📝',`${p.name} rechazó la renovación`); return; }
   G.budget=Math.round((G.budget-cost)*10)/10;
+  if(cost>0)finAnota('otros_out',cost,'Prima de renovación de '+p.name);
   p.wage=wage; p.contract=G.season+years; p.morale=Math.min(100,p.morale+8);
   lg('📝',`${p.name} renovó hasta ${p.contract} (${wage}k/sem)`);
   updateUI(); closeMod(); flash('✅ '+p.name+' renovó hasta '+p.contract,'win');
@@ -12964,8 +13028,10 @@ function accOffAt(i, val){
     // Loan OUT: returns in 26 weeks (o queda si hay obligación de compra)
     p.loanedFrom=G.teamName; p.club=o.from; p.onLoan=true;
     G.budget=Math.round((G.budget+val)*10)/10;
+    if(val>0)finAnota('ventas',val,'Cargo por ceder a '+p.name);
     if(o.buyObligation){
       G.budget=Math.round((G.budget+o.buyObligation)*10)/10;
+      finAnota('ventas',o.buyObligation,'Obligación de compra por '+p.name);
       p.onLoan=false;G.market.push(p);
       lg('📋',`${p.name} cedido con obligación: ${o.from} lo compra por ${fv(o.buyObligation)}`);
       flash('✅ '+p.name+' cedido (obligación de compra)','win');
@@ -12985,14 +13051,23 @@ function accOffAt(i, val){
       lg('💳',`Cobro en ${o.plan} cuotas de ${o.from}: hoy ${fv(payNow)}`);
     }
     G.budget=Math.round((G.budget+payNow)*10)/10;
+    if(payNow>0)finAnota('ventas',payNow,'Venta de '+p.name+' a '+o.from);
     if(o.sellOn){p.sellOnPct=o.sellOn;p.sellOnTo=G.teamName;} // guardás % de futura venta
     if(o.swapIn){
       const inc=G.market.find(x=>x.id===o.swapIn.id)||o.swapIn;
+      // Mismo control que al comprar: por esta puerta entraban extranjeros sin
+      // mirar el cupo.
+      if(typeof pIsForeign==='function'&&pIsForeign(inc)&&foreignCount(G.squad)>=5){
+        addPhoneMsg('board','Secretaría Deportiva',
+          `🛂 No podemos inscribir a <b>${inc.name}</b>: el cupo de extranjeros está lleno (5/5). Se cae la parte del canje.`,'🏛️');
+        lg('🛂',`${inc.name} no pudo inscribirse: cupo de extranjeros lleno`);
+      } else {
       G.market=G.market.filter(x=>x.id!==inc.id);
       inc.club=G.teamName;inc.lg='Liga ARG';
       G.squad.push(inc);G.bench.push(inc);
       lg('🔄',`En el pase de ${p.name} llegó ${inc.name}`);
       addPhoneMsg('player',inc.name,'¡Presidente! Contento de sumarme en esta operación. Voy a responder.','👤');
+      }
     }
     G.market.push(p);
     lg('💰',`${p.name} → ${o.from} (${fv(val)}${o.sellOn?', +'+o.sellOn+'% reventa':''})`);
@@ -14386,10 +14461,23 @@ function fmCycleTactic(){
 
 function fmLoop(ts){
   if(!FM||FM.phase==='done')return;
-  const dt=FM.lastTs?Math.min((ts-FM.lastTs)/16.667,2.5):1;
+  // ═══ PASO FIJO ═══
+  // Antes el dt salía del tiempo real entre frames (tope 2,5). A x16 cada frame
+  // hace dieciséis veces más trabajo, tarda más, y el dt se iba al tope: había
+  // 150 ticks por minuto de juego a x1 y apenas ~60 a x16. Todo lo que se
+  // decide UNA VEZ POR TICK —bloqueos, quites, atajadas— pasaba 2,5 veces menos
+  // a velocidad alta. Medido: 36 tiros por 90' a x1 contra 22 a x16, y 8,4
+  // córners contra 4,7. Encima el partido salía distinto en un celular lento
+  // que en una compu. Ahora cada paso es siempre el mismo y el acumulador se
+  // encarga de que el reloj de pared siga andando parejo.
+  const real=FM.lastTs?Math.min(ts-FM.lastTs,100):16.667;
   FM.lastTs=ts;
-  const steps=FM.watch?(FM.speed||1):1;
-  for(let i=0;i<steps&&FM&&FM.phase!=='done';i++)fmTick(dt);
+  FM.acc=(FM.acc||0)+real/16.667;
+  const enteros=Math.floor(FM.acc);
+  FM.acc-=enteros;
+  let pasos=enteros*(FM.watch?(FM.speed||1):1);
+  if(pasos>96)pasos=96;              // si el navegador se trabó, no recupera todo de golpe
+  for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++)fmTick(1);
   if(FM&&FM.phase!=='done')fmDraw();
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
@@ -15262,7 +15350,7 @@ function fmAI(p,team,idx,dt){
       // que la pelota tardaba una eternidad en llegar al arco: daba tiempo a
       // que la cortara cualquiera y el arquero la veía venir. Ahora el remate
       // va al doble, que además es lo que le baja las manos al arquero.
-      } else if(inBox&&Math.random()<(0.023+shotAttr/4600)*dt){
+      } else if(inBox&&Math.random()<(0.0246+shotAttr/4200)*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
@@ -15273,7 +15361,7 @@ function fmAI(p,team,idx,dt){
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
         b.isShot=team;                                   // es un remate, no un pase
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0095+Math.max(0,shotAttr-74)/4200)*dt){
+      } else if(canShoot&&!inBox&&Math.random()<(0.0075+prof.direct*0.0100+Math.max(0,shotAttr-74)/3900)*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
@@ -15281,7 +15369,7 @@ function fmAI(p,team,idx,dt){
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
-      } else if(longShot&&Math.random()<(0.0060+Math.max(0,shotAttr-72)/100*0.013)*dt){
+      } else if(longShot&&Math.random()<(0.0063+Math.max(0,shotAttr-72)/100*0.014)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
@@ -16280,7 +16368,13 @@ function fmDraw(){
     const[sx,syF]=P(p.x,p.y);
     const hg=52*sc,rw=hg*0.27;
     const mv=Math.hypot(p.vx||0,p.vy||0);
-    p._anim=(p._anim||Math.random()*6)+mv*0.30+0.02;
+    // El desfasaje de la animación salía de Math.random(), o sea de la MISMA
+    // fuente de azar que usa la simulación. Cada dibujo que pedía uno corría el
+    // hilo de números un lugar, y como a x16 se dibuja mucho menos que a x1, el
+    // partido salía distinto según la velocidad a la que lo mirabas. Ahora el
+    // desfasaje sale del número del jugador: es igual de variado y no toca el azar.
+    if(p._anim===undefined)p._anim=(((p.num||1)*2.399963)%6);
+    p._anim+=mv*0.30+0.02;
     const ph=p._anim;
     const running=mv>0.3;
     const spdF=Math.min(1,mv/2.1);
@@ -17325,6 +17419,7 @@ function negExecDeal(n,p){
       const faltan=[d.mineId,d.mine2Id].filter(Boolean).filter(mid=>!G.squad.some(q=>q.id===mid));
       if(faltan.length){
         G.budget=Math.round((G.budget+out)*10)/10;   // devolvemos lo descontado
+        finAnota('otros_in',out,'Devolución: se cayó el canje por '+p.name);
         G.market.push(p);
         addPhoneMsg('agent',p.club,`❌ El canje por <b>${p.name}</b> se cayó: el jugador que ofrecimos ya no está en el plantel.`,'💼');
         lg('❌',`Canje por ${p.name} anulado: ya no tenés al jugador ofrecido`);
@@ -17601,6 +17696,7 @@ function negComplete(n,p,price,isPre){
   const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
   G.budget=Math.round((G.budget-price-wageCost)*10)/10;
   if(price>0) finAnota('fichajes',price,'Ficha de '+p.name);
+  if(wageCost>0) finAnota('sueldos',wageCost,'Contrato de '+p.name);
   G.market=G.market.filter(x=>x.id!==p.id);
   p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
   p.pressuring=0;p.forceSale=false;p.freeAgent=false;
@@ -17892,6 +17988,7 @@ function weeklyAITransfers(){
       }else{
         const cobro=Math.round(cl*(p.ownedPct||1)*10)/10;
         G.budget=Math.round((G.budget+cobro)*10)/10;
+        finAnota('ventas',cobro,'Cláusula pagada por '+p.name);
         G.squad=G.squad.filter(q=>q.id!==p.id);
         G.bench=G.bench.filter(q=>q.id!==p.id);
         Object.keys(G.slots).forEach(k=>{if(G.slots[k]===p.id)G.slots[k]=null;});
@@ -17913,6 +18010,7 @@ function processInstallments(){
   if(!due.length)return;
   for(const c of due){
     G.budget=Math.round((G.budget-c.amount)*10)/10;
+    finAnota('fichajes',c.amount,'Cuota a '+c.toClub+' por '+c.player);
     lg('💳',`Cuota pagada a ${c.toClub} por ${c.player}: ${fv(c.amount)}`);
     if(G.budget<0)addPhoneMsg('board','Secretaría del Club',`⚠️ Presidente, la cuota de <b>${c.player}</b> (${fv(c.amount)}) nos dejó en rojo. Hay que vender o generar ingresos.`,'🏛️');
   }
@@ -17926,6 +18024,7 @@ function processIncoming(){
   if(!due.length)return;
   for(const c of due){
     G.budget=Math.round((G.budget+c.amount)*10)/10;
+    finAnota('ventas',c.amount,'Cuota de '+c.from+' por '+c.player);
     lg('💵',`Cobro de cuota de ${c.from} por ${c.player}: +${fv(c.amount)}`);
   }
   G.pendingIncome=G.pendingIncome.filter(c=>!due.includes(c));
