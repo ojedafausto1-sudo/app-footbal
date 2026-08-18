@@ -13425,8 +13425,9 @@ function fmBodyBall(p,b,team){
     // nacen del defensor que mete la pierna y la manda afuera.
     if(rival&&FM&&!p.isGK){
       const f2=FM,fw2=f2.rightGL-f2.leftGL;
-      const gx=(p.x<f2.VW/2)?f2.leftGL:f2.rightGL;
-      if(Math.abs(p.x-gx)<fw2*0.26&&Math.random()<0.55){
+      // el arco que defiende EL QUE BLOQUEA, no la línea que le queda cerca
+      const gx=((team==='my')===f2.myAttRight)?f2.leftGL:f2.rightGL;
+      if(Math.abs(p.x-gx)<fw2*0.20&&Math.random()<0.50){
         b.x=gx;b.y=b.y<f2.VH/2?18:f2.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
         const att=team==='my'?'opp':'my';
         f2._lastTouch=team;
@@ -13442,14 +13443,16 @@ function fmBodyBall(p,b,team){
   // salían 0,5 córners por partido contra los ~5 de un partido de verdad.
   if(FM&&team&&!p.isGK&&FM._lastTouch&&FM._lastTouch!==team){
     const f3=FM,fw3=f3.rightGL-f3.leftGL;
-    const gx3=(p.x<f3.VW/2)?f3.leftGL:f3.rightGL;
-    // El filtro de velocidad dejaba afuera el caso más común: con la pelota
-    // conducida pegada al pie, la lleva a la velocidad del que corre (~1,5) y
-    // nunca pasaba el corte. El despeje del que mete la pierna en el área
-    // cuenta igual, vaya la pelota rápido o lenta.
-    const haciaMiArco=(gx3<f3.VW/2)?b.vx<-0.4:b.vx>0.4;
-    const enMiArea=Math.abs(p.x-gx3)<fw3*0.20&&Math.abs(p.y-f3.VH/2)<f3.GH*2.2;
-    if(enMiArea&&(haciaMiArco||Math.hypot(b.vx,b.vy)<2.2)&&Math.random()<0.24){
+    // ═══ SU ARCO, NO LA LÍNEA MÁS CERCANA ═══
+    // Acá decía (p.x<VW/2)?leftGL:rightGL, o sea "la línea de fondo del lado en
+    // el que está parado". Un DELANTERO mío tocando una pelota cerca del arco
+    // RIVAL cumplía la condición, y el juego cobraba córner... para el rival, en
+    // campo de ataque. De ahí los córners que aparecían de la nada.
+    const gx3=((team==='my')===f3.myAttRight)?f3.leftGL:f3.rightGL;
+    // Y tiene que ser un despeje de verdad: la pelota yendo hacia MI arco.
+    const haciaMiArco=(gx3<f3.VW/2)?b.vx<-1.0:b.vx>1.0;
+    const enMiArea=Math.abs(p.x-gx3)<fw3*0.165&&Math.abs(p.y-f3.VH/2)<f3.GH*1.9;
+    if(enMiArea&&haciaMiArco&&Math.hypot(b.vx,b.vy)>2.4&&Math.random()<0.30){
       b.x=gx3;b.y=b.y<f3.VH/2?18:f3.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
       const att3=team==='my'?'opp':'my';
       f3._lastTouch=team;
@@ -14470,13 +14473,19 @@ function fmLoop(ts){
   // córners contra 4,7. Encima el partido salía distinto en un celular lento
   // que en una compu. Ahora cada paso es siempre el mismo y el acumulador se
   // encarga de que el reloj de pared siga andando parejo.
-  const real=FM.lastTs?Math.min(ts-FM.lastTs,100):16.667;
+  // El paso fijo tiene que ser CHICO, no de un frame entero: con 16,667 quedaba
+  // exactamente un paso por frame y todo se movía casi a la mitad de rápido que
+  // antes en pantalla (el dt viejo promediaba ~1,8). El usuario lo vio como
+  // jugadores lentos y pelotazos sin fuerza. Con 9,3ms entran ~1,8 pasos por
+  // frame: mismo ritmo visual de antes, pero cada paso sigue siendo idéntico.
+  const PASO_MS=9.3;
+  const real=FM.lastTs?Math.min(ts-FM.lastTs,100):PASO_MS;
   FM.lastTs=ts;
-  FM.acc=(FM.acc||0)+real/16.667;
+  FM.acc=(FM.acc||0)+real/PASO_MS;
   const enteros=Math.floor(FM.acc);
   FM.acc-=enteros;
   let pasos=enteros*(FM.watch?(FM.speed||1):1);
-  if(pasos>96)pasos=96;              // si el navegador se trabó, no recupera todo de golpe
+  if(pasos>170)pasos=170;            // si el navegador se trabó, no recupera todo de golpe
   for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++)fmTick(1);
   if(FM&&FM.phase!=='done')fmDraw();
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
@@ -14966,9 +14975,12 @@ function fmPass(fromIdx,through){
   });
   if(best<0)return;
   const t=f.my[best];
-  const dx=t.x-b.x+(Math.random()*20-10),dy=t.y-b.y+(Math.random()*16-8);
+  // Le tiraba a donde ESTÁ el compañero, no a donde va: si venía corriendo, la
+  // pelota le pasaba por detrás y el pase moría solo en el pasto.
+  const leadX=t.x+(t.vx||0)*10, leadY=t.y+(t.vy||0)*10;
+  const dx=leadX-b.x+(Math.random()*16-8),dy=leadY-b.y+(Math.random()*14-7);
   const d=Math.hypot(dx,dy)||1;
-  b.vx=(dx/d)*(3.5+d*.01);b.vy=(dy/d)*(3.5+d*.01);
+  b.vx=(dx/d)*(3.2+d*.0115);b.vy=(dy/d)*(3.2+d*.0115);
   f._lastTouch='my';
   p._kickT=9;
   fmSndKick(0.3);
@@ -15093,8 +15105,27 @@ function fmAI(p,team,idx,dt){
     const ballNearGoal=ballGoalDist<paW*(1.15+prof.line*0.5);
 
     if(ballNearGoal&&(bd<380||(ballInBox&&ballThreat))){
-      fmMove(p,b.x-p.x,b.y-p.y,dt,0.095);
-      if(bd<170&&Math.hypot(b.vx,b.vy)>3.2&&!(p._diveT>0))p._diveT=12;
+      // ═══ SALE, PERO NO A CUALQUIER LADO ═══
+      // Antes corría hacia la pelota SIN NINGÚN LÍMITE: alcanzaba con que
+      // estuviera a 14 metros suyos para que abandonara el arco y se fuera
+      // hasta la raya. Un arquero sale cuando la pelota es suya de verdad, y
+      // aun así no se va del área.
+      let esMia=true;
+      for(const o of rivals){ if(Math.hypot(o.x-b.x,o.y-b.y)<bd-14){esMia=false;break;} }
+      const peligro=ballInBox&&ballThreat;
+      const lx=attRight?f.leftGL:f.rightGL;
+      const maxX=paW*1.05;
+      if(esMia||peligro){
+        const tx=attRight?Math.max(lx,Math.min(b.x,lx+maxX)):Math.min(lx,Math.max(b.x,lx-maxX));
+        const ty=Math.max(mid-f.GH*1.7,Math.min(mid+f.GH*1.7,b.y));
+        fmMove(p,tx-p.x,ty-p.y,dt,0.095);
+        if(bd<170&&Math.hypot(b.vx,b.vy)>3.2&&!(p._diveT>0))p._diveT=12;
+      } else {
+        // la va a llegar un rival antes: se planta en el arco en vez de regalarlo
+        const gx=attRight?lx+paW*0.10:lx-paW*0.10;
+        const gy=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
+        fmMove(p,gx-p.x,gy-p.y,dt,0.078);
+      }
     } else {
       let fwdFrac=0.07+(prof.line-0.5)*0.10+(p.roleStyle==='Líbero'?0.08:0);
       if(ballGoalDist<fieldW*0.5)
@@ -15330,8 +15361,11 @@ function fmAI(p,team,idx,dt){
       // pelota pasó a viajar SIEMPRE conducida: 43 pases en 45 minutos entre
       // los dos equipos, cuando en un partido real son unos 800. Sin pases no
       // hay circuito, y era exactamente lo que se veía en la cancha.
-      const oneTouch=(0.14+prof.tempo*0.20+counterBoost*0.14)*(holding?0.6:1);
-      const passBase=holding?0.26:(0.15+prof.tempo*0.14+counterBoost*0.05);
+      // Medido: 7,7 gambetas por partido (un partido real tiene 30-50). Tocaba
+      // tan rápido que casi nunca llegaba a la rama de encarar. Baja el toque
+      // automático para que aguante y busque el uno contra uno.
+      const oneTouch=(0.095+prof.tempo*0.15+counterBoost*0.12)*(holding?0.6:1);
+      const passBase=holding?0.20:(0.098+prof.tempo*0.10+counterBoost*0.05);
       // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
       const wide=Math.abs(b.y-mid)>f.VH*0.27;
       const nearByline=distGoal<fieldW*0.22;
@@ -15350,7 +15384,7 @@ function fmAI(p,team,idx,dt){
       // que la pelota tardaba una eternidad en llegar al arco: daba tiempo a
       // que la cortara cualquiera y el arquero la veía venir. Ahora el remate
       // va al doble, que además es lo que le baja las manos al arquero.
-      } else if(inBox&&Math.random()<(0.0246+shotAttr/4200)*dt){
+      } else if(inBox&&Math.random()<(0.0222+shotAttr/4700)*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
@@ -15361,7 +15395,7 @@ function fmAI(p,team,idx,dt){
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
         b.isShot=team;                                   // es un remate, no un pase
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.0075+prof.direct*0.0100+Math.max(0,shotAttr-74)/3900)*dt){
+      } else if(canShoot&&!inBox&&Math.random()<(0.0068+prof.direct*0.0090+Math.max(0,shotAttr-74)/4300)*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
@@ -15369,7 +15403,7 @@ function fmAI(p,team,idx,dt){
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
-      } else if(longShot&&Math.random()<(0.0063+Math.max(0,shotAttr-72)/100*0.014)*dt){
+      } else if(longShot&&Math.random()<(0.0057+Math.max(0,shotAttr-72)/100*0.0126)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
@@ -15391,7 +15425,7 @@ function fmAI(p,team,idx,dt){
           if(o.isGK)continue;
           const ahead=attRight?(o.x>p.x-24):(o.x<p.x+24);
           const dd0=Math.hypot(o.x-p.x,o.y-p.y);
-          if(ahead&&dd0<160&&dd0<nearD){nearD=dd0;nearDef=o;}
+          if(ahead&&dd0<215&&dd0<nearD){nearD=dd0;nearDef=o;}
         }
         const vel=(p.attrs&&p.attrs.VEL)||p.rat||70;
         // ═══ LA PELOTA VA PEGADA AL PIE ═══
@@ -15421,7 +15455,7 @@ function fmAI(p,team,idx,dt){
           _pegar(dirF*0.75,s*0.66,0.105+reg/1000);
           // ¿lo supera limpio? según regate vs marca
           const def=(nearDef.attrs&&nearDef.attrs.DEF)||nearDef.rat||70;
-          if(nearD<p.r+nearDef.r+30&&Math.random()<0.02*dt*(1+(reg-def)/45)){
+          if(nearD<p.r+nearDef.r+40&&Math.random()<0.048*dt*(1+(reg-def)/45)){
             // lo pasó: acá SÍ la empuja al espacio y pica
             b.vx=dirF*5.6;b.vy=s*2.4;p._dribT=8;p._carryLong=f.ticks+16;
             if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
@@ -15523,7 +15557,10 @@ function fmAI(p,team,idx,dt){
             // por partido contra los ~5 de un partido real, porque un quite
             // dentro del área siempre terminaba en pelota jugada. El que mete
             // la pierna en su propia área muchas veces la manda afuera.
-            if(Math.abs(p.x-ownGX)<fieldW*0.26&&Math.abs(p.y-mid)<f.GH*2.4&&Math.random()<0.65){
+            // Antes esto llegaba hasta 27 metros del arco con 65% de chance: un
+            // quite lejísimos del área terminaba en córner y parecía cobrado en
+            // mitad de cancha. Ahora es el área grande y nada más.
+            if(Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.9&&Math.random()<0.42){
               b.x=ownGX;b.y=b.y<mid?18:f.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
               const _att=team==='my'?'opp':'my';
               f._lastTouch=team;
@@ -15803,7 +15840,13 @@ function fmTeamPass(team,fromIdx){
     const leadX=t.x+(t.vx||0)*12;
     const leadY=t.y+(t.vy||0)*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
-    const pwr=5.0+Math.random()*2.6;
+    // ═══ LA FUERZA DEL PASE DEPENDE DE LA DISTANCIA ═══
+    // Medido: el 50% de los pases terminaba a más de 6 metros del compañero más
+    // cercano. La razón es que se le pegaba SIEMPRE con la misma fuerza (5,0 a
+    // 7,6), fuera un pase de 5 metros o de 30: al de al lado la pelota le pasaba
+    // de largo. Con la fricción del campo, para que llegue a dd píxeles hay que
+    // pegarle proporcional a dd.
+    const pwr=Math.max(2.9,Math.min(9.6,2.1+dd*0.0130))*(0.94+Math.random()*0.12);
     // PRECISIÓN DE PASE: a menor PAS, más error lateral (pases desviados que se pierden)
     const pas=(fromP.attrs&&fromP.attrs.PAS)||fromP.rat||70;
     const errAmp=(1-Math.min(92,pas)/100)*Math.min(1,dd/500)*2.6;
