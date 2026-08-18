@@ -14605,6 +14605,14 @@ function fmTick(dt){
     f.my.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='my';}});
     f.opp.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='opp';}});
     if(f.ball.air>2){f.poss=null;f.possSide=null;}
+    // ═══ LA POSESIÓN NO SE CORTA MIENTRAS LA PELOTA VIAJA ═══
+    // Sólo contaba como posesión tener la pelota a menos de 36px. Como la
+    // pelota se pasa la mayor parte del partido VIAJANDO de un pase a otro,
+    // medido daba 9% de posesión propia: el 80% del tiempo la IA creía que era
+    // una pelota dividida y no atacaba ni defendía, corría el estado de
+    // emergencia. La posesión es del equipo que la tocó último hasta que la
+    // toca el otro, que es además como se cuenta en la realidad.
+    if(!f.possSide&&(f._lastTouch==='my'||f._lastTouch==='opp'))f.possSide=f._lastTouch;
     // Posesión acumulada (para el % en pantalla)
     if(!f.possT)f.possT={my:1,opp:1};
     if(f.possSide)f.possT[f.possSide]+=dt;
@@ -15370,18 +15378,27 @@ function fmAI(p,team,idx,dt){
   // un pase hacia atrás o una pelota abierta contra la raya. Durante esos
   // segundos sube un escalón la cantidad de presionadores.
   const trampa=(f._trapT||0)>0 && f._trapTeam===team;
-  const nChasers=!f.possSide?1:((prof.press>0.65?3:prof.press>0.35?2:1)+(trampa?1:0));
+  // Medido: con el rival en posesión llegaban 1,2 jugadores a menos de 8m de la
+  // pelota, y entre el 6% y el 38% del tiempo no iba NADIE. Pediste presión de
+  // más de uno pero no de todos: el piso pasa a ser DOS, y el que menos presiona
+  // llega igual con dos porque el tercero es el que marca la diferencia.
+  const nChasers=!f.possSide?2:((prof.press>0.6?3:2)+(trampa?1:0));
     // En el salto no alcanza con sumar un presionador: hay que COMPROMETERSE.
     // El radio se ensancha, si no el disparador saltaba justo cuando la pelota
     // quedaba lejos y nadie llegaba (medido: la presión bajaba en vez de subir).
-    const radio=(300+prof.press*320)*(trampa?1.85:1);
+    const radio=(430+prof.press*380)*(trampa?1.85:1);
     const chaseOk=myRank===0?dists[0].d<(trampa?1300:950):(myRank<nChasers&&dists[myRank].d<radio);
     if(myRank>=0&&myRank<Math.max(1,nChasers)&&chaseOk){
       if(myRank===0){
         // Presionador principal: va al portador (Marcador/Destructor más intensos)
         const roleAcc=(p.roleStyle==='Marcador'||p.roleStyle==='Destructor')?1.08:1;
-        // En el salto va con todo: no es sólo ir, es ir MÁS RÁPIDO
-        fmMove(p,b.x-p.x,b.y-p.y,dt,0.082*roleAcc*(trampa?1.30:1)*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
+        // ═══ VA A DONDE VA LA PELOTA, NO A DONDE ESTÁ ═══
+        // Corría al punto exacto donde la pelota estaba ese tick. Como la pelota
+        // se pasa el partido viajando, era correr siempre atrás de la sombra y
+        // no llegaba nunca: medido, llegaba 1,1 jugador a menos de 8m. Un
+        // defensor lee el pase y sale a donde la van a recibir.
+        const _antX=b.x+(b.vx||0)*10, _antY=b.y+(b.vy||0)*10;
+        fmMove(p,_antX-p.x,_antY-p.y,dt,0.082*roleAcc*(trampa?1.30:1)*(1+ad.mark*0.22+ad.aggr*0.10+prof.aggr*0.05));
         // Falta al gambeteador (solo vs humano)
         if(!f.watch&&!isM){
           const cp4=f.my[f.ctrl];
@@ -15440,7 +15457,13 @@ function fmAI(p,team,idx,dt){
         // Presionadores secundarios: uno tapa la línea de pase hacia adelante,
         // el otro cubre por detrás del que presiona (coberturas)
         const carrier=f.poss;
-        if(carrier&&myRank===1){
+        // SEGUNDO HOMBRE: si la pelota le queda cerca, salta él también en vez
+        // de quedarse tapando una línea de pase. Es la presión de a dos que se
+        // ve en la cancha; más lejos sí conviene cubrir.
+        if(myRank===1&&Math.hypot(p.x-b.x,p.y-b.y)<fieldW*0.17){
+          const _aX=b.x+(b.vx||0)*8, _aY=b.y+(b.vy||0)*8;
+          fmMove(p,_aX-p.x+sepX*0.2,_aY-p.y+sepY*0.2,dt,0.075*(trampa?1.25:1)*(1+prof.aggr*0.08));
+        } else if(carrier&&myRank===1){
           // marca la mejor opción de pase del portador (el rival más adelantado cerca)
           let opt=null,optS=-1e9;
           for(const o of rivals){
@@ -15508,7 +15531,27 @@ function fmAI(p,team,idx,dt){
       supRank=ds.findIndex(dd=>dd.i===idx);
     }
     let tx=homeX,ty=homeY,acc2=0.058;
-    if(carrier&&supRank>=0&&supRank<3){
+    // ═══ POBLAR EL ÁREA ═══
+    // Medido: 18 entradas al área por partido entre los dos equipos, contra las
+    // 40-50 de un partido real. Los delanteros ciclaban entre desmarques lindos
+    // pero nada los METÍA adentro: se quedaban rondando el borde y el centro
+    // llegaba al vacío. Con la pelota en campo rival, tres se meten al área —
+    // primer palo, punto de penal y segundo palo — respetando el offside.
+    const vaAlArea=(isAttacker||p.role==='MCO'||p.roleStyle==='Lateral ofensivo')
+                   &&ballPct>0.58&&supRank!==0;
+    if(vaAlArea){
+      const gX=attRight?f.rightGL:f.leftGL;
+      const slot=idx%3;
+      const hondo=[0.055,0.090,0.130][slot];
+      let bx2=gX-dirF*fieldW*hondo;
+      const by2=mid+[-0.85,0.10,0.90][slot]*f.GH*0.80;
+      let offX2=attRight?f.leftGL:f.rightGL;
+      rivals.forEach(q=>{if(!q.isGK)offX2=attRight?Math.max(offX2,q.x):Math.min(offX2,q.x);});
+      bx2=attRight?Math.min(bx2,offX2-10):Math.max(bx2,offX2+10);
+      tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,bx2));
+      ty=by2;
+      acc2=0.070;
+    } else if(carrier&&supRank>=0&&supRank<3){
       // APOYO: los 3 más cercanos ofrecen opciones a distintas distancias/ángulos,
       // buscando ESPACIO LIBRE (lejos de los rivales) — no todos al mismo lado.
       const ang=supRank===0?(p.hy<carrier.y?-1:1):supRank===1?(attRight?0.2:-0.2):(p.hy<carrier.y?1:-1);
