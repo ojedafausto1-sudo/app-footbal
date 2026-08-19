@@ -7876,24 +7876,69 @@ function myLeaguePos(){
   return t?t.pos:0;
 }
 
-// ═══ OTRAS LIGAS: tabla plausible generada desde la fuerza de cada club ═══
+// ═══ OTRAS LIGAS: se juegan de verdad, fecha por fecha ═══
+// Antes la tabla se INVENTABA: pj = semana×0,75 y pts = (puntos por partido)×pj,
+// redondeado. En la semana 1 mostraba 1 partido jugado y 2 puntos — que no
+// existe: de un partido salen 0, 1 o 3. Y G/E/P se calculaban por separado, así
+// que tampoco sumaban PJ. Ahora hay fixture y cada fecha se juega, con lo cual
+// los puntos salen de resultados reales y siempre cierran.
 function otherLeaguePower(club,lg){
   const rats=G.market.filter(p=>p.club===club&&p.lg===lg).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
   return rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
 }
+function _olRand(sem){ // azar estable: la misma fecha siempre da el mismo resultado
+  let x=(sem*2654435761)>>>0; x^=x>>>15; x=(x*2246822519)>>>0; x^=x>>>13;
+  return ((x*3266489917)>>>0)/4294967296;
+}
+function otherLeagueEnsure(lg){
+  G.otherLg=G.otherLg||{};
+  if(G.otherLg[lg]&&G.otherLg[lg].t)return G.otherLg[lg];
+  let clubs=[...new Set(G.market.filter(p=>p.lg===lg).map(p=>p.club))];
+  if(clubs.length<4)return null;
+  if(clubs.length%2)clubs.push('__libre__');           // fecha libre si son impares
+  const pow={}; clubs.forEach(c=>pow[c]=c==='__libre__'?0:otherLeaguePower(c,lg));
+  const t={}; clubs.forEach(c=>{ if(c!=='__libre__')t[c]={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0}; });
+  return (G.otherLg[lg]={clubs,pow,t,fecha:0});
+}
+// Emparejamiento por el método del círculo: la fecha n siempre da los mismos cruces
+function _olCruces(clubs,fecha){
+  const n=clubs.length, fijo=clubs[0], rot=clubs.slice(1);
+  const k=fecha%(n-1);
+  const r=rot.slice(k).concat(rot.slice(0,k));
+  const par=[[fijo,r[0]]];
+  for(let i=1;i<n/2;i++)par.push([r[i],r[n-1-i]]);
+  return par.map(([a,b],i)=>(fecha%2?[b,a]:[a,b]));
+}
+function otherLeaguePlay(lg,hasta){
+  const L=otherLeagueEnsure(lg); if(!L)return null;
+  const fechas=(L.clubs.length-1)*2;                   // ida y vuelta
+  hasta=Math.max(0,Math.min(fechas,hasta));
+  while(L.fecha<hasta){
+    const f=L.fecha;
+    _olCruces(L.clubs,f).forEach(([h,a],i)=>{
+      if(h==='__libre__'||a==='__libre__')return;
+      const dif=(L.pow[h]+3)-L.pow[a];                 // +3 de localía
+      const r1=_olRand(f*1000+i*7+lg.length), r2=_olRand(f*1000+i*7+991+lg.length);
+      // goles esperados según la diferencia de fuerza
+      const eh=Math.max(0.25,1.35+dif*0.055), ea=Math.max(0.25,1.35-dif*0.055);
+      const gh=Math.min(6,Math.floor(-Math.log(1-r1)*eh)), ga=Math.min(6,Math.floor(-Math.log(1-r2)*ea));
+      const A=L.t[h],B=L.t[a]; if(!A||!B)return;
+      A.pj++;B.pj++; A.gf+=gh;A.gc+=ga; B.gf+=ga;B.gc+=gh;
+      if(gh>ga){A.g++;B.p++;A.pts+=3;}
+      else if(gh<ga){B.g++;A.p++;B.pts+=3;}
+      else {A.e++;B.e++;A.pts++;B.pts++;}
+    });
+    L.fecha++;
+  }
+  return L;
+}
 function otherLeagueTable(lg){
-  const clubs=[...new Set(G.market.filter(p=>p.lg===lg).map(p=>p.club))];
-  // "fecha" del torneo proporcional a la semana jugada
-  const pj=Math.max(0,Math.min(30,Math.round((G.week||1)*0.75)));
-  return clubs.map(c=>{
-    const pow=otherLeaguePower(c,lg);
-    const seed=(c.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)%17)/17; // variación estable
-    // rendimiento esperado por partido según fuerza + azar estable
-    const ppg=Math.max(0.4,Math.min(2.4,(pow-62)/12+0.9+(seed-0.5)*0.5));
-    const pts=Math.round(ppg*pj);
-    const g=Math.round(pts/3*0.8+seed*2), l=Math.max(0,Math.round(pj*(0.9-ppg/3))), e=Math.max(0,pj-g-l);
-    return {club:c,pj,pts,g,e,l,pow:Math.round(pow)};
-  }).sort((a,b)=>b.pts-a.pts||b.pow-a.pow).map((r,i)=>({pos:i+1,...r}));
+  // Una fecha por semana de juego, sin pasarse del total del torneo
+  const L=otherLeaguePlay(lg,Math.max(0,(G.week||1)-1));
+  if(!L)return [];
+  return Object.entries(L.t).map(([club,r])=>({club,...r,pow:Math.round(L.pow[club]||66)}))
+    .sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf)
+    .map((r,i)=>({pos:i+1,...r}));
 }
 const OTHER_LEAGUES=['Brasil','Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Colombia','Chile','México','Arabia'];
 function rOtherLeagues(){
@@ -7909,12 +7954,13 @@ function rOtherLeagues(){
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
       ${avail.map(lg=>`<button class="btn ${lg===sel?'bg':'bo'} bs" style="font-size:9px;padding:3px 7px" onclick="G._otherLg='${lg}';rOtherLeagues()">${lg}</button>`).join('')}
     </div>
-    <div style="display:grid;grid-template-columns:22px 1fr 24px 30px 34px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
-      <span>#</span><span>Club</span><span>PJ</span><span>PTS</span><span>Fuerza</span>
+    <div style="display:grid;grid-template-columns:22px 1fr 24px 52px 32px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
+      <span>#</span><span>Club</span><span>PJ</span><span>G-E-P</span><span>DIF</span><span>PTS</span>
     </div>
-    ${rows.map(r=>`<div style="display:grid;grid-template-columns:22px 1fr 24px 30px 34px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${r.pos===1?'var(--gold)':r.pos<=4?'var(--green)':r.pos>=rows.length-1?'var(--red)':'transparent'}">
+    ${rows.map(r=>`<div style="display:grid;grid-template-columns:22px 1fr 24px 52px 32px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${r.pos===1?'var(--gold)':r.pos<=4?'var(--green)':r.pos>=rows.length-1?'var(--red)':'transparent'}">
       <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.club}</span>
-      <span>${r.pj}</span><span style="font-weight:700">${r.pts}</span><span style="color:var(--t3)">${r.pow}</span>
+      <span>${r.pj}</span><span style="color:var(--t3)">${r.g}-${r.e}-${r.p}</span>
+      <span style="color:var(--t3)">${(r.gf-r.gc>0?'+':'')+(r.gf-r.gc)}</span><span style="font-weight:700">${r.pts}</span>
     </div>`).join('')}
   </div>`;
 }
@@ -13575,6 +13621,7 @@ function fmBodyBall(p,b,team){
         const away=(p.x<f.VW/2?1:-1),sy=(b.y<f.VH/2?-1:1);
         b.vx=away*(4.4+Math.random()*3.0);b.vy=sy*(3.6+Math.random()*3.4);
         b.air=Math.min(18,power*0.55);
+        if(f.learn)f.learn.cRechace=(f.learn.cRechace||0)+1;
         if(f.learn)f.learn.gkParry=(f.learn.gkParry||0)+1;
       }
       return true;
@@ -15662,6 +15709,9 @@ function fmAI(p,team,idx,dt){
   const myRank=dists.findIndex(dd=>dd.i===idx);
 
   // SEPARACIÓN: repulsión suave entre compañeros — nadie se amontona
+  // Probé subir el radio a 150 con repulsión cuadrática y salió PEOR: los
+  // choques por tick pasaron de 1,28 a 2,24. Empujarse más fuerte los hace
+  // oscilar contra el destino al que igual quieren ir. Queda como estaba.
   const sepR=100;
   let sepX=0,sepY=0;
   for(const q of players){
@@ -15682,6 +15732,7 @@ function fmAI(p,team,idx,dt){
     const ddx=tx3-b.x,ddy=ty3-b.y,dd3=Math.hypot(ddx,ddy)||1;
     b.vx=ddx/dd3*6.4;b.vy=ddy/dd3*6.4;
     b.air=Math.min(80,dd3/6.4*0.7);
+    if(f.learn)f.learn.cCorner=(f.learn.cCorner||0)+1;
     f._lastTouch=team;p._kickT=9;
     fmSndKick(0.6);
   }
@@ -15757,12 +15808,17 @@ function fmAI(p,team,idx,dt){
       // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
       const wide=Math.abs(b.y-mid)>f.VH*0.27;
       const nearByline=distGoal<fieldW*0.22;
-      if(wide&&nearByline&&(prof.flank||0.5)>0.45&&Math.random()<(0.05+prof.flank*0.06)*dt){
+      // El centro salía con hasta 10,5% de chance POR TICK estando abierto cerca
+      // del fondo. Bajarlo a 0,016+flank·0,024 lo mató del todo (0,5 centros por
+      // partido entre los dos equipos): un equipo de bandas tiene que centrar.
+      // Este valor deja ~8-12 por partido, que es lo que se ve en la cancha.
+      if(wide&&nearByline&&(prof.flank||0.5)>0.45&&Math.random()<(0.030+prof.flank*0.048)*dt){
         const tx5=attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09;
         const ty5=mid+(Math.random()*120-60);
         const ddx5=tx5-b.x,ddy5=ty5-b.y,dd5=Math.hypot(ddx5,ddy5)||1;
         b.vx=ddx5/dd5*6.2;b.vy=ddy5/dd5*6.2;
         b.air=Math.min(70,dd5/6.2*0.7);
+        if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
@@ -16045,7 +16101,10 @@ function fmAI(p,team,idx,dt){
     // El que espera el pase arranca YA, no cuando la pelota queda suelta: los
     // que presionan salen al punto de llegada desde el momento del pase, así
     // que si el receptor espera unos ticks siempre llegan ellos primero.
-    if((!f.poss||_voyYo)&&!(b.air>13)){
+    // Antes pedía que la pelota NO viniera por el aire: un pelotazo vuela ~50
+    // ticks, así que el que iba a recibirlo recién arrancaba cuando ya había
+    // caído. Si es MI pase, salgo igual, y voy al punto de caída.
+    if((!f.poss||_voyYo)&&(!(b.air>13)||_voyYo)){
       const voyYo=_voyYo;
       let masCerca=!p.isGK;
       for(const q of players){
@@ -16176,7 +16235,12 @@ function fmTeamPass(team,fromIdx){
   // ═══ CAMBIO DE FRENTE / PELOTAZO LARGO: buscar un compañero lejano y abierto ═══
   // Los equipos directos y en salida cambian de banda o tiran el pelotazo al espacio.
   const fromP=squad[fromIdx];
-  const longChance=(0.10+prof.direct*0.22+(inTrans?0.15:0))*(holding?0.3:1);
+  // ═══ EL PELOTAZO ES UN RECURSO, NO LA NORMA ═══
+  // Con 0,10 + directo·0,22 salía entre el 10% y el 32% de los pases: medido,
+  // 40 pelotazos por partido con 50 ticks de vuelo cada uno — la pelota se
+  // pasaba el 15% del partido en el aire y parecía que sólo tiraban largo a la
+  // nada. Un equipo de verdad manda al 5-8% de sus pases.
+  const longChance=(0.018+prof.direct*0.060+(inTrans?0.035:0))*(holding?0.3:1);
   if(fromP&&!holding&&Math.random()<longChance){
     let bestL=-1,bestLS=-1e9;
     squad.forEach((t,i)=>{
@@ -16199,6 +16263,7 @@ function fmTeamPass(team,fromIdx){
       const pwr=7.2+dd*0.006;
       b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;
       b.air=Math.min(70,dd/pwr*0.75);        // pelota elevada, viaja por arriba
+      if(f.learn)f.learn.cLargo=(f.learn.cLargo||0)+1;
       f._lastTouch=team;f._lastPasser={team,i:fromIdx};
       fromP._kickT=9;t._recvTick=f.ticks+~~(dd/pwr);
       fmSndKick(0.55);
