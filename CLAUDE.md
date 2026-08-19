@@ -34,7 +34,17 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Liga Argentina con formato real**: 30 clubes, 2 zonas de 15, Apertura +
   Clausura, los 8 primeros de cada zona a playoffs (octavos → final), descensos
   por **tabla anual**. Todo en `arBuildZones` / `arBuildTournament` / `arSimPair`.
-- **Extranjeros**: un nacionalizado NO ocupa cupo. `isForeign(nat, nat2)`.
+- **Extranjeros**: un nacionalizado NO ocupa cupo. `isForeign(nat, nat2)`. El
+  cupo se cumple en el ONCE (`autoFill`, `clickSlot`, `doSub`), no en el plantel.
+- **Copas internacionales**: Libertadores y Sudamericana comparten motor
+  (`INT_COPAS`, `intProximaRonda`, `genIntKO`): grupos → octavos → cuartos →
+  semis → final, **una ronda sorteada por vez**. Ganar la Libertadores habilita
+  Recopa y Mundial de Clubes al año siguiente (`armarRecopa`,
+  `armarMundialClubes`, `resolveCopaCorta`).
+- **Tácticas de los DTs**: 14 arquetipos (`ARQ`) asignados por
+  `ARQ_DT` (a mano, ~100 nombres) → `ARQ_LIGA` (default por escuela) →
+  hash. La tabla `REAL` de `dtProfile()` pisa al arquetipo. La formación sale
+  del arquetipo (`ARQ[k].forms`).
 - La **arenga** solo aparece en partidos importantes (`isBigMatch`).
 - **Sin relato** jugada a jugada: simular va directo al resumen.
 

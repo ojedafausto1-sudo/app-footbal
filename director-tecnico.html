@@ -2067,49 +2067,199 @@ function buildCal(teamName, teamId){
   return sch.sort((a,b)=>a.week-b.week);
 }
 
-function genLibKO(){
-  if(!G) return;
-  const tn = G.teamName || 'Boca Juniors';
-  // Check if already added
-  if(G.calendar.some(m=>m.comp.includes('Octavos'))) return;
-  // Count team GS results
-  const gsMes = G.calendar.filter(m=>m.comp==='Copa Libertadores - Grupos'&&m.played);
-  let gsP = 0;
-  gsMes.forEach(m=>{ if(m.result==='W') gsP+=3; else if(m.result==='D') gsP+=1; });
-  const qualified = gsP >= Math.max(6,Math.round(gsMes.length*1.15)); // ~mitad de los puntos
-  if(!qualified){
-    lg('📋',`${tn} no clasificó a octavos de Libertadores (${gsP} pts)`);
-    flash('Eliminados de la Libertadores en grupos','loss');
+// ═══════════════════════════════════════════════════════════════════════
+// COPAS INTERNACIONALES: LIBERTADORES Y SUDAMERICANA
+// ═══════════════════════════════════════════════════════════════════════
+// Antes: la Sudamericana terminaba en la fase de grupos —ganabas el grupo y no
+// pasaba nada más— y la Libertadores iba octavos → cuartos → FINAL, sin
+// semifinales. Encima las cinco llaves se metían juntas al clasificar, así que
+// en marzo ya sabías contra quién era la final. Ahora las dos copas usan el
+// mismo motor, con semis, y se sortea una ronda por vez.
+const INT_COPAS={
+  lib:{nombre:'Copa Libertadores',pref:'Copa Libertadores',emoji:'🏆',
+    bombo:['Flamengo','Palmeiras','Atlético Mineiro','Botafogo','Internacional','Fluminense',
+      'São Paulo','River Plate','Racing Club','Estudiantes LP','Nacional (URU)','Peñarol',
+      'LDU Quito','Olimpia','Cerro Porteño','Colo-Colo','Alianza Lima','Millonarios',
+      'Atlético Nacional','Bolívar','Libertad','Sporting Cristal']},
+  sud:{nombre:'Copa Sudamericana',pref:'Copa Sudamericana',emoji:'🥈',
+    bombo:['Independiente del Valle','Fortaleza','Corinthians','Lanús','Defensa y Justicia',
+      'Ind. Medellín','Emelec','Deportivo Cali','Defensor Sporting','Sol de América',
+      'Universidad Católica','Always Ready','Guaraní','Danubio','Junior FC',
+      'Athletico Paranaense','Cruzeiro','Godoy Cruz','Huracán','Deportes Tolima']},
+};
+const INT_RONDAS=['Octavos','Cuartos','Semis','Final'];
+function intCopaDe(comp){
+  if(!comp)return null;
+  if(comp.includes('Libertadores'))return 'lib';
+  if(comp.includes('Sudamericana'))return 'sud';
+  return null;
+}
+// Semana libre a partir de una dada
+function _intSemana(desde){
+  const usadas=new Set((G.calendar||[]).map(m=>m.week));
+  let w=desde; while(usadas.has(w))w++; return w;
+}
+// Sortea UNA ronda de una copa internacional. rnd: 2=octavos … 5=final
+function intProximaRonda(copa,rnd){
+  if(!G||!G.calendar)return null;
+  const C=INT_COPAS[copa]; if(!C)return null;
+  if(rnd<2||rnd>5)return null;
+  const nombreR=INT_RONDAS[rnd-2];
+  const yaEsta=G.calendar.some(x=>x.comp&&x.comp.startsWith(C.pref+' - '+nombreR));
+  if(yaEsta)return null;
+  // Nadie repetido: ni los que ya enfrentaste en esta copa, ni vos mismo
+  const jugados=new Set(G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref))
+    .map(x=>x.home===G.teamName?x.away:x.home));
+  const libres=C.bombo.filter(c=>c!==G.teamName&&!jugados.has(c));
+  const bombo=libres.length?libres:C.bombo.filter(c=>c!==G.teamName);
+  const rival=bombo[~~(Math.random()*bombo.length)];
+  if(!rival)return null;
+  const ultima=Math.max(G.week||1,...G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref)).map(x=>x.week||1));
+  if(rnd===5){
+    // La final es a un partido y en cancha neutral
+    const w=_intSemana(Math.max((G.week||1)+3,ultima+4));
+    G.calendar.push({week:w,comp:C.pref+' - Final',home:G.teamName,away:rival,neutral:true,
+                     played:false,result:null,score:null});
+  } else {
+    const w1=_intSemana(Math.max((G.week||1)+2,ultima+3));
+    const w2=_intSemana(w1+1);
+    const local1=Math.random()<0.5;   // quién juega la ida de local
+    G.calendar.push(
+      {week:w1,comp:C.pref+' - '+nombreR+' IDA',   home:local1?G.teamName:rival,away:local1?rival:G.teamName,played:false,result:null,score:null},
+      {week:w2,comp:C.pref+' - '+nombreR+' VUELTA',home:local1?rival:G.teamName,away:local1?G.teamName:rival,played:false,result:null,score:null});
+  }
+  G.calendar.sort((a,b)=>a.week-b.week);
+  const humano={'Octavos':'octavos','Cuartos':'cuartos','Semis':'la semifinal','Final':'LA FINAL'}[nombreR];
+  lg('🎲',`Sorteo de ${C.nombre}: ${humano} contra ${rival}`);
+  addPhoneMsg('board','Secretaría del Club',
+    `${C.emoji} Salió el sorteo de <b>${C.nombre}</b>: en ${humano} nos toca <b>${rival}</b>.`,'🏛️');
+  return rival;
+}
+// Fin de la fase de grupos de una copa internacional
+function genIntKO(copa){
+  if(!G)return;
+  const C=INT_COPAS[copa]; if(!C)return;
+  const tn=G.teamName||'Boca Juniors';
+  if(G.calendar.some(m=>m.comp&&m.comp.startsWith(C.pref+' - Octavos')))return;
+  const gs=G.calendar.filter(m=>m.comp===C.pref+' - Grupos'&&m.played);
+  if(!gs.length)return;
+  let pts=0; gs.forEach(m=>{ if(m.result==='W')pts+=3; else if(m.result==='D')pts+=1; });
+  // La Sudamericana es más accesible: se pide un poco menos
+  const piso=copa==='sud'?Math.max(5,Math.round(gs.length*1.0)):Math.max(6,Math.round(gs.length*1.15));
+  if(pts<piso){
+    lg('📋',`${tn} no clasificó a octavos de ${C.nombre} (${pts} pts)`);
+    flash(`Eliminados de la ${C.nombre} en grupos`,'loss');
     return;
   }
-  // ═══ SORTEO DE LA FASE FINAL ═══
-  // Antes los rivales salían siempre de la misma lista de 5 clubes: te cruzabas
-  // con Palmeiras y River todas las temporadas. Ahora hay un bolillero amplio y
-  // cada ronda saca un rival distinto (sin repetir, y sin cruzarte a vos mismo).
-  const KO_POOL=['Flamengo','Palmeiras','Atlético Mineiro','Botafogo','Internacional','Fluminense',
-    'São Paulo','River Plate','Racing Club','Estudiantes LP','Nacional (URU)','Peñarol',
-    'LDU Quito','Olimpia','Cerro Porteño','Colo-Colo','Alianza Lima','Millonarios',
-    'Atlético Nacional','Bolívar','Libertad','Sporting Cristal'];
-  const bolillero=_shuf(KO_POOL.filter(r=>r!==tn));
-  const r8=bolillero[0], r4=bolillero[1], rF=bolillero[2];
-  lg('🎲',`Sorteo de octavos de Libertadores: ${tn} vs ${r8}`);
-  // Find next available weeks
-  const usedWeeks = new Set(G.calendar.map(m=>m.week));
-  const nextW = (from) => { let w=from; while(usedWeeks.has(w)) w++; usedWeeks.add(w); return w; };
-  const w1 = nextW(21), w2 = nextW(w1+1);
-  const w3 = nextW(w2+2), w4 = nextW(w3+1);
-  const w5 = nextW(w4+2);
-  G.calendar.push(
-    {week:w1,comp:'Copa Libertadores - Octavos IDA',   home:tn,  away:r8, played:false,result:null,score:null},
-    {week:w2,comp:'Copa Libertadores - Octavos VUELTA',home:r8,  away:tn, played:false,result:null,score:null},
-    {week:w3,comp:'Copa Libertadores - Cuartos IDA',   home:tn,  away:r4, played:false,result:null,score:null},
-    {week:w4,comp:'Copa Libertadores - Cuartos VUELTA',home:r4,  away:tn, played:false,result:null,score:null},
-    {week:w5,comp:'Copa Libertadores - Final',         home:tn,  away:rF, played:false,result:null,score:null}
-  );
-  G.calendar.sort((a,b)=>a.week-b.week);
-  lg('🏆','¡'+tn+' clasificó a octavos de Libertadores! ('+gsP+' pts)');
-  flash('¡Clasificados a octavos de Copa Libertadores!','win');
+  lg(C.emoji,`¡${tn} clasificó a octavos de ${C.nombre}! (${pts} pts)`);
+  flash(`¡Clasificados a octavos de ${C.nombre}!`,'win');
+  intProximaRonda(copa,2);
   updateUI();
+}
+function genLibKO(){ return genIntKO('lib'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// RECOPA Y MUNDIAL DE CLUBES
+// ═══════════════════════════════════════════════════════════════════════
+// Se juegan al año SIGUIENTE de ganar la copa que te clasifica. Los llama
+// nextSeason cuando arma el calendario nuevo.
+function armarRecopa(){
+  if(!G||!G.calendar)return false;
+  const ganeLib=G.campeonLib===G.season-1, ganeSud=G.campeonSud===G.season-1;
+  if(!ganeLib&&!ganeSud)return false;
+  if(G.calendar.some(x=>x.comp&&x.comp.startsWith('Recopa')))return false;
+  // Si ganaste la Libertadores enfrentás al campeón de la Sudamericana, y al revés
+  const bombo=ganeLib?INT_COPAS.sud.bombo:INT_COPAS.lib.bombo;
+  const rival=bombo.filter(c=>c!==G.teamName)[~~(Math.random()*bombo.length)]||'Independiente del Valle';
+  const w1=_intSemana(2), w2=_intSemana(w1+1);
+  G.calendar.push(
+    {week:w1,comp:'Recopa Sudamericana - IDA',   home:rival,away:G.teamName,played:false,result:null,score:null},
+    {week:w2,comp:'Recopa Sudamericana - VUELTA',home:G.teamName,away:rival,played:false,result:null,score:null});
+  G.calendar.sort((a,b)=>a.week-b.week);
+  lg('🥇',`Recopa Sudamericana: ${G.teamName} vs ${rival}`);
+  addPhoneMsg('board','Comisión Directiva',
+    `🥇 Por ser campeones de la <b>${ganeLib?'Libertadores':'Sudamericana'}</b> jugamos la <b>Recopa Sudamericana</b> contra <b>${rival}</b>, ida y vuelta.`,'🏛️');
+  return true;
+}
+const MUNDIAL_BOMBO=['Real Madrid','Manchester City','Bayern Munich','Chelsea','PSG','Inter',
+  'Al-Hilal','Monterrey','Al-Ahly','Auckland City','Urawa Reds','Wydad Casablanca',
+  'Barcelona','Liverpool','Juventus','Flamengo','Palmeiras','Seattle Sounders'];
+function armarMundialClubes(){
+  if(!G||!G.calendar)return false;
+  if(G.campeonLib!==G.season-1)return false;                 // clasifica el campeón de América
+  if(G.calendar.some(x=>x.comp&&x.comp.startsWith('Mundial de Clubes')))return false;
+  const bombo=_shuf(MUNDIAL_BOMBO.filter(c=>c!==G.teamName));
+  // Grupo de 3 rivales + llaves. Es corto a propósito: entra en el calendario.
+  const g=bombo.slice(0,3);
+  let w=_intSemana(20);
+  g.forEach(r=>{
+    G.calendar.push({week:w,comp:'Mundial de Clubes - Grupos',home:G.teamName,away:r,neutral:true,
+                     played:false,result:null,score:null});
+    w=_intSemana(w+1);
+  });
+  G.calendar.sort((a,b)=>a.week-b.week);
+  lg('🌍',`${G.teamName} jugará el Mundial de Clubes: grupo con ${g.join(', ')}`);
+  addPhoneMsg('board','Comisión Directiva',
+    `🌍 Como campeones de América clasificamos al <b>Mundial de Clubes</b>. Grupo con <b>${g.join('</b>, <b>')}</b>.`,'🏛️');
+  return true;
+}
+// Cuando termina el grupo del Mundial: semifinal y final a partido único
+function genMundialKO(){
+  if(!G||!G.calendar)return;
+  if(G.calendar.some(x=>x.comp==='Mundial de Clubes - Semifinal'))return;
+  const gs=G.calendar.filter(x=>x.comp==='Mundial de Clubes - Grupos'&&x.played);
+  if(!gs.length)return;
+  let pts=0; gs.forEach(m=>{ if(m.result==='W')pts+=3; else if(m.result==='D')pts+=1; });
+  if(pts<4){
+    lg('📋',`${G.teamName} quedó afuera del Mundial de Clubes en el grupo (${pts} pts)`);
+    flash('Eliminados del Mundial de Clubes','loss');
+    return;
+  }
+  const jugados=new Set(G.calendar.filter(x=>x.comp&&x.comp.startsWith('Mundial')).map(x=>x.home===G.teamName?x.away:x.home));
+  const bombo=_shuf(MUNDIAL_BOMBO.filter(c=>c!==G.teamName&&!jugados.has(c)));
+  const w1=_intSemana((G.week||1)+2), w2=_intSemana(w1+2);
+  G.calendar.push(
+    {week:w1,comp:'Mundial de Clubes - Semifinal',home:G.teamName,away:bombo[0],neutral:true,played:false,result:null,score:null},
+    {week:w2,comp:'Mundial de Clubes - Final',    home:G.teamName,away:bombo[1],neutral:true,played:false,result:null,score:null});
+  G.calendar.sort((a,b)=>a.week-b.week);
+  lg('🌍',`¡${G.teamName} a semifinales del Mundial de Clubes! (${pts} pts)`);
+  flash('¡Semifinal del Mundial de Clubes!','win');
+}
+// Estas dos son a partido único / ida y vuelta cortas: se resuelven aparte
+function resolveCopaCorta(m){
+  if(!m||!m.comp)return;
+  const c=m.comp;
+  const esRecopa=c.startsWith('Recopa');
+  const esMundial=c.startsWith('Mundial de Clubes')&&!c.includes('Grupos');
+  if(!esRecopa&&!esMundial)return;
+  if(c.includes('IDA'))return;                       // se define en la vuelta
+  const g=koGoalsFor(m); if(!g)return;
+  let mine=g.mine,theirs=g.theirs;
+  if(esRecopa){
+    const ida=G.calendar.find(x=>x.comp==='Recopa Sudamericana - IDA'&&x.played);
+    if(ida){const gi=koGoalsFor(ida); if(gi){mine+=gi.mine;theirs+=gi.theirs;}}
+  }
+  if(mine===theirs)mine+=Math.random()<0.5?1:-1;     // penales
+  const gano=mine>theirs;
+  const nombre=esRecopa?'Recopa Sudamericana':(c.includes('Final')?'Mundial de Clubes':null);
+  if(!gano){
+    lg('❌',`${G.teamName} perdió ${esRecopa?'la Recopa':'en el Mundial de Clubes'} (global ${mine}-${theirs})`);
+    flash(`❌ Se escapó: ${mine}-${theirs}`,'loss');
+    // si cae en semis del Mundial, se borra la final
+    if(esMundial&&c.includes('Semifinal'))
+      G.calendar=G.calendar.filter(x=>x.played||x.comp!=='Mundial de Clubes - Final');
+    return;
+  }
+  if(esMundial&&c.includes('Semifinal')){
+    lg('🌍',`${G.teamName} a la FINAL del Mundial de Clubes (${mine}-${theirs})`);
+    flash('¡A la final del Mundial de Clubes!','win');
+    return;
+  }
+  lg('🏆',`¡${G.teamName} CAMPEÓN de la ${nombre}! (${mine}-${theirs})`);
+  flash(`🏆 ¡CAMPEÓN DE LA ${String(nombre).toUpperCase()}!`,'win');
+  G.rep=Math.min(100,(G.rep||50)+(esMundial?9:5));
+  G.boardConf=Math.min(100,(G.boardConf||50)+(esMundial?25:14));
+  (G.trophies=G.trophies||[]).push({name:nombre,season:G.season});
 }
 
 // =============================================
@@ -8712,6 +8862,9 @@ function nextSeason(){
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   youthSafetyNet();          // la cantera cubre el hueco antes de armar el calendario
   G.calendar = buildCal(G.teamName);
+  // Las copas que se ganan un año y se juegan al siguiente
+  armarRecopa();
+  armarMundialClubes();
   arAttachLeague();          // zonas y fixture nuevos para la temporada que arranca
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
   G.offers = genOffers();
@@ -9009,7 +9162,8 @@ function resolveKO(m){
   if(!m||!m.comp)return;
   const c=m.comp;
   const isLib=c.includes('Libertadores'), isCA=c.includes('Copa Argentina');
-  if(!isLib&&!isCA)return;
+  const isSud=c.includes('Sudamericana');
+  if(!isLib&&!isCA&&!isSud)return;
   if(c.includes('Grupos'))return;               // los grupos se resuelven aparte
   const roundOf=(s)=>/R32/.test(s)?1:(/Octavos|R16/.test(s))?2:(/Cuartos|QF/.test(s))?3:(/Semi|SF/.test(s))?4:/Final/.test(s)?5:0;
   const rnd=roundOf(c);
@@ -9018,11 +9172,12 @@ function resolveKO(m){
   if(c.includes('IDA'))return;
   let mine=0,theirs=0;
   const legs=G.calendar.filter(x=>x.played&&x.comp&&roundOf(x.comp)===rnd&&
-      ((isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'))));
+      ((isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'))
+       ||(isSud&&x.comp.includes('Sudamericana'))));
   legs.forEach(l=>{const g=koGoalsFor(l);if(g){mine+=g.mine;theirs+=g.theirs;}});
   if(mine===theirs)mine+=Math.random()<0.5?1:-1;   // se define por penales
   const advanced=mine>theirs;
-  const compName=isLib?'Copa Libertadores':'Copa Argentina';
+  const compName=isLib?'Copa Libertadores':isSud?'Copa Sudamericana':'Copa Argentina';
   const rndName=['','32avos','octavos','cuartos','semifinal','la final'][rnd];
   if(advanced){
     if(rnd===5){
@@ -9030,10 +9185,14 @@ function resolveKO(m){
       flash(`🏆 ¡CAMPEÓN DE LA ${compName.toUpperCase()}!`,'win');
       G.rep=Math.min(100,(G.rep||50)+6);G.boardConf=Math.min(100,(G.boardConf||50)+18);
       (G.trophies=G.trophies||[]).push({name:compName,season:G.season});
+      // Queda anotado para la Recopa y el Mundial de Clubes de la temporada que viene
+      if(isLib){G.campeonLib=G.season;}
+      if(isSud){G.campeonSud=G.season;}
     } else {
       lg('✅',`${G.teamName} avanza en la ${compName} (global ${mine}-${theirs})`);
       flash(`✅ ¡Pasaste de ${rndName}! Global ${mine}-${theirs}`,'win');
       if(isCA) caProximaRonda(rnd);      // recién ahora se sortea la que viene
+      else if(isLib||isSud) intProximaRonda(isLib?'lib':'sud',rnd+1);
     }
     return;
   }
@@ -9042,7 +9201,8 @@ function resolveKO(m){
   G.calendar=G.calendar.filter(x=>{
     if(x.played)return true;
     if(!x.comp)return true;
-    const sameCup=(isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'));
+    const sameCup=(isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'))
+                ||(isSud&&x.comp.includes('Sudamericana'));
     if(!sameCup)return true;
     return roundOf(x.comp)<=rnd;                 // se caen las rondas siguientes
   });
@@ -9147,11 +9307,22 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Check Libertadores group stage completion
   const gsTotal  = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos').length;
   const gsPlayed = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos'&&x.played).length;
-  if(gsTotal>0&&gsPlayed===gsTotal) genLibKO();   // el grupo son 3 rivales (6 partidos)
+  if(gsTotal>0&&gsPlayed===gsTotal) genIntKO('lib');   // el grupo son 3 rivales (6 partidos)
+  // La Sudamericana terminaba en los grupos: ganabas y no pasaba nada más.
+  const sudTot=G.calendar.filter(x=>x.comp==='Copa Sudamericana - Grupos').length;
+  const sudJug=G.calendar.filter(x=>x.comp==='Copa Sudamericana - Grupos'&&x.played).length;
+  if(sudTot>0&&sudJug===sudTot) genIntKO('sud');
   // ═══ ELIMINACIÓN EN COPAS: si perdés la llave, te vas afuera ═══
   // Antes las rondas siguientes ya estaban en el fixture y las jugabas igual
   // aunque hubieras perdido: llegabas a la final habiendo sido eliminado.
   resolveKO(m);
+  resolveCopaCorta(m);
+  // ¿terminó el grupo del Mundial de Clubes?
+  (function(){
+    const t=G.calendar.filter(x=>x.comp==='Mundial de Clubes - Grupos').length;
+    const j=G.calendar.filter(x=>x.comp==='Mundial de Clubes - Grupos'&&x.played).length;
+    if(t>0&&j===t)genMundialKO();
+  })();
 
   // === SCORERS & STATS ===
   const xiPlayers = Object.values(G.slots).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
@@ -10436,7 +10607,7 @@ function isBigMatch(m){
   if(!m)return false;
   if(isDerby&&isDerby(m))return true;                            // clásico
   const c=m.comp||'';
-  if(/Libertadores|Sudamericana|Copa Argentina/.test(c))return true;
+  if(/Libertadores|Sudamericana|Copa Argentina|Recopa|Mundial de Clubes/.test(c))return true;
   if(/Octavos|Cuartos|Semi|Final/.test(c))return true;           // playoffs y llaves
   const last3=G.calendar.filter(x=>x.played).slice(-3).map(x=>x.result);
   if(last3.length>=3&&last3.every(r=>r==='L'))return true;       // hay que levantar al plantel
