@@ -1464,9 +1464,9 @@ const DTS = [
   // --- TÉCNICOS ADICIONALES ---
   {name:'Mauricio Pochettino', nat:'ARG',age:54,rat:87,style:'4-2-3-1',str:'Pressing alto, físico',      salary:220,trait:'Intenso',   wantedPos:['EI','MCD','DFC'],  philosophy:'Trabajo duro y pressing sin pausa'},
   {name:'Hugo Tocalli',        nat:'ARG',age:73,rat:76,style:'4-3-3',  str:'Formación de jóvenes',       salary:40, trait:'Formador',  wantedPos:['DC','MCD','EI'],   philosophy:'Los jóvenes son el futuro del club'},
-  {name:'Néstor Gorosito',     nat:'ARG',age:58,rat:73,style:'4-4-2',  str:'Solidez y orden',            salary:45, trait:'Defensivo', wantedPos:['DFC','MCD','DC'],  philosophy:'Equipo sólido y ordenado como base'},
+  {name:'Néstor Gorosito',     nat:'ARG',age:58,rat:73,style:'4-4-2',  str:'Circulación y creativos',    salary:45, trait:'Técnico',   wantedPos:['MCO','EI','DC'],   philosophy:'Fútbol ofensivo y de creación; la solidez atrás es su deuda'},
   {name:'Antonio Mohamed',     nat:'ARG',age:52,rat:76,style:'4-3-3',  str:'Ataque fluido',              salary:55, trait:'Ofensivo',  wantedPos:['EI','MCO','DC'],   philosophy:'Fútbol atractivo con mucho ataque'},
-  {name:'Rodolfo Arruabarrena',nat:'ARG',age:56,rat:74,style:'4-2-3-1',str:'Experiencia copera',         salary:50, trait:'Copero',    wantedPos:['MC','DFC','ED'],   philosophy:'Equilibrio para competir en todos los torneos'},
+  {name:'Rodolfo Arruabarrena',nat:'ARG',age:56,rat:74,style:'4-3-3',  str:'Extremos al uno contra uno', salary:50, trait:'Ofensivo',  wantedPos:['ED','EI','DC'],    philosophy:'Extremos rápidos que desequilibren; el equipo no puede ser timorato'},
   {name:'Hernán Crespo',       nat:'ARG',age:50,rat:77,style:'4-3-3',  str:'Fútbol moderno',             salary:70, trait:'Moderno',   wantedPos:['DC','MCO','EI'],   philosophy:'Posesión y presión alta con calidad'},
   {name:'José Néstor Pékerman',nat:'ARG',age:76,rat:82,style:'4-2-3-1',str:'Organización táctica',       salary:100,trait:'Maestro',   wantedPos:['MCD','DFC','MCO'], philosophy:'Organización táctica superior y selección de talento'},
   // --- TÉCNICOS ADICIONALES 2 ---
@@ -15084,7 +15084,7 @@ function dtProfile(dt){
     'Ariel Holan':        {press:.82,line:.70,tempo:.68,direct:.35,disc:.86,cyn:.50},
     'Jorge Almirón':      {press:.48,line:.40,tempo:.55,direct:.62,counter:.76,cyn:.80,disc:.80},
     'Gustavo Alfaro':     {press:.34,line:.30,tempo:.45,direct:.68,counter:.74,cyn:.82,disc:.88},
-    'Guillermo Barros Schelotto':{press:.58,line:.66,tempo:.72,direct:.50,width:.82,flank:.90,counter:.60,cyn:.45},
+    'Guillermo Barros Schelotto':{press:.72,line:.68,tempo:.70,direct:.46,width:.76,flank:.84,counter:.62,aggr:.58,cyn:.48,disc:.60},
     'Sebastián Battaglia':{press:.72,line:.55,tempo:.70,aggr:.80,direct:.60,counter:.62,cyn:.58},
     'Claudio Úbeda':      {press:.60,line:.55,tempo:.55,direct:.42,counter:.55,disc:.72},
     'Diego Martínez':     {press:.80,line:.62,tempo:.72,direct:.42,counter:.65,disc:.74},
@@ -15101,11 +15101,21 @@ function dtProfile(dt){
     'Hansi Flick':        {press:.92,line:.86,tempo:.78,direct:.30,width:.76,counter:.55,flank:.62,cyn:.35,disc:.80},
     'Roberto De Zerbi':   {press:.90,line:.82,tempo:.42,direct:.10,width:.82,counter:.25,flank:.55,cyn:.30,disc:.88},
     'Martín Demichelis':  {press:.70,line:.62,tempo:.66,direct:.42,counter:.66,flank:.64,cyn:.58,disc:.76},
-    'Eduardo Coudet':     {press:.88,line:.68,tempo:.82,direct:.52,aggr:.82,counter:.72,cyn:.60,disc:.70},
+    'Eduardo Coudet':     {press:.90,line:.82,tempo:.84,direct:.48,aggr:.76,counter:.78,width:.55,flank:.50,cyn:.46,disc:.68},
     'Martín Palermo':     {press:.55,line:.50,tempo:.70,direct:.72,aggr:.75,counter:.66,cyn:.62,disc:.66},
-    'Néstor Gorosito':    {press:.52,line:.48,tempo:.62,direct:.58,counter:.70,flank:.72,cyn:.66,disc:.72},
+    'Néstor Gorosito':    {press:.42,line:.52,tempo:.54,direct:.36,width:.62,counter:.46,flank:.56,aggr:.46,cyn:.48,disc:.40},
     'Ramón Díaz':         {press:.48,line:.45,tempo:.60,direct:.66,counter:.78,cyn:.74,disc:.80},
     'Marcelo Bielsa (SEL)':{press:.98,line:.90,tempo:.88,direct:.35,width:.85,counter:.30,disc:.95},
+    // ═══ AGREGADOS CON FUENTES (agosto 2026) ═══
+    // Sampaoli: "presión alta conjunta y organizada, siete metros por jugador";
+    // vivir en campo rival. Debutó en Talleres terminando con cinco delanteros.
+    'Jorge Sampaoli':     {press:.96,line:.90,tempo:.80,direct:.22,width:.68,counter:.40,flank:.58,aggr:.70,cyn:.35,disc:.62},
+    // Vojvoda: agresivo con prioridad en la tenencia, "ADN guerrero", a veces
+    // línea de cinco con laterales reconvertidos a carrileros.
+    'Juan Pablo Vojvoda': {press:.80,line:.62,tempo:.66,direct:.36,width:.64,counter:.62,flank:.74,aggr:.72,cyn:.52,disc:.72},
+    // Arruabarrena: 4-3-3 con extremos rápidos para el uno contra uno, el 9
+    // presionando a los centrales, "que el equipo no sea timorato".
+    'Rodolfo Arruabarrena':{press:.62,line:.60,tempo:.62,direct:.44,width:.72,counter:.56,flank:.82,aggr:.56,cyn:.50,disc:.56},
   };
   const o=Object.assign({},base,T[t]||{},REAL[(dt&&dt.name)||'']||{});
   if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);o.counter=Math.min(1,o.counter+.10);}
