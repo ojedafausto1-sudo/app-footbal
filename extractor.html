@@ -127,9 +127,14 @@ let cacheHits = 0;
 // las nacionalidades y los DTs, se detecta una vez y a partir de ahí esas dos
 // consultas van por la función de Netlify (que sí las soporta).
 let workerLacksFree = false;
+// La TM-API libre (tmapi) se cae seguido. Se consultaba una vez POR CLUB: con
+// 500 clubes son 500 pedidos perdidos, cada uno con su espera. Se detecta la
+// caída una vez y no se la vuelve a consultar en toda la corrida.
+let tmapiDown = false;
 async function apiGet(path, apiType) {
   apiType = apiType || getApiChoice();
   const isFree = (apiType === 'tmapi' || apiType === 'tmcoach');
+  if (apiType === 'tmapi' && tmapiDown) return null;
   reqCount++;
   document.getElementById('sReqs').textContent = reqCount + (cacheHits ? ` (${cacheHits} de caché)` : '');
   let cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
@@ -165,7 +170,15 @@ async function apiGet(path, apiType) {
         continue;               // reintento por Netlify
       }
       if (!res.ok) {
-        log(`ERROR ${res.status} en ${path}`);
+        // Sin el nombre de la fuente, un 500 de la API libre parecía un 500 del
+        // plantel y daba la impresión de que no andaba nada.
+        log(`ERROR ${res.status} en ${path}  (fuente: ${apiType})`);
+        if (apiType === 'tmapi' && !tmapiDown) {
+          tmapiDown = true;
+          log('   → La API libre de nacionalidades está caída. No la consulto más en esta corrida.');
+          log('   → Los planteles y los DTs NO dependen de ella: siguen andando.');
+          log('   → Para tener nacionalidades, tildá "Nacionalidades desde el perfil" (1 crédito por jugador).');
+        }
         return null;
       }
       return await res.json();
@@ -1071,13 +1084,32 @@ async function probeNats() {
     if (ok) { win = [api, p]; break; }
     await sleep(700);
   }
-  if (win) log(`  ✅ SIRVE: ${win[0]} ${win[1]} — pasame esta línea y la conecto al extractor.`);
+  // Rutas que el extractor YA usa. Sin esto, la sonda encontraba la ruta buena
+  // —la misma que ya está cableada— y pedía que se la pasaran para conectarla,
+  // mandando a dar una vuelta al pedo.
+  const YA_CONECTADAS = {
+    'transfermarkt /players/{id}/profile': 'el checkbox "Nacionalidades desde el perfil"',
+    'transfermarkt /clubs/{id}/players':   'la bajada de planteles',
+    'tmcoach /verein/{id}':                'la bajada de DTs',
+  };
+  if (win) {
+    const generica = win[1].replace(/\/\d+\//g, '/{id}/').replace(/\/\d+$/, '/{id}');
+    const yaEsta = YA_CONECTADAS[win[0] + ' ' + generica];
+    log(`  ✅ SIRVE: ${win[0]} ${win[1]}`);
+    if (yaEsta) {
+      log(`     Esta ruta YA ESTÁ CONECTADA: es la que usa ${yaEsta}.`);
+      log('     No hay nada que conectar. Tildá el checkbox amarillo y dale a extraer.');
+    } else {
+      log('     Esta ruta NO está conectada todavía → copiame esta línea.');
+    }
+  }
   else log('  ❌ Ninguna trae nacionalidad con datos. Copiame el bloque y busco otra fuente.');
 }
 
 async function testExtras() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const cfW = (document.getElementById('cfWorker') || {value:''}).value.trim();
+  let _plantelOk = null;                 // lo llena la primera consulta que lo pruebe
   log('══════════════════════════════════════');
   log('Proxy en uso: ' + (cfW ? 'Worker de Cloudflare (' + cfW + ')' : 'Función de Netlify (/.netlify/functions/sportdb)'));
 
@@ -1097,6 +1129,7 @@ async function testExtras() {
       // jugador en SportDB, que trae la nacionalidad en la descripción).
       log('ℹ️ La API libre está caída. Probando la ruta por perfil de SportDB...');
       const club = await rawGet('transfermarkt', '/clubs/189/players');
+      _plantelOk = club.status === 200;
       const mid = club.body.match(/"id"\s*:\s*"(\d+)"\s*,\s*"name"\s*:\s*"([^"]+)"/);
       if (mid) {
         const prof = await apiGet(`/players/${mid[1]}/profile`, 'transfermarkt');
@@ -1132,7 +1165,17 @@ async function testExtras() {
   const r2 = await rawGet('tmcoach', '/verein/189');
   log(`  tmcoach HTTP ${r2.status} → ${r2.body.slice(0,250)}`);
   if (r1.status !== 200 || !/nationalit/i.test(r1.body)) await probeNats();
-  log('Copiame TODO este bloque y conecto la fuente que haya respondido bien.');
+  // No lo volvemos a pedir si alguna consulta de más arriba ya lo probó: cada
+  // pedido al plantel cuesta un crédito.
+  if (_plantelOk === null) _plantelOk = (await rawGet('transfermarkt', '/clubs/189/players')).status === 200;
+  const _dtOk = r2.status === 200;
+  if (_plantelOk && _dtOk) {
+    log('── RESUMEN ──');
+    log('✅ Planteles y DTs andan. La única caída es la API libre de nacionalidades (tmapi),');
+    log('   que tiene reemplazo: tildá "Nacionalidades desde el perfil". No falta conectar nada.');
+  } else {
+    log('Copiame TODO este bloque y conecto la fuente que haya respondido bien.');
+  }
   log('══════════════════════════════════════');
 }
 

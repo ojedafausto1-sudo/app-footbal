@@ -81,6 +81,13 @@ temporada completa (450 fixtures) y el ciclo de fichaje.
 La nacionalidad cuesta **1 crédito por jugador**, por eso está detrás de un
 checkbox aparte (`deepNats`). El Worker la cachea 30 días.
 
+⚠️ El diagnóstico (`testExtras`) consultaba `tmapi` una vez **por club** aunque
+ya supiera que está caída, y su `ERROR 500 en /clubs/189/players` no decía de
+qué fuente venía — parecía que fallaban los planteles cuando lo que fallaba era
+la API libre. Ahora la caída se late una sola vez (`tmapiDown`) y el error
+nombra la fuente. La sonda `probeNats` también reconoce las rutas que **ya**
+están cableadas (`YA_CONECTADAS`) en vez de pedir que se las pasen.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
