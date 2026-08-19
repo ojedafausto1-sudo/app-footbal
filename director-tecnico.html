@@ -1384,7 +1384,16 @@ function dtDesdeBase(row){
   return {
     name,age:age||45+s%20,nat:nat||'—',
     rat:Math.min(90,64+lgPow+s%8),
-    style:_DT_ST[s%_DT_ST.length],trait:_DT_TR[s%_DT_TR.length],
+    // La formación era un hash suelto: a Sampaoli le tocaba 4-4-2. Ahora sale
+    // de las que usa su arquetipo, que es lo único que de verdad varía entre
+    // dos técnicos con la misma idea de juego.
+    style:(function(){
+      const k=(typeof ARQ_DT!=='undefined'&&ARQ_DT[name])
+            ||((typeof ARQ_LIGA!=='undefined'&&ARQ_LIGA[league])||[])[s%(((typeof ARQ_LIGA!=='undefined'&&ARQ_LIGA[league])||[1]).length)];
+      const fs=(typeof ARQ!=='undefined'&&ARQ[k]&&ARQ[k].forms)||_DT_ST;
+      return fs[s%fs.length];
+    })(),
+    trait:_DT_TR[s%_DT_TR.length],
     str:'DT de '+club,salary:Math.round((30+lgPow*12+s%30)),
     wantedPos:[_DT_POS[s%_DT_POS.length],_DT_POS[(s+3)%_DT_POS.length]],
     philosophy:'Su libreto en '+club,
@@ -15033,6 +15042,140 @@ function fmSwitch(){
 }
 
 // ═══ PERFIL TÁCTICO DEL DT: números reales que dirigen al equipo en la simulación ═══
+// ═══════════════════════════════════════════════════════════════════════
+// ARQUETIPOS DE JUEGO
+// ═══════════════════════════════════════════════════════════════════════
+// En el fútbol no hay 564 ideas distintas: hay una docena y media, y cada
+// técnico entra en alguna. Antes, el DT que no estaba en la tabla curada
+// recibía un rasgo sacado de un hash de su nombre — por eso dos técnicos
+// parecidos jugaban distinto y dos opuestos jugaban igual. Ahora cada uno
+// tiene un arquetipo, y lo único que sigue siendo propio de cada DT es la
+// formación.
+const ARQ={
+  posicional:{n:'Juego posicional',i:'♟️',d:'La pelota es del equipo: presión alta, línea alta y paciencia para abrir al rival.',
+    forms:['4-3-3','4-2-3-1','3-4-3'],
+    prof:{press:.92,line:.86,width:.78,tempo:.46,direct:.10,aggr:.45,counter:.20,flank:.55,cyn:.32,disc:.90}},
+  gegenpress:{n:'Presión y vértigo',i:'⚡',d:'Recuperarla arriba y atacar antes de que el rival se acomode.',
+    forms:['4-3-3','4-2-3-1','4-4-2'],
+    prof:{press:.92,line:.80,width:.62,tempo:.86,direct:.45,aggr:.75,counter:.80,flank:.60,cyn:.48,disc:.70}},
+  contragolpe:{n:'Contragolpe',i:'🗡️',d:'Bloque bajo, aguantar, y matarlo en la salida.',
+    forms:['5-3-2','4-4-2','5-4-1'],
+    prof:{press:.35,line:.20,width:.36,tempo:.55,direct:.78,aggr:.85,counter:.92,flank:.45,cyn:.88,disc:.90}},
+  bloquebajo:{n:'Bloque bajo',i:'🧱',d:'Todos atrás, sin riesgos, que no pase nada.',
+    forms:['5-4-1','5-3-2','4-4-2'],
+    prof:{press:.25,line:.18,width:.34,tempo:.40,direct:.62,aggr:.60,counter:.55,flank:.40,cyn:.80,disc:.88}},
+  directo:{n:'Juego directo',i:'🎯',d:'Pelotazo al área y a pelear la segunda.',
+    forms:['4-4-2','4-3-1-2','3-5-2'],
+    prof:{press:.50,line:.45,width:.55,tempo:.70,direct:.88,aggr:.72,counter:.65,flank:.55,cyn:.60,disc:.60}},
+  bandas:{n:'Por las bandas',i:'🪃',d:'Extremos al uno contra uno y centro al área.',
+    forms:['4-3-3','4-2-3-1','3-4-3'],
+    prof:{press:.58,line:.60,width:.85,tempo:.68,direct:.48,aggr:.55,counter:.58,flank:.92,cyn:.45,disc:.62}},
+  toque:{n:'Toque y creación',i:'🎩',d:'Circular y buscar al creativo. Atrás se sufre.',
+    forms:['4-3-1-2','4-2-3-1','4-4-2'],
+    prof:{press:.40,line:.52,width:.62,tempo:.50,direct:.28,aggr:.42,counter:.42,flank:.55,cyn:.42,disc:.40}},
+  equilibrado:{n:'Equilibrado',i:'⚖️',d:'Ni tan tan ni muy muy: orden y sentido común.',
+    forms:['4-4-2','4-2-3-1','4-3-3'],
+    prof:{press:.55,line:.52,width:.58,tempo:.55,direct:.50,aggr:.52,counter:.55,flank:.55,cyn:.52,disc:.65}},
+  copero:{n:'Copero',i:'🏆',d:'Lee el partido, administra la llave y no regala nada.',
+    forms:['4-4-2','5-3-2','4-2-3-1'],
+    prof:{press:.48,line:.40,width:.50,tempo:.52,direct:.60,aggr:.68,counter:.75,flank:.50,cyn:.85,disc:.85}},
+  vertical:{n:'Vertical',i:'➹',d:'Pocos toques y siempre hacia adelante, pero por abajo.',
+    forms:['4-2-3-1','4-3-3','3-5-2'],
+    prof:{press:.66,line:.64,width:.58,tempo:.82,direct:.62,aggr:.60,counter:.72,flank:.58,cyn:.50,disc:.62}},
+  formador:{n:'Formador',i:'🌱',d:'Pibes, paciencia y un libreto simple que todos entiendan.',
+    forms:['4-3-3','4-2-3-1','4-4-2'],
+    prof:{press:.58,line:.55,width:.60,tempo:.52,direct:.38,aggr:.45,counter:.50,flank:.58,cyn:.35,disc:.70}},
+  fisico:{n:'Intensidad física',i:'💪',d:'Correr más que el otro, disputar todo y no dejarlo jugar.',
+    forms:['4-4-2','3-5-2','4-3-3'],
+    prof:{press:.82,line:.58,width:.52,tempo:.78,direct:.65,aggr:.88,counter:.68,flank:.50,cyn:.62,disc:.58}},
+  ofensivo:{n:'Todo al ataque',i:'🔥',d:'Muchos arriba y que sea ida y vuelta. Atrás, lo que venga.',
+    forms:['4-3-3','3-4-3','4-2-3-1'],
+    prof:{press:.70,line:.78,width:.72,tempo:.80,direct:.45,aggr:.58,counter:.55,flank:.68,cyn:.35,disc:.42}},
+  resultadista:{n:'Resultadista',i:'🧊',d:'El resultado manda: cortar, enfriar y a otra cosa.',
+    forms:['5-3-2','4-4-2','5-4-1'],
+    prof:{press:.38,line:.32,width:.42,tempo:.45,direct:.70,aggr:.75,counter:.72,flank:.45,cyn:.94,disc:.86}},
+};
+const ARQ_KEYS=Object.keys(ARQ);
+// Escuelas: de qué arquetipos se nutre cada liga. NO es investigación sobre
+// cada técnico — es un reparto plausible por escuela futbolística para los
+// cientos de DTs de los que no hay análisis publicado. Los que sí tienen
+// idea conocida están en ARQ_DT, más abajo, y mandan sobre esto.
+const ARQ_LIGA={
+  'España':['posicional','toque','equilibrado','bandas','formador'],
+  'Premier':['gegenpress','fisico','directo','vertical','equilibrado','bandas'],
+  'Italia':['bloquebajo','contragolpe','equilibrado','resultadista','vertical'],
+  'Alemania':['gegenpress','vertical','posicional','fisico','formador'],
+  'Francia':['vertical','fisico','formador','equilibrado','gegenpress'],
+  'Holanda':['posicional','formador','ofensivo','bandas'],
+  'Portugal':['posicional','vertical','formador','equilibrado'],
+  'Brasil':['toque','vertical','bandas','ofensivo','equilibrado'],
+  'Liga ARG':['fisico','contragolpe','copero','directo','equilibrado','bandas','toque','vertical'],
+  'Uruguay':['fisico','contragolpe','copero','directo','equilibrado'],
+  'Chile':['vertical','equilibrado','fisico','bandas'],
+  'Colombia':['toque','bandas','equilibrado','vertical'],
+  'Perú':['equilibrado','contragolpe','bandas','directo'],
+  'Ecuador':['fisico','directo','equilibrado','contragolpe'],
+  'Paraguay':['fisico','contragolpe','directo','copero'],
+  'Bolivia':['directo','bloquebajo','equilibrado','fisico'],
+  'Venezuela':['equilibrado','directo','formador','fisico'],
+  'Liga MX':['ofensivo','vertical','bandas','equilibrado'],
+  'MLS':['fisico','directo','vertical','equilibrado','ofensivo'],
+  'Turquía':['ofensivo','directo','fisico','equilibrado'],
+  'Grecia':['bloquebajo','contragolpe','equilibrado','resultadista'],
+  'Bélgica':['formador','vertical','posicional','equilibrado'],
+  'Rusia':['fisico','bloquebajo','equilibrado','directo'],
+  'Arabia':['ofensivo','directo','equilibrado','bandas'],
+};
+// El arquetipo de cada DT con idea conocida. Lo demás sale de la escuela.
+const ARQ_DT={
+  // — los que ya tenían perfil investigado —
+  'Pep Guardiola':'posicional','Jorge Sampaoli':'posicional','Marcelo Bielsa (SEL)':'posicional',
+  'Diego Simeone':'contragolpe','José Mourinho':'resultadista','Eduardo Coudet':'gegenpress',
+  'Marcelo Gallardo':'gegenpress','Juan Pablo Vojvoda':'gegenpress','Néstor Gorosito':'toque',
+  'Rodolfo Arruabarrena':'bandas','Guillermo Barros Schelotto':'bandas',
+  // — Argentina —
+  'Jorge Almirón':'copero','Martín Palermo':'directo','Gabriel Milito':'toque',
+  'Ricardo Zielinski':'bloquebajo','Julio César Falcioni':'bloquebajo','Pedro Troglio':'directo',
+  'Mauricio Pellegrino':'equilibrado','Alexander Medina':'fisico','Frank Darío Kudelka':'equilibrado',
+  'Diego Martínez':'vertical','Julio Vaccari':'toque','Sebastián Domínguez':'formador',
+  'Leonardo Madelón':'directo','Ricardo Gareca':'equilibrado','Miguel Ángel Russo':'equilibrado',
+  'Ramón Díaz':'copero','Carlos Bianchi':'copero','Gustavo Alfaro':'copero',
+  'Gustavo Quinteros':'equilibrado','Gustavo Costas':'fisico','Claudio Úbeda':'formador',
+  'Diego Flores':'toque','Nicolás Diez':'toque','Damián Ayude':'formador',
+  // — Europa —
+  'Hansi Flick':'gegenpress','Xabi Alonso':'posicional','Mikel Arteta':'posicional',
+  'Roberto De Zerbi':'posicional','Enzo Maresca':'posicional','Andoni Iraola':'gegenpress',
+  'Unai Emery':'copero','David Moyes':'bloquebajo','Oliver Glasner':'vertical',
+  'Daniel Farke':'vertical','Vincent Kompany':'posicional','Niko Kovac':'fisico',
+  'Luis Enrique':'posicional','Rúben Amorim':'vertical','Luciano Spalletti':'posicional',
+  'Massimiliano Allegri':'resultadista','Gian Piero Gasperini':'fisico','Maurizio Sarri':'toque',
+  'Cesc Fàbregas':'posicional','Gennaro Gattuso':'fisico','Cristian Chivu':'equilibrado',
+  'Manuel Pellegrini':'toque','José Bordalás':'fisico','Marco Silva':'vertical',
+  'Francesco Farioli':'posicional','Peter Bosz':'ofensivo','Míchel Sánchez':'posicional',
+  'Giovanni van Bronckhorst':'equilibrado','Simone Inzaghi':'copero','Ange Postecoglou':'ofensivo',
+  'Brendan Rodgers':'posicional','Nuno Espírito Santo':'contragolpe','Carlos Corberán':'fisico',
+  'Quique Sánchez Flores':'bloquebajo','Paulo Fonseca':'vertical','Vincenzo Italiano':'vertical',
+  'Filippo Inzaghi':'directo','Daniele De Rossi':'equilibrado','Ivan Jurić':'fisico',
+  // — Sudamérica y resto —
+  'Abel Ferreira':'copero','Fernando Diniz':'toque','Dorival Júnior':'equilibrado',
+  'Rogério Ceni':'vertical','Cuca':'equilibrado','Artur Jorge':'vertical',
+  'Fernando Gago':'posicional','Hernán Crespo':'vertical','Matías Almeyda':'fisico',
+  'Antonio Mohamed':'ofensivo','Miguel Herrera':'fisico','Gabriel Milito ':'toque',
+  'Ariel Holan':'posicional','Pablo Guede':'fisico','Héctor Cúper':'bloquebajo',
+  'Diego Aguirre':'copero','Jorge Fossati':'equilibrado','Tata Martino':'toque',
+  'Gregg Berhalter':'equilibrado','Bruce Arena':'equilibrado','Gerardo Martino':'toque',
+};
+// Qué arquetipo le toca a este DT
+function dtArqKey(dt){
+  if(!dt)return 'equilibrado';
+  if(dt.customProf)return null;                       // tu DT propio no usa arquetipo
+  if(dt.arq&&ARQ[dt.arq])return dt.arq;
+  const n=dt.name||'';
+  if(ARQ_DT[n])return ARQ_DT[n];
+  const pool=ARQ_LIGA[dt.league]||ARQ_KEYS;
+  return pool[_dtSeed(n)%pool.length];
+}
+function dtArq(dt){ const k=dtArqKey(dt); return k?ARQ[k]:null; }
 function dtProfile(dt){
   // DT personalizado con perfil manual: TU idea de juego manda
   if(dt&&dt.customProf){
@@ -15117,16 +15260,29 @@ function dtProfile(dt){
     // presionando a los centrales, "que el equipo no sea timorato".
     'Rodolfo Arruabarrena':{press:.62,line:.60,tempo:.62,direct:.44,width:.72,counter:.56,flank:.82,aggr:.56,cyn:.50,disc:.56},
   };
-  const o=Object.assign({},base,T[t]||{},REAL[(dt&&dt.name)||'']||{});
+  // Orden: base → rasgo viejo → ARQUETIPO → perfil investigado (el más
+  // específico manda). El arquetipo cubre a los cientos de DTs que antes
+  // caían en un rasgo sacado de un hash del nombre.
+  const _arq=(typeof dtArq==='function')?dtArq(dt):null;
+  const o=Object.assign({},base,T[t]||{},(_arq&&_arq.prof)||{},REAL[(dt&&dt.name)||'']||{});
   if(style==='5-3-2'||style==='5-4-1'){o.line=Math.min(o.line,.35);o.width=Math.max(.2,o.width-.1);o.counter=Math.min(1,o.counter+.10);}
   if(style==='4-3-3'||style==='3-4-3'){o.width=Math.min(1,o.width+.15);o.flank=Math.min(1,o.flank+.10);}
   if(style==='4-2-3-1'){o.tempo=Math.min(1,o.tempo+.05);}
   return o;
 }
+// Chapita del arquetipo: qué idea de juego tiene este técnico
+function dtArqBadge(dt){
+  const a=(typeof dtArq==='function')?dtArq(dt):null;
+  if(!a)return '<div style="font-size:9px;color:var(--gold);margin-top:4px">🛠️ Idea propia (DT personalizado)</div>';
+  return `<div style="margin-top:5px;padding:5px 7px;background:rgba(246,211,24,.07);border:1px solid var(--bdr);border-radius:6px">
+    <div style="font-size:10px;font-weight:700;color:var(--gold)">${a.i} ${a.n}</div>
+    <div style="font-size:9px;color:var(--t3);line-height:1.3;margin-top:2px">${a.d}</div>
+  </div>`;
+}
 function dtProfBars(dt){
   const pr=dtProfile(dt);
   const row=(l,v)=>`<div style="display:flex;align-items:center;gap:4px;font-size:8px;color:var(--t3)"><span style="width:46px;flex-shrink:0">${l}</span><div style="flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden"><div style="width:${Math.round(v*100)}%;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),#e8b800)"></div></div><span style="width:16px;text-align:right;color:var(--t2)">${Math.round(v*10)}</span></div>`;
-  return `<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)+row('Contragolpe',pr.counter)+row('Bandas',pr.flank)+row('Oficio',pr.cyn)+row('Disciplina',pr.disc)}</div>`;
+  return dtArqBadge(dt)+`<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)+row('Contragolpe',pr.counter)+row('Bandas',pr.flank)+row('Oficio',pr.cyn)+row('Disciplina',pr.disc)}</div>`;
 }
 
 function fmAI(p,team,idx,dt){
