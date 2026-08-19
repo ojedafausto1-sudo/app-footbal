@@ -56,6 +56,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <div id="leagueChecks" class="check-group"></div>
   <br>
   <button onclick="extractAll()">3. Extraer jugadores de ligas seleccionadas</button>
+  <button class="secondary" onclick="extractAll(true)">3b. Extraer SÓLO los DTs (rápido, sin planteles)</button>
 </div>
 
 <div class="panel">
@@ -559,7 +560,7 @@ async function discoverFS() {
 }
 
 // ========== EXTRACT PLAYERS ==========
-async function extractAll() {
+async function extractAll(soloDTs) {
   API_KEY = document.getElementById('apiKey').value.trim();
   allPlayers = [];
 
@@ -568,6 +569,15 @@ async function extractAll() {
   if (selected.length === 0) { alert('Seleccioná al menos una liga'); return; }
 
   const api = selected[0].api || getApiChoice();
+
+  // ═══ SÓLO DTs ═══ un pedido por club, sin bajar un solo plantel
+  if (soloDTs) {
+    if (api !== 'transfermarkt') { alert('Los DTs sólo se pueden sacar por TransferMarkt.'); return; }
+    log(`\nSólo DTs: ${selected.length} liga(s). No se baja ningún plantel.`);
+    await extractDTsOnly(selected);
+    return;
+  }
+
   log(`\nExtrayendo ${selected.length} ligas via ${api}...`);
 
   if (api === 'transfermarkt') {
@@ -581,26 +591,14 @@ async function extractAll() {
   generateOutput();
 }
 
-// TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
-async function extractTM(selected) {
-  let totalTeams = 0, totalPlayers = 0;
-  if(!Object.keys(window._tmCountries||{}).length){
-    const cs=await apiGet('/countries','transfermarkt');
-    if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
-    log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
-  }
-  const wantNats = (document.getElementById('fillNats')||{}).checked;
-  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
-  allCoaches = [];
-
-  for (let li = 0; li < selected.length; li++) {
-    const lg = selected[li];
-    setProgress((li / selected.length) * 95);
-    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
-
+// ═══ DE UNA LIGA A SU LISTA DE CLUBES ═══
+// Estaba embebido dentro de extractTM, así que para sacar los DTs había que
+// bajar TODOS los planteles. Acá afuera lo puede usar también el modo
+// "sólo DTs", que no toca los planteles.
+async function clubsDeLiga(lg, li) {
     // Step 1: Get competition details (has seasons array)
     const comp = await apiGet(`/competitions/${lg.id}`, 'transfermarkt');
-    if (!comp) { log('  ✗ No se pudo obtener la competición'); continue; }
+    if (!comp) { log('  ✗ No se pudo obtener la competición'); return []; }
 
     if (li < 3) {
       log('  Competición keys: ' + JSON.stringify(Object.keys(comp)));
@@ -632,7 +630,7 @@ async function extractTM(selected) {
       if (directStandings) {
         currentSeason = { standingsUrl: `/competitions/${lg.id}/standings` };
       } else {
-        continue;
+        return [];
       }
     }
 
@@ -665,7 +663,7 @@ async function extractTM(selected) {
       }
     }
 
-    if (!standingsData) { log('  ✗ Sin standings'); continue; }
+    if (!standingsData) { log('  ✗ Sin standings'); return []; }
 
     if (li < 3) {
       log('  Standings keys: ' + JSON.stringify(Object.keys(standingsData)));
@@ -702,6 +700,70 @@ async function extractTM(selected) {
       log('  Club keys: ' + JSON.stringify(Object.keys(clubs[0])));
     }
 
+    return clubs;
+}
+
+// ═══ SÓLO DTs ═══
+// El DT se bajaba dentro del bucle que recorre club por club trayendo el
+// plantel completo: para actualizar los técnicos había que volver a bajar
+// todos los jugadores (y pagar los créditos que eso cuesta). Este modo llega
+// a la lista de clubes por el mismo camino (competición → temporada →
+// standings, que es gratis y son pocos pedidos) y de ahí hace UNA consulta
+// por club a tmcoach. Ni un plantel de por medio.
+async function extractDTsOnly(selected) {
+  allCoaches = [];
+  let clubesVistos = 0;
+  for (let li = 0; li < selected.length; li++) {
+    const lg = selected[li];
+    setProgress((li / selected.length) * 95);
+    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
+    const clubs = await clubsDeLiga(lg, li);
+    if (!clubs.length) continue;
+    log(`  ${clubs.length} clubes — buscando sus DTs`);
+    for (let ci = 0; ci < clubs.length; ci++) {
+      const club = clubs[ci];
+      const clubName = String(club.name || club.clubName || club.club || club.teamName || '');
+      const clubId = club.id || club.clubId || club.ID || '';
+      if (!clubId) continue;
+      clubesVistos++;
+      const dtRes = await apiGet(`/verein/${clubId}`, 'tmcoach');
+      if (dtRes && dtRes.coach && dtRes.coach.name) {
+        allCoaches.push({ name: dtRes.coach.name, club: clubName, league: lg.name, country: lg.country });
+        log(`  🎩 ${clubName}: ${dtRes.coach.name}`);
+      } else {
+        log(`  — ${clubName}: sin DT`);
+      }
+    }
+  }
+  setProgress(100);
+  log(`\n=== ${allCoaches.length} DTs de ${clubesVistos} clubes ===`);
+  if (!allCoaches.length) {
+    log('Ningún DT. Si el log dice ERROR 400 en /verein/..., tu proxy no soporta tmcoach.');
+    return;
+  }
+  log('Listo. Apretá "Descargar DTs (dts-db.js)" — respeta las edades y');
+  log('nacionalidades que ya tengas curadas a mano en dts-db.js.');
+}
+
+// TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
+async function extractTM(selected) {
+  let totalTeams = 0, totalPlayers = 0;
+  if(!Object.keys(window._tmCountries||{}).length){
+    const cs=await apiGet('/countries','transfermarkt');
+    if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
+    log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
+  }
+  const wantNats = (document.getElementById('fillNats')||{}).checked;
+  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
+  allCoaches = [];
+
+  for (let li = 0; li < selected.length; li++) {
+    const lg = selected[li];
+    setProgress((li / selected.length) * 95);
+    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
+
+    const clubs = await clubsDeLiga(lg, li);
+    if (!clubs.length) continue;
     log(`  ${clubs.length} clubs reales encontrados`);
     totalTeams += clubs.length;
 

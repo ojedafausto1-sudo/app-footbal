@@ -81,6 +81,14 @@ temporada completa (450 fixtures) y el ciclo de fichaje.
 La nacionalidad cuesta **1 crédito por jugador**, por eso está detrás de un
 checkbox aparte (`deepNats`). El Worker la cachea 30 días.
 
+Los DTs salían **sólo** dentro del bucle que baja plantel por plantel, así que
+actualizar los técnicos obligaba a rebajar todos los jugadores (y a pagar los
+créditos). La búsqueda de clubes se extrajo a `clubsDeLiga(lg, li)` y ahora hay
+un botón **"3b. Extraer SÓLO los DTs"** (`extractAll(true)` → `extractDTsOnly`)
+que llega a la lista de clubes por standings —gratis, pocos pedidos— y hace UNA
+consulta `tmcoach` por club. Medido con proxy simulado: 5 pedidos y 0 planteles
+contra 12 pedidos del modo normal.
+
 ⚠️ El diagnóstico (`testExtras`) consultaba `tmapi` una vez **por club** aunque
 ya supiera que está caída, y su `ERROR 500 en /clubs/189/players` no decía de
 qué fuente venía — parecía que fallaban los planteles cuando lo que fallaba era
