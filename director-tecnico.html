@@ -15364,8 +15364,24 @@ function fmAI(p,team,idx,dt){
       // Medido: 7,7 gambetas por partido (un partido real tiene 30-50). Tocaba
       // tan rápido que casi nunca llegaba a la rama de encarar. Baja el toque
       // automático para que aguante y busque el uno contra uno.
-      const oneTouch=(0.095+prof.tempo*0.15+counterBoost*0.12)*(holding?0.6:1);
-      const passBase=holding?0.20:(0.098+prof.tempo*0.10+counterBoost*0.05);
+      // ═══ NO LA SUELTA AL TOQUE ═══
+      // Con 0,095 + ritmo, en los 8 ticks siguientes a recibir la soltaba de
+      // primera casi siempre: por eso parecía que nadie miraba antes de pasar.
+      // El toque de primera es un recurso, no la norma: sale cuando lo vienen
+      // a apretar, en una pared, o si el técnico juega a un toque de verdad.
+      const _apretado=rivals.some(o=>!o.isGK&&Math.hypot(o.x-p.x,o.y-p.y)<78);
+      const oneTouch=((_apretado?0.085:0.010)+prof.tempo*(_apretado?0.13:0.025)
+                      +counterBoost*0.10)*(holding?0.6:1);
+      // ═══ LEVANTA LA CABEZA ═══
+      // Antes de soltarla se toma un momento para buscar. Cuanto más pausado el
+      // técnico, más se la aguanta. Si lo aprietan, no hay tiempo de mirar.
+      // OJO con la escala: un tick son ~0,4s de juego. Con 9+30 ticks se la
+      // aguantaba diez segundos y el equipo de posesión terminaba perdiéndola.
+      // Dos segundos de pausa alcanzan para que se note que levanta la cabeza.
+      const _mirando=(f.ticks-(p._recvTick||0))<(2.5+(1-(prof.tempo||0.5))*7)&&!_apretado;
+      // Medido: Guardiola daba MENOS pases que Simeone, al revés de la realidad.
+      // La frecuencia de pase no miraba la idea de juego, sólo el ritmo.
+      const passBase=holding?0.20:(0.062+(1-prof.direct)*0.095+prof.tempo*0.065+counterBoost*0.05);
       // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
       const wide=Math.abs(b.y-mid)>f.VH*0.27;
       const nearByline=distGoal<fieldW*0.22;
@@ -15413,7 +15429,7 @@ function fmAI(p,team,idx,dt){
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
-      } else if(!clearOnGoal&&Math.random()<passBase*dt){
+      } else if(!clearOnGoal&&!_mirando&&Math.random()<passBase*dt){
         // sólo pasa si NO está de cara al gol (si está solo, encara/define)
         fmTeamPass(team,idx);
       } else {
@@ -15455,7 +15471,13 @@ function fmAI(p,team,idx,dt){
           _pegar(dirF*0.75,s*0.66,0.105+reg/1000);
           // ¿lo supera limpio? según regate vs marca
           const def=(nearDef.attrs&&nearDef.attrs.DEF)||nearDef.rat||70;
-          if(nearD<p.r+nearDef.r+40&&Math.random()<0.048*dt*(1+(reg-def)/45)){
+          // ═══ MÁS REGATE, Y QUE DEPENDA DE QUIÉN Y DE QUÉ DT ═══
+          // Era 0,048 fijo: un crack de 88 de regate encaraba igual que un
+          // central. Ahora pesa el regate del jugador y la idea del técnico —
+          // el que juega corto y elaborado encara mucho más que el que la
+          // quiere mandar larga.
+          const _atrev=0.040+(1-(prof.direct||0.5))*0.038+Math.max(0,reg-70)/100*0.075;
+          if(nearD<p.r+nearDef.r+42&&Math.random()<_atrev*dt*(1+(reg-def)/40)){
             // lo pasó: acá SÍ la empuja al espacio y pica
             b.vx=dirF*5.6;b.vy=s*2.4;p._dribT=8;p._carryLong=f.ticks+16;
             if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
@@ -15560,7 +15582,7 @@ function fmAI(p,team,idx,dt){
             // Antes esto llegaba hasta 27 metros del arco con 65% de chance: un
             // quite lejísimos del área terminaba en córner y parecía cobrado en
             // mitad de cancha. Ahora es el área grande y nada más.
-            if(Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.9&&Math.random()<0.42){
+            if(Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.9&&Math.random()<0.58){
               b.x=ownGX;b.y=b.y<mid?18:f.VH-18;b.vx=0;b.vy=0;b.air=0;b.isShot=null;
               const _att=team==='my'?'opp':'my';
               f._lastTouch=team;
@@ -15638,6 +15660,37 @@ function fmAI(p,team,idx,dt){
       fmMove(p,tx-p.x+sepX*0.5,ty-p.y+sepY*0.5,dt,mark&&theyHave?0.068:0.056);
     }
   } else if(weHave){
+    // ═══ EL QUE VA A RECIBIR, VA A BUSCARLA ═══
+    // Antes, mientras el pase viajaba, la posesión quedaba en nadie y este
+    // jugador entraba por la rama de pelota dividida: el más cercano iba a
+    // buscarla. Al pasar la posesión al equipo que tocó último (para que el
+    // bloque no se desarmara en cada pase), el equipo entero quedó en "la
+    // tenemos" y NADIE iba a buscar la pelota: el pase llegaba a donde el
+    // compañero ESTABA y él seguía haciendo su desmarque para otro lado.
+    // Medido: sólo el 21-25% de los pases terminaba en un compañero, cuando en
+    // un partido real se completa el 78-85%. Eso son los "pases a la nada".
+    const _voyYo=p._recvTick&&Math.abs(f.ticks-p._recvTick)<90;
+    // El que espera el pase arranca YA, no cuando la pelota queda suelta: los
+    // que presionan salen al punto de llegada desde el momento del pase, así
+    // que si el receptor espera unos ticks siempre llegan ellos primero.
+    if((!f.poss||_voyYo)&&!(b.air>13)){
+      const voyYo=_voyYo;
+      let masCerca=!p.isGK;
+      for(const q of players){
+        if(q===p||q.isGK)continue;
+        if(Math.hypot(q.x-b.x,q.y-b.y)<bd-8){masCerca=false;break;}
+      }
+      if((voyYo||masCerca)&&!p.isGK){
+        // al punto donde va a llegar, no a donde está
+        const vel=Math.hypot(b.vx,b.vy);
+        const pasos=vel>0.4?Math.min(26,bd/vel):0;
+        const cx=b.x+b.vx*pasos*0.55, cy=b.y+b.vy*pasos*0.55;
+        fmMove(p,cx-p.x,cy-p.y,dt,0.100+((p.attrs&&p.attrs.pac)||70)/2600);
+        p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+        p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+        return;
+      }
+    }
     // ═══ MI EQUIPO LA TIENE: NADIE persigue — abrirse y dar opciones de pase ═══
     // UNO-DOS: el que acaba de pasar pica al vacío hacia adelante para la devolución
     if(p._giveGo&&(f.ticks-p._giveGo)<55&&(f.ticks-p._giveGo)>2){
@@ -15757,7 +15810,11 @@ function fmTeamPass(team,fromIdx){
     squad.forEach((t,i)=>{
       if(i===fromIdx||t.isGK)return;
       const d=Math.hypot(t.x-b.x,t.y-b.y);
-      if(d<fieldW*0.30)return;               // sólo pases realmente largos
+      // Pedía SIEMPRE 30% de cancha. Un equipo directo juega compacto y atrás,
+      // así que nunca tenía a nadie tan lejos y terminaba tirando menos
+      // pelotazos que uno de posesión — justo al revés. El umbral lo fija la
+      // idea de juego: al directo le alcanza con mandarla más adelante.
+      if(d<fieldW*(0.34-(prof.direct||0.5)*0.15))return;
       const openN=rivals.reduce((a,m)=>a+(Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
       const fwd=attRight?(t.x-b.x):(b.x-t.x);
       const crossField=Math.abs(t.y-b.y);    // premia el cambio de banda
@@ -15792,11 +15849,36 @@ function fmTeamPass(team,fromIdx){
     const isOff=inRivalHalf&&(attRight?(t.x>offLine+16):(t.x<offLine-16))&&(attRight?(t.x>b.x+30):(t.x<b.x-30));
     // apertura: cuántos rivales tiene cerca (preferir al que está SOLO)
     const near=rivals.reduce((a,m)=>a+(!m.isGK&&Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
-    const blocked=rivals.some(m=>{const mx=(b.x+t.x)/2,my2=(b.y+t.y)/2;return Math.hypot(m.x-mx,m.y-my2)<d*0.28;});
+    // ═══ LA LÍNEA DE PASE ═══
+    // Antes sólo se miraba si había un rival cerca del PUNTO MEDIO, con una
+    // multa de 45 puntos sobre puntajes de varios cientos: se pasaba entre dos
+    // rivales como si nada. Medido: al 58-67% de los pases los cortaba alguien.
+    // Ahora se proyecta a cada rival sobre la recta pasador→receptor y cuenta
+    // el que esté de verdad metido en el camino.
+    // Un radio fijo de 62px no alcanza: lo que importa no es si el rival ESTÁ
+    // en el camino, sino si LLEGA. Medido, la mitad de los pases los cortaban.
+    // Para cada rival se compara cuánto tarda la pelota en pasar por su altura
+    // contra cuánto tarda él en llegar a la línea. Así un pase corto es seguro
+    // y uno largo por el medio es una locura, sin números mágicos.
+    const _ux=(t.x-b.x)/d, _uy=(t.y-b.y)/d;
+    const _velPase=Math.max(2.9,Math.min(9.6,2.1+d*0.0130));
+    let enLinea=0;
+    for(const m of rivals){
+      if(m.isGK)continue;
+      const proj=(m.x-b.x)*_ux+(m.y-b.y)*_uy;
+      if(proj<14||proj>d+30)continue;                       // no está en el camino
+      const perp=Math.abs((m.x-b.x)*_uy-(m.y-b.y)*_ux);
+      const tPelota=proj/_velPase;
+      const tRival=Math.max(0,perp-26)/Math.max(0.7,(m.spd||1.5));
+      if(tRival<tPelota+4)enLinea++;                        // llega a cortarla
+    }
+    const blocked=enLinea>0;
     const recvOwnDist=attRight?(t.x-f.leftGL):(f.rightGL-t.x);
     const suicidal=fwdScore<0&&recvOwnDist<fieldW*0.24;
     // PESO VERTICAL más bajo → la pelota circula (no todo es para adelante)
-    let fwdW=(0.20+prof.direct*0.38)+(inTrans?(prof.counter||0.5)*0.45:0);
+    // El peso de progresar iba de 0,20 a 0,58: demasiado parecido entre un
+    // técnico de posesión y uno directo. Ahora va de 0,10 a 0,80.
+    let fwdW=(0.10+prof.direct*0.70)+(inTrans?(prof.counter||0.5)*0.45:0);
     if(holding)fwdW=0.06;
     const isWall=f._lastPasser&&f._lastPasser.team===team&&f._lastPasser.i===i&&d<300;
     const wideness=Math.abs(t.y-mid5)/(f.VH/2);
@@ -15804,7 +15886,8 @@ function fmTeamPass(team,fromIdx){
     const roleBonus=(t.roleStyle==='Organizador')?18:0;
     // En campo rival, un pase para atrás es poco atractivo (no la pasan atrás con gente arriba)
     const ballAdvanced=attRight?(b.x>f.VW*0.55):(b.x<f.VW*0.45);
-    const backwardPen=(ballAdvanced&&fwdScore<-40)?70:0;
+    // Al directo le duele retroceder; al de posesión no le molesta reciclar.
+    const backwardPen=(fwdScore<-40)?((16+(prof.direct||0.5)*210)*(ballAdvanced?1:0.45)):0;
     // Medido: 0 pases cortos en 45 minutos, todos de 19m para arriba. El peso
     // vertical le ganaba siempre a la distancia y la pelota iba de un área a la
     // otra. Ahora el pase cómodo (hasta ~9m) no paga nada y el largo se encarece
@@ -15816,7 +15899,11 @@ function fmTeamPass(team,fromIdx){
       + flankBias+roleBonus
       + (isWall?46+((prof.tempo||0.5)*30):0)    // la pared de vuelta, más buscada
       + Math.random()*40                        // variedad real de pases
-      - (blocked?45:0)
+      // ═══ CUÁNTO RIESGO CORRE, LO DECIDE EL DT ═══
+      // Un equipo de posesión no mete la pelota entre dos: la mueve y espera.
+      // Uno directo se la juega. Antes la multa era la misma para todos, y por
+      // eso los dos jugaban igual.
+      - enLinea*(250-(prof.direct||0.5)*190)
       - (suicidal?90:0)
       - backwardPen
       - (isOff?150:0);                          // casi nunca le pasa a un offside
