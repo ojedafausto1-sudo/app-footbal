@@ -34,6 +34,12 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Liga Argentina con formato real**: 30 clubes, 2 zonas de 15, Apertura +
   Clausura, los 8 primeros de cada zona a playoffs (octavos → final), descensos
   por **tabla anual**. Todo en `arBuildZones` / `arBuildTournament` / `arSimPair`.
+- **El sorteo de zonas parte los clásicos**: `AR_CLASICOS` (10 parejas) se
+  reparte una a cada zona ANTES que el resto, así la fecha interzonal
+  (`zone:'INT'`, la última de cada torneo) es la fecha de los clásicos: 10 de
+  los 15 partidos. La localía se da vuelta entre Apertura y Clausura. Tu club
+  siempre queda etiquetado como Zona A (si le tocó la B se dan vuelta los
+  nombres, no los clubes).
 - **Extranjeros**: un nacionalizado NO ocupa cupo. `isForeign(nat, nat2)`. El
   cupo se cumple en el ONCE (`autoFill`, `clickSlot`, `doSub`), no en el plantel.
 - **Copas internacionales**: Libertadores y Sudamericana comparten motor
@@ -41,6 +47,14 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   semis → final, **una ronda sorteada por vez**. Ganar la Libertadores habilita
   Recopa y Mundial de Clubes al año siguiente (`armarRecopa`,
   `armarMundialClubes`, `resolveCopaCorta`).
+- **El grupo de copa es un grupo de verdad**: 4 clubes, 6 fechas, ida y vuelta.
+  Tus 6 partidos van a `G.calendar`; los otros 6 (rival vs rival) viven en
+  `G.intGrp.fix` y los juega `intGrpPlay(fecha)` desde `simMatch` apenas jugás
+  el tuyo, así los cuatro van siempre con los mismos PJ. La tabla sale de
+  `intGrpTabla()` (nunca de una fórmula) y **clasifican los dos primeros**.
+  Armado en `intBuildGroup` / `intGroupFixture`; la fuerza de cada rival sale
+  del bombo (`INT_POW`). `intSimGoals` usa un multiplicador más suave que
+  `arSimPair` (1.9 vs 3.2): con el de la liga el grupo terminaba 21:1.
 - **Tácticas de los DTs**: 14 arquetipos (`ARQ`) asignados por
   `ARQ_DT` (a mano, ~100 nombres) → `ARQ_LIGA` (default por escuela) →
   hash. La tabla `REAL` de `dtProfile()` pisa al arquetipo. La formación sale

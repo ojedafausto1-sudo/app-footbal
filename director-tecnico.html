@@ -1884,13 +1884,43 @@ const AR_CLUBS=['Boca Juniors','River Plate','Racing Club','Independiente','San 
 
 function _shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-// Reparte los 30 clubes en 2 zonas de 15 (tu club siempre entra)
+// ═══ LOS CLÁSICOS VAN SEPARADOS ═══
+// La AFA sortea las zonas con una condición: los clásicos quedan en zonas
+// DISTINTAS, para que la fecha interzonal sea la fecha de los clásicos.
+// Antes el sorteo era al azar puro y el 48% de las parejas caía junta: cuando
+// eso pasaba, el interzonal te daba Boca–Sarmiento en vez del Superclásico.
+// Son 10 parejas sobre los 30 clubes; los 10 que sobran se reparten 5 y 5.
+const AR_CLASICOS=[
+  ['Boca Juniors','River Plate'],           // Superclásico
+  ['Racing Club','Independiente'],          // Avellaneda
+  ['San Lorenzo','Huracán'],                // Bajo Flores
+  ['Rosario Central',"Newell's"],           // Rosario
+  ['Estudiantes LP','Gimnasia'],            // La Plata
+  ['Lanús','Banfield'],                     // el Sur
+  ['Argentinos Jrs.','Vélez Sarsfield'],    // Paternal – Liniers
+  ['Platense','Tigre'],                     // zona norte
+  ['CA Talleres','Belgrano'],               // Córdoba
+  ['Godoy Cruz','Ind. Rivadavia'],          // Mendoza
+];
+
+// Reparte los 30 clubes en 2 zonas de 15 (tu club siempre entra, y siempre
+// en la Zona A: las tablas de la pantalla principal cuentan con eso).
 function arBuildZones(teamName){
   const pool=AR_CLUBS.includes(teamName)?[...AR_CLUBS]:[teamName,...AR_CLUBS.slice(0,29)];
-  const rest=_shuf(pool.filter(c=>c!==teamName));
-  const A=[teamName,...rest.slice(0,14)];
-  const B=rest.slice(14,29);
-  return {A:_shuf(A),B};
+  const hay=new Set(pool);
+  const A=[],B=[],puesto=new Set();
+  // 1) Primero los clásicos: uno de cada pareja a cada zona
+  _shuf(AR_CLASICOS.filter(([x,y])=>hay.has(x)&&hay.has(y))).forEach(([x,y])=>{
+    if(puesto.has(x)||puesto.has(y))return;
+    const [a,b]=Math.random()<0.5?[x,y]:[y,x];
+    A.push(a);B.push(b);puesto.add(x);puesto.add(y);
+  });
+  // 2) Los que no tienen clásico se reparten parejo
+  _shuf(pool.filter(c=>!puesto.has(c))).forEach(c=>{(A.length<=B.length?A:B).push(c);});
+  // 3) Tu club manda: si le tocó la B, se dan vuelta los nombres de las zonas
+  //    (no se mueve ningún club, así los clásicos siguen partidos)
+  const mia=A.includes(teamName)?A:B, otra=A.includes(teamName)?B:A;
+  return {A:_shuf(mia),B:_shuf(otra)};
 }
 
 // Round-robin (método del círculo) con localía ALTERNADA.
@@ -1943,20 +1973,23 @@ function arBuildTournament(zones,phase,startWeek){
     (rA[r]||[]).forEach(([h,a])=>fx.push({week:wk,comp:'Liga Profesional',phase,zone:'A',fecha:r+1,home:h,away:a,played:false,result:null,score:null}));
     (rB[r]||[]).forEach(([h,a])=>fx.push({week:wk,comp:'Liga Profesional',phase,zone:'B',fecha:r+1,home:h,away:a,played:false,result:null,score:null}));
   }
-  // Fecha interzonal: cada club de A enfrenta a uno de B (los clásicos primero)
+  // ═══ FECHA INTERZONAL: LA FECHA DE LOS CLÁSICOS ═══
+  // Como arBuildZones garantiza que cada pareja quedó partida, acá se arman
+  // los 10 clásicos y recién después se emparejan los 5 clubes sueltos de cada
+  // zona. En el Apertura la localía es de uno y en el Clausura del otro, así el
+  // clásico se juega una vez en cada cancha a lo largo del año.
   const wkInter=startWeek+nR;
-  const CLASICOS={'Boca Juniors':'River Plate','Racing Club':'Independiente','San Lorenzo':'Huracán',
-    'Rosario Central':"Newell's",'Estudiantes LP':'Gimnasia','Lanús':'Banfield'};
   const usedA=new Set(),usedB=new Set();
-  Object.entries(CLASICOS).forEach(([x,y])=>{
+  const clasicos=[];
+  AR_CLASICOS.forEach(([x,y])=>{
     const inA=zones.A.includes(x)?x:zones.A.includes(y)?y:null;
     const inB=zones.B.includes(x)?x:zones.B.includes(y)?y:null;
-    if(inA&&inB&&!usedA.has(inA)&&!usedB.has(inB)){
-      usedA.add(inA);usedB.add(inB);
-      const homeFirst=phase==='apertura';
-      fx.push({week:wkInter,comp:'Liga Profesional',phase,zone:'INT',fecha:nR+1,
-        home:homeFirst?inA:inB,away:homeFirst?inB:inA,played:false,result:null,score:null});
-    }
+    if(!inA||!inB||inA===inB||usedA.has(inA)||usedB.has(inB))return;
+    usedA.add(inA);usedB.add(inB);
+    const localA=phase==='apertura';
+    fx.push({week:wkInter,comp:'Liga Profesional',phase,zone:'INT',fecha:nR+1,clasico:true,
+      home:localA?inA:inB,away:localA?inB:inA,played:false,result:null,score:null});
+    clasicos.push(inA+' vs '+inB);
   });
   const restA=_shuf(zones.A.filter(c=>!usedA.has(c))), restB=_shuf(zones.B.filter(c=>!usedB.has(c)));
   restA.forEach((h,i)=>{const a=restB[i];if(!a)return;
@@ -1973,6 +2006,7 @@ function arAttachLeague(){
   G.arPhases=L.phases;
   G.arPlayoff=null;G.arLastRound=[];
   G.libPotRivals=buildCal._libPotRivals||[];
+  G.intGrp=buildCal._intGrp||null;  // fixture del grupo de copa (los otros 3 entre sí)
   G.league=null;                    // se reconstruye con los 30 clubes
 }
 
@@ -2041,20 +2075,22 @@ function buildCal(teamName, teamId){
   const resolvedTeamId = teamId || (G&&G.teamId) || 'boca';
   const tc=TEAMS[resolvedTeamId];
   const qualifiesLib=(tc&&tc.initRep>=72)||!!(G&&G.qualifiedLib);
+  // ═══ EL GRUPO ES UN GRUPO: 4 CLUBES, TODOS CONTRA TODOS, IDA Y VUELTA ═══
+  // Los otros tres también juegan entre ellos (intBuildGroup deja ese fixture
+  // aparte y lo levanta arAttachLeague en G.intGrp).
   if(qualifiesLib){
-    const libWeeks = [2,4,6,8,11,13,16,18];
-    libG.forEach(([r,nat],i) => {
-      sch.push({week:libWeeks[i*2],   comp:'Copa Libertadores - Grupos', home:teamName, away:r, played:false,result:null,score:null});
-      sch.push({week:libWeeks[i*2+1], comp:'Copa Libertadores - Grupos', home:r, away:teamName, played:false,result:null,score:null});
-    });
+    const libWeeks=[2,4,6,8,11,13];
+    // libG son los bombos 2, 3 y 4 del sorteo: el índice es la jerarquía
+    const {mios,grupo}=intBuildGroup('lib',teamName,libG.map(([r],i)=>[r,i+1]),libWeeks);
+    mios.forEach(m=>sch.push(m));
+    buildCal._intGrp=grupo;
   } else {
-    const sudWeeks=[3,5,7,9,12,14,17,19];
+    const sudWeeks=[3,5,7,9,12,14];
     const sudPool=[['Peñarol','URU'],['Ind. Medellín','COL'],['Emelec','ECU'],['Cerro Porteño','PAR'],['Deportivo Cali','COL'],['Liga de Quito','ECU'],['Defensor Sporting','URU'],['Sol de América','PAR']];
-    const sudRivals=shuf(sudPool).slice(0,4);
-    sudRivals.forEach(([r,nat],i)=>{
-      sch.push({week:sudWeeks[i*2],   comp:'Copa Sudamericana - Grupos', home:teamName, away:r, played:false,result:null,score:null});
-      sch.push({week:sudWeeks[i*2+1], comp:'Copa Sudamericana - Grupos', home:r, away:teamName, played:false,result:null,score:null});
-    });
+    const sudRivals=shuf(sudPool).slice(0,3);
+    const {mios,grupo}=intBuildGroup('sud',teamName,sudRivals.map(([r],i)=>[r,i]),sudWeeks);
+    mios.forEach(m=>sch.push(m));
+    buildCal._intGrp=grupo;
   }
   // ═══ LA COPA SE SORTEA RONDA A RONDA ═══
   // Antes se metían las CINCO rondas en el calendario desde la semana 1, con
@@ -2064,6 +2100,8 @@ function buildCal(teamName, teamId){
   buildCal._caPool=caPool.slice();
   buildCal._caGrandes=caFinalRivals.slice();
   sch.push({week:3, comp:caRnds[0], home:teamName, away:caOpps[0], played:false,result:null,score:null});
+  // arAttachLeague corrió más arriba, cuando el grupo todavía no estaba armado
+  if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
   return sch.sort((a,b)=>a.week-b.week);
 }
 
@@ -2088,6 +2126,90 @@ const INT_COPAS={
       'Athletico Paranaense','Cruzeiro','Godoy Cruz','Huracán','Deportes Tolima']},
 };
 const INT_RONDAS=['Octavos','Cuartos','Semis','Final'];
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE DE GRUPOS DE VERDAD: 4 EQUIPOS, 6 FECHAS, IDA Y VUELTA
+// ═══════════════════════════════════════════════════════════════════════
+// Antes al calendario iban SÓLO tus 6 partidos y los otros tres clubes del
+// grupo no jugaban nunca entre ellos. La tabla les inventaba los puntos con
+// una fórmula (pj = los partidos que jugaste vos), y por eso en pantalla
+// aparecías con PJ 6 y los otros tres con PJ 2 y puntos que no cerraban.
+// Ahora el grupo tiene sus 12 partidos: los 6 tuyos siguen en G.calendar y
+// los otros 6 viven en G.intGrp.fix, y se juegan fecha a fecha —igual que
+// las otras canchas de la liga— apenas jugás el tuyo.
+function intGroupFixture(clubs){
+  const t=[...clubs], n=t.length, ida=[];
+  for(let r=0;r<n-1;r++){
+    const par=[];
+    for(let i=0;i<n/2;i++)par.push([t[i],t[n-1-i]]);
+    ida.push(par);
+    t.splice(1,0,t.pop());                     // rota fijando el primero
+  }
+  return ida.concat(ida.map(par=>par.map(([h,a])=>[a,h])));   // vuelta: dados vuelta
+}
+// Fuerza por bombo: el bombo 1 es Flamengo, el 4 es Always Ready
+const INT_POW={lib:[78,74,70,66],sud:[70,68,66,63]};
+function intGrpPow(club){
+  const g=G&&G.intGrp; if(!g)return 68;
+  if(club===(G&&G.teamName))return (typeof clubPower==='function')?clubPower(club):72;
+  return (g.pow&&g.pow[club])||68;
+}
+// El multiplicador de la diferencia de fuerza es más suave que el de la liga:
+// con 3.2 (el de arSimPair) un bombo 1 contra un bombo 4 daba 2.5 goles
+// esperados contra 0.15 y el grupo terminaba 21:1. Medido sobre 240.000
+// partidos simulados: con 3.2 salían 17% de empates y 28% de goleadas de 3+;
+// con 1.9 quedan 23% y 17%. La Libertadores real anda en 26% y 11%.
+function intSimGoals(pa,pb){
+  const d=(pa+2.0-pb)/26;                       // +2 de localía, igual que la liga
+  const xa=Math.max(0.25,1.30+d*1.9), xb=Math.max(0.25,1.30-d*1.8);
+  const pois=(lam)=>{let L=Math.exp(-lam),k=0,p=1;do{k++;p*=Math.random();}while(p>L);return k-1;};
+  return [Math.min(6,pois(xa)),Math.min(6,pois(xb))];
+}
+// Juega los partidos del grupo que no son míos hasta la fecha dada
+function intGrpPlay(hastaFecha){
+  const g=G&&G.intGrp; if(!g||!g.fix)return;
+  if(!(hastaFecha>0))return;
+  g.fix.filter(f=>!f.played&&f.fecha<=hastaFecha).forEach(f=>{
+    const [gh,ga]=intSimGoals(intGrpPow(f.home),intGrpPow(f.away));
+    f.gh=gh;f.ga=ga;f.played=true;
+  });
+}
+// Tabla del grupo con los 12 partidos, no con una fórmula
+function intGrpTabla(){
+  const g=G&&G.intGrp; if(!g||!g.clubs||!g.clubs.length)return null;
+  const C=INT_COPAS[g.copa]; if(!C)return null;
+  const T={}; g.clubs.forEach(c=>T[c]={c,pj:0,w:0,d:0,l:0,gf:0,ga:0,pts:0});
+  const anota=(h,a,gh,ga)=>{
+    const A=T[h],B=T[a]; if(!A||!B||isNaN(gh)||isNaN(ga))return;
+    A.pj++;B.pj++;A.gf+=gh;A.ga+=ga;B.gf+=ga;B.ga+=gh;
+    if(gh>ga){A.w++;A.pts+=3;B.l++;}
+    else if(gh<ga){B.w++;B.pts+=3;A.l++;}
+    else{A.d++;B.d++;A.pts++;B.pts++;}
+  };
+  (G.calendar||[]).filter(m=>m.comp===C.pref+' - Grupos'&&m.played&&m.score)
+    .forEach(m=>{const [gh,ga]=String(m.score).split('-').map(Number);anota(m.home,m.away,gh,ga);});
+  (g.fix||[]).filter(f=>f.played).forEach(f=>anota(f.home,f.away,f.gh,f.ga));
+  // Desempate como en la copa: puntos, diferencia de gol, goles a favor
+  return Object.values(T).map(r=>Object.assign(r,{dif:r.gf-r.ga}))
+    .sort((a,b)=>b.pts-a.pts||b.dif-a.dif||b.gf-a.gf);
+}
+// Arma el grupo (fixture mío + fixture de los otros) y devuelve mis partidos
+function intBuildGroup(copa,teamName,rivales,weeks){
+  const clubs=[teamName,...rivales.map(r=>r[0])];
+  const pow={}; rivales.forEach((r,i)=>{pow[r[0]]=(INT_POW[copa]||INT_POW.lib)[Math.min(3,r[1])]||68;});
+  const pref=(INT_COPAS[copa]||{}).pref||'Copa Libertadores';
+  const mios=[], fix=[];
+  intGroupFixture(clubs).forEach((par,i)=>{
+    const wk=weeks[i]||(2+i*2);
+    par.forEach(([h,a])=>{
+      if(h===teamName||a===teamName)
+        mios.push({week:wk,comp:pref+' - Grupos',fecha:i+1,home:h,away:a,played:false,result:null,score:null});
+      else fix.push({fecha:i+1,week:wk,home:h,away:a,played:false,gh:0,ga:0});
+    });
+  });
+  return {mios,grupo:{copa,clubs,pow,fix}};
+}
+
 function intCopaDe(comp){
   if(!comp)return null;
   if(comp.includes('Libertadores'))return 'lib';
@@ -2143,15 +2265,31 @@ function genIntKO(copa){
   if(G.calendar.some(m=>m.comp&&m.comp.startsWith(C.pref+' - Octavos')))return;
   const gs=G.calendar.filter(m=>m.comp===C.pref+' - Grupos'&&m.played);
   if(!gs.length)return;
+  // ═══ CLASIFICAN LOS DOS PRIMEROS DEL GRUPO ═══
+  // Antes alcanzaba con llegar a un piso de puntos inventado, sin mirar a los
+  // rivales: podías hacer 7 puntos y quedar afuera con 10, o pasar último.
+  // Ahora se mira la tabla real del grupo, que ya tiene los 12 partidos.
+  const T=(G.intGrp&&G.intGrp.copa===copa)?intGrpTabla():null;
   let pts=0; gs.forEach(m=>{ if(m.result==='W')pts+=3; else if(m.result==='D')pts+=1; });
-  // La Sudamericana es más accesible: se pide un poco menos
-  const piso=copa==='sud'?Math.max(5,Math.round(gs.length*1.0)):Math.max(6,Math.round(gs.length*1.15));
-  if(pts<piso){
-    lg('📋',`${tn} no clasificó a octavos de ${C.nombre} (${pts} pts)`);
+  let pasa, puesto=0;
+  if(T&&T.length){
+    puesto=T.findIndex(r=>r.c===tn)+1;
+    const mio=T.find(r=>r.c===tn);
+    if(mio)pts=mio.pts;
+    pasa=puesto>0&&puesto<=2;
+  }else{
+    const piso=copa==='sud'?Math.max(5,Math.round(gs.length*1.0)):Math.max(6,Math.round(gs.length*1.15));
+    pasa=pts>=piso;
+  }
+  const detalle=puesto?`${puesto}º del grupo con ${pts} pts`:`${pts} pts`;
+  if(!pasa){
+    lg('📋',`${tn} no clasificó a octavos de ${C.nombre} (${detalle})`);
     flash(`Eliminados de la ${C.nombre} en grupos`,'loss');
+    addPhoneMsg('board','Secretaría del Club',
+      `${C.emoji} Se terminó el grupo de la <b>${C.nombre}</b>: quedamos ${detalle} y no clasificamos.`,'🏛️');
     return;
   }
-  lg(C.emoji,`¡${tn} clasificó a octavos de ${C.nombre}! (${pts} pts)`);
+  lg(C.emoji,`¡${tn} clasificó a octavos de ${C.nombre}! (${detalle})`);
   flash(`¡Clasificados a octavos de ${C.nombre}!`,'win');
   intProximaRonda(copa,2);
   updateUI();
@@ -7091,30 +7229,30 @@ function rStand(){
       const copaLabel=isLib?'🏆 Grupo Copa Libertadores':'🥈 Grupo Copa Sudamericana';
       if(copaTitleEl) copaTitleEl.textContent=copaLabel;
       copaCard.style.display='';
-      // Get all copa group matches involving my team to find opponents
-      const myCopaMs=G.calendar.filter(m=>m.comp===copaComp.comp&&(m.home===tn||m.away===tn));
-      const copaOpps=[...new Set(myCopaMs.flatMap(m=>[m.home,m.away]).filter(c=>c!==tn))];
-      const groupClubs=[tn,...copaOpps.slice(0,3)];
-      // Build standings from played matches
-      const cTbl=groupClubs.map(c=>{
-        let pts=0,pj=0,w=0,d=0,l=0,gf=0,ga=0;
-        const cMs=G.calendar.filter(m=>m.comp===copaComp.comp&&m.played&&(m.home===c||m.away===c));
-        cMs.forEach(m=>{
-          const iH=m.home===c;
-          const [mH,mA]=m.score.split('-').map(Number);
-          const cg=iH?mH:mA,cga=iH?mA:mH;
-          gf+=cg;ga+=cga;pj++;
-          const res=cg>cga?'W':cg===cga?'D':'L';
-          if(res==='W'){w++;pts+=3;}else if(res==='D'){d++;pts+=1;}else l++;
-        });
-        if(c!==tn && pj===0){
-          // Simulate partial standings for AI clubs
-          const s2=seed+c.charCodeAt(0);
-          pj=myCopaMs.filter(m=>m.played).length;
-          if(pj>0){w=Math.floor(pj*(0.4+((s2%10)/50)));d=Math.floor(pj*0.2);l=Math.max(0,pj-w-d);gf=w*2+d;ga=l*2+d;pts=w*3+d;}
-        }
-        return {c,pts,pj,w,d,l,gf,ga,dif:gf-ga};
-      }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
+      // La tabla sale de los 12 partidos del grupo (los 6 míos del calendario
+      // + los 6 entre los otros tres, que están en G.intGrp). Antes los rivales
+      // no jugaban entre ellos y sus puntos se inventaban con una fórmula: por
+      // eso vos ibas con PJ 6 y ellos con PJ 2.
+      let cTbl=intGrpTabla();
+      if(!cTbl){
+        // Partida vieja, guardada antes de que existiera G.intGrp
+        const myCopaMs=G.calendar.filter(m=>m.comp===copaComp.comp&&(m.home===tn||m.away===tn));
+        const copaOpps=[...new Set(myCopaMs.flatMap(m=>[m.home,m.away]).filter(c=>c!==tn))];
+        cTbl=[tn,...copaOpps.slice(0,3)].map(c=>{
+          let pts=0,pj=0,w=0,d=0,l=0,gf=0,ga=0;
+          G.calendar.filter(m=>m.comp===copaComp.comp&&m.played&&(m.home===c||m.away===c)).forEach(m=>{
+            const iH=m.home===c;
+            const [mH,mA]=String(m.score).split('-').map(Number);
+            const cg=iH?mH:mA,cga=iH?mA:mH;
+            gf+=cg;ga+=cga;pj++;
+            if(cg>cga){w++;pts+=3;}else if(cg===cga){d++;pts+=1;}else l++;
+          });
+          return {c,pts,pj,w,d,l,gf,ga,dif:gf-ga};
+        }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
+      }
+      const fechas=(G.intGrp&&G.intGrp.fix)?6:0;
+      const jug=cTbl.length?Math.max(...cTbl.map(r=>r.pj)):0;
+      if(copaTitleEl&&fechas)copaTitleEl.textContent=copaLabel+' · fecha '+Math.min(fechas,jug)+'/'+fechas;
       const czc=i=>i<2?'#0fb866':'transparent';
       copaEl.innerHTML=hdrHtml+cTbl.map((t,i)=>rowHtml(t,i,czc)).join('');
     } else {
@@ -9350,6 +9488,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Llaves de los playoffs del Apertura/Clausura
   if(/Liga Profesional - (Apertura|Clausura)/.test(m.comp))arAdvancePlayoff(m,res);
 
+  // El resto del grupo juega su fecha en la misma semana que vos
+  if(/ - Grupos$/.test(m.comp||'')&&intCopaDe(m.comp))intGrpPlay(m.fecha||99);
   // Check Libertadores group stage completion
   const gsTotal  = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos').length;
   const gsPlayed = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos'&&x.played).length;
@@ -10636,6 +10776,12 @@ const DERBIES=[
   ['Newell\'s','Rosario Central','Clásico Rosarino'],
   ['CA Talleres','Belgrano','Clásico Cordobés'],
   ['Vélez Sarsfield','Ferro','Clásico del Oeste'],
+  // Los que faltaban: sin estos, la fecha interzonal armaba el clásico pero el
+  // juego lo trataba como un partido cualquiera (sin arenga, sin presión).
+  ['Lanús','Banfield','Clásico del Sur'],
+  ['Argentinos Jrs.','Vélez Sarsfield','Clásico de La Paternal'],
+  ['Platense','Tigre','Clásico de la Zona Norte'],
+  ['Godoy Cruz','Ind. Rivadavia','Clásico Mendocino'],
   ['Boca Juniors','Racing Club','Clásico histórico'],
   ['River Plate','Racing Club','Clásico histórico'],
   ['Boca Juniors','San Lorenzo','Clásico histórico'],
