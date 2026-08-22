@@ -5235,18 +5235,57 @@ function rStyle(){
 function setStyle(s){ if(!G) return;
   if(tacBloqueada()) return tacAviso()&&undefined; G.style=s; lg('🎯','Estilo: '+s); rStyle(); }
 
+// ═══════════════════════════════════════════════════════════════════════
+// INSTRUCCIONES DEL BANCO
+// ═══════════════════════════════════════════════════════════════════════
+// Había tres perillas (presión, tempo, amplitud) y sólo dos movían algo, y
+// muy poquito: un tacMod de ±0,02 en la simulación rápida. En la cancha del
+// 11v11 no cambiaban nada. Ahora son ocho y cada una escribe directamente
+// sobre el perfil con el que juega el equipo (dtProfile), que es lo que leen
+// tanto la simulación rápida como el partido que se mira.
+// Siguen estando sólo para el DT propio: con un técnico de verdad, la táctica
+// la pone él (ver tacBloqueada).
+const TAC_INSTR=[
+  {l:'Presión',k:'pressure',d:'Dónde se recupera la pelota',v:['Alta','Media','Baja'],
+   p:{Alta:{press:.90},Media:{press:.55},Baja:{press:.22}}},
+  {l:'Línea',k:'linea',d:'Qué tan adelantada juega la última línea',v:['Adelantada','Media','Retrasada'],
+   p:{Adelantada:{line:.88},Media:{line:.52},Retrasada:{line:.18}}},
+  {l:'Tempo',k:'tempo',d:'Ritmo de circulación',v:['Rápido','Normal','Lento'],
+   p:{'Rápido':{tempo:.85},Normal:{tempo:.5},Lento:{tempo:.18}}},
+  {l:'Amplitud',k:'width',d:'Cuánto se abre el equipo',v:['Amplio','Normal','Estrecho'],
+   p:{Amplio:{width:.85},Normal:{width:.5},Estrecho:{width:.18}}},
+  {l:'Salida',k:'salida',d:'Jugada desde el fondo o pelotazo',v:['Jugada','Mixta','Directa'],
+   p:{Jugada:{direct:.12},Mixta:{direct:.5},Directa:{direct:.88}}},
+  {l:'Ataque',k:'ataque',d:'Por dónde se busca el gol',v:['Bandas','Equilibrado','Centro'],
+   p:{Bandas:{flank:.88},Equilibrado:{flank:.5},Centro:{flank:.15}}},
+  {l:'Contra',k:'contra',d:'Salir de contra al recuperar',v:['Buscarla','Normal','Nunca'],
+   p:{Buscarla:{counter:.88},Normal:{counter:.5},Nunca:{counter:.15}}},
+  {l:'Actitud',k:'actitud',d:'Cuánta fricción se permite',v:['Fuerte','Normal','Limpia'],
+   p:{Fuerte:{aggr:.85,cyn:.75},Normal:{aggr:.5,cyn:.45},Limpia:{aggr:.22,cyn:.15}}},
+];
+// Lo que las instrucciones le imponen al perfil de juego
+function tacProfOverride(){
+  const o={};
+  if(!G)return o;
+  TAC_INSTR.forEach(t=>{ const v=G[t.k]; if(v&&t.p[v])Object.assign(o,t.p[v]); });
+  return o;
+}
 function rTacOpts(){
   const el = document.getElementById('tacOpts');
   if(!el||!G) return;
-  const opts = [{l:'Presión',k:'pressure',v:['Alta','Media','Baja']},{l:'Tempo',k:'tempo',v:['Rápido','Normal','Lento']},{l:'Amplitud',k:'width',v:['Amplio','Normal','Estrecho']}];
-  el.innerHTML = opts.map(o=>`
-    <div class="sr">
-      <span class="sl" style="width:60px">${o.l}</span>
-      <div style="display:flex;gap:3px">${o.v.map(v=>`<button class="btn bs ${G[o.k]===v?'bg':'bo'}" onclick="setTac('${o.k}','${v}')">${v}</button>`).join('')}</div>
+  const bloq=(typeof tacBloqueada==='function')&&tacBloqueada();
+  el.innerHTML = (bloq?'<div class="note" style="margin-bottom:7px">👔 Las instrucciones las da el técnico. Con un <b>DT propio</b> las manejás vos.</div>':'')
+    + TAC_INSTR.map(o=>`
+    <div style="margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="sl" style="width:64px;flex-shrink:0">${o.l}</span>
+        <div style="display:flex;gap:3px;flex-wrap:wrap">${o.v.map(v=>`<button class="btn bs ${G[o.k]===v?'bg':'bo'}" onclick="setTac('${o.k}','${v}')">${v}</button>`).join('')}</div>
+      </div>
+      <div style="font-size:8.5px;color:var(--t3);margin-left:70px">${o.d}</div>
     </div>
   `).join('');
 }
-function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undefined; G[k]=v; rTacOpts(); }
+function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undefined; G[k]=v; rTacOpts(); if(typeof updateUI==='function')updateUI(); }
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGNADOS: capitán, pateadores, quién sube al córner y marca personal
@@ -15855,7 +15894,10 @@ function dtProfile(dt){
   // DT personalizado con perfil manual: TU idea de juego manda
   if(dt&&dt.customProf){
     const base={press:.5,line:.5,width:.5,tempo:.5,direct:.5,aggr:.5,counter:.5,flank:.5,cyn:.5,disc:.5};
-    return Object.assign(base,dt.customProf);
+    // Las instrucciones del banco pisan al perfil: son lo que estás eligiendo
+    // AHORA, y son lo que hace que el panel de Táctica se note en la cancha.
+    return Object.assign(base,dt.customProf,
+      (typeof tacProfOverride==='function')?tacProfOverride():{});
   }
   const t=(dt&&dt.trait)||'Equilibrado';
   const style=(dt&&dt.style)||'4-4-2';
