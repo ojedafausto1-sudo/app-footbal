@@ -1892,6 +1892,14 @@ const AR_CLUBS=['Boca Juniors','River Plate','Racing Club','Independiente','San 
 
 function _shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
+// ═══ LA PRETEMPORADA ES PARTE DEL CALENDARIO ═══
+// Antes era un modal: elegías gira, se aplicaban los números y listo; los
+// amistosos quedaban en una lista suelta (G.friendlies, week:0) que no estaba
+// en ninguna fecha. Ahora la temporada arranca con tres semanas de
+// pretemporada y los amistosos son fechas de verdad, que se juegan o se miran
+// como cualquier partido. La liga empieza en la semana 4.
+const PRE_SEMANAS=3;
+
 // ═══ LOS CLÁSICOS VAN SEPARADOS ═══
 // La AFA sortea las zonas con una condición: los clásicos quedan en zonas
 // DISTINTAS, para que la fecha interzonal sea la fecha de los clásicos.
@@ -2066,7 +2074,7 @@ function buildCal(teamName, teamId){
   const sch = [];
   // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
   const zones=arBuildZones(teamName);
-  const ap=arBuildTournament(zones,'apertura',1);
+  const ap=arBuildTournament(zones,'apertura',1+PRE_SEMANAS);
   const cl=arBuildTournament(zones,'clausura',ap.lastWeek+5);   // hueco para los playoffs del Apertura
   const allFix=[...ap.fixtures,...cl.fixtures];
   // buildCal corre DENTRO del literal que crea G, así que G todavía no existe:
@@ -2087,13 +2095,13 @@ function buildCal(teamName, teamId){
   // Los otros tres también juegan entre ellos (intBuildGroup deja ese fixture
   // aparte y lo levanta arAttachLeague en G.intGrp).
   if(qualifiesLib){
-    const libWeeks=[2,4,6,8,11,13];
+    const libWeeks=[2,4,6,8,11,13].map(w=>w+PRE_SEMANAS);
     // libG son los bombos 2, 3 y 4 del sorteo: el índice es la jerarquía
     const {mios,grupo}=intBuildGroup('lib',teamName,libG.map(([r],i)=>[r,i+1]),libWeeks);
     mios.forEach(m=>sch.push(m));
     buildCal._intGrp=grupo;
   } else {
-    const sudWeeks=[3,5,7,9,12,14];
+    const sudWeeks=[3,5,7,9,12,14].map(w=>w+PRE_SEMANAS);
     const sudPool=[['Peñarol','URU'],['Ind. Medellín','COL'],['Emelec','ECU'],['Cerro Porteño','PAR'],['Deportivo Cali','COL'],['Liga de Quito','ECU'],['Defensor Sporting','URU'],['Sol de América','PAR']];
     const sudRivals=shuf(sudPool).slice(0,3);
     const {mios,grupo}=intBuildGroup('sud',teamName,sudRivals.map(([r],i)=>[r,i]),sudWeeks);
@@ -2107,7 +2115,7 @@ function buildCal(teamName, teamId){
   // recién cuando ganás (ver caProximaRonda, llamada desde resolveKO).
   buildCal._caPool=caPool.slice();
   buildCal._caGrandes=caFinalRivals.slice();
-  sch.push({week:3, comp:caRnds[0], home:teamName, away:caOpps[0], played:false,result:null,score:null});
+  sch.push({week:3+PRE_SEMANAS, comp:caRnds[0], home:teamName, away:caOpps[0], played:false,result:null,score:null});
   // arAttachLeague corrió más arriba, cuando el grupo todavía no estaba armado
   if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
   return sch.sort((a,b)=>a.week-b.week);
@@ -8308,7 +8316,8 @@ function otherLeaguePlay(lg,hasta){
 }
 function otherLeagueTable(lg){
   // Una fecha por semana de juego, sin pasarse del total del torneo
-  const L=otherLeaguePlay(lg,Math.max(0,(G.week||1)-1));
+  // Las otras ligas también arrancan después de la pretemporada
+  const L=otherLeaguePlay(lg,Math.max(0,(G.week||1)-1-PRE_SEMANAS));
   if(!L)return [];
   return Object.entries(L.t).map(([club,r])=>({club,...r,pow:Math.round(L.pow[club]||66)}))
     .sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf)
@@ -10006,6 +10015,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyVestuario();
   weeklyRumores();
   weeklyDtRenuncia();
+  weeklyDtPlan();
   weeklyReconv();
   weeklyPrestamosIn();
   weeklyTraining();
@@ -10200,6 +10210,17 @@ function simMatch(auto){
   if(!G) return;
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
+  // ═══ LOS AMISTOSOS DE PRETEMPORADA SON FECHAS, PERO NO REPARTEN PUNTOS ═══
+  // Van al calendario como cualquier partido, así que caen acá; pero no tocan
+  // la tabla, ni la racha, ni la confianza de la Junta.
+  if(m.friendly){
+    const i=(G.friendlies||[]).indexOf(m);
+    if(i>=0&&typeof playFriendly==='function'){ playFriendly(i,false); }
+    else { m.played=true;m.score='0-0';m.result='D'; }
+    G.week=(G.week||1)+1; G.day=1;
+    updateUI();
+    return;
+  }
   dtPicksXI();      // el técnico define el once (salvo que el DT sea tuyo)
   const S = matchStrengths(m);
   // ═══ SIMULACIÓN RÁPIDA v2: el resultado DEPENDE del nivel de los planteles ═══
@@ -10832,10 +10853,17 @@ function bookFriendlies(zona,cuantos){
   const rivales=tourRivals(zona,cuantos);
   if(!rivales.length)return [];
   G.friendlies=[];
+  // Se reparten entre las semanas de pretemporada, alternando localía: son
+  // fechas del calendario, no una lista aparte.
   rivales.forEach((r,i)=>{
-    G.friendlies.push({week:0,comp:'Amistoso',home:G.teamName,away:r.club,
-      played:false,result:null,score:null,friendly:true,oppPow:r.pow});
+    const w=1+(i%PRE_SEMANAS);
+    const local=i%2===0;
+    const m={week:w,comp:'Amistoso',home:local?G.teamName:r.club,away:local?r.club:G.teamName,
+      played:false,result:null,score:null,friendly:true,oppPow:r.pow};
+    G.friendlies.push(m);
+    (G.calendar=G.calendar||[]).push(m);         // ← acá es donde antes no entraba
   });
+  G.calendar.sort((a,b)=>a.week-b.week);
   return rivales;
 }
 function playFriendly(i,mirar){
@@ -10849,18 +10877,24 @@ function playFriendly(i,mirar){
                           :[...G.squad].sort((a,b)=>b.rat-a.rat).slice(0,11);
   const mi=xi.length?xi.reduce((a,q)=>a+q.rat,0)/xi.length:70;
   const su=m.oppPow||72;
-  const d=(mi-su)/9;
+  // Ahora los amistosos también se juegan de visitante (antes eran todos de
+  // local porque no estaban en el calendario y no tenían localía real).
+  const deLocal=m.home===G.teamName;
+  const rival=deLocal?m.away:m.home;
+  const d=(mi-su)/9+(deLocal?0.12:-0.06);
   const pois=(l)=>{let L=Math.exp(-l),k=0,pr=1;do{k++;pr*=Math.random();}while(pr>L);return k-1;};
   const gf=Math.min(6,pois(Math.max(0.3,1.4+d))), ga=Math.min(6,pois(Math.max(0.3,1.4-d)));
-  m.played=true;m.score=gf+'-'+ga;m.result=gf>ga?'W':gf===ga?'D':'A';
+  m.played=true;
+  m.score=deLocal?(gf+'-'+ga):(ga+'-'+gf);
+  m.result=gf>ga?'W':gf===ga?'D':'A';
   G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+4);});
   G.chem=Math.min(100,(G.chem||45)+3);
-  const ing=Math.round((0.6+su*0.03)*10)/10;
+  const ing=Math.round((0.6+su*0.03)*(deLocal?1:0.35)*10)/10;   // de visitante no cobrás borderó
   G.budget=Math.round((G.budget+ing)*10)/10;
-  finAnota('otros_in',ing,'Amistoso vs '+m.away);
-  lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${m.away} (+${fv(ing)})`);
-  addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${m.away}</b>: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
-  flash(`🤝 ${G.teamName} ${gf}-${ga} ${m.away}`,gf>ga?'win':gf===ga?'draw':'loss');
+  finAnota('otros_in',ing,'Amistoso vs '+rival);
+  lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${rival} (+${fv(ing)})`);
+  addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${rival}</b>${deLocal?'':' (de visitante)'}: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
+  flash(`🤝 ${G.teamName} ${gf}-${ga} ${rival}`,gf>ga?'win':gf===ga?'draw':'loss');
   updateUI(); rFriendlies();
 }
 function rFriendlies(){
@@ -19223,6 +19257,72 @@ function weeklyDtMoves(){
 // ═══ EL DT TE HABLA ═══
 // No espera a que le preguntes: te cuenta cómo ve al equipo, te pide cosas
 // y te marca lo que no le gusta. Lo que dice sale de la situación real.
+// ═══════════════════════════════════════════════════════════════════════
+// EL DT QUE NO LE ENCUENTRA LA VUELTA, CAMBIA
+// ═══════════════════════════════════════════════════════════════════════
+// Un técnico insistía con la misma idea toda la temporada aunque perdiera
+// todo. Ahora mira su propia campaña cada seis fechas: si no saca puntos,
+// primero prueba otro esquema dentro de su misma idea, y si sigue sin andar
+// cambia de idea de juego. Los cambios son coherentes con lo que le está
+// pasando: si le hacen goles se va a algo más cauto, si no convierte se
+// suelta. Tu DT personalizado no se toca: ahí mandás vos.
+const ARQ_SIN_GOL={posicional:'ofensivo',bloquebajo:'directo',contragolpe:'vertical',
+  resultadista:'ofensivo',fisico:'bandas',equilibrado:'ofensivo',copero:'vertical',
+  toque:'vertical',formador:'ofensivo',directo:'bandas',bandas:'ofensivo',
+  gegenpress:'posicional',vertical:'ofensivo',ofensivo:'gegenpress'};
+const ARQ_LE_HACEN={gegenpress:'equilibrado',posicional:'equilibrado',ofensivo:'equilibrado',
+  vertical:'contragolpe',bandas:'equilibrado',directo:'contragolpe',toque:'equilibrado',
+  equilibrado:'bloquebajo',formador:'equilibrado',copero:'bloquebajo',fisico:'bloquebajo',
+  contragolpe:'bloquebajo',bloquebajo:'contragolpe',resultadista:'bloquebajo'};
+function weeklyDtPlan(){
+  if(!G||!G.dt)return;
+  if(typeof dtIsMine==='function'&&dtIsMine())return;      // tu DT propio lo manejás vos
+  const jug=(G.calendar||[]).filter(m=>m.played&&m.result);
+  const st=G._dtPlan=G._dtPlan||{revisado:0,cambios:0};
+  if(jug.length<6||jug.length-st.revisado<6)return;
+  st.revisado=jug.length;
+  const v=jug.slice(-6);
+  const pts=v.reduce((a,m)=>a+(m.result==='W'?3:m.result==='D'?1:0),0);
+  if(pts/v.length>=1.2){ st.cambios=0; return; }            // le está yendo bien
+  // ¿el problema es que no hace goles o que le hacen?
+  let gf=0,gc=0;
+  v.forEach(m=>{ const s=String(m.score||'0-0').split('-').map(Number);
+    if(m.home===G.teamName){gf+=s[0]||0;gc+=s[1]||0;} else {gf+=s[1]||0;gc+=s[0]||0;} });
+  const noHaceGoles=gf/v.length<1.0;
+  const leHacen=gc/v.length>1.5;
+  const arqK=(typeof dtArqKey==='function')?dtArqKey(G.dt):null;
+  const arq=(typeof ARQ!=='undefined'&&arqK)?ARQ[arqK]:null;
+  st.cambios++;
+  if(st.cambios===1&&arq&&arq.forms&&arq.forms.length>1){
+    // Primer intento: mismo libreto, otro dibujo
+    const otras=arq.forms.filter(f=>f!==G.dt.style);
+    const nueva=otras[~~(Math.random()*otras.length)];
+    if(nueva){
+      G.dt.style=nueva;
+      if(typeof FORMS==='object'&&FORMS[nueva]){G.formation=nueva;if(typeof autoFill==='function')autoFill();}
+      lg('📋',`${G.dt.name} cambia el esquema a ${nueva} (${pts} pts en 6 fechas)`);
+      addPhoneMsg('board',G.dt.name,
+        `📋 Presidente, con ${pts} puntos en seis fechas no puedo seguir igual. Voy a probar con <b>${nueva}</b>, misma idea pero otro dibujo.`,'👔');
+      return;
+    }
+  }
+  // Segundo intento: cambia la idea de juego
+  const destino=(leHacen?ARQ_LE_HACEN[arqK]:noHaceGoles?ARQ_SIN_GOL[arqK]:ARQ_LE_HACEN[arqK]);
+  if(!destino||!ARQ[destino]||destino===arqK)return;
+  const nuevo=ARQ[destino];
+  G.dt.arq=destino;
+  const forms=nuevo.forms||[];
+  const nf=forms[~~(Math.random()*forms.length)];
+  if(nf){ G.dt.style=nf;
+    if(typeof FORMS==='object'&&FORMS[nf]){G.formation=nf;if(typeof autoFill==='function')autoFill();} }
+  st.cambios=0;
+  const porque=leHacen?`nos están haciendo ${(gc/v.length).toFixed(1)} goles por partido`
+                      :`no llegamos al gol (${(gf/v.length).toFixed(1)} por partido)`;
+  lg('🔄',`${G.dt.name} cambia de idea: ahora juega ${nuevo.n}`);
+  addPhoneMsg('board',G.dt.name,
+    `🔄 Presidente, le voy a ser honesto: así no va. Como ${porque}, cambio el planteo. A partir de ahora vamos a jugar <b>${nuevo.i} ${nuevo.n}</b>${nf?` en <b>${nf}</b>`:''}.`,'👔');
+  if(typeof updateUI==='function')updateUI();
+}
 function weeklyDtVoice(){
   if(!G||!G.dt)return;
   if(Math.random()>0.45)return;
