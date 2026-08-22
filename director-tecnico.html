@@ -648,6 +648,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab on" onclick="mkTab('buy',this)">Comprar</button>
         <button class="tab" onclick="mkTab('sell',this)">Vender / Ceder</button>
         <button class="tab" onclick="mkTab('offs',this)">Ofertas (<span id="offCnt">0</span>)</button>
+        <button class="tab" onclick="mkTab('movs',this);rMovs()">📜 Movimientos</button>
         <button class="tab" onclick="openScouting()">🔭 Ojeadores</button>
       </div>
       <div id="mk-buy" class="tc on">
@@ -670,6 +671,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
       </div>
       <div id="mk-sell" class="tc"><div id="sellList"></div></div>
       <div id="mk-offs" class="tc"><div id="offsList"></div></div>
+      <div id="mk-movs" class="tc">
+        <div class="frow">
+          <select class="fs" id="movTipo" onchange="rMovs()"><option value="">Todo el movimiento</option><option value="entra">Sólo altas</option><option value="sale">Sólo bajas</option><option value="retiro">Retiros</option></select>
+          <select class="fs" id="movTemp" onchange="rMovs()"><option value="">Todas las temporadas</option></select>
+        </div>
+        <div id="movsList"></div>
+      </div>
     </div>
 
     <!-- ENTRENO -->
@@ -3456,6 +3464,67 @@ function autoFill(){
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
 }
+// ═══════════════════════════════════════════════════════════════════════
+// MOVIMIENTOS DE PLANTEL: TODO EL QUE ENTRA O SALE QUEDA ANOTADO
+// ═══════════════════════════════════════════════════════════════════════
+// Había diez lugares distintos que sacaban gente del plantel (contrato vencido,
+// retiro, préstamo que termina, rescisión, cláusula pagada, venta, canje) y
+// cada uno hacía su propia limpieza. Dos problemas reales:
+//   1. El jugador desaparecía sin dejar rastro: abrías el plantel y ya no
+//      estaba, sin ninguna forma de saber qué pasó.
+//   2. Todos ponían G.slots[k]=null y ahí quedaba: el once seguía con DIEZ.
+//      Medido: Paredes (84) se fue en la semana 5 por cláusula y el equipo
+//      jugó el resto de la temporada con un hueco.
+// Ahora todos pasan por acá: se anota el movimiento y el puesto se rellena
+// solo con el mejor disponible.
+function movAnota(tipo,p,det){
+  if(!G||!p)return;
+  det=det||{};
+  G.movs=G.movs||[];
+  G.movs.unshift({t:tipo,name:p.name,pos:p.pos,rat:p.rat,age:p.age,num:p.num,
+    club:det.club||'',monto:det.monto||0,motivo:det.motivo||'',
+    season:G.season,week:G.week||1});
+  if(G.movs.length>240)G.movs.length=240;
+}
+// Rellena un puesto del once con el mejor disponible para esa posición
+function taparHueco(k){
+  if(!G||!G.slots)return null;
+  if(G.slots[k])return null;
+  const sl=(typeof getForm==='function')?getForm():[];
+  const s=sl[k]; if(!s)return null;
+  const usados=new Set(Object.values(G.slots).filter(Boolean));
+  const _ext=(typeof extEnOnce==='function')?extEnOnce(null):0;
+  let best=null,bestSc=-1e9;
+  for(const p of G.squad){
+    if(usados.has(p.id)||p.injured||p.susp>0||p.colgado||p.selUp>0)continue;
+    if(s.pos==='ARQ'&&p.pos!=='ARQ')continue;
+    if(s.pos!=='ARQ'&&p.pos==='ARQ')continue;
+    if(_ext>=CUPO_EXT&&typeof pIsForeign==='function'&&pIsForeign(p))continue;
+    const sc=p.rat-((typeof posPenaltyFor==='function')?posPenaltyFor(p,s.pos):0)*2.2;
+    if(sc>bestSc){bestSc=sc;best=p;}
+  }
+  if(best){
+    G.slots[k]=best.id;
+    G.bench=(G.squad||[]).filter(q=>!Object.values(G.slots).includes(q.id));
+    return best;
+  }
+  return null;
+}
+// Saca a un jugador del plantel: anota el movimiento y tapa el hueco que deja
+function sacarDelPlantel(p,tipo,det){
+  if(!G||!p)return null;
+  const k=Object.keys(G.slots||{}).find(kk=>G.slots[kk]===p.id);
+  G.squad=(G.squad||[]).filter(x=>x.id!==p.id);
+  G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+  if(k!==undefined)G.slots[k]=null;
+  movAnota(tipo,p,det);
+  let rel=null;
+  if(k!==undefined){
+    rel=taparHueco(k);
+    if(rel)lg('🔁',`${rel.name} entra al once por ${p.name}`);
+  }
+  return rel;
+}
 // Cuántos extranjeros pueden estar en cancha a la vez
 const CUPO_EXT=5;
 // Extranjeros en el once que está armado ahora
@@ -4312,6 +4381,7 @@ function submitNegTerms(id){
     }
     p.club=G.teamName||'Boca Juniors';p.lg='Liga ARG';p.wage=wage;p.contract=G.season+years;
     G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
+    movAnota('entra',p,{club:oldClub,monto:feeTot,motivo:'fichaje'});
     lg('💰',`${p.name} fichado por ${fv(feeTot)}${plan>1?' en '+plan+' cuotas':''} (${wage}k/sem, ${years}a, ${roles[role]})`);
     addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de unirme a <b>${G.teamName||'el club'}</b>! Voy a dar todo en la cancha. ¡Vamos!`,'⭐');
     addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
@@ -4602,6 +4672,53 @@ function renderMkt(){
   if(!pl.length) el.innerHTML=winBanner+'<div style="text-align:center;padding:20px;color:var(--t3)">Sin resultados con esos filtros.</div>';
 }
 
+// ═══ MOVIMIENTOS: TODO EL QUE ENTRÓ Y SALIÓ ═══
+// Antes un jugador desaparecía del plantel y no había forma de saber por qué.
+function rMovs(){
+  const el=document.getElementById('movsList'); if(!el||!G)return;
+  const movs=G.movs||[];
+  // El selector de temporadas se arma con lo que realmente pasó
+  const sel=document.getElementById('movTemp');
+  if(sel){
+    const temps=[...new Set(movs.map(m=>m.season))].sort((a,b)=>b-a);
+    const val=sel.value;
+    sel.innerHTML='<option value="">Todas las temporadas</option>'+temps.map(t=>`<option value="${t}"${String(t)===val?' selected':''}>${t}</option>`).join('');
+  }
+  const fT=(document.getElementById('movTipo')||{}).value||'';
+  const fS=(document.getElementById('movTemp')||{}).value||'';
+  const list=movs.filter(m=>(!fT||m.t===fT)&&(!fS||String(m.season)===fS));
+  const ESTILO={entra:{c:'var(--green)',i:'⬅️',t:'LLEGA'},sale:{c:'var(--red)',i:'➡️',t:'SE VA'},
+                cesion:{c:'#3b8beb',i:'🤝',t:'CEDIDO'},retiro:{c:'var(--t3)',i:'🎓',t:'SE RETIRA'}};
+  const alt=movs.filter(m=>m.t==='entra').length, baj=movs.length-alt;
+  const gasto=movs.filter(m=>m.t==='entra').reduce((a,m)=>a+(m.monto||0),0);
+  const cobro=movs.filter(m=>m.t!=='entra').reduce((a,m)=>a+(m.monto||0),0);
+  const head=`<div class="card" style="padding:9px;margin-bottom:9px">
+    <div style="display:flex;justify-content:space-around;text-align:center;font-size:10px">
+      <div><div style="font-size:15px;font-weight:800;color:var(--green)">${alt}</div><div style="color:var(--t3)">altas</div></div>
+      <div><div style="font-size:15px;font-weight:800;color:var(--red)">${baj}</div><div style="color:var(--t3)">bajas</div></div>
+      <div><div style="font-size:15px;font-weight:800">${fv(gasto)}</div><div style="color:var(--t3)">gastado</div></div>
+      <div><div style="font-size:15px;font-weight:800">${fv(cobro)}</div><div style="color:var(--t3)">cobrado</div></div>
+    </div></div>`;
+  if(!list.length){
+    el.innerHTML=head+'<div style="text-align:center;padding:20px;color:var(--t3)">Todavía no hubo movimientos con ese filtro.</div>';
+    return;
+  }
+  el.innerHTML=head+list.map(m=>{
+    const e=ESTILO[m.t]||ESTILO.sale;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-left:3px solid ${e.c};background:rgba(255,255,255,.03);border-radius:5px;margin-bottom:4px">
+      <span style="font-size:14px">${e.i}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}
+          <span style="color:var(--t3);font-weight:400;font-size:9px">${m.pos||''} · ${m.rat||'?'}${m.age?' · '+m.age+'a':''}</span></div>
+        <div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.motivo||e.t}${m.club?' · '+m.club:''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        ${m.monto?`<div style="font-size:10px;font-weight:700;color:${m.t==='entra'?'var(--red)':'var(--green)'}">${m.t==='entra'?'−':'+'}${fv(m.monto)}</div>`:''}
+        <div style="font-size:8.5px;color:var(--t3)">${m.season} · S${m.week}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 function mkTab(t,b){
   document.querySelectorAll('#tab-mkt .tab').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('#tab-mkt .tc').forEach(x=>x.classList.remove('on'));
@@ -6057,6 +6174,7 @@ function promOne(id){
   if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
   const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors','Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
   G.squad.push(np); G.bench.push(np);
+  movAnota('entra',np,{motivo:'subió de la cantera'});
   G.youth.players = G.youth.players.filter(x=>x.id!==id);
   // Check if any president demand for debut_youth is fulfilled
   if(G.pressDemands) G.pressDemands.forEach(d=>{
@@ -7152,9 +7270,8 @@ function approveDtFire(id){
   if(!req||!req.player) return;
   req.approved=true;
   const pid=req.player.id;
-  G.squad=G.squad.filter(x=>x.id!==pid);
-  G.bench=G.bench.filter(x=>x.id!==pid);
-  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===pid) G.slots[k]=null; });
+  const _p=G.squad.find(x=>x.id===pid);
+  if(_p)sacarDelPlantel(_p,'sale',{motivo:'rescindido a pedido de '+(G.dt&&G.dt.name||'el DT'),club:'Libre'});
   lg('🚪',`${req.player.name} rescindido por pedido de ${G.dt.name}`);
   rDtPedidos(); updateUI();
   flash(`✅ ${req.player.name} rescindido`,'win');
@@ -8324,9 +8441,7 @@ function expireContracts(){
       return;
     }
     // Se va libre
-    G.squad=G.squad.filter(x=>x.id!==p.id);
-    G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
-    Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+    sacarDelPlantel(p,'sale',{motivo:'se le venció el contrato',club:'Libre'});
     p.club='Libre'; p.freeAgent=true; p.colgado=false; p.lg='Libre';
     (G.market=G.market||[]).push(p);
     sueltos.push(p);
@@ -8357,9 +8472,7 @@ function acceptEndOffer(pid){
   const cobro=Math.round(o.fee*(p.ownedPct||1)*10)/10;
   G.budget=Math.round((G.budget+cobro)*10)/10;
   finAnota('ventas',cobro,'Venta de '+p.name+' a '+o.club);
-  G.squad=G.squad.filter(x=>x.id!==pid);
-  G.bench=(G.bench||[]).filter(x=>x.id!==pid);
-  Object.keys(G.slots).forEach(k=>{if(G.slots[k]===pid)G.slots[k]=null;});
+  sacarDelPlantel(p,'sale',{club:o.club,monto:cobro,motivo:'vendido'});
   p.club=o.club;p.lg=({'Real Madrid':'España','Barcelona':'España','Man City':'Premier','Bayern Munich':'Alemania','PSG':'Francia','Liverpool':'Premier','Arsenal':'Premier','Inter':'Italia','Juventus':'Italia','Chelsea':'Premier'})[o.club]||'España';
   G.market.push(p);
   G.endSeasonOffers=G.endSeasonOffers.filter(x=>x.playerId!==pid);
@@ -8639,6 +8752,7 @@ function fichaLibres(faltan, cuantos){
     p.contract=(G.season||2026)+1+~~(Math.random()*2);
     p.seasonsAtClub=0; p.dtRel=58; p.morale=68; p.goals=0; p.apps=0; p.assists=0;
     G.squad.push(p); (G.bench=G.bench||[]).push(p);
+    movAnota('entra',p,{motivo:'llegó libre (plantel corto)'});
     tomados.push(p);
   }
   if(tomados.length){
@@ -8681,6 +8795,7 @@ function youthSafetyNet(){
               'Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot,(G.season||2026)+3);
     np.seasonsAtClub=1; np.dtRel=65;   // el pibe de la casa arranca bien parado
     G.squad.push(np); G.bench.push(np);
+    movAnota('entra',np,{motivo:'subió de la cantera'});
     G.youth.players=G.youth.players.filter(x=>x.id!==yp.id);
     subidos.push(np.name+' ('+np.rat+'/'+np.pot+')');
   });
@@ -8749,9 +8864,7 @@ function retiros(){
     const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0,assists:0};
     const temporadas=p.seasonsAtClub||0;
     const idolo = temporadas>=4 || t.goals>=40 || t.apps>=120;
-    G.squad=G.squad.filter(x=>x.id!==p.id);
-    G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
-    Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+    sacarDelPlantel(p,'retiro',{motivo:'se retiró a los '+p.age});
     (G.retirados=G.retirados||[]).push({name:p.name,pos:p.pos,age:p.age,season:G.season,
       apps:t.apps,goals:t.goals,assists:t.assists,seasons:temporadas,idolo,num:p.num});
     if(G.retirados.length>40) G.retirados=G.retirados.slice(-40);
@@ -8843,9 +8956,7 @@ function weeklyPrestamosIn(){
 }
 function devolverPrestamo(p){
   if(!G||!p)return;
-  G.squad=G.squad.filter(x=>x.id!==p.id);
-  G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
-  Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+  sacarDelPlantel(p,'sale',{motivo:'terminó el préstamo',club:p.loanOrigin||''});
   p.club=p.loanOrigin||p.club.replace(' (prést)','');
   p.onLoanIn=false;p.loanUntil=null;
   delete p.loanBuyOption;delete p.loanBuyObligation;delete p.loanOrigin;
@@ -12926,6 +13037,7 @@ function confirmClause(id){
       G.market=G.market.filter(x=>x.id!==id);
       p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
       G.squad.push(p);G.bench.push(p);
+      movAnota('entra',p,{monto:cl,motivo:'le pagamos la cláusula'});
       lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)}) — ${t.wage}k/sem, ${t.years}a, ${t.roleLabel}`);
       addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
       addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
@@ -13252,8 +13364,7 @@ function weeklyColgados(){
     if(p.colgadoSem>=8&&Math.random()<0.16){
       addPhoneMsg('player',p.name,`🚪 Me cansé. Acepto rescindir y me voy libre. Usted gana, presidente.`,'🚪');
       lg('🚪',`${p.name} aceptó rescindir tras ${p.colgadoSem} semanas colgado`);
-      G.squad=G.squad.filter(x=>x.id!==p.id);
-      G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
+      sacarDelPlantel(p,'sale',{motivo:'aceptó rescindir tras '+p.colgadoSem+' semanas colgado',club:'Libre'});
       p.club='Libre';p.freeAgent=true;p.colgado=false;
       G.market.push(p);
       G.morale=Math.max(0,(G.morale||60)-3);
@@ -13294,9 +13405,7 @@ function confirmRescind(id,cost){
   if(G.budget<cost){flash('❌ No te alcanza para la indemnización','loss');return;}
   G.budget=Math.round((G.budget-cost)*10)/10;
   if(cost>0)finAnota('otros_out',cost,'Indemnización a '+p.name);
-  G.squad=G.squad.filter(x=>x.id!==id);
-  G.bench=G.bench.filter(x=>x.id!==id);
-  Object.keys(G.slots).forEach(k2=>{if(G.slots[k2]===id)G.slots[k2]=null;});
+  sacarDelPlantel(p,'sale',{monto:cost,motivo:'le rescindimos el contrato',club:'Libre'});
   G.morale=Math.max(0,G.morale-3);
   lg('🗑️',`Contrato de ${p.name} rescindido (${fv(cost)})`);
   addPhoneMsg('player',p.name,'Presidente, me acaban de comunicar la rescisión. No lo esperaba... le deseo lo mejor al club igualmente. Los caminos se vuelven a cruzar.','👤');
@@ -13481,9 +13590,8 @@ function accOffAt(i, val){
   }
   resolveWantsOut(p);
   // Remove from active squad either way
-  G.squad=G.squad.filter(x=>x.id!==p.id);
-  G.bench=G.bench.filter(x=>x.id!==p.id);
-  Object.keys(G.slots).forEach(k=>{ if(G.slots[k]===p.id) G.slots[k]=null; });
+  sacarDelPlantel(p,o.type==='préstamo'?'cesion':'sale',
+    {club:o.from||'',monto:val,motivo:o.type==='préstamo'?'sale a préstamo':'vendido'});
   p.listed=null; p.askPrice=null;
   if(o.type==='préstamo'){
     // Loan OUT: returns in 26 weeks (o queda si hay obligación de compra)
@@ -13526,6 +13634,7 @@ function accOffAt(i, val){
       G.market=G.market.filter(x=>x.id!==inc.id);
       inc.club=G.teamName;inc.lg='Liga ARG';
       G.squad.push(inc);G.bench.push(inc);
+      movAnota('entra',inc,{motivo:'llegó en el canje por '+p.name});
       lg('🔄',`En el pase de ${p.name} llegó ${inc.name}`);
       addPhoneMsg('player',inc.name,'¡Presidente! Contento de sumarme en esta operación. Voy a responder.','👤');
       }
@@ -18275,9 +18384,7 @@ function negExecDeal(n,p){
       const oldClub=p.club;
       [d.mineId,d.mine2Id].filter(Boolean).forEach(mid=>{
         const m=G.squad.find(q=>q.id===mid); if(!m)return;
-        G.squad=G.squad.filter(q=>q.id!==mid);
-        G.bench=G.bench.filter(q=>q.id!==mid);
-        Object.keys(G.slots).forEach(k=>{if(G.slots[k]===mid)G.slots[k]=null;});
+        sacarDelPlantel(m,'sale',{motivo:'entró en el canje por '+p.name,club:oldClub});
         m.club=oldClub;m.lg=p.lg;G.market.push(m);
       });
     }
@@ -18544,12 +18651,15 @@ function negComplete(n,p,price,isPre){
   G.budget=Math.round((G.budget-price-wageCost)*10)/10;
   if(price>0) finAnota('fichajes',price,'Ficha de '+p.name);
   if(wageCost>0) finAnota('sueldos',wageCost,'Contrato de '+p.name);
+  const _desde=p.club;                       // se pierde en la línea siguiente
   G.market=G.market.filter(x=>x.id!==p.id);
   p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
   p.pressuring=0;p.forceSale=false;p.freeAgent=false;
   G.squad.push(p);G.bench.push(p);
   n.stage='cerrada';
   const modo=isPre?'con un PRECONTRATO (llega libre)':price>0?`por ${fv(price)}`:'LIBRE, sin costo de ficha';
+  movAnota('entra',p,{club:_desde||'',monto:price,
+    motivo:isPre?'precontrato':price>0?'fichaje':'llegó libre'});
   lg('✍️',`${p.name} firmó ${modo} · ${n.wage}k/sem hasta ${p.contract}`);
   addPhoneMsg('player',p.name,`✍️ ¡Listo presidente! Firmé ${modo}. Vamos a dar pelea.`,'✍️');
   flash(`✍️ ${p.name} es tuyo ${price>0?'('+fv(price)+')':'(sin ficha)'}`,'win');
@@ -18827,28 +18937,122 @@ function weeklyAITransfers(){
       const rich=G.market.filter(q=>richLgs.includes(q.lg));
       const buyClub=rich.length?rich[~~(Math.random()*rich.length)].club:'Real Madrid';
       const buyLg=rich.length?(G.market.find(q=>q.club===buyClub)||{}).lg||'España':'España';
-      const staysProb=p.wantsOut?0.05:(p.morale||70)>=75?0.5:0.25;
-      if(Math.random()<staysProb){
-        addPhoneMsg('player',p.name,`💪 Presidente, le cuento: <b>${buyClub}</b> depositó mi cláusula (${fv(cl)})... y les dije que NO. Yo estoy bien acá. Este club es mi casa.`,'❤️');
-        lg('💥',`${buyClub} pagó la cláusula de ${p.name} — el jugador rechazó irse`);
-        p.morale=Math.min(99,(p.morale||70)+5);
-      }else{
-        const cobro=Math.round(cl*(p.ownedPct||1)*10)/10;
-        G.budget=Math.round((G.budget+cobro)*10)/10;
-        finAnota('ventas',cobro,'Cláusula pagada por '+p.name);
-        G.squad=G.squad.filter(q=>q.id!==p.id);
-        G.bench=G.bench.filter(q=>q.id!==p.id);
-        Object.keys(G.slots).forEach(k=>{if(G.slots[k]===p.id)G.slots[k]=null;});
-        p.club=buyClub;p.lg=buyLg;p.wantsOut=false;
-        G.market.push(p);
-        lg('💥',`${buyClub} pagó la cláusula de ${p.name} (${fv(cobro)})`);
-        addPhoneMsg('agent','Mercado de pases',`💥 <b>${buyClub}</b> depositó la cláusula de <b>${p.name}</b>: <b style="color:var(--gold)">${fv(cobro)}</b> entran a las arcas. No había forma de retenerlo.`,'📰');
-        addPhoneMsg('player',p.name,`🙏 Presidente, se dio la chance de ${buyClub} y no la pude dejar pasar. Gracias por todo, este club siempre va a estar en mi corazón.`,'👋');
+      // ═══ LA CLÁUSULA ABRE UNA CHARLA, NO CIERRA LA PUERTA ═══
+      // Antes se resolvía sola con un dado: el club depositaba, se tiraba
+      // staysProb y el jugador ya estaba vendido. Te enterabas por el teléfono
+      // cuando ya no lo tenías — de ahí los jugadores que desaparecían.
+      // Ahora el presidente se sienta con él y tiene algo para ofrecer.
+      G.clausulas=G.clausulas||[];
+      if(!G.clausulas.some(c=>c.pid===p.id)){
+        G.clausulas.push({id:'cl'+Date.now()+~~(Math.random()*9999),pid:p.id,
+          club:buyClub,lg:buyLg,monto:cl,semana:G.week||1,intentos:0});
+        lg('💥',`${buyClub} depositó la cláusula de ${p.name} (${fv(cl)}) — hay que hablar con él`);
+        addPhoneMsg('player',p.name,
+          `😰 Presidente, <b>${buyClub}</b> depositó mi cláusula (<b>${fv(cl)}</b>). Legalmente me puedo ir. Antes de decidir quiero hablar con usted.`,
+          '💥',{clausula:p.id});
       }
     }
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// CLÁUSULA DEPOSITADA: LA CHARLA CON EL JUGADOR
+// ═══════════════════════════════════════════════════════════════════════
+// Tres caminos, y ninguno garantiza nada: mejorarle el contrato (cuesta plata
+// de verdad), apelar al proyecto (depende de cómo esté el vestuario y de tu
+// reputación) o dejarlo ir y cobrar. Si insistís dos veces sin convencerlo, se
+// va igual y encima queda dolido.
+function clausulaDe(pid){ return (G.clausulas||[]).find(c=>c.pid===pid); }
+function _clJugador(c){ return c&&G.squad.find(q=>q.id===c.pid); }
+// Probabilidad de que se quede, dado lo que le ofreciste
+function clausulaChance(c,p,via,mejora){
+  let q=0.10;
+  q+=((p.morale||70)-60)/220;                       // si está bien, cuesta menos
+  q+=((G.rep||50)-55)/260;                          // el peso del club
+  q+=((p.dtRel===undefined?60:p.dtRel)-60)/300;     // cómo se lleva con el DT
+  if(p.wantsOut)q-=0.22;
+  if((p.seasonsAtClub||0)>=3)q+=0.10;               // el que hizo carrera acá
+  if((p.age||26)>=31)q+=0.10;                       // a esa edad no se mueve tan fácil
+  if(via==='plata')q+=Math.min(0.42,(mejora||0)/Math.max(1,p.wage||10)*0.52);
+  if(via==='proyecto')q+=0.14+((G.boardConf||50)-50)/320;
+  q-=c.intentos*0.13;                               // insistir desgasta
+  return Math.max(0.03,Math.min(0.92,q));
+}
+function clausulaAbrir(pid){
+  const c=clausulaDe(pid),p=_clJugador(c);
+  if(!c||!p){ closeMod(); return; }
+  const mejora=Math.max(1,Math.round((p.wage||10)*0.35));
+  const costoAnual=Math.round(mejora*52/1000*10)/10;   // k/sem → M por año
+  const pP=Math.round(clausulaChance(c,p,'plata',mejora)*100);
+  const pR=Math.round(clausulaChance(c,p,'proyecto')*100);
+  const cobro=Math.round(c.monto*(p.ownedPct||1)*10)/10;
+  showMod(`
+    <button class="mclose" onclick="closeMod()">✕</button>
+    <div class="ctitle">💥 Cláusula depositada</div>
+    <div class="card" style="padding:10px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700">${p.name} <span style="color:var(--t3);font-size:10px">${p.pos} · ${p.rat} · ${p.age} años</span></div>
+      <div style="font-size:10px;color:var(--t2);margin-top:5px">
+        <b>${c.club}</b> depositó <b style="color:var(--gold)">${fv(c.monto)}</b>. Si se va, entran <b>${fv(cobro)}</b> a las arcas.
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-top:5px">
+        Moral ${p.morale||70} · Relación con el DT ${p.dtRel===undefined?60:p.dtRel} · ${p.seasonsAtClub||0} temporada(s) en el club${p.wantsOut?' · <span style="color:var(--red)">quiere salir</span>':''}
+      </div>
+      ${c.intentos?`<div style="font-size:9.5px;color:var(--red);margin-top:5px">Ya hablaste ${c.intentos} vez/veces. Cada insistida lo convence menos.</div>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn bG" onclick="clausulaResolver('${p.id}','plata')" style="text-align:left;padding:8px 10px">
+        💰 Mejorarle el contrato <span style="opacity:.75">(+${mejora}k/sem · ${fv(costoAnual)}/año)</span>
+        <div style="font-size:9px;opacity:.8">Se queda con probabilidad ${pP}%</div></button>
+      <button class="btn bo" onclick="clausulaResolver('${p.id}','proyecto')" style="text-align:left;padding:8px 10px">
+        🗣️ Hablarle del proyecto <span style="opacity:.75">(no cuesta plata)</span>
+        <div style="font-size:9px;opacity:.8">Se queda con probabilidad ${pR}%</div></button>
+      <button class="btn bR" onclick="clausulaResolver('${p.id}','dejar')" style="text-align:left;padding:8px 10px">
+        🚪 Dejarlo ir y cobrar <span style="opacity:.75">(${fv(cobro)})</span></button>
+    </div>`);
+}
+function clausulaResolver(pid,via){
+  const c=clausulaDe(pid),p=_clJugador(c);
+  if(!c||!p){ closeMod(); return; }
+  const cobro=Math.round(c.monto*(p.ownedPct||1)*10)/10;
+  const irse=()=>{
+    G.budget=Math.round((G.budget+cobro)*10)/10;
+    finAnota('ventas',cobro,'Cláusula pagada por '+p.name);
+    sacarDelPlantel(p,'sale',{club:c.club,monto:cobro,motivo:'pagaron su cláusula'});
+    p.club=c.club;p.lg=c.lg;p.wantsOut=false;
+    G.market.push(p);
+    G.clausulas=(G.clausulas||[]).filter(x=>x.pid!==pid);
+    lg('💥',`${c.club} se llevó a ${p.name} por la cláusula (${fv(cobro)})`);
+    addPhoneMsg('player',p.name,`🙏 Presidente, se dio la chance de ${c.club} y no la pude dejar pasar. Gracias por todo.`,'👋');
+  };
+  if(via==='dejar'){ irse(); closeMod(); updateUI(); return; }
+  const mejora=Math.max(1,Math.round((p.wage||10)*0.35));
+  const q=clausulaChance(c,p,via,mejora);
+  c.intentos++;
+  if(via==='plata'){
+    p.wage=(p.wage||10)+mejora;
+    finAnota('sueldos',Math.round(mejora*52/1000*10)/10,'Mejora de contrato de '+p.name);
+  }
+  if(Math.random()<q){
+    G.clausulas=(G.clausulas||[]).filter(x=>x.pid!==pid);
+    p.morale=Math.min(99,(p.morale||70)+6);
+    p.wantsOut=false;
+    p.contract=Math.max(p.contract||G.season+1,G.season+2);   // se ata un año más
+    lg('❤️',`${p.name} rechazó irse a ${c.club}: se queda`);
+    addPhoneMsg('player',p.name,via==='plata'
+      ?`💪 Gracias por el gesto, presidente. Le dije que no a ${c.club}. Acá me quedo.`
+      :`❤️ Me convenció, presidente. Este proyecto me entusiasma más que ${c.club}. Me quedo.`,'❤️');
+    flash(`❤️ ${p.name} se queda`,'win');
+  } else if(c.intentos>=2){
+    lg('💔',`${p.name} ya decidió: se va a ${c.club}`);
+    flash(`💔 ${p.name} se va igual`,'loss');
+    irse();
+  } else {
+    p.morale=Math.max(3,(p.morale||70)-2);
+    addPhoneMsg('player',p.name,`😕 Le agradezco, presidente, pero todavía lo estoy pensando. Deme unos días.`,'💭',{clausula:p.id});
+    flash(`😕 ${p.name} lo está pensando`,'draw');
+  }
+  closeMod(); updateUI();
+}
 // ═══ CUOTAS PENDIENTES: se debitan cuando vencen ═══
 function processInstallments(){
   if(!G.installments||!G.installments.length)return;
@@ -19082,6 +19286,13 @@ function rPhone(){
           </div>`;
         } else if(req){
           actHtml=`<div style="font-size:9px;color:${req.approved?'var(--green)':'var(--red)'};margin-top:4px">${req.approved?'✓ Aprobado':'✗ Rechazado'}</div>`;
+        }
+      } else if(d.clausula){
+        const c=(G.clausulas||[]).find(x=>x.pid===d.clausula);
+        if(c&&G.squad.some(q=>q.id===d.clausula)){
+          actHtml=`<div class="ph-acts"><button class="btn bG bs" onclick="closePhone();clausulaAbrir('${d.clausula}')" style="font-size:9px;padding:3px 9px">🗣️ Hablar con él</button></div>`;
+        } else {
+          actHtml='<div style="font-size:9px;color:var(--t3);margin-top:4px">Resuelto</div>';
         }
       } else if(d.gotoTab){
         actHtml=`<div class="ph-acts"><button class="btn bo bs" onclick="closePhone();gTab('${d.gotoTab}',document.querySelectorAll('.nb')[${d.tabIdx||0}])" style="font-size:9px;padding:3px 9px">Ver detalles →</button></div>`;
