@@ -2128,6 +2128,54 @@ const INT_COPAS={
 const INT_RONDAS=['Octavos','Cuartos','Semis','Final'];
 
 // ═══════════════════════════════════════════════════════════════════════
+// CUÁNTO VALE CADA CLUB DE AFUERA
+// ═══════════════════════════════════════════════════════════════════════
+// Antes matchStrengths le ponía 73 fijo a TODO rival de Libertadores: Always
+// Ready pegaba igual que Flamengo. Con tu plantel en ~78 cada llave quedaba
+// en una moneda al aire, y como la copa son cuatro llaves a doble partido, no
+// se ganaba nunca: medido, 12 temporadas con Boca sin llegar ni a una semi.
+// Ahora cada club tiene su número y el sorteo te puede tocar bien o mal, que
+// es de lo que se trata la copa.
+const INT_RAT={
+  // Brasil
+  'Flamengo':79,'Palmeiras':79,'Botafogo':76,'Atlético Mineiro':76,'Atlético MG':76,
+  'Internacional':74,'Fluminense':74,'São Paulo':75,'Cruzeiro':74,'Corinthians':73,
+  'Fortaleza':72,'Athletico Paranaense':71,
+  // Argentina
+  'River Plate':78,'Boca Juniors':77,'Racing Club':75,'Independiente':72,'San Lorenzo':71,
+  'Estudiantes LP':72,'Vélez Sarsfield':72,'CA Talleres':71,'Talleres':71,'Lanús':70,
+  'Huracán':69,'Defensa y Justicia':69,'Godoy Cruz':68,'Rosario Central':71,
+  // Uruguay
+  'Nacional (URU)':71,'Peñarol':71,'Defensor Sporting':66,'Danubio':64,
+  // Ecuador
+  'Independiente del Valle':71,'LDU Quito':70,'Liga de Quito':70,'Emelec':66,
+  // Paraguay
+  'Cerro Porteño':70,'Olimpia':69,'Libertad':69,'Guaraní':66,'Sol de América':63,
+  // Chile
+  'Colo-Colo':70,'U. Católica':68,'Universidad Católica':68,
+  // Colombia
+  'Atlético Nacional':70,'Millonarios':68,'Junior FC':67,'Ind. Medellín':66,
+  'Deportivo Cali':65,'Dep. Cali':65,'Deportes Tolima':65,
+  // Perú y Bolivia
+  'Alianza Lima':67,'Sporting Cristal':67,'Bolívar':66,'The Strongest':65,'Always Ready':64,
+  // Mundial de Clubes
+  'Real Madrid':88,'Manchester City':88,'Bayern Munich':87,'PSG':86,'Barcelona':86,
+  'Liverpool':85,'Chelsea':84,'Inter':84,'Juventus':82,'Al-Hilal':74,'Monterrey':71,
+  'Al-Ahly':70,'Seattle Sounders':68,'Urawa Reds':66,'Wydad Casablanca':66,'Auckland City':56,
+};
+// Fuerza de un rival internacional. Si no está en la tabla, se estima por la
+// ronda: cuanto más avanzada la copa, mejor el que sobrevivió.
+function intRatDe(nombre,comp){
+  if(INT_RAT[nombre])return INT_RAT[nombre];
+  const c=comp||'';
+  if(/Mundial de Clubes/.test(c))return 80;
+  if(/Recopa/.test(c))return 73;
+  if(/Sudamericana/.test(c))return /Final|Semis/.test(c)?70:67;
+  if(/Libertadores/.test(c))return /Final|Semis/.test(c)?76:73;
+  return 70;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // FASE DE GRUPOS DE VERDAD: 4 EQUIPOS, 6 FECHAS, IDA Y VUELTA
 // ═══════════════════════════════════════════════════════════════════════
 // Antes al calendario iban SÓLO tus 6 partidos y los otros tres clubes del
@@ -2147,7 +2195,7 @@ function intGroupFixture(clubs){
   }
   return ida.concat(ida.map(par=>par.map(([h,a])=>[a,h])));   // vuelta: dados vuelta
 }
-// Fuerza por bombo: el bombo 1 es Flamengo, el 4 es Always Ready
+// Fuerza por bombo, sólo para clubes que no estén en INT_RAT
 const INT_POW={lib:[78,74,70,66],sud:[70,68,66,63]};
 function intGrpPow(club){
   const g=G&&G.intGrp; if(!g)return 68;
@@ -2196,7 +2244,9 @@ function intGrpTabla(){
 // Arma el grupo (fixture mío + fixture de los otros) y devuelve mis partidos
 function intBuildGroup(copa,teamName,rivales,weeks){
   const clubs=[teamName,...rivales.map(r=>r[0])];
-  const pow={}; rivales.forEach((r,i)=>{pow[r[0]]=(INT_POW[copa]||INT_POW.lib)[Math.min(3,r[1])]||68;});
+  // La fuerza real del club manda; el bombo sólo cubre a los que no están en la tabla
+  const pow={}; rivales.forEach((r)=>{
+    pow[r[0]]=INT_RAT[r[0]]||(INT_POW[copa]||INT_POW.lib)[Math.min(3,r[1])]||68;});
   const pref=(INT_COPAS[copa]||{}).pref||'Copa Libertadores';
   const mios=[], fix=[];
   intGroupFixture(clubs).forEach((par,i)=>{
@@ -2234,7 +2284,21 @@ function intProximaRonda(copa,rnd){
     .map(x=>x.home===G.teamName?x.away:x.home));
   const libres=C.bombo.filter(c=>c!==G.teamName&&!jugados.has(c));
   const bombo=libres.length?libres:C.bombo.filter(c=>c!==G.teamName);
-  const rival=bombo[~~(Math.random()*bombo.length)];
+  // ═══ SALIR PRIMERO DEL GRUPO SIRVE ═══
+  // El sorteo era uniforme: daba lo mismo ganar el grupo o entrar segundo, y en
+  // octavos te podía tocar Flamengo igual. Como en la copa de verdad, el primero
+  // cruza con un segundo (rival más flojo) y el segundo con un primero.
+  let rival;
+  const T=(G.intGrp&&G.intGrp.copa===copa)?intGrpTabla():null;
+  const puesto=T?(T.findIndex(r=>r.c===G.teamName)+1):0;
+  if(rnd===2&&puesto>0){
+    const orden=[...bombo].sort((a,b)=>(INT_RAT[a]||70)-(INT_RAT[b]||70));
+    // 1º del grupo: sale de la mitad más floja. 2º: de la mitad más fuerte.
+    const mitad=Math.max(1,Math.ceil(orden.length/2));
+    const urna=puesto===1?orden.slice(0,mitad):orden.slice(-mitad);
+    rival=urna[~~(Math.random()*urna.length)];
+  }
+  if(!rival)rival=bombo[~~(Math.random()*bombo.length)];
   if(!rival)return null;
   const ultima=Math.max(G.week||1,...G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref)).map(x=>x.week||1));
   if(rnd===5){
@@ -9102,14 +9166,16 @@ function matchStrengths(m){
   const oppName = m.home===myTeam ? m.away : m.home;
   const BIG5 = ['Boca Juniors','River Plate','Racing Club','Independiente','San Lorenzo'];
   const MID   = ['Estudiantes LP','Rosario Central','CA Talleres','Vélez Sarsfield','Huracán','Newell\'s','Lanús'];
-  const LIB_HARD = ['Flamengo','Palmeiras','Botafogo','Atlético MG','Fluminense'];
+  // ═══ CADA RIVAL DE COPA VALE LO QUE VALE ═══
+  // Acá había un 73 fijo para toda la Libertadores: el bombo 4 pegaba igual
+  // que Flamengo y la copa era irremontable (12 temporadas, ni una semifinal).
+  const esInt = /Libertadores|Sudamericana|Recopa|Mundial de Clubes/.test(m.comp||'');
   let oppRat = 65;
   const dbPow = (m.comp==='Liga Profesional'&&G.market&&G.market.some(p=>p.club===oppName))?clubPower(oppName):0;
-  if(dbPow)                        oppRat = Math.round(dbPow); // fuerza real del plantel (base TM)
+  if(esInt)                        oppRat = intRatDe(oppName,m.comp);
+  else if(dbPow)                   oppRat = Math.round(dbPow); // fuerza real del plantel (base TM)
   else if(BIG5.includes(oppName))  oppRat = 75;
   else if(MID.includes(oppName))   oppRat = 70;
-  else if(LIB_HARD.includes(oppName)) oppRat = 77;
-  else if(m.comp.includes('Libertadores')) oppRat = 73;
   else if(m.comp.includes('Copa Argentina')) oppRat = 62;
   // Difficulty raises/lowers rival quality (affects sim AND live 11v11)
   oppRat += G.diff===2 ? 7 : G.diff===0 ? -7 : 0;
