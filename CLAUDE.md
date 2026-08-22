@@ -42,6 +42,27 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   nombres, no los clubes).
 - **Extranjeros**: un nacionalizado NO ocupa cupo. `isForeign(nat, nat2)`. El
   cupo se cumple en el ONCE (`autoFill`, `clickSlot`, `doSub`), no en el plantel.
+- **Todo el que entra o sale pasa por un embudo**: `sacarDelPlantel(p,tipo,det)`
+  saca, anota el movimiento (`movAnota` → `G.movs`, pestaña Mercado →
+  Movimientos) y **rellena el hueco** del once con `taparHueco`. Antes había
+  diez lugares que sacaban gente y ninguno rellenaba: te quedabas con 10.
+- **Ninguna firma es instantánea**: `firmaProgramar` encola y `firmasTick`
+  (diario) cierra 2-5 días después. Ojo con `pagado:true` en los caminos que
+  ya descontaron la plata, si no se cobra dos veces.
+- **La cláusula de rescisión abre una charla**, no una venta: `G.clausulas` +
+  `clausulaAbrir` / `clausulaResolver` (mejorar contrato, hablar del proyecto,
+  dejarlo ir). A los dos intentos fallidos se va igual.
+- **La pretemporada son fechas del calendario** (`PRE_SEMANAS=3`): la liga
+  arranca en la semana 4 y los amistosos son partidos de verdad, de local y de
+  visitante. Si tocás esto acordate de `otherLeagueTable`, que descuenta las
+  mismas semanas.
+- **El DT se adapta**: `weeklyDtPlan` revisa cada 6 fechas; con menos de 1,2
+  pts/partido cambia primero el esquema y después el arquetipo (`ARQ_SIN_GOL` /
+  `ARQ_LE_HACEN`). Tu DT propio no se toca.
+- **Reconvertir a un jugador le cambia el puesto PRINCIPAL** (`weeklyReconv`):
+  el viejo queda como `pos2`.
+- **Las instrucciones del banco (`TAC_INSTR`) pisan el perfil** vía
+  `tacProfOverride` dentro de `dtProfile`, y sólo con DT propio.
 - **Copas internacionales**: Libertadores y Sudamericana comparten motor
   (`INT_COPAS`, `intProximaRonda`, `genIntKO`): grupos → octavos → cuartos →
   semis → final, **una ronda sorteada por vez**. Ganar la Libertadores habilita
@@ -55,6 +76,10 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   Armado en `intBuildGroup` / `intGroupFixture`; la fuerza de cada rival sale
   del bombo (`INT_POW`). `intSimGoals` usa un multiplicador más suave que
   `arSimPair` (1.9 vs 3.2): con el de la liga el grupo terminaba 21:1.
+- **Cada club de afuera vale lo que vale** (`INT_RAT` / `intRatDe`). Antes
+  `matchStrengths` le ponía 73 fijo a toda la Libertadores y era imposible
+  ganarla: 12 temporadas sin llegar ni a una semi. Salir primero del grupo
+  ahora te da un cruce más flojo en octavos.
 - **Tácticas de los DTs**: 14 arquetipos (`ARQ`) asignados por
   `ARQ_DT` (a mano, ~100 nombres) → `ARQ_LIGA` (default por escuela) →
   hash. La tabla `REAL` de `dtProfile()` pisa al arquetipo. La formación sale
