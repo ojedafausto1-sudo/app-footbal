@@ -4379,11 +4379,10 @@ function submitNegTerms(id){
       for(let k=1;k<plan;k++)G.installments.push({player:p.name,toClub:oldClub,amount:cuota,dueWeek:(G.week||1)+17*k,season:G.season});
       lg('💳',`Financiado: ${plan-1} cuota(s) de ${fv(cuota)} pendiente(s) a ${oldClub}`);
     }
-    p.club=G.teamName||'Boca Juniors';p.lg='Liga ARG';p.wage=wage;p.contract=G.season+years;
-    G.squad.push(p);G.market=G.market.filter(x=>x.id!==id);G.bench.push(p);
-    movAnota('entra',p,{club:oldClub,monto:feeTot,motivo:'fichaje'});
-    lg('💰',`${p.name} fichado por ${fv(feeTot)}${plan>1?' en '+plan+' cuotas':''} (${wage}k/sem, ${years}a, ${roles[role]})`);
-    addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de unirme a <b>${G.teamName||'el club'}</b>! Voy a dar todo en la cancha. ¡Vamos!`,'⭐');
+    // El acuerdo se cierra hoy; la firma es después de la revisión médica.
+    firmaProgramar(p,{price:0,pagado:true,fee:feeTot,wage,years,motivo:'fichaje'});
+    lg('💰',`Acuerdo por ${p.name}: ${fv(feeTot)}${plan>1?' en '+plan+' cuotas':''} (${wage}k/sem, ${years}a, ${roles[role]})`);
+    addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de arreglar con <b>${G.teamName||'el club'}</b>! Paso la revisión y firmo.`,'⭐');
     addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
     negStep4(p,nd.agreedFee,wage,years,roles[role]);
   } else {
@@ -13034,10 +13033,7 @@ function confirmClause(id){
       if(G.budget<cl+t.bonus){flash('❌ Presupuesto insuficiente ('+fv(cl+t.bonus)+')','loss');return;}
       G.budget=Math.round((G.budget-cl-t.bonus)*10)/10;
       finAnota('fichajes',cl+t.bonus,'Cláusula de rescisión de '+p.name);
-      G.market=G.market.filter(x=>x.id!==id);
-      p.club=G.teamName;p.lg='Liga ARG';p.wage=t.wage;p.contract=G.season+t.years;
-      G.squad.push(p);G.bench.push(p);
-      movAnota('entra',p,{monto:cl,motivo:'le pagamos la cláusula'});
+      firmaProgramar(p,{price:0,pagado:true,fee:cl,wage:t.wage,years:t.years,motivo:'le pagamos la cláusula'});
       lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)}) — ${t.wage}k/sem, ${t.years}a, ${t.roleLabel}`);
       addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
       addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
@@ -18464,6 +18460,7 @@ function advanceDay(silencioso){
 function dailyTick(){
   if(!G)return;
   negotiationsTick();
+  firmasTick();
   // Recuperación diaria: descansar entre partidos sirve
   const rec=(G.trainIntensity==='suave'?1.6:G.trainIntensity==='fuerte'?0.5:1.0);
   G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(100,p.fit+rec); });
@@ -18647,23 +18644,76 @@ function negComplete(n,p,price,isPre){
     n.stage='cerrada';updateUI();return;
   }
   if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
-  const wageCost=Math.round(n.wage*n.years*4/1000*10)/10;
-  G.budget=Math.round((G.budget-price-wageCost)*10)/10;
-  if(price>0) finAnota('fichajes',price,'Ficha de '+p.name);
-  if(wageCost>0) finAnota('sueldos',wageCost,'Contrato de '+p.name);
-  const _desde=p.club;                       // se pierde en la línea siguiente
-  G.market=G.market.filter(x=>x.id!==p.id);
-  p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
-  p.pressuring=0;p.forceSale=false;p.freeAgent=false;
-  G.squad.push(p);G.bench.push(p);
   n.stage='cerrada';
-  const modo=isPre?'con un PRECONTRATO (llega libre)':price>0?`por ${fv(price)}`:'LIBRE, sin costo de ficha';
-  movAnota('entra',p,{club:_desde||'',monto:price,
-    motivo:isPre?'precontrato':price>0?'fichaje':'llegó libre'});
-  lg('✍️',`${p.name} firmó ${modo} · ${n.wage}k/sem hasta ${p.contract}`);
-  addPhoneMsg('player',p.name,`✍️ ¡Listo presidente! Firmé ${modo}. Vamos a dar pelea.`,'✍️');
-  flash(`✍️ ${p.name} es tuyo ${price>0?'('+fv(price)+')':'(sin ficha)'}`,'win');
+  firmaProgramar(p,{price,wage:n.wage,years:n.years,isPre:!!isPre});
   updateUI();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NINGUNA FIRMA ES INSTANTÁNEA
+// ═══════════════════════════════════════════════════════════════════════
+// Había caminos que metían al jugador en el plantel en el mismo click:
+// el acuerdo con el agente, igualar la contraoferta del club, pagar una
+// cláusula y cerrar con un libre. Apretabas y ya lo tenías. Ahora todas
+// las operaciones terminan igual: acuerdo → revisión médica y papeles →
+// firma. Son 2 a 5 días de calendario, que corren en dailyTick.
+function firmaProgramar(p,cfg){
+  if(!G||!p)return false;
+  G.firmas=G.firmas||[];
+  if(G.firmas.some(f=>f.pid===p.id))return false;
+  cfg=cfg||{};
+  // pagado: la plata ya salió de la caja en el camino que llamó acá, así que
+  // el día de la firma sólo se completan los papeles (si no, se cobra dos veces)
+  G.firmas.push({pid:p.id,name:p.name,desde:p.club,dias:2+~~(Math.random()*4),
+    price:cfg.price||0,wage:cfg.wage||p.wage||10,years:cfg.years||3,
+    pagado:!!cfg.pagado,fee:cfg.fee||cfg.price||0,
+    isPre:!!cfg.isPre,motivo:cfg.motivo||'',cuotas:cfg.cuotas||null,jug:p});
+  G.market=G.market.filter(x=>x.id!==p.id);   // ya está apalabrado: sale del mercado
+  lg('🩺',`${p.name}: acuerdo cerrado, pasa la revisión médica`);
+  addPhoneMsg('agent',p.name,
+    `🩺 Acuerdo cerrado por <b>${p.name}</b>. Ahora pasa la revisión médica y firma en los próximos días.`,'📝');
+  flash(`🩺 ${p.name}: acuerdo cerrado, firma en unos días`,'draw');
+  return true;
+}
+// Corre una vez por día
+function firmasTick(){
+  if(!G||!G.firmas||!G.firmas.length)return;
+  const quedan=[];
+  G.firmas.forEach(f=>{
+    if(f.dias>0){f.dias--;quedan.push(f);return;}
+    const p=f.jug; if(!p)return;
+    // Las condiciones se revisan de nuevo el día de la firma: entre el acuerdo
+    // y la revisión pudo llenarse el plantel o irse la plata.
+    if(G.squad.length>=35){
+      addPhoneMsg('board','Secretaría Deportiva',`❌ No pudimos inscribir a <b>${p.name}</b>: el plantel está lleno (35).`,'🏛️');
+      G.market.push(p); return;
+    }
+    if(f.price>G.budget){
+      addPhoneMsg('board','Tesorería',`❌ Se cayó la firma de <b>${p.name}</b>: no está la plata (${fv(f.price)}).`,'🏛️');
+      G.market.push(p); return;
+    }
+    if(!f.pagado){
+      const wageCost=Math.round(f.wage*f.years*4/1000*10)/10;
+      G.budget=Math.round((G.budget-f.price-wageCost)*10)/10;
+      if(f.price>0) finAnota('fichajes',f.price,'Ficha de '+p.name);
+      if(wageCost>0) finAnota('sueldos',wageCost,'Contrato de '+p.name);
+    }
+    if(f.cuotas&&f.cuotas.length){
+      G.installments=G.installments||[];
+      f.cuotas.forEach(c=>G.installments.push(c));
+    }
+    p.club=G.teamName;p.lg='Liga ARG';p.wage=f.wage;p.contract=G.season+f.years;
+    p.pressuring=0;p.forceSale=false;p.freeAgent=false;
+    G.squad.push(p);(G.bench=G.bench||[]).push(p);
+    const _fee=f.fee||f.price;
+    const modo=f.isPre?'con un PRECONTRATO (llega libre)':_fee>0?`por ${fv(_fee)}`:'LIBRE, sin costo de ficha';
+    movAnota('entra',p,{club:f.desde||'',monto:f.fee||f.price,
+      motivo:f.motivo||(f.isPre?'precontrato':f.price>0?'fichaje':'llegó libre')});
+    lg('✍️',`${p.name} firmó ${modo} · ${f.wage}k/sem hasta ${p.contract}`);
+    addPhoneMsg('player',p.name,`✍️ ¡Listo presidente! Pasé la revisión y firmé ${modo}. Vamos a dar pelea.`,'✍️');
+    flash(`✍️ ${p.name} firmó ${_fee>0?'('+fv(_fee)+')':''}`,'win');
+  });
+  G.firmas=quedan;
 }
 
 // ═══ PANEL DE NEGOCIACIONES ABIERTAS ═══
