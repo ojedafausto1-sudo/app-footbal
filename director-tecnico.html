@@ -6256,27 +6256,83 @@ function rStaff(){
       </div>`;
     }).join('');
   }
-  if(e3) e3.innerHTML = '<div class="ctitle">Contratar DT</div>' +
-    '<div class="card" style="margin-bottom:8px;background:rgba(246,211,24,.04);border-color:rgba(246,211,24,.2)">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">' +
-    '<div><div style="font-weight:700;font-family:\'Rajdhani\',sans-serif;font-size:13px">🛠️ DT Personalizado</div>' +
-    '<div style="font-size:9px;color:var(--t3)">Creá tu propio perfil de DT con tus preferencias</div></div>' +
-    '<button class="btn bg bs" onclick="openCustomDTModal()">Crear</button>' +
-    '</div></div>' +
-    (ensureDtPool(),G.dtPool).filter(d=>d.name!==G.dt.name).sort((a,b)=>b.rat-a.rat).slice(0,40).map(d=>`
+  if(e3){
+    ensureDtPool();
+    // ═══ BUSCADOR DE TÉCNICOS ═══
+    // Antes era un top-40 por rating y nada más: con 600 DTs en la base era
+    // imposible encontrar a alguien concreto o buscar por idea de juego.
+    // Ojo: la base trae la nacionalidad en código (ARG, ESP, ITA) y 483 de los
+    // 649 técnicos la tienen vacía. No se inventa: los que no la tienen quedan
+    // agrupados bajo "sin dato" para que igual se los pueda encontrar.
+    const nats=[...new Set(G.dtPool.map(d=>d.nat).filter(n=>n&&n!=='—'))].sort();
+    const ligas=[...new Set(G.dtPool.map(d=>d.league).filter(Boolean))].sort();
+    const arqs=(typeof ARQ!=='undefined')?Object.entries(ARQ).map(([k,v])=>[k,v.i+' '+v.n]):[];
+    const forms=[...new Set(G.dtPool.map(d=>d.style).filter(Boolean))].sort();
+    const st=G._dtF=G._dtF||{q:'',nat:'',lg:'',arq:'',form:'',libre:'',ord:'rat'};
+    const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+    e3.innerHTML='<div class="ctitle">Contratar DT</div>'+
+    '<div class="card" style="margin-bottom:8px;background:rgba(246,211,24,.04);border-color:rgba(246,211,24,.2)">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">'+
+    '<div><div style="font-weight:700;font-family:\'Rajdhani\',sans-serif;font-size:13px">🛠️ DT Personalizado</div>'+
+    '<div style="font-size:9px;color:var(--t3)">Creá tu propio perfil de DT con tus preferencias</div></div>'+
+    '<button class="btn bg bs" onclick="openCustomDTModal()">Crear</button>'+
+    '</div></div>'+
+    `<input class="sb" type="text" id="dtQ" placeholder="🔍 Buscar técnico por nombre o club..." value="${(st.q||'').replace(/"/g,'&quot;')}" oninput="setDtF('q',this.value)">
+     <div class="frow">
+       <select class="fs" onchange="setDtF('nat',this.value)">${opt('','Todas las nacionalidades',st.nat)}${nats.map(n=>opt(n,n,st.nat)).join('')}${opt('__','Sin dato de nacionalidad',st.nat)}</select>
+       <select class="fs" onchange="setDtF('arq',this.value)">${opt('','Toda idea de juego',st.arq)}${arqs.map(([k,l])=>opt(k,l,st.arq)).join('')}</select>
+       <select class="fs" onchange="setDtF('form',this.value)">${opt('','Cualquier esquema',st.form)}${forms.map(f=>opt(f,f,st.form)).join('')}</select>
+       <select class="fs" onchange="setDtF('lg',this.value)">${opt('','Todas las ligas',st.lg)}${ligas.map(l=>opt(l,l,st.lg)).join('')}</select>
+       <select class="fs" onchange="setDtF('libre',this.value)">${opt('','Libres y con club',st.libre)}${opt('si','Sólo libres',st.libre)}${opt('no','Sólo con club',st.libre)}</select>
+       <select class="fs" onchange="setDtF('ord',this.value)">${opt('rat','Por nivel',st.ord)}${opt('salary','Más baratos',st.ord)}${opt('age','Más jóvenes',st.ord)}${opt('name','Por nombre',st.ord)}</select>
+     </div><div id="dtList"></div>`;
+    rDtList();
+  }
+}
+// Filtros del mercado de técnicos
+function setDtF(k,v){ if(!G)return; G._dtF=G._dtF||{}; G._dtF[k]=v; rDtList(); }
+function rDtList(){
+  const el=document.getElementById('dtList'); if(!el||!G)return;
+  ensureDtPool();
+  const st=G._dtF||{};
+  const q=(st.q||'').trim().toLowerCase();
+  let pool=G.dtPool.filter(d=>d.name!==(G.dt&&G.dt.name));
+  if(q)pool=pool.filter(d=>(d.name||'').toLowerCase().includes(q)
+    ||(d.club||'').toLowerCase().includes(q)||(d.league||'').toLowerCase().includes(q)
+    ||(d.nat||'').toLowerCase().includes(q));
+  if(st.nat==='__')pool=pool.filter(d=>!d.nat||d.nat==='—');
+  else if(st.nat)pool=pool.filter(d=>d.nat===st.nat);
+  if(st.lg)pool=pool.filter(d=>d.league===st.lg);
+  if(st.form)pool=pool.filter(d=>d.style===st.form);
+  if(st.arq)pool=pool.filter(d=>(typeof dtArqKey==='function')&&dtArqKey(d)===st.arq);
+  if(st.libre==='si')pool=pool.filter(d=>!d.club);
+  if(st.libre==='no')pool=pool.filter(d=>!!d.club);
+  const ord=st.ord||'rat';
+  pool.sort((a,b)=>ord==='salary'?(a.salary||0)-(b.salary||0)
+    :ord==='age'?(a.age||50)-(b.age||50)
+    :ord==='name'?String(a.name).localeCompare(String(b.name))
+    :(b.rat||0)-(a.rat||0));
+  const total=pool.length;
+  const lista=pool.slice(0,40);
+  if(!total){ el.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3)">Ningún técnico con esos filtros.</div>'; return; }
+  el.innerHTML=`<div style="font-size:9px;color:var(--t3);margin:4px 2px 6px">${total} técnico(s)${total>40?' · se muestran los primeros 40':''}</div>`+
+    lista.map(d=>{
+      const a=(typeof dtArq==='function')?dtArq(d):null;
+      return `
       <div class="card" style="margin-bottom:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
           <div>
             <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:13px">${d.name}</div>
-            <div style="font-size:9px;color:var(--t3)">${d.nat} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span> · ${d.club?`<span style="color:var(--ora)">📍 ${d.club}</span>`:'<span style="color:var(--green)">LIBRE</span>'}</div>
+            <div style="font-size:9px;color:var(--t3)">${d.nat}${d.age?' · '+d.age+' años':''} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span> · ${d.club?`<span style="color:var(--ora)">📍 ${d.club}</span>`:'<span style="color:var(--green)">LIBRE</span>'}</div>
+            ${a?`<div style="font-size:9px;color:var(--t2);margin-top:2px">${a.i} <b>${a.n}</b></div>`:''}
             <div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${rb(d.rat)}${dtTraitBadge(d)}</div>
             <div style="font-size:9px;color:var(--green);margin-top:2px">✦ ${(DT_TRAIT_FX[d.trait]||{fx:''}).fx}</div>
             ${dtProfBars(d)}
           </div>
-          <button class="btn bg bs" onclick="openDtNeg('${d.name.replace(/'/g,"\\'")}')">🤝 Negociar</button>
+          <button class="btn bg bs" onclick="openDtNeg('${String(d.name).replace(/'/g,"\\'")}')">🤝 Negociar</button>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 }
 
 function fireDT(){
@@ -8907,7 +8963,7 @@ function openReconv(id){
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🔁 Reconvertir a ${p.name}</div>
-    <div class="note" style="margin:8px 0">Juega de <b>${p.pos}</b>. Aprender otro puesto lleva <b>${semanas} semanas</b> y mientras tanto rinde peor: pierde ${p.age<=23?'poco':'bastante'} mientras se acomoda. Al terminar le queda como segunda posición.</div>
+    <div class="note" style="margin:8px 0">Juega de <b>${p.pos}</b>. Aprender otro puesto lleva <b>${semanas} semanas</b> y mientras tanto rinde peor: pierde ${p.age<=23?'poco':'bastante'} mientras se acomoda. Al terminar <b>ese pasa a ser su puesto</b> y el de ahora le queda como alternativo.</div>
     <div class="sr"><span class="sl">Edad</span><span class="sv">${p.age} años ${p.age<=23?'— aprende rápido':p.age>=30?'— a esta edad cuesta':''}</span></div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:10px">
       ${opts.map(o=>`<button class="btn bo bs" onclick="startReconv('${p.id}','${o}')">→ ${o}</button>`).join('')}
@@ -8985,11 +9041,17 @@ function weeklyReconv(){
     if(!p.reconv) return;
     p.reconv.resta--;
     if(p.reconv.resta>0) return;
-    const a=p.reconv.a;
-    p.pos2=a; p.reconv=null;
-    lg('🔁',`${p.name} ya juega de ${a} sin problemas`);
+    // ═══ EL PUESTO NUEVO PASA A SER EL SUYO ═══
+    // Antes la reconversión sólo cargaba el puesto nuevo como ALTERNATIVO
+    // (pos2): el jugador seguía figurando de lo que era y el DT lo seguía
+    // armando ahí. Si lo reconvertiste, es porque querés que juegue de eso.
+    // El puesto viejo no se pierde: queda como alternativo, que es lo que pasa
+    // de verdad con un lateral que se hace central.
+    const a=p.reconv.a, antes=p.pos;
+    p.pos=a; p.pos2=antes; p.reconv=null;
+    lg('🔁',`${p.name} pasa a ser ${a} (antes ${antes})`);
     addPhoneMsg('dt',(G.dt&&G.dt.name)||'El DT',
-      `✅ <b>${p.name}</b> terminó la reconversión: ya lo puedo parar de <b>${a}</b> sin que se note.`,'👔');
+      `✅ <b>${p.name}</b> terminó la reconversión: de acá en adelante es <b>${a}</b>. De ${antes} también puede jugar.`,'👔');
   });
 }
 // Mientras aprende está incómodo en los dos puestos
