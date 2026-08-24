@@ -2861,7 +2861,13 @@ function buildAllTeams(liga){
     const vals=(fuerza[name]||[]).sort((a,b)=>b-a).slice(0,18);
     const val=vals.reduce((a,x)=>a+x,0);       // valor del plantel en M
     // Escalas atadas al valor real del plantel, con topes sensatos
-    const rep=Math.max(38,Math.min(76,Math.round(40+Math.sqrt(Math.max(0,val))*4.6)));
+    // ═══ QUE LA REPUTACIÓN DISTINGA ═══
+    // 40+√val·4.6 con tope 76 saturaba: en las ligas europeas TODOS los clubes
+    // salían con Rep 76, del Inter (670M de plantel) al Lecce (70M). Y la
+    // reputación decide qué jugadores te aceptan, qué te exige la Junta y qué
+    // objetivos te ponen. Con logaritmo el rango se usa entero: un grande
+    // europeo ~88, un chico de ahí ~65, un modesto sudamericano ~42.
+    const rep=Math.max(35,Math.min(90,Math.round(20+10.5*Math.log(Math.max(1.5,val)))));
     const cap=Math.max(9000,Math.min(48000,Math.round(6000+val*900)));
     TEAMS[id]={
       name, abbr:name.toUpperCase().slice(0,5),
@@ -2897,10 +2903,13 @@ function rOtrosTeams(){
   buildAllTeams(lg);
   // Selector de país: hasta ahora sólo se podía empezar en la Argentina
   const sel=document.getElementById('tsLiga');
-  if(sel&&!sel.dataset.listo){
-    sel.dataset.listo='1';
-    sel.innerHTML=ligasJugables().map(l=>
-      `<option value="${l}"${l===lg?' selected':''}>${(LIGA_NOMBRE[l]||l)} — ${l}</option>`).join('');
+  if(sel){
+    if(!sel.dataset.listo){
+      sel.dataset.listo='1';
+      sel.innerHTML=ligasJugables().map(l=>
+        `<option value="${l}">${(LIGA_NOMBRE[l]||l)} — ${l}</option>`).join('');
+    }
+    if(sel.value!==lg)sel.value=lg;   // por si la liga se cambió por código
   }
   const grandes=(lg==='Liga ARG')?['boca','river','indep','racing','sanlo']:[];
   const otros=Object.entries(TEAMS)
