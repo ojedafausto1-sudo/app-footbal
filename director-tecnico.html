@@ -14001,13 +14001,33 @@ function fmBodyBall(p,b,team){
     const f=FM;
     // Ya lo pasó este remate: no vuelve a intervenir sobre la misma pelota
     if(f._gkPass&&f._gkPass.gk===p&&f.ticks<f._gkPass.until)return false;
-    const reachG=p.r+22;                          // alcance con estirada
+    // ═══ EL ALCANCE DEL ARQUERO ═══
+    // Estaba en p.r+22, o sea unos 35 píxeles sobre un arco de 360 de alto: el
+    // arquero cubría el 10% del arco y el 90% de los remates al arco ni pasaban
+    // por su chequeo. Por eso subirle la puntería de atajar no movía nada y el
+    // 67% de lo que iba al arco terminaba en gol (real: 31%). Un arquero se
+    // estira: el alcance ahora es una fracción del arco y depende de sus
+    // reflejos, que es donde un ARQ de 85 se tiene que notar contra uno de 65.
+    const _refG=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
+    const reachG=p.r+22+f.GH*(0.26+Math.max(0,Math.min(100,_refG))/100*0.38);
     const dG=Math.hypot(b.x-p.x,b.y-p.y);
     // sólo interviene si la pelota va HACIA su arco con intención (o la tiene encima)
     const ownGoalX=(p.x<f.VW/2)?f.leftGL:f.rightGL;
     const towardGoal=(ownGoalX<f.VW/2?b.vx<-0.5:b.vx>0.5);
     const power=Math.hypot(b.vx,b.vy);
-    if(dG<reachG&&b.air<=6&&(towardGoal||power<3.5)){
+    // ═══ ¿VA ENTRE LOS PALOS? ═══
+    // Con el alcance grande el arquero manoteaba TAMBIÉN los remates que se
+    // iban afuera, y como cada intervención cuenta como tiro al arco, el 74%
+    // de los remates figuraba al arco (real: 34%). Se proyecta dónde cruza la
+    // pelota la línea de gol: si va afuera, el arquero la deja pasar, como en
+    // la cancha. Y lo que le cuesta la atajada es lo que tiene que estirarse
+    // hasta ESE punto, no la distancia en diagonal a la pelota.
+    const _gy1=f.VH/2-f.GH, _gy2=f.VH/2+f.GH;
+    const _t=(Math.abs(b.vx)>0.05)?(ownGoalX-b.x)/b.vx:-1;
+    const _yCruce=(_t>0)?(b.y+b.vy*_t):b.y;
+    const vaAlArco=(_t>0&&_t<70&&_yCruce>_gy1-16&&_yCruce<_gy2+16);
+    const estirada=Math.abs(_yCruce-p.y);
+    if((vaAlArco?estirada<reachG:dG<p.r+26)&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
       // ANTES: tope 0.66 y −0.05 por cada punto de potencia. Un arquero de 75
       // con un remate fuerte atajaba el 21%: el 79% restante eran rebotes que
@@ -14035,9 +14055,15 @@ function fmBodyBall(p,b,team){
       // rechazaba — NUNCA era gol. Los únicos goles eran los que pasaban fuera
       // de su alcance, y los partidos terminaban 0-0. Un remate bien puesto
       // junto al palo y fuerte le gana al arquero: eso es un gol.
-      const lejos = dG/reachG;                          // 0 = a las manos, 1 = al palo
-      const llega = Math.max(0.18,Math.min(0.95,
-                    ref/100*0.99 - power*0.032 - lejos*0.34 + (b.air>2?-0.06:0.04)));
+      const lejos = Math.min(1,(vaAlArco?estirada:dG)/reachG);   // 0 = a las manos, 1 = al palo
+      // ═══ CUÁNTO ATAJA EL ARQUERO ═══
+      // Medido: de cada remate que iba al arco, el 67% terminaba en gol. En el
+      // fútbol de verdad el arquero saca el 69% y sólo el 31% es gol. Con esta
+      // fórmula un arquero de REF 75 llegaba al 28% de los remates: era un
+      // hombre parado. Se sube la base y se aflojan los castigos por potencia y
+      // por lo pegado al palo que va el remate.
+      const llega = Math.max(0.20,Math.min(0.92,
+                    ref/100*1.17 - power*0.022 - lejos*0.26 + (b.air>2?-0.06:0.04)));
       if(Math.random()>=llega){
         b.isShot=null;                                  // se le escapó: sigue de largo
         // ═══ Y NO SE LA PUEDE VOLVER A AGARRAR ═══
@@ -15456,7 +15482,9 @@ function fmTick(dt){
   // ¿Qué equipo tiene la pelota? (la IA juega por estados: ataque/defensa/dividida)
   f.poss=null;f.possSide=null;
   {
-    let bd0=36;
+    // 36px era menos que el radio con el que se patea (KICK_R≈40): la pelota
+    // quedaba "de nadie" incluso teniéndola al lado.
+    let bd0=46;
     f.my.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='my';}});
     f.opp.forEach(q=>{const d=Math.hypot(q.x-f.ball.x,q.y-f.ball.y);if(d<bd0){bd0=d;f.poss=q;f.possSide='opp';}});
     if(f.ball.air>2){f.poss=null;f.possSide=null;}
@@ -16311,15 +16339,28 @@ function fmAI(p,team,idx,dt){
       const _mirando=(f.ticks-(p._recvTick||0))<(2.5+(1-(prof.tempo||0.5))*7)&&!_apretado;
       // Medido: Guardiola daba MENOS pases que Simeone, al revés de la realidad.
       // La frecuencia de pase no miraba la idea de juego, sólo el ritmo.
-      const passBase=holding?0.20:(0.062+(1-prof.direct)*0.095+prof.tempo*0.065+counterBoost*0.05);
+      // Con la pelota controlada más tiempo (ver el comentario de pwr en
+      // fmTeamPass), a esta frecuencia salían 5,6 pases por cada 100 ticks de
+      // posesión y 430 por partido, contra los 800-900 de uno real.
+      const passBase=holding?0.26:(0.105+(1-prof.direct)*0.150+prof.tempo*0.100+counterBoost*0.06);
       // CENTRO DESDE LA BANDA: equipos de bandas tiran el centro al área
-      const wide=Math.abs(b.y-mid)>f.VH*0.27;
-      const nearByline=distGoal<fieldW*0.22;
-      // El centro salía con hasta 10,5% de chance POR TICK estando abierto cerca
-      // del fondo. Bajarlo a 0,016+flank·0,024 lo mató del todo (0,5 centros por
-      // partido entre los dos equipos): un equipo de bandas tiene que centrar.
-      // Este valor deja ~8-12 por partido, que es lo que se ve en la cancha.
-      if(wide&&nearByline&&(prof.flank||0.5)>0.45&&Math.random()<(0.030+prof.flank*0.048)*dt){
+      // ═══ EL CENTRO AL ÁREA ═══
+      // Medido: 1,2 centros por partido entre los dos equipos, contra los 16-20
+      // de uno real. Las tres condiciones se pedían juntas y eran muy estrechas
+      // (estar a menos de 23 metros del fondo, MUY abierto, y un técnico de
+      // bandas), así que casi nunca se daban a la vez. De acá venía además la
+      // falta de córners: la mitad de los córners reales nace de un centro que
+      // el defensor manda afuera, y si no hay centros no hay córners.
+      // Subir la probabilidad no movía el número (5 centros por partido contra
+      // 18): lo que ata no es el dado sino la geometría — el extremo casi nunca
+      // llega a estar abierto Y cerca del fondo a la vez. Se centra desde todo
+      // el último tercio, que es de donde salen los centros de verdad.
+      const wide=Math.abs(b.y-mid)>f.VH*0.18;
+      // Y NO desde adentro del área: el centro se evalúa antes que el remate y
+      // que el pase, así que abriendo la zona hasta el área los jugadores
+      // centraban en vez de definir y los pases se desplomaron de 764 a 499.
+      const nearByline=distGoal<fieldW*0.40&&!inBox;
+      if(wide&&nearByline&&(prof.flank||0.5)>0.28&&Math.random()<(0.145+prof.flank*0.200)*dt){
         const tx5=attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09;
         const ty5=mid+(Math.random()*120-60);
         const ddx5=tx5-b.x,ddy5=ty5-b.y,dd5=Math.hypot(ddx5,ddy5)||1;
@@ -16335,7 +16376,7 @@ function fmAI(p,team,idx,dt){
       // que la pelota tardaba una eternidad en llegar al arco: daba tiempo a
       // que la cortara cualquiera y el arquero la veía venir. Ahora el remate
       // va al doble, que además es lo que le baja las manos al arquero.
-      } else if(inBox&&Math.random()<(0.0330+shotAttr/3900)*dt){
+      } else if(inBox&&Math.random()<(0.0550+shotAttr/2400)*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
@@ -16346,7 +16387,7 @@ function fmAI(p,team,idx,dt){
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
         b.isShot=team;                                   // es un remate, no un pase
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.0044+prof.direct*0.0050+_pegada*0.0115)*dt){
+      } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0075+_pegada*0.0180)*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
@@ -16354,7 +16395,7 @@ function fmAI(p,team,idx,dt){
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
         b.isShot=team;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
-      } else if(longShot&&Math.random()<(0.0017+Math.max(0,shotAttr-74)/100*0.0092)*dt){
+      } else if(longShot&&Math.random()<(0.0027+Math.max(0,shotAttr-74)/100*0.0140)*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
@@ -16411,7 +16452,10 @@ function fmAI(p,team,idx,dt){
           // central. Ahora pesa el regate del jugador y la idea del técnico —
           // el que juega corto y elaborado encara mucho más que el que la
           // quiere mandar larga.
-          const _atrev=0.040+(1-(prof.direct||0.5))*0.038+Math.max(0,reg-70)/100*0.075;
+          // Medido: 10 gambetas por partido entre los dos equipos, contra las
+          // ~20 exitosas de uno real. Con la pelota mejor controlada (ver pwr)
+          // ahora hay más ocasiones de encarar, así que sube la osadía.
+          const _atrev=0.072+(1-(prof.direct||0.5))*0.060+Math.max(0,reg-70)/100*0.120;
           if(nearD<p.r+nearDef.r+42&&Math.random()<_atrev*dt*(1+(reg-def)/40)){
             // lo pasó: acá SÍ la empuja al espacio y pica
             b.vx=dirF*5.6;b.vy=s*2.4;p._dribT=8;p._carryLong=f.ticks+16;
@@ -16504,7 +16548,7 @@ function fmAI(p,team,idx,dt){
           // como toda falta ahí es penal, los partidos pasaron a 5,8 goles.
           // Un defensor mide el riesgo: adentro del área aguanta y no barre.
           const _enMiArea=Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.25;
-          if(dCar<p.r+carrier.r+12&&Math.random()<0.032*(_enMiArea?0.16:1)*dt*(0.6+prof.aggr)*aggrMul){
+          if(dCar<p.r+carrier.r+12&&Math.random()<0.025*(_enMiArea?0.16:1)*dt*(0.6+prof.aggr)*aggrMul){
             p._slideT=10;
             fmFoul(team,p,carrier); // team comete la falta → tiro libre para el rival
             return;
@@ -16893,7 +16937,13 @@ function fmTeamPass(team,fromIdx){
     // 7,6), fuera un pase de 5 metros o de 30: al de al lado la pelota le pasaba
     // de largo. Con la fricción del campo, para que llegue a dd píxeles hay que
     // pegarle proporcional a dd.
-    const pwr=Math.max(2.9,Math.min(9.6,2.1+dd*0.0130))*(0.94+Math.random()*0.12);
+    // ═══ QUE LA PELOTA SE FRENE DONDE ESTÁ EL COMPAÑERO ═══
+    // Con la fricción del campo (0,9908 por tick) la pelota recorre unas 109
+    // veces la velocidad con la que sale. Con 2,1+dd·0,0130 un pase de 200px
+    // salía a 4,7 y recorría 511: le pasaba de largo al compañero por más del
+    // doble. Medido, el 57% del tiempo de juego la pelota estaba SUELTA en el
+    // piso sin dueño, y de ahí venían los pocos pases, remates y gambetas.
+    const pwr=Math.max(2.4,Math.min(8.2,1.5+dd*0.0075))*(0.94+Math.random()*0.12);
     // PRECISIÓN DE PASE: a menor PAS, más error lateral (pases desviados que se pierden)
     const pas=(fromP.attrs&&fromP.attrs.PAS)||fromP.rat||70;
     const errAmp=(1-Math.min(92,pas)/100)*Math.min(1,dd/500)*2.6;
