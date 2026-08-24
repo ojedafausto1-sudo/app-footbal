@@ -16734,6 +16734,13 @@ function fmAI(p,team,idx,dt){
           // Medido: 10 gambetas por partido entre los dos equipos, contra las
           // ~20 exitosas de uno real. Con la pelota mejor controlada (ver pwr)
           // ahora hay más ocasiones de encarar, así que sube la osadía.
+          // PROBADO Y REVERTIDO subirlo a 0,095 + reg·0,200: las gambetas
+          // quedaron igual (12 por partido) y se llevó puestos los remates.
+          // Lo que ata la gambeta no es el dado sino la geometría: hay que
+          // estar a menos de 68px del defensor JUSTO en ese tick.
+          // Y ojo con la referencia: un partido real tiene unas 14-16 gambetas
+          // EXITOSAS entre los dos equipos (los ~40 son los intentos), así que
+          // 12 no está lejos.
           const _atrev=0.072+(1-(prof.direct||0.5))*0.060+Math.max(0,reg-70)/100*0.120;
           if(nearD<p.r+nearDef.r+42&&Math.random()<_atrev*dt*(1+(reg-def)/40)){
             // lo pasó: acá SÍ la empuja al espacio y pica

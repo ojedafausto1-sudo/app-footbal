@@ -96,6 +96,14 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   la condición física castiga únicamente al jugador. Si tocás el descanso
   semanal (`_descanso`, hoy 13) movés la dificultad de todo el juego: con 20 el
   jugador ganaba 12 ligas de 12 y el 67% de las Libertadores.
+- ⚠️ **En el 11v11, casi nada se arregla subiendo la probabilidad**: lo que ata
+  centros, córners y gambetas es la GEOMETRÍA (cuántos ticks hay alguien con la
+  pelota en esa situación), no el dado. Antes de tocar un número, medí cuántos
+  ticks se da la condición. Hay tres intentos fallidos documentados en el código
+  con sus números para no repetirlos.
+- **Medí con MEDIANAS, no con promedios**: una tanda de 12 partidos con el mismo
+  código da entre 1,6 y 4,7 goles de media. Un solo partido que se dispara mueve
+  el promedio entero. `scratchpad/m11.js` ya saca medianas.
 - **`autoFill` llena primero los puestos con menos candidatos**. En orden de
   dibujo, un plantel desbalanceado terminaba con un extremo de MCD (castigo 25)
   y el tope de `posMod` (−11%) hundía al equipo.
