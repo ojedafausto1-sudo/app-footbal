@@ -16471,17 +16471,78 @@ function fmAI(p,team,idx,dt){
   // que es lo que ocupa un equipo de verdad.
   const blockLen=fieldW*(0.46+prof.line*0.12+((weHave||iHave)?0.16:theyHave?0:0.06));
   // Centro del bloque: pegado a la pelota — adelantado si la tenemos, replegado si no
-  let bCen=b.x+dirF*((weHave||iHave)?fieldW*0.06:theyHave?-fieldW*0.09:-fieldW*0.02);
+  // ═══ CON LA PELOTA, LOS DE ARRIBA SE DESPEGAN ═══
+  // El bloque entero se anclaba a la pelota y se adelantaba apenas un 6% de la
+  // cancha: nadie se ofrecía por delante del que la lleva, así que no había a
+  // quién progresarle y la pelota casi no llegaba al último tercio. Medido: la
+  // pelota estaba en el último tercio el 5,1% del juego, y con un jugador
+  // ABIERTO ahí sólo 21 ticks de los 13.500 (0,2%) — por eso salían 3 centros
+  // por partido en vez de 18, y sin centros no hay córners.
+  let bCen=b.x+dirF*((weHave||iHave)?fieldW*0.12:theyHave?-fieldW*0.09:-fieldW*0.02);
   bCen=Math.max(f.leftGL+blockLen*0.45+26,Math.min(f.rightGL-blockLen*0.45-26,bCen));
   let hx2=bCen+dirF*(depth01-0.5)*blockLen;
+  // Los delanteros pican por delante del bloque cuando la tenemos
+  if((weHave||iHave)&&depth01>0.58)hx2+=dirF*fieldW*0.20*(depth01-0.58)/0.42;
   if(p.roleStyle==='Lateral ofensivo'&&(weHave||iHave))hx2+=dirF*fieldW*0.05;
   if(p.roleStyle==='Box-to-box')hx2+=dirF*(depth01-0.5)*blockLen*0.35;
-  const homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,hx2));
+  let homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,hx2));
+  // Y los de afuera se pegan más a la raya: un extremo ataca desde la línea
   let spread=(p.hy-mid)*(0.70+prof.width*0.5*(weHave?1.1:0.8));
+  if((weHave||iHave)&&Math.abs(p.hy-mid)>f.VH*0.22)spread*=1.22;
   spread=Math.max(-f.VH*0.43,Math.min(f.VH*0.43,spread));
   let homeY=mid+spread+(b.y-mid)*(theyHave?0.22:0.10);
   homeY=Math.max(40,Math.min(f.VH-40,homeY));
+  // ═══ CUANDO LA PELOTA SE VA A LA BANDA, SE ATACA EL ÁREA ═══
+  // Nadie entraba nunca al área rival: al pedir que hubiera un compañero
+  // adentro para centrar, los centros se cayeron de 7,5 a 2,5 por partido.
+  // O sea que el problema no era el centro sino que no había a quién. Con la
+  // pelota en la banda del último tercio, los de arriba se meten al área y se
+  // reparten (primer palo, punto de penal, segundo palo) según de qué lado
+  // vengan y qué lugar ocupen en el dibujo.
+  // PROBADO Y REVERTIDO: meter también a los DEFENSORES al área cuando la
+  // tienen ellos abierto en nuestro último tercio. No dio ni un córner más (el
+  // cabezazo defensivo siguió en 0) y encima rompió el bloque: los remates
+  // bajaron de 20,5 a 17,5, los pases de 766 a 619 y los goles de 2,5 a 2,0.
+  // Sacar a los centrales de su línea cuesta más de lo que rinde.
+  if(weHave&&depth01>0.55){
+    const _bd=attRight?(f.rightGL-b.x):(b.x-f.leftGL);
+    if(_bd<fieldW*0.42&&Math.abs(b.y-mid)>f.VH*0.16){
+      const _lado=(b.y<mid)?-1:1;                       // de qué lado viene el centro
+      const _rank=(p.hy-mid)/(f.VH*0.5);                // dónde juega en el dibujo
+      homeX=attRight?f.rightGL-fieldW*(0.07+Math.abs(_rank)*0.06)
+                    :f.leftGL +fieldW*(0.07+Math.abs(_rank)*0.06);
+      homeY=mid+_lado*f.GH*(0.35+_rank*_lado*0.95);
+      homeY=Math.max(60,Math.min(f.VH-60,homeY));
+    }
+  }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // EL CENTRO SE VA A DISPUTAR
+  // ═══════════════════════════════════════════════════════════════════
+  // Medido: la pelota entraba al área por el aire 22 ticks por partido y el
+  // defensor más cercano estaba a 141 píxeles — nadie iba a buscarla. Por eso
+  // el cabezazo defensivo no se ejecutaba nunca (0 por partido) y los córners
+  // se quedaban en 3 contra los 10 reales: en un partido de verdad la mitad de
+  // los córners nace de un central que saca un centro de cabeza. Ahora los dos
+  // más cercanos de cada equipo van al punto donde va a caer.
+  if(!iHave&&b.air>3&&!p.isGK&&f._lastTouch){
+    const _caeX=b.x+b.vx*b.air*0.85, _caeY=b.y+b.vy*b.air*0.85;
+    const _atacaEl=(f._lastTouch==='my')===f.myAttRight;   // hacia qué arco va
+    const _gxCentro=_atacaEl?f.rightGL:f.leftGL;
+    const _enAreaCae=Math.abs(_caeX-_gxCentro)<fieldW*0.22&&Math.abs(_caeY-mid)<f.GH*2.4;
+    if(_enAreaCae){
+      const _orden=players.filter(q=>!q.isGK)
+        .map(q=>({q,d:Math.hypot(q.x-_caeX,q.y-_caeY)})).sort((x,y)=>x.d-y.d);
+      const _rank=_orden.findIndex(o=>o.q===p);
+      if(_rank>=0&&_rank<2&&_orden[_rank].d<fieldW*0.30){
+        const _vel=0.088+((p.attrs&&p.attrs.VEL)||p.rat||70)/2400;
+        fmMove(p,_caeX-p.x,_caeY-p.y,dt,_vel);
+        p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
+        p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+        return;
+      }
+    }
+  }
   if(iHave){
     // ═══ TENGO LA PELOTA: definir, pasar o conducir ═══
     if(bd<KICK_R&&!(b.air>2)){
@@ -16548,16 +16609,42 @@ function fmAI(p,team,idx,dt){
       // llega a estar abierto Y cerca del fondo a la vez. Se centra desde todo
       // el último tercio, que es de donde salen los centros de verdad.
       const wide=Math.abs(b.y-mid)>f.VH*0.18;
-      // Y NO desde adentro del área: el centro se evalúa antes que el remate y
-      // que el pase, así que abriendo la zona hasta el área los jugadores
-      // centraban en vez de definir y los pases se desplomaron de 764 a 499.
-      const nearByline=distGoal<fieldW*0.40&&!inBox;
-      if(wide&&nearByline&&(prof.flank||0.5)>0.28&&Math.random()<(0.145+prof.flank*0.200)*dt){
+      // ═══ EL EXTREMO CENTRA DESDE LA RAYA ═══
+      // Acá se excluía `inBox`, que es SÓLO una prueba de profundidad: un
+      // extremo pegado a la línea de cal a 20 metros del arco contaba como
+      // "dentro del área" y tenía prohibido centrar — justo la posición desde
+      // la que salen la mitad de los centros de verdad. Quedaba un corredor de
+      // apenas el 12% de la cancha para centrar. Lo que hay que excluir es el
+      // área DE VERDAD (profundidad Y ancho): ahí adentro se define, no se
+      // centra. Y ojo con abrirlo de más: el centro se evalúa antes que el pase
+      // y que el remate, así que si entra el área los jugadores centran en vez
+      // de definir (medido: los pases se cayeron de 764 a 499).
+      const _enAreaReal=distGoal<fieldW*0.165&&Math.abs(b.y-mid)<f.GH*1.9;
+      const nearByline=distGoal<fieldW*0.40&&!_enAreaReal;
+      // Y que haya a quién: centrar al área vacía es regalar la pelota, y como
+      // el centro se evalúa antes que el pase, cada centro al vacío es un pase
+      // que no se dio (medido: los pases bajaron de 678 a 573).
+      const _hayEnArea=players.some(q=>{
+        if(q===p||q.isGK)return false;
+        const dq=attRight?(f.rightGL-q.x):(q.x-f.leftGL);
+        // Estricto a propósito. Aflojarlo a 0,32 y GH·2,8 subía los centros de
+        // 3 a 5,5 por partido, pero NO daba un solo córner más y se llevaba
+        // puesto el juego: los pases caían de 766 a 591 y los remates de 20,5 a
+        // 17,5, porque el centro se evalúa antes que el pase y antes que el
+        // remate. No vale la pena.
+        return dq<fieldW*0.20&&Math.abs(q.y-mid)<f.GH*2.1;
+      });
+      if(wide&&nearByline&&_hayEnArea&&(prof.flank||0.5)>0.28&&Math.random()<(0.175+prof.flank*0.230)*dt){
         const tx5=attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09;
         const ty5=mid+(Math.random()*120-60);
         const ddx5=tx5-b.x,ddy5=ty5-b.y,dd5=Math.hypot(ddx5,ddy5)||1;
         b.vx=ddx5/dd5*6.2;b.vy=ddy5/dd5*6.2;
-        b.air=Math.min(70,dd5/6.2*0.7);
+        // El vuelo cubría sólo el 70% de la distancia al objetivo: el centro
+        // caía ANTES del área y seguía rodando. Medido, la pelota pasaba por
+        // encima del área 22 ticks por partido pero su punto de caída estaba
+        // más allá, así que nadie iba a disputarla (el defensor más cercano
+        // quedaba a 141px) y el cabezazo defensivo no ocurría nunca.
+        b.air=Math.min(70,dd5/6.2);
         if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
@@ -17189,6 +17276,28 @@ function fmBall(dt){
       if(inBox){
         let hd=null,hdD=1e9;
         for(const a of atkArr){if(a.isGK)continue;const d=Math.hypot(a.x-b.x,a.y-b.y);if(d<42&&d<hdD){hdD=d;hd=a;}}
+        // ═══ Y EL DEFENSOR QUE LO SACA DE CABEZA ═══
+        // Sólo estaba el cabezazo del ATACANTE. En un partido real la mayoría
+        // de los centros los despeja un central, y buena parte de esos
+        // despejes se van al córner: de ahí salen la mitad de los córners que
+        // faltaban (medían 3 por partido contra los 10 reales).
+        const defArr=team==='my'?f.opp:f.my;
+        let df=null,dfD=1e9;
+        for(const d2 of defArr){if(d2.isGK)continue;const dd2=Math.hypot(d2.x-b.x,d2.y-b.y);if(dd2<46&&dd2<dfD){dfD=dd2;df=d2;}}
+        if(df&&(!hd||dfD<hdD)&&Math.random()<0.62){
+          const defTeam=team==='my'?'opp':'my';
+          const ownGX=((defTeam==='my')===f.myAttRight)?f.leftGL:f.rightGL;
+          if(Math.random()<0.42){
+            fmMandarAfuera(defTeam,ownGX);          // la manda al córner
+            if(f.learn)f.learn.cCabezazo=(f.learn.cCabezazo||0)+1;
+          }else{
+            // la peina lejos del área
+            const fuera=(ownGX<f.VW/2)?1:-1, sy=(b.y<mid2?-1:1);
+            b.vx=fuera*(4.2+Math.random()*2.6);b.vy=sy*(2.4+Math.random()*2.6);
+            b.air=6+Math.random()*8;b.isShot=null;f._lastTouch=defTeam;
+          }
+          return;
+        }
         if(hd&&Math.random()<0.45){
           const head=(hd.attrs&&(hd.attrs.FIS||hd.attrs.TIR))||hd.rat||70;
           const aimY=mid2+(Math.random()-.5)*f.GH*1.05*(1.35-Math.min(90,head)/110);
