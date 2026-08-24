@@ -86,6 +86,19 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   del arquetipo (`ARQ[k].forms`).
 - La **arenga** solo aparece en partidos importantes (`isBigMatch`).
 - **Sin relato** jugada a jugada: simular va directo al resumen.
+- **Se puede dirigir en cualquiera de las 24 ligas** de la base, no sólo la
+  argentina: `_LIGA_ELEGIDA` (global, porque `buildCal`/`buildSquad` corren
+  dentro del literal que crea `G`), `G.miLiga`, `ligaComp()`, `esLigaLocal()`,
+  `clubesDeLiga()` y `buildCalOtra()` (todos contra todos, ida y vuelta).
+  El formato de zonas + Apertura/Clausura y las copas sudamericanas son sólo
+  para `Liga ARG`.
+- ⚠️ **La IA no modela cansancio** (`arSimPair` mira sólo `clubPower`), así que
+  la condición física castiga únicamente al jugador. Si tocás el descanso
+  semanal (`_descanso`, hoy 13) movés la dificultad de todo el juego: con 20 el
+  jugador ganaba 12 ligas de 12 y el 67% de las Libertadores.
+- **`autoFill` llena primero los puestos con menos candidatos**. En orden de
+  dibujo, un plantel desbalanceado terminaba con un extremo de MCD (castigo 25)
+  y el tope de `posMod` (−11%) hundía al equipo.
 
 ## Sistemas principales (dónde tocar)
 

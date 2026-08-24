@@ -397,7 +397,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
   </div>
   <div style="width:100%;max-width:820px;margin-top:20px">
     <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;text-align:center">
-      …O DIRIGÍ A CUALQUIERA DE LA LIGA</div>
+      …O DIRIGÍ EN CUALQUIER LIGA DEL MUNDO</div>
+    <div style="text-align:center;margin-bottom:10px">
+      <select id="tsLiga" onchange="setLigaSel(this.value)"
+        style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:#fff;padding:7px 12px;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700"></select>
+    </div>
     <div id="tsOtros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px"></div>
   </div>
   <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
@@ -1245,10 +1249,11 @@ function placeholderSquad(clubName){
 
 // ═══ PLANTELES DESDE LA BASE EXTRAÍDA (TransferMarkt actual) ═══
 // Sin overrides: el rating de TODOS sale de la Calculadora v2.1 del presidente
-function squadFromDB(clubName, fallbackFn, overrides){
+function squadFromDB(clubName, fallbackFn, overrides, liga){
   if(!window.PLAYERS_DB||!Array.isArray(PLAYERS_DB)) return fallbackFn();
   // Filtrar por club Y liga: hay 'Racing Club' e 'Independiente' en otros países
-  let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]==='Liga ARG');
+  const _lg=liga||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
+  let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]===_lg);
   if(rows.length<15) return fallbackFn(); // datos insuficientes → plantel manual
   // Tope 30: los planteles TM traen hasta 37 fichas y el juego permite 35.
   // Se priorizan los más valiosos, garantizando al menos 2 arqueros.
@@ -1286,7 +1291,7 @@ function buildSquad(teamId){
   // Los 25 clubes generados caían todos acá y arrancaban con el plantel de
   // Boca. Cada uno tiene sus jugadores en la base: se arma desde ahí.
   const t=(typeof TEAMS!=='undefined')&&TEAMS[teamId];
-  if(t&&t.name) return squadFromDB(t.name, buildBoca);
+  if(t&&t.name) return squadFromDB(t.name, buildBoca, null, t.liga);
   return buildBoca();
 }
 
@@ -1919,6 +1924,56 @@ const AR_CLASICOS=[
   ['Godoy Cruz','Ind. Rivadavia'],          // Mendoza
 ];
 
+// ═══════════════════════════════════════════════════════════════════════
+// JUGAR EN CUALQUIER LIGA
+// ═══════════════════════════════════════════════════════════════════════
+// Hasta acá sólo se podía dirigir en la Liga Argentina; las otras 23 ligas de
+// la base existían como tabla simulada y nada más. Ahora se puede empezar en
+// cualquiera: la liga elegida arma su fixture de verdad (todos contra todos,
+// ida y vuelta) y el resto de los clubes juega en paralelo con el mismo motor
+// que ya usaba la liga argentina.
+// La base trae más clubes por país de los que juegan la primera (ascensos,
+// filiales, equipos de otras categorías), así que se toman los N más caros.
+const LIGA_TAM={'Liga ARG':30,'Premier':20,'España':20,'Italia':20,'Alemania':18,
+  'Francia':18,'Portugal':18,'Holanda':18,'Bélgica':16,'Turquía':18,'Brasil':20,
+  'Liga MX':18,'MLS':24,'Colombia':20,'Chile':16,'Perú':18,'Uruguay':15,
+  'Paraguay':12,'Ecuador':15,'Bolivia':15,'Venezuela':11,'Arabia':18,
+  'Rusia':16,'Grecia':14};
+// Nombre que se muestra de la competencia de cada país
+const LIGA_NOMBRE={'Liga ARG':'Liga Profesional','Premier':'Premier League',
+  'España':'LaLiga','Italia':'Serie A','Alemania':'Bundesliga','Francia':'Ligue 1',
+  'Portugal':'Primeira Liga','Holanda':'Eredivisie','Bélgica':'Pro League',
+  'Turquía':'Süper Lig','Brasil':'Brasileirão','Liga MX':'Liga MX','MLS':'MLS',
+  'Colombia':'Liga BetPlay','Chile':'Primera División','Perú':'Liga 1',
+  'Uruguay':'Primera División','Paraguay':'División Profesional',
+  'Ecuador':'LigaPro','Bolivia':'División Profesional','Venezuela':'Liga FUTVE',
+  'Arabia':'Saudi Pro League','Rusia':'Premier Liga','Grecia':'Super League'};
+function ligaMia(){ return (typeof G==='object'&&G&&G.miLiga)||'Liga ARG'; }
+function ligaComp(){ return LIGA_NOMBRE[ligaMia()]||'Liga Profesional'; }
+function esLigaLocal(c){ return c===ligaComp(); }
+// Los clubes que juegan la primera de esa liga, por valor de plantel
+function clubesDeLiga(lg){
+  const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
+  const val={};
+  db.forEach(r=>{ if(r[6]!==lg||!r[5])return; val[r[5]]=(val[r[5]]||0)+(r[7]||0); });
+  const n=LIGA_TAM[lg]||18;
+  return Object.entries(val).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([c])=>c);
+}
+// Fixture de una liga común: todos contra todos, ida y vuelta
+function buildCalOtra(teamName,lg,startWeek){
+  let clubs=clubesDeLiga(lg);
+  if(!clubs.includes(teamName))clubs=[teamName,...clubs.slice(0,Math.max(1,clubs.length-1))];
+  const ida=arRoundRobin(clubs);                 // ya balancea la localía
+  const fx=[];
+  const comp=LIGA_NOMBRE[lg]||'Liga Profesional';
+  ida.forEach((par,r)=>par.forEach(([h,a])=>fx.push(
+    {week:startWeek+r,comp,fecha:r+1,home:h,away:a,played:false,result:null,score:null})));
+  // Vuelta: los mismos cruces dados vuelta
+  ida.forEach((par,r)=>par.forEach(([h,a])=>fx.push(
+    {week:startWeek+ida.length+r,comp,fecha:ida.length+r+1,home:a,away:h,played:false,result:null,score:null})));
+  return {clubs,fixtures:fx,fechas:ida.length*2,lastWeek:startWeek+ida.length*2-1};
+}
+
 // Reparte los 30 clubes en 2 zonas de 15 (tu club siempre entra, y siempre
 // en la Zona A: las tablas de la pantalla principal cuentan con eso).
 function arBuildZones(teamName){
@@ -2017,7 +2072,8 @@ function arBuildTournament(zones,phase,startWeek){
 // Pasa a G la liga generada por el último buildCal (que corre antes de existir G)
 function arAttachLeague(){
   const L=buildCal._league;if(!L||!G)return;
-  G.arZones=L.zones;
+  G.arZones=L.zones;                 // null cuando dirigís en una liga de afuera
+  G.ligaClubs=L.clubs||null;
   G.arFix=L.fixtures;
   G.arPhases=L.phases;
   G.arPlayoff=null;G.arLastRound=[];
@@ -2072,6 +2128,26 @@ function buildCal(teamName, teamId){
   const caOpps = shuf(caPool).slice(0,3).concat([caFinalRivals[1]||'San Lorenzo']);
   const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF'];
   const sch = [];
+  // ═══ SI DIRIGÍS AFUERA, LA LIGA ES UN TODOS CONTRA TODOS ═══
+  // El formato de zonas + Apertura/Clausura es argentino. El resto del mundo
+  // juega liga corrida, así que se arma con buildCalOtra y se saltea todo lo
+  // que es propio de acá (zonas, interzonal, playoffs, Libertadores).
+  const _lgMia=(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
+  if(_lgMia!=='Liga ARG'){
+    const L=buildCalOtra(teamName,_lgMia,1+PRE_SEMANAS);
+    buildCal._league={zones:null,fixtures:L.fixtures,clubs:L.clubs,liga:_lgMia,
+      phases:null};
+    if(typeof G==='object'&&G)arAttachLeague();
+    L.fixtures.filter(f=>f.home===teamName||f.away===teamName)
+      .forEach(f=>sch.push({week:f.week,comp:f.comp,fecha:f.fecha,
+        home:f.home,away:f.away,played:false,result:null,score:null}));
+    // Copa nacional: una llave por ronda, como la Copa Argentina
+    const rivales=shuf(L.clubs.filter(c=>c!==teamName)).slice(0,1);
+    if(rivales[0])sch.push({week:3+PRE_SEMANAS,comp:'Copa Nacional R16',
+      home:teamName,away:rivales[0],played:false,result:null,score:null});
+    if(typeof G==='object'&&G)G.intGrp=null;
+    return sch.sort((a,b)=>a.week-b.week);
+  }
   // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
   const zones=arBuildZones(teamName);
   const ap=arBuildTournament(zones,'apertura',1+PRE_SEMANAS);
@@ -2759,19 +2835,29 @@ const TEAMS = {
 // no se podían elegir. Ahora se generan desde AR_CLUBS: la fuerza del plantel
 // sale de la base y de ahí se derivan presupuesto, reputación y estadio.
 // Los 5 curados mandan sobre lo generado (tienen datos reales de cancha).
+// La liga que elegiste en la pantalla de inicio. Hace falta como global porque
+// buildCal y buildSquad corren DENTRO del literal que crea G: cuando se llaman,
+// G todavía no existe y no se le puede preguntar.
+let _LIGA_ELEGIDA='Liga ARG';
 function _slugTeam(n){
   return String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9]+/g,'').slice(0,14)||'club';
 }
-function buildAllTeams(){
+function buildAllTeams(liga){
   if(typeof AR_CLUBS==='undefined')return;
   const db=window.PLAYERS_DB||[];
+  const lg=liga||'Liga ARG';
   const fuerza={};
-  db.forEach(r=>{ const club=r[5]; if(!club)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
-  AR_CLUBS.forEach(name=>{
-    const id=_slugTeam(name);
+  db.forEach(r=>{ const club=r[5]; if(!club||r[6]!==lg)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
+  // En la Argentina son los 30 de la liga; afuera, los clubes de primera de ese país
+  const nombres=(lg==='Liga ARG')?AR_CLUBS:clubesDeLiga(lg);
+  nombres.forEach(name=>{
+    const id=(lg==='Liga ARG')?_slugTeam(name):(_slugTeam(lg)+'_'+_slugTeam(name));
     if(TEAMS[id])return;                       // ya está curado a mano
-    if(Object.values(TEAMS).some(t=>t.name===name))return;
+    // El nombre solo no alcanza: hay un Nacional en Uruguay y otro en Colombia,
+    // un Racing en la Argentina y otro en Uruguay. Antes el segundo se descartaba
+    // y la liga quedaba con un club menos que su propia tabla.
+    if(Object.values(TEAMS).some(t=>t.name===name&&(t.liga||'Liga ARG')===lg))return;
     const vals=(fuerza[name]||[]).sort((a,b)=>b-a).slice(0,18);
     const val=vals.reduce((a,x)=>a+x,0);       // valor del plantel en M
     // Escalas atadas al valor real del plantel, con topes sensatos
@@ -2789,17 +2875,36 @@ function buildAllTeams(){
       // Un DT distinto por club (antes los 25 compartían el mismo técnico,
       // el mismo rasgo y el mismo 4-3-3) y su color para el tema de la interfaz.
       dtIdx:(function(){let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;return h%80;})(),
+      liga:lg,
       generado:true
     };
   });
 }
 
 // Dibuja los clubes generados debajo de los 5 grandes
+// Ligas que se pueden dirigir: las que tienen plantel suficiente en la base
+function ligasJugables(){
+  const db=window.PLAYERS_DB||[];
+  const cnt={};
+  db.forEach(r=>{ if(!r[6]||!r[5])return; (cnt[r[6]]=cnt[r[6]]||new Set()).add(r[5]); });
+  return Object.entries(cnt).filter(([,s])=>s.size>=10)
+    .map(([l])=>l).sort((a,b)=>a==='Liga ARG'?-1:b==='Liga ARG'?1:a.localeCompare(b));
+}
+function setLigaSel(lg){ _LIGA_ELEGIDA=lg; rOtrosTeams(); }
 function rOtrosTeams(){
   const el=document.getElementById('tsOtros'); if(!el)return;
-  buildAllTeams();
-  const grandes=['boca','river','indep','racing','sanlo'];
-  const otros=Object.entries(TEAMS).filter(([id])=>grandes.indexOf(id)<0)
+  const lg=_LIGA_ELEGIDA||'Liga ARG';
+  buildAllTeams(lg);
+  // Selector de país: hasta ahora sólo se podía empezar en la Argentina
+  const sel=document.getElementById('tsLiga');
+  if(sel&&!sel.dataset.listo){
+    sel.dataset.listo='1';
+    sel.innerHTML=ligasJugables().map(l=>
+      `<option value="${l}"${l===lg?' selected':''}>${(LIGA_NOMBRE[l]||l)} — ${l}</option>`).join('');
+  }
+  const grandes=(lg==='Liga ARG')?['boca','river','indep','racing','sanlo']:[];
+  const otros=Object.entries(TEAMS)
+    .filter(([id,t])=>grandes.indexOf(id)<0&&((t.liga||'Liga ARG')===lg))
     .sort((a,b)=>b[1].initRep-a[1].initRep);
   el.innerHTML=otros.map(([id,t])=>`
     <div onclick="selectTeam('${id}')" style="cursor:pointer;display:flex;align-items:center;gap:7px;
@@ -2814,6 +2919,8 @@ function rOtrosTeams(){
 }
 
 function selectTeam(teamId){
+  const _t=TEAMS[teamId];
+  _LIGA_ELEGIDA=(_t&&_t.liga)||'Liga ARG';
   applyTeamTheme(teamId);
   document.getElementById('teamSelect').style.display='none';
   initGame(teamId);
@@ -2834,7 +2941,8 @@ function initGame(teamId){
     formation:'4-3-3',
     style:'Posesión equilibrada',
     pressure:'Media', tempo:'Normal', width:'Normal',
-    dt: dtDeClub(tc.name,'Liga ARG') || DTS[tc.dtIdx] || DTS[0],
+    miLiga: _LIGA_ELEGIDA||'Liga ARG',
+    dt: dtDeClub(tc.name,_LIGA_ELEGIDA||'Liga ARG') || dtDeClub(tc.name) || DTS[tc.dtIdx] || DTS[0],
     staff: [{role:'Preparador físico',name:'H. García',rat:70},{role:'Asistente',name:'M. Torres',rat:68}],
     staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0, sportdir:0, youthcoach:0},
     squad: buildSquad(teamId),
@@ -3439,7 +3547,21 @@ function autoFill(){
   // DT armaba un once con NUEVE. Un once así no se puede presentar. Acá se
   // cuenta a medida que se arma, así que nunca salen más de cinco.
   let _ext=0;
-  sl.forEach((s,i) => {
+  // ═══ PRIMERO LOS PUESTOS DIFÍCILES ═══
+  // Se llenaba en el orden del dibujo (arquero, defensa, medio, ataque). Con un
+  // plantel desbalanceado, para cuando llegaba al MCD ya no quedaban volantes y
+  // metía a un extremo: castigo de 25 puntos de "fuera de puesto". Medido en
+  // Peñarol, eso solo le comía el 11% de la fuerza del equipo (el tope de
+  // posMod) y el mejor plantel de Uruguay salía 15º de 15. Se llenan primero
+  // los puestos con menos candidatos naturales, que es como se arma un equipo.
+  const _cands=(sp)=>G.squad.filter(p=>!p.injured&&!(p.susp>0)&&!p.colgado&&!p.selUp
+      &&(sp.pos==='ARQ'?p.pos==='ARQ':p.pos!=='ARQ')
+      &&posPenaltyFor(p,sp.pos)<=2).length;
+  const _orden=sl.map((sp,i)=>({sp,i,n:sp?_cands(sp):99}))
+                 .sort((a,b)=>a.n-b.n).map(x=>x.i);
+  _orden.forEach((i) => {
+    const s=sl[i];
+    if(!s){G.slots[i]=null;return;}
     let best=null,bestScore=-1e9;
     for(const p of G.squad){
       if(used.has(p.id)||p.injured||p.susp>0||p.colgado||p.selUp>0)continue;   // lesionado, suspendido, colgado o EN LA SELECCIÓN
@@ -8135,7 +8257,7 @@ function anyClubPower(club){
 function clubPower(club){
   G._clubPow=G._clubPow||{};
   if(G._clubPow[club])return G._clubPow[club];
-  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club&&p.lg==='Liga ARG')).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club&&p.lg===ligaMia())).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
   const pow=rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
   G._clubPow[club]=pow;
   return pow;
@@ -8145,7 +8267,8 @@ function ensureLeague(){
   const tn=G.teamName||'Boca Juniors';
   // Con el formato de 2 zonas la liga son los 30 clubes, no sólo tus rivales
   const clubs=(G.arZones)?[...G.arZones.A,...G.arZones.B]
-    :[tn,...new Set(G.calendar.filter(m=>m.comp==='Liga Profesional').map(m=>m.home===tn?m.away:m.home))];
+    :(G.ligaClubs&&G.ligaClubs.length)?[...G.ligaClubs]
+    :[tn,...new Set(G.calendar.filter(m=>esLigaLocal(m.comp)).map(m=>m.home===tn?m.away:m.home))];
   G.league={season:G.season,clubs,table:{},scorers:{},lastRound:[]};
   G.league.clubs.forEach(c=>G.league.table[c]={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0});
 }
@@ -8164,7 +8287,7 @@ function tallyLeague(A,B,ga,gb){
 }
 function creditScorers(club,n){
   if(!n)return;
-  const cand=G.market.filter(p=>p.club===club&&p.lg==='Liga ARG'&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
+  const cand=G.market.filter(p=>p.club===club&&p.lg===ligaMia()&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
   for(let i=0;i<n;i++){
     const p=cand.length?cand[~~(Math.random()*cand.length)]:null;
     const nm=p?p.name:club+' (varios)';
@@ -8173,7 +8296,7 @@ function creditScorers(club,n){
     if(p)p.goals=(p.goals||0)+1;
     // La asistencia se la lleva otro: alguien se la tuvo que dar
     if(Math.random()<0.62){
-      const asis=G.market.filter(q=>q.club===club&&q.lg==='Liga ARG'&&
+      const asis=G.market.filter(q=>q.club===club&&q.lg===ligaMia()&&
                  ['MCO','MC','EI','ED','LI','LD'].includes(q.pos)&&(!p||q.id!==p.id))
                  .sort((a,b)=>b.rat-a.rat).slice(0,6);
       const q=asis.length?asis[~~(Math.random()*asis.length)]:null;
@@ -8204,8 +8327,17 @@ function creditCleanSheet(club,golesRecibidos){
 function arSimPair(A,B){
   // Marcador por goles esperados según la fuerza real de cada plantel
   const pa=clubPower(A)+2.0, pb=clubPower(B);      // +2 de localía
+  // ═══ LA MISMA VARA QUE MIS PARTIDOS ═══
+  // Este multiplicador (3,2) era 2,4 veces más extremo que el de mis propios
+  // partidos: los grandes de la IA se comían a los chicos mucho más de lo que
+  // yo me como a los míos, así que el puntero se escapaba y mi equipo terminaba
+  // abajo por más plantel que tuviera. Medido dirigiendo al mejor club de cada
+  // liga: 16º en la Premier, 20º en Brasil, 15º de 15 en Uruguay.
   const d=(pa-pb)/26;
-  const xgA=Math.max(0.25,1.35+d*3.2), xgB=Math.max(0.25,1.35-d*3.0);
+  // 1,9 dejaba los partidos entre clubes de la IA demasiado parejos y, por
+  // contraste, mi equipo se escapaba: 80 puntos en 30 fechas (2,67 por partido)
+  // contra los 60-66 de un campeón real. 2,6 equilibra las dos varas.
+  const xgA=Math.max(0.25,1.35+d*2.6), xgB=Math.max(0.25,1.35-d*2.5);
   const pois=(lam)=>{let L=Math.exp(-lam),k=0,p=1;do{k++;p*=Math.random();}while(p>L);return k-1;};
   return [Math.min(6,pois(xgA)),Math.min(6,pois(xgB))];
 }
@@ -8228,7 +8360,7 @@ function simLeagueRound(rivalPlayed,weekOverride){
     // Marca como jugado el partido tuyo en el fixture global
     G.arFix.filter(f=>!f.played&&f.week<=wk&&(f.home===G.teamName||f.away===G.teamName))
       .forEach(f=>{
-        const mine=G.calendar.find(m=>m.played&&m.comp==='Liga Profesional'&&m.week===f.week&&m.home===f.home&&m.away===f.away);
+        const mine=G.calendar.find(m=>m.played&&esLigaLocal(m.comp)&&m.week===f.week&&m.home===f.home&&m.away===f.away);
         if(mine&&mine.score){f.played=true;f.score=mine.score;
           const [h,a]=mine.score.split('-').map(Number);
           f.result=h>a?'H':h===a?'D':'A';}
@@ -9391,7 +9523,7 @@ function matchStrengths(m){
   // que Flamengo y la copa era irremontable (12 temporadas, ni una semifinal).
   const esInt = /Libertadores|Sudamericana|Recopa|Mundial de Clubes/.test(m.comp||'');
   let oppRat = 65;
-  const dbPow = (m.comp==='Liga Profesional'&&G.market&&G.market.some(p=>p.club===oppName))?clubPower(oppName):0;
+  const dbPow = (esLigaLocal(m.comp)&&G.market&&G.market.some(p=>p.club===oppName))?clubPower(oppName):0;
   if(esInt)                        oppRat = intRatDe(oppName,m.comp);
   else if(dbPow)                   oppRat = Math.round(dbPow); // fuerza real del plantel (base TM)
   else if(BIG5.includes(oppName))  oppRat = 75;
@@ -9463,7 +9595,14 @@ function matchStrengths(m){
   if(typeof reconvPenal==='function' && xi.length)
     reconvMod = xi.reduce((a,p)=>a+reconvPenal(p),0)/xi.length;
 
-  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + G.morale/100*.14)
+  // ═══ LA MORAL NO PUEDE SER UNA BOLA DE NIEVE ═══
+  // Entraba cruda al 14%: ganás, la moral sube a 98, rendís más, ganás más. Con
+  // el desgaste físico arreglado, ese bucle dejó al mejor club ganando su liga
+  // las cuatro temporadas medidas con 2,63 puntos por partido (un campeón real
+  // saca 2,0-2,2). Ahora se centra en 70 y mueve la mitad: sigue importando,
+  // pero no se retroalimenta sola.
+  const _moralS=0.70+((G.morale||70)-70)/100*0.5;
+  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + _moralS*.14)
                *fitMod*posMod*chemMod*capMod*incompleto*climaMod*relMod*reconvMod;
   // Moral del rival: estable por club/fecha (no un dado nuevo cada partido).
   // Antes era 55..90 al azar y metía ±9% de ruido: por eso ganaba cualquiera.
@@ -9745,7 +9884,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   m.score=_isHome?(gf+'-'+ga):(ga+'-'+gf);
 
   // === LIGA COMPLETA: mi resultado a la tabla + se juega la fecha entera ===
-  if(m.comp==='Liga Profesional'){
+  if(esLigaLocal(m.comp)){
     ensureLeague();
     if(_isHome)tallyLeague(m.home,m.away,gf,ga);else tallyLeague(m.home,m.away,ga,gf);
     const rival=_isHome?m.away:m.home;
@@ -9912,7 +10051,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   updateForm(xiPlayers,scorersList,res);
   updateChemistry(xiPlayers);
   // Mis goleadores también cuentan para la tabla de goleadores de la liga
-  if(m.comp==='Liga Profesional'&&G.league){
+  if(esLigaLocal(m.comp)&&G.league){
     scorersList.forEach(s3=>{
       if(!G.league.scorers[s3.name])G.league.scorers[s3.name]={club:G.teamName,goals:0};
       G.league.scorers[s3.name].goals++;
@@ -10062,7 +10201,24 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
   // Instalaciones de recuperación devuelven condición física extra cada semana
   const recBonus=(hasFacility('recovery')?4:0)+(hasFacility('gym')?3:0);
-  if(intCfg.fit||recBonus){G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.max(15,Math.min(100,p.fit+(intCfg.fit||0)+recBonus));});}
+  // ═══ LA SEMANA ENTRE PARTIDO Y PARTIDO SE DESCANSA ═══
+  // Un titular perdía 17-25 de condición por partido y la única recuperación
+  // era +1 por día avanzado (6 por semana) más lo que diera el entrenamiento,
+  // que en intensidad normal es CERO. O sea: −15 por semana jugando normal, y
+  // −21 si simulabas partido tras partido sin pasar los días. Medido dirigiendo
+  // a Palmeiras: en la fecha 25 el plantel estaba en 33 de condición, la moral
+  // en 29 y el equipo terminó 19º con 72 goles en contra. No era un problema de
+  // las ligas de afuera: le pasaba a cualquier club. Ahora la semana devuelve lo
+  // que cuesta un partido, y el desgaste aparece cuando jugás cada tres días.
+  // 20 dejaba al plantel en 94 de condición todo el año. Ojo con esto: los
+  // clubes de la IA NO modelan cansancio (arSimPair mira sólo la fuerza del
+  // plantel), así que la condición física es un castigo que pesa sólo sobre
+  // vos. Con 20 el desgaste desaparecía y el juego se volvía fácil: 12 ligas
+  // de 12 y el 67% de las Libertadores. Con 13 el plantel se sostiene entre 80
+  // y 88, que es desgaste real sin ser una condena.
+  const _descanso=13;
+  G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;
+    p.fit=Math.max(15,Math.min(100,p.fit+_descanso+(intCfg.fit||0)+recBonus));});
   // Injury (reduced by physio level and medical center)
   if(!G.staffLevels) G.staffLevels={physio:1,asst:1,psych:0,analyst:0,doctor:0,sportdir:0,youthcoach:0};
   const physioLv = G.staffLevels.physio||1;
@@ -10265,7 +10421,7 @@ function simMatch(auto){
   // ═══ SIMULACIÓN RÁPIDA v2: el resultado DEPENDE del nivel de los planteles ═══
   // Antes la diferencia pesaba poco y el empate era fijo (20%): un equipazo perdía
   // contra cualquiera. Ahora el diferencial manda y las sorpresas son excepción.
-  const diff  = (S.myS - S.oppS)*1.9 + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
+  const diff  = (S.myS - S.oppS)*1.65 + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
   // Cada equipo genera goles esperados según su fuerza (modelo tipo Poisson)
   const myXG  = Math.max(0.22, 1.35 + diff*3.4);
   const opXG  = Math.max(0.22, 1.35 - diff*3.0);
@@ -10829,7 +10985,7 @@ function pushHeadline(res,gf,ga,derby,m){
   const last=G.calendar.filter(x=>x.played).map(x=>x.result);
   const wStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='W')s++;else break;}return s;})();
   const lStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='L')s++;else break;}return s;})();
-  const pos=(typeof myLeaguePos==='function'&&m.comp==='Liga Profesional')?myLeaguePos():0;
+  const pos=(typeof myLeaguePos==='function'&&esLigaLocal(m.comp))?myLeaguePos():0;
   const diario=['Olé','TyC','ESPN','DirecTV Sports','La Nación Deportiva'][~~(Math.random()*5)];
   let t,tone;
   if(derby&&res==='W'){t=`¡${tn.toUpperCase()} SE QUEDÓ CON EL ${derby.toUpperCase()}!`;tone='good';}
@@ -18650,7 +18806,7 @@ function dailyTick(){
   negotiationsTick();
   firmasTick();
   // Recuperación diaria: descansar entre partidos sirve
-  const rec=(G.trainIntensity==='suave'?1.6:G.trainIntensity==='fuerte'?0.5:1.0);
+  const rec=(G.trainIntensity==='suave'?2.4:G.trainIntensity==='intensa'?0.9:1.6);
   G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(100,p.fit+rec); });
   if(Math.random()<0.22&&typeof weeklyChats==='function')weeklyChats();
   if(Math.random()<0.18&&typeof weeklyOffers==='function')weeklyOffers();
