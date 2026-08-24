@@ -8342,7 +8342,8 @@ function arSimPair(A,B){
   // yo me como a los míos, así que el puntero se escapaba y mi equipo terminaba
   // abajo por más plantel que tuviera. Medido dirigiendo al mejor club de cada
   // liga: 16º en la Premier, 20º en Brasil, 15º de 15 en Uruguay.
-  const d=(pa-pb)/26;
+  // Mismo techo de 8 puntos que en mis partidos (ver _gapCal en simMatch)
+  const d=Math.max(-8,Math.min(8,pa-pb))/26;
   // 1,9 dejaba los partidos entre clubes de la IA demasiado parejos y, por
   // contraste, mi equipo se escapaba: 80 puntos en 30 fechas (2,67 por partido)
   // contra los 60-66 de un campeón real. 2,6 equilibra las dos varas.
@@ -9544,7 +9545,8 @@ function matchStrengths(m){
   // Home advantage
   // Las instalaciones del estadio pesan de local (vestuarios, fan zone, techo)
   const _fx = facilityFx();
-  const homeBonus = m.home===myTeam ? (0.04+_fx.homeEdge) : -0.02;
+  // Simétrico: la localía vale lo mismo a favor que en contra (antes +0,04 / −0,02)
+  const homeBonus = m.home===myTeam ? (0.032+_fx.homeEdge) : -0.032;
 
   // Compute my strength and opponent strength on same scale
   // Los atributos DLS pesan: ataque y defensa reales del XI
@@ -9690,6 +9692,16 @@ function matchStrengths(m){
   tacMod+=formMod;
   // Química del equipo: un XI aceitado se potencia
   tacMod+=((G.chem||0)/100-0.5)*0.06;
+  // ═══ EL PLANTEO NO PUEDE SER UN BONUS PERMANENTE ═══
+  // tacMod suma una docena de cosas (ajuste táctico, rasgo del DT, sesgo del
+  // esquema, relación con el técnico, racha, química, instrucciones) y casi
+  // todas son positivas en un club bien llevado. Medido con Man City daba
+  // +0,071 SIEMPRE, que son +0,24 goles esperados por partido; los clubes de
+  // la IA no tienen nada equivalente. Resultado: de visitante contra un rival
+  // de mi misma fuerza yo salía favorito 1,57 a 1,15, cuando en la vida real
+  // el visitante es el que corre de atrás. Se acota el total: un buen plan
+  // sigue valiendo, pero no reemplaza tener mejores jugadores.
+  tacMod=Math.max(-0.045,Math.min(0.045,tacMod));
   return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod};
 }
 
@@ -10430,7 +10442,22 @@ function simMatch(auto){
   // ═══ SIMULACIÓN RÁPIDA v2: el resultado DEPENDE del nivel de los planteles ═══
   // Antes la diferencia pesaba poco y el empate era fijo (20%): un equipazo perdía
   // contra cualquiera. Ahora el diferencial manda y las sorpresas son excepción.
-  const diff  = (S.myS - S.oppS)*1.65 + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
+  // ═══ MI CALIDAD TIENE QUE PESAR LO MISMO QUE LA DE LA IA ═══
+  // Medido con Man City: contra un rival de fuerza 80,5 mis goles esperados
+  // eran 2,00 y los de la IA en el mismo cruce 2,29; contra uno de 87,9, 1,75
+  // contra 1,55. O sea que mi ventaja se saturaba en 2,0 y la de la IA seguía
+  // escalando: por cada punto de diferencia de plantel, el partido de la IA se
+  // movía 0,100 goles y el mío 0,034 — un tercio. Por eso el mejor plantel de
+  // una liga pareja (Premier, Italia) promediaba 6º dirigido por vos y campeón
+  // dirigido por la máquina. Este término suma lo que faltaba para igualar las
+  // dos varas, sin tocar el resto de la fórmula.
+  // Con un techo: la respuesta lineal exagera en los extremos. La Liga
+  // Argentina tiene 12 puntos entre el mejor y el peor (la Premier, 7), y sin
+  // tope el mejor club sacaba 2,7-2,8 puntos por partido, más que cualquier
+  // campeón real. Arriba de 8 puntos de diferencia más calidad ya casi no
+  // agrega: hay un límite de cuánto se le puede ganar a alguien.
+  const _gapCal=Math.max(-8,Math.min(8,(S.avgR||70)-(S.oppRat||70)))/26*0.42;
+  const diff  = (S.myS - S.oppS)*1.65 + _gapCal + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
   // Cada equipo genera goles esperados según su fuerza (modelo tipo Poisson)
   const myXG  = Math.max(0.22, 1.35 + diff*3.4);
   const opXG  = Math.max(0.22, 1.35 - diff*3.0);
