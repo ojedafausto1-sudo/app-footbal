@@ -139,6 +139,27 @@ await page.evaluate(() => { startGame('boca'); autoFill(); });
 **Siempre correr la regresión antes de commitear**: las 6 jugadas clave, una
 temporada completa (450 fixtures) y el ciclo de fichaje.
 
+## ⚠️ El extractor puede perder clubes en silencio
+
+Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
+perdido entre cientos de líneas y **desaparecía de la base sin que nadie se
+enterara**. Así se perdieron 12 clubes entre dos extracciones —Santos, Porto,
+Emelec, Coventry, Modena, Paris FC, Rostov, Puebla, Botafogo-SP, Atl. Rafaela,
+Real Oruro y Volos— desperdigados por 11 ligas: el patrón de fallos pasajeros.
+
+Ya está arreglado: `apiGet` reintenta ante **cualquier** error (antes sólo
+429/503) y ante cortes de red, cada club tiene una segunda oportunidad con
+pausa larga, y al final la corrida **lista por nombre** los que quedaron sin
+plantel más un conteo de clubes por liga. Si ves una liga con menos clubes de
+los que debería, volvé a correr esa liga.
+
+Para comparar dos versiones de la base y ver qué se perdió:
+```js
+// clubes que estaban en la base vieja y ya no están en la nueva
+const clubes=DB=>{const m={};DB.forEach(r=>m[r[6]+'|'+r[5]]=1);return m;};
+Object.keys(clubes(viejo)).filter(k=>!clubes(nuevo)[k]);
+```
+
 ## Estado del extractor (julio 2026)
 
 | Fuente | Estado |

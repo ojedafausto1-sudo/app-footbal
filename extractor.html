@@ -170,6 +170,16 @@ async function apiGet(path, apiType) {
         fnUrl = mkUrl('');
         continue;               // reintento por Netlify
       }
+      // ═══ REINTENTAR ANTE CUALQUIER ERROR, NO SÓLO 429/503 ═══
+      // Un 500 o un 502 pasajero devolvía null en el acto, el club se salteaba
+      // en silencio y el equipo desaparecía de la base. Así fue como se
+      // perdieron Santos (Brasil) y Porto (Portugal): están en el sitio, pero
+      // ese día el pedido falló y nadie se enteró.
+      if (!res.ok && res.status >= 500 && intento < 2) {
+        log(`  ⏳ ${res.status} en ${path} — reintento ${intento+1}/2`);
+        await sleep(2500 * (intento + 1));
+        continue;
+      }
       if (!res.ok) {
         // Sin el nombre de la fuente, un 500 de la API libre parecía un 500 del
         // plantel y daba la impresión de que no andaba nada.
@@ -184,6 +194,12 @@ async function apiGet(path, apiType) {
       }
       return await res.json();
     } catch (e) {
+      // Un corte de red devolvía null sin reintentar ni una vez
+      if (intento < 2) {
+        log(`  ⏳ Se cortó la conexión en ${path} — reintento ${intento+1}/2`);
+        await sleep(2500 * (intento + 1));
+        continue;
+      }
       log(`FETCH ERROR: ${e.message} — ${path}`);
       return null;
     }
@@ -588,6 +604,23 @@ async function extractAll(soloDTs) {
 
   setProgress(100);
   log(`\n=== RESULTADO: ${allPlayers.length} jugadores extraídos ===`);
+  // ═══ QUÉ CLUBES FALTAN, DICHO CON NOMBRE Y APELLIDO ═══
+  // Antes un club que fallaba se perdía entre cientos de líneas de log y te
+  // enterabas meses después, jugando, de que no estaba Santos o el Porto.
+  const fall = window._clubesFallados || [];
+  if (fall.length) {
+    log(`\n⚠️ ${fall.length} CLUB(ES) SE QUEDARON SIN PLANTEL:`);
+    fall.forEach(f => log(`   · ${f.clubName} (${f.pais} — ${f.liga}, id ${f.clubId})`));
+    log('   Volvé a correr la extracción de esas ligas: casi siempre es un fallo pasajero.');
+  } else {
+    log('✓ Ningún club se quedó sin plantel.');
+  }
+  // Y un control por liga: si una liga trae muy pocos clubes, algo salió mal
+  const porLiga = {};
+  allPlayers.forEach(p => { (porLiga[p.league] = porLiga[p.league] || new Set()).add(p.club); });
+  log('\nClubes por liga:');
+  Object.entries(porLiga).sort((a,b)=>b[1].size-a[1].size)
+    .forEach(([l,set]) => log(`   ${l}: ${set.size} clubes`));
   generateOutput();
 }
 
@@ -756,6 +789,12 @@ async function extractTM(selected) {
   const wantNats = (document.getElementById('fillNats')||{}).checked;
   const wantDTs = (document.getElementById('extractDTs')||{}).checked;
   allCoaches = [];
+  // ═══ LOS CLUBES QUE FALLAN NO SE PIERDEN MÁS ═══
+  // Un club cuyo plantel no bajaba se salteaba con un '✗ Sin datos' perdido
+  // entre cientos de líneas y desaparecía de la base sin que nadie lo notara:
+  // así se perdieron Santos y Porto. Ahora quedan anotados, se reintentan al
+  // final y, si igual no bajan, el resumen los nombra uno por uno.
+  window._clubesFallados = [];
 
   for (let li = 0; li < selected.length; li++) {
     const lg = selected[li];
@@ -776,8 +815,20 @@ async function extractTM(selected) {
       if (!clubId) continue;
       log(`  [${ci+1}/${clubs.length}] ${clubName} (${clubId})...`);
 
-      const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
-      if (!playersData) { log(`    ✗ Sin datos`); continue; }
+      let playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
+      if (!playersData) {
+        // Segunda oportunidad con una pausa larga: casi todos estos fallos son
+        // pasajeros (la API se satura un momento) y perder el plantel entero
+        // de un club por eso sale carísimo — el equipo desaparece del juego.
+        log(`    ⏳ ${clubName}: sin datos, espero 6s y lo reintento`);
+        await sleep(6000);
+        playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
+      }
+      if (!playersData) {
+        log(`    ✗ ${clubName} SIGUE sin datos — va al resumen del final`);
+        window._clubesFallados.push({ liga: lg.name, pais: lg.country, clubName, clubId });
+        continue;
+      }
 
       // NACIONALIDADES: SportDB las devuelve vacías, pero la TM-API libre
       // (transfermarkt-api.fly.dev, gratis vía Worker api=tmapi) sí las trae.
