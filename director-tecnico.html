@@ -1176,9 +1176,40 @@ function pgr(pos){
 // =============================================
 // FOREIGN QUOTA HELPERS
 // =============================================
-// Un extranjero NACIONALIZADO no ocupa cupo: si tiene la ciudadanía argentina
-// como segunda nacionalidad, cuenta como local (regla real de la Liga).
-function isForeign(nat,nat2){ return nat !== 'ARG' && nat2 !== 'ARG'; }
+// Un extranjero NACIONALIZADO no ocupa cupo: si tiene la ciudadanía del país
+// de la liga como segunda nacionalidad, cuenta como local (regla real).
+// ═══════════════════════════════════════════════════════════════════════
+// EXTRANJERO ES RESPECTO DE LA LIGA QUE DIRIGÍS, NO SIEMPRE DE ARGENTINA
+// ═══════════════════════════════════════════════════════════════════════
+// isForeign comparaba contra 'ARG' fijo. Desde que se puede dirigir en las 24
+// ligas de la base eso quedó roto: dirigiendo al Porto los 24 portugueses
+// contaban como extranjeros y los 2 argentinos como locales. Medido:
+//   River (Liga ARG)      5 de 30 extranjeros   ✔
+//   Porto (Portugal)     25 de 27              ✘
+//   Al-Hilal (Arabia)    30 de 30              ✘
+//   Real Madrid (España) 26 de 26              ✘
+// Con el cupo en 5, el juego te bloqueaba TODO fuera de Argentina: autoFill,
+// mover un jugador en el once, hacer un cambio, comprar y fichar libres.
+// Cada liga tiene sus nacionalidades locales (las británicas juntas en la
+// Premier, EE.UU. y Canadá en la MLS, como en la vida real).
+const LIGA_NAT={
+  'Liga ARG':['ARG'], 'Brasil':['BRA'], 'Chile':['CHI'], 'Paraguay':['PAR'],
+  'Uruguay':['URU'], 'Colombia':['COL'], 'Perú':['PER'], 'Ecuador':['ECU'],
+  'Venezuela':['VEN'], 'Bolivia':['BOL'], 'Liga MX':['MEX'],
+  'MLS':['USA','CAN'], 'Premier':['ING','ESC','GAL','NIR','IRL'],
+  'España':['ESP'], 'Italia':['ITA'], 'Alemania':['ALE'], 'Francia':['FRA'],
+  'Portugal':['POR'], 'Holanda':['HOL'], 'Bélgica':['BEL'], 'Turquía':['TUR'],
+  'Arabia':['ARB'], 'Rusia':['RUS'], 'Grecia':['GRE'],
+};
+// Las nacionalidades que NO ocupan cupo en la liga que estás dirigiendo.
+function natsLocales(){
+  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  return LIGA_NAT[lg]||['ARG'];
+}
+function isForeign(nat,nat2){
+  const loc=natsLocales();
+  return loc.indexOf(nat)<0 && loc.indexOf(nat2)<0;
+}
 function pIsForeign(p){ return p && isForeign(p.nat, p.nat2); }
 function isMercosur(nat){ return ['URU','PAR','BRA','BOL','CHI','ECU','PER','VEN','COL'].includes(nat); }
 function foreignCount(squad){ return (squad||[]).filter(pIsForeign).length; }
@@ -1443,7 +1474,22 @@ function ensureDtPool(){
     G.dtPool.push(dtDesdeBase(r));
   });
 }
-// Exigencias del DT al negociar (lo que él te pide)
+// ═══════════════════════════════════════════════════════════════════════
+// dtDemands  ≠  dtAskList   — NO CONFUNDIRLAS (ya hubo una colisión)
+// ═══════════════════════════════════════════════════════════════════════
+// ESTA es dtDemands(d): las EXIGENCIAS QUE EL DT LE PONE AL PRESIDENTE
+// cuando firma el contrato. Recibe un DT como argumento, devuelve un array
+// de STRINGS, y se usa sólo en la negociación (dtNegOpen / confirmDtHire).
+// Queda guardada en G.dt.contract.demands y no se vuelve a tocar.
+//
+// La otra es dtAskList(): los PEDIDOS QUE EL PRESIDENTE LE HACE AL DT. No
+// recibe argumentos, lee G.dt y G.squad, y devuelve un array de OBJETOS
+// {id,label,desc,resist,argue,apply} que la charla con el técnico usa para
+// que él acepte o te retruque. Es la pestaña de relación con el DT.
+//
+// Van en direcciones opuestas: dtDemands es DT→presidente, dtAskList es
+// presidente→DT. Si estás tocando la relación con el técnico, es dtAskList.
+// Si estás tocando la firma del contrato, es dtDemands.
 function dtDemands(d){
   const dem=[];
   (d.wantedPos||[]).slice(0,2).forEach(p=>dem.push(`Fichar un ${p} de jerarquía`));
@@ -3222,6 +3268,9 @@ function pressConfAnswer(moraleDelta,confDelta,fansDelta,dtRelDelta){
 
 // ═══════════════════════════════════════════════════════════════
 // HABLAR CON EL DT: le exigís cosas y él acepta o te retruca
+// ⚠️ ESTA es dtAskList(): PRESIDENTE → DT (los pedidos que vos le hacés).
+//    NO confundir con dtDemands(d), que es DT → PRESIDENTE (lo que el
+//    técnico exige al firmar el contrato). Ver la nota larga en dtDemands.
 // No es un menú de opciones que se cumplen solas: el técnico tiene
 // su idea. Si le pedís algo que va contra su forma de jugar, te va
 // a discutir — y ahí decidís si aflojás o si le imponés la orden
@@ -3664,8 +3713,27 @@ function sacarDelPlantel(p,tipo,det){
   }
   return rel;
 }
-// Cuántos extranjeros pueden estar en cancha a la vez
-const CUPO_EXT=5;
+// ═══ CUÁNTOS EXTRANJEROS PUEDEN ESTAR EN CANCHA A LA VEZ ═══
+// Los 5 de la Liga Profesional no valen en todos lados: en las ligas de la UE
+// hay libre circulación y no existe cupo práctico, en la Liga MX son 10, en
+// Arabia 8. Con el 5 fijo, dirigir al Real Madrid o al Al-Hilal era imposible
+// aunque isForeign contara bien. 11 = sin límite efectivo.
+const CUPO_LIGA={
+  'Liga ARG':5, 'Brasil':5, 'Chile':5, 'Paraguay':5, 'Uruguay':5,
+  'Colombia':4, 'Perú':5, 'Ecuador':5, 'Venezuela':5, 'Bolivia':5,
+  'Liga MX':10, 'MLS':8, 'Arabia':8, 'Rusia':8, 'Turquía':11,
+  'Premier':11, 'España':11, 'Italia':11, 'Alemania':11, 'Francia':11,
+  'Portugal':11, 'Holanda':11, 'Bélgica':11, 'Grecia':11,
+};
+// Se lee como función porque la liga se elige al empezar la partida, después
+// de que este archivo ya se evaluó: una const fija se quedaba con el 5.
+function cupoExt(){
+  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  return CUPO_LIGA[lg]||5;
+}
+// Compatibilidad: los llamadores viejos usan CUPO_EXT como número. Se deja
+// como getter para que sigan andando sin tocar los diez lugares que lo miran.
+Object.defineProperty(window,'CUPO_EXT',{get:cupoExt,configurable:true});
 // Extranjeros en el once que está armado ahora
 function extEnOnce(exceptoId){
   if(typeof pIsForeign!=='function')return 0;
@@ -4037,7 +4105,7 @@ function openP(id, inSquad){
         ${(typeof puedeReconvertir==='function'&&puedeReconvertir(p).length)?`<button class="btn bo bs" onclick="openReconv('${p.id}')">${p.reconv?`⏳ ${p.reconv.a} (${p.reconv.resta} sem)`:'🔁 Reconvertir'}</button>`:''}
         <button class="btn bo bs" style="border-color:${p.colgado?'var(--green)':'var(--ora)'};color:${p.colgado?'var(--green)':'var(--ora)'}" onclick="toggleColgado('${p.id}')">${p.colgado?'🤝 Reintegrar':'🧊 Colgar'}</button>
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
-        ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">🇦🇷 Nacionalizar</button>` : ''}
+        ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">${natGent(natLocalPrincipal())[1]} Nacionalizar</button>` : ''}
       ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
         <button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>
@@ -4288,7 +4356,7 @@ function subNegI(id, demand){
   const plan=window._negPlan||1;
   const payNow=Math.round(offer*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
   if(G.budget<payNow){flash('❌ No te alcanza para la primera cuota ('+fv(payNow)+')','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
   nd.lastOffer=offer;nd.plan=plan;
   // El club valora menos el pago diferido
@@ -4358,7 +4426,7 @@ function accCounter(id, val){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<val){flash('❌ Sin presupuesto','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   const nd=window._negData||{agent:{name:'Agente',wageExp:_negWageExpect(p)}};
   nd.agreedFee=val;
   window._negData=nd;
@@ -4651,7 +4719,7 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // El club ya no contesta en el acto. Primero arreglás con el jugador y recién
   // ahí sale la solicitud; la respuesta llega semanas después, con la chance de
   // que contraoferten pidiendo más cargo.
@@ -6118,19 +6186,30 @@ function trAttr(id, attr){
   flash(`✅ ${p.name}: ${attr} ${p.attrs[attr]}`,'win');
 }
 
+// La nacionalización es hacia el país de la liga que dirigís, no siempre
+// hacia Argentina: dirigiendo al Porto se nacionaliza portugués.
+function natLocalPrincipal(){ return (natsLocales()||['ARG'])[0]; }
+const NAT_GENTILICIO={ARG:['argentino','🇦🇷'],BRA:['brasileño','🇧🇷'],CHI:['chileno','🇨🇱'],
+  PAR:['paraguayo','🇵🇾'],URU:['uruguayo','🇺🇾'],COL:['colombiano','🇨🇴'],PER:['peruano','🇵🇪'],
+  ECU:['ecuatoriano','🇪🇨'],VEN:['venezolano','🇻🇪'],BOL:['boliviano','🇧🇴'],MEX:['mexicano','🇲🇽'],
+  USA:['estadounidense','🇺🇸'],ING:['inglés','🏴󠁧󠁢󠁥󠁮󠁧󠁿'],ESP:['español','🇪🇸'],ITA:['italiano','🇮🇹'],
+  ALE:['alemán','🇩🇪'],FRA:['francés','🇫🇷'],POR:['portugués','🇵🇹'],HOL:['neerlandés','🇳🇱'],
+  BEL:['belga','🇧🇪'],TUR:['turco','🇹🇷'],ARB:['saudí','🇸🇦'],RUS:['ruso','🇷🇺'],GRE:['griego','🇬🇷']};
+function natGent(c){ return NAT_GENTILICIO[c]||['local','🏳️']; }
 function naturalizePlayer(id){
   if(!G) return;
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
+  const _nl=natLocalPrincipal(), _g=natGent(_nl);
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">🇦🇷 Nacionalizar jugador</div>
+    <div class="mtitle">${_g[1]} Nacionalizar jugador</div>
     <div style="text-align:center;margin:14px 0">
-      <div style="font-size:40px;margin-bottom:8px">🇦🇷</div>
+      <div style="font-size:40px;margin-bottom:8px">${_g[1]}</div>
       <div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700">${p.name}</div>
       <div style="font-size:11px;color:var(--t2);margin-top:4px">${p.nat} · ${p.age} años · ${p.seasonsAtClub||0} temporadas en el club</div>
     </div>
-    <div class="note" style="margin-bottom:12px">Al nacionalizarse como argentino, este jugador dejará de ocupar un cupo de extranjero en el plantel.</div>
+    <div class="note" style="margin-bottom:12px">Al nacionalizarse como ${_g[0]}, este jugador dejará de ocupar un cupo de extranjero en el plantel.</div>
     <div style="display:flex;gap:8px">
       <button class="btn bg" style="flex:1;padding:9px" onclick="confirmNaturalize('${p.id}')">✅ Confirmar nacionalización</button>
       <button class="btn bR bs" onclick="closeMod()">Cancelar</button>
@@ -6143,12 +6222,13 @@ function confirmNaturalize(id){
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
   const oldNat = p.nat;
-  // Se le suma la ciudadanía argentina en vez de borrar la de origen: sigue
+  // Se le suma la ciudadanía LOCAL en vez de borrar la de origen: sigue
   // siendo brasileño/colombiano, pero ya no ocupa cupo de extranjero.
-  p.nat2 = 'ARG';
-  lg('🇦🇷', `${p.name} nacionalizado (${oldNat} + ARG) — libera cupo`);
+  const _nl=natLocalPrincipal(), _g=natGent(_nl);
+  p.nat2 = _nl;
+  lg(_g[1], `${p.name} nacionalizado (${oldNat} + ${_nl}) — libera cupo`);
   closeMod(); updateUI();
-  flash(`🇦🇷 ¡${p.name} ya es argentino! Cupo de extranjero liberado.`,'win');
+  flash(`${_g[1]} ¡${p.name} ya es ${_g[0]}! Cupo de extranjero liberado.`,'win');
 }
 
 // =============================================
@@ -9084,12 +9164,12 @@ function fichaLibres(faltan, cuantos){
     // El cupo de extranjeros se controlaba SÓLO al comprar. Por acá entraban
     // libres sin mirar nada: medido, a las tres temporadas el plantel tenía
     // trece extranjeros.
-    if(typeof pIsForeign==='function'&&foreignCount(G.squad)>=5){
+    if(typeof pIsForeign==='function'&&foreignCount(G.squad)>=cupoExt()){
       const j=libres.findIndex(q=>!pIsForeign(q));
       if(j<0)break;                       // no quedan libres que puedan inscribirse
       libres.unshift(libres.splice(j,1)[0]);
     }
-    const p=libres.splice(typeof pIsForeign==='function'&&foreignCount(G.squad)>=5?0:~~(Math.random()*Math.min(12,libres.length)),1)[0];
+    const p=libres.splice(typeof pIsForeign==='function'&&foreignCount(G.squad)>=cupoExt()?0:~~(Math.random()*Math.min(12,libres.length)),1)[0];
     if(!p)break;
     G.market=G.market.filter(x=>x.id!==p.id);
     p.club=G.teamName; p.lg='Liga ARG'; p.freeAgent=false;
@@ -13573,7 +13653,7 @@ function confirmClause(id){
   const cl=clauseOf(p);
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // La cláusula saltea AL CLUB, no al jugador: primero tiene que firmar él.
   // Si dice que no, no se deposita un peso.
   openPlayerTerms({
@@ -13653,7 +13733,7 @@ function confirmHalfPass(id){
   const wageCost=Math.round(wageExp*3*4/1000*10)/10;    // 3 años de contrato
   if(G.budget<cost+wageCost){flash(`❌ Presupuesto insuficiente (ficha ${fv(cost)} + salarios ${fv(wageCost)})`,'loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=5){flash('❌ Cupo de extranjeros lleno (5/5)','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // El club ya no contesta en el acto: primero arreglás con el jugador y la
   // oferta sale. pctInterest pasa a ser la chance con la que contestará dentro
   // de unas semanas, no un dado que se tira ahora.
@@ -14173,7 +14253,7 @@ function accOffAt(i, val){
       const inc=G.market.find(x=>x.id===o.swapIn.id)||o.swapIn;
       // Mismo control que al comprar: por esta puerta entraban extranjeros sin
       // mirar el cupo.
-      if(typeof pIsForeign==='function'&&pIsForeign(inc)&&foreignCount(G.squad)>=5){
+      if(typeof pIsForeign==='function'&&pIsForeign(inc)&&foreignCount(G.squad)>=cupoExt()){
         addPhoneMsg('board','Secretaría Deportiva',
           `🛂 No podemos inscribir a <b>${inc.name}</b>: el cupo de extranjeros está lleno (5/5). Se cae la parte del canje.`,'🏛️');
         lg('🛂',`${inc.name} no pudo inscribirse: cupo de extranjeros lleno`);
@@ -19354,7 +19434,7 @@ function negComplete(n,p,price,isPre){
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
   // El cupo se validaba sólo en negExecDeal: por acá entraban libres y
   // precontratos sin control.
-  if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=5){
+  if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){
     // Se llega acá desde un click (igualar contraoferta): si sólo mandaba un
     // mensaje al teléfono, el modal se cerraba y la operación desaparecía sin
     // que se entendiera por qué.

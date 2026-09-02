@@ -42,6 +42,14 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   nombres, no los clubes).
 - **Extranjeros**: un nacionalizado NO ocupa cupo. `isForeign(nat, nat2)`. El
   cupo se cumple en el ONCE (`autoFill`, `clickSlot`, `doSub`), no en el plantel.
+  **Extranjero es respecto de la liga que dirigís**, no siempre de Argentina:
+  `LIGA_NAT` da las nacionalidades locales de cada una de las 24 ligas (las
+  británicas juntas en la Premier, USA+CAN en la MLS) y `natsLocales()` las
+  lee. El cupo también es por liga (`CUPO_LIGA` / `cupoExt()`): 5 en Argentina
+  y Brasil, 10 en México, 8 en Arabia, 11 (= sin límite) en Europa. Con el
+  `'ARG'` fijo de antes, dirigir al Porto daba 25 extranjeros de 27 y el juego
+  te bloqueaba autoFill, los cambios, las compras y los libres. Nacionalizar
+  suma la nacionalidad LOCAL (`natLocalPrincipal()`), no siempre ARG.
 - **Todo el que entra o sale pasa por un embudo**: `sacarDelPlantel(p,tipo,det)`
   saca, anota el movimiento (`movAnota` → `G.movs`, pestaña Mercado →
   Movimientos) y **rellena el hueco** del once con `taparHueco`. Antes había
@@ -147,8 +155,22 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Relación con el DT**: `G.dtRel` (0-100), `setDtRel`, `dtAskList` (pedidos del
   presidente al DT, que puede retrucar).
 
-⚠️ **Ojo con los nombres**: existe `dtDemands(d)` (exigencias del DT al firmar) y
-`dtAskList()` (pedidos del presidente). Ya hubo una colisión por esto.
+⚠️ **Ojo con los nombres — `dtDemands` ≠ `dtAskList`**. Van en direcciones
+opuestas y ya hubo una colisión por esto:
+
+| | `dtDemands(d)` | `dtAskList()` |
+|---|---|---|
+| dirección | **DT → presidente** | **presidente → DT** |
+| qué es | lo que el técnico exige al FIRMAR | los pedidos que vos le hacés |
+| argumentos | recibe un DT (`d`) | ninguno (lee `G.dt`, `G.squad`) |
+| devuelve | array de **strings** | array de **objetos** `{id,label,desc,resist,argue,apply}` |
+| dónde se usa | `dtNegOpen` / `confirmDtHire` | la charla con el técnico (3 call sites) |
+| dónde queda | `G.dt.contract.demands`, no se toca más | se aplica y el DT puede retrucar |
+
+Si tocás la relación con el técnico es `dtAskList`; si tocás la firma del
+contrato es `dtDemands`. La regresión (`scratchpad/reg.js`) verifica que sigan
+separadas: aridad, tipo de retorno y que `dtAskList` devuelva objetos con
+`apply`.
 
 ## Cómo probar (Playwright)
 
@@ -187,6 +209,44 @@ Para comparar dos versiones de la base y ver qué se perdió:
 const clubes=DB=>{const m={};DB.forEach(r=>m[r[6]+'|'+r[5]]=1);return m;};
 Object.keys(clubes(viejo)).filter(k=>!clubes(nuevo)[k]);
 ```
+
+## ⚠️ La segunda nacionalidad decide el cupo: no se inventa
+
+`nat2FromProfile` sacaba el segundo país de un regex sobre texto libre
+(`"from <País1> <País2>"`). Con un país de DOS palabras partía el único país
+del jugador y guardaba la mitad como si fuera otra nacionalidad:
+
+| descripción real | nat / nat2 guardados | casos |
+|---|---|---|
+| `from United States` | `USA` + `STA` | 167 |
+| `from Saudi Arabia` | `ARB` + `ARA` | 293 |
+| `from Costa Rica` | `CRC` + `RIC` | 6 |
+| — (ni país era) | `* ` + `RET` | 487 |
+
+Eran **1.069 nat2 basura**, ya borrados de la base. No daban cupo de más (un
+código inventado nunca coincide con la nacionalidad local) pero tapaban la
+segunda nacionalidad de verdad. Ya está arreglado: `nat2FromProfile` sólo
+acepta la LISTA estructurada de nacionalidades del perfil (nunca el texto
+libre), `mapNat(nat, true)` devuelve `''` en vez de inventar un código con
+`slice(0,3)`, y se descarta el nat2 igual al nat1.
+
+El mismo `slice(0,3)` había roto **nat1**: 327 turcos quedaron como `TÜR`
+(el mapa sólo conocía `turkey`/`türkei`, no `Türkiye`) y 87 marfileños como
+`COT`. Dirigiendo en Turquía, los 327 turcos contaban como extranjeros. Los
+alias que faltaban están agregados y la base normalizada (475 nat1 + 141 nat2).
+
+Quedan **3.608 segundas nacionalidades válidas**, de las cuales 2.375 liberan
+cupo en alguna liga.
+
+## El juego NO pide nada por red
+
+`director-tecnico.html` no tiene un solo `fetch` ni `XMLHttpRequest`: la base
+entra por `<script src="players-db.js">` y `<script src="dts-db.js">`, ambos
+locales y con `onerror` que deja el array vacío. **Ojo: tienen que ser `.js`
+con `window.PLAYERS_DB=[...]`, no `.json`** — un `fetch` de JSON no funciona
+abriendo el archivo con `file://` (CORS), y el usuario juega así. El extractor
+es una herramienta aparte que se corre a mano para regenerar la base; el juego
+nunca lo llama. La regresión verifica que no se abra ninguna conexión.
 
 ## Estado del extractor (julio 2026)
 

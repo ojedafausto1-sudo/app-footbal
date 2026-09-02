@@ -1157,17 +1157,31 @@ function natFromProfile(prof) {
 // ═══ SEGUNDA NACIONALIDAD ═══
 // En el fútbol argentino, un extranjero nacionalizado NO ocupa cupo. Si el
 // jugador tiene doble ciudadanía hay que saberlo, o contamos mal el cupo.
+// ═══════════════════════════════════════════════════════════════════════
+// OJO: EL REGEX DE DOS PALABRAS PARTÍA LOS PAÍSES EN DOS
+// ═══════════════════════════════════════════════════════════════════════
+// El regex viejo buscaba "from <País1> <País2>" y capturaba el segundo grupo.
+// Con un país de UNA palabra andaba, pero con uno de dos partía el único país
+// del jugador y guardaba la segunda mitad como si fuera otra nacionalidad:
+//   "from United States"  → nat USA + nat2 "States" → STA   (167 casos)
+//   "from Saudi Arabia"   → nat ARB + nat2 "Arabia" → ARA   (293 casos)
+//   "from Costa Rica"     → nat CRC + nat2 "Rica"   → RIC
+//   "from Burkina Faso"   → nat BFA + nat2 "Faso"   → FAS
+// Más 487 casos de "RET", que ni país era. En total 1.069 nat2 basura en la
+// base, todos borrados. No llegaban a dar cupo de más (un código inventado
+// nunca coincide con la nacionalidad local), pero tapaban la segunda
+// nacionalidad de verdad y ensuciaban la ficha del jugador.
+// Ahora sólo se acepta un segundo país si viene en la LISTA de nacionalidades
+// del perfil, que es un dato estructurado y no texto libre. Y como red final,
+// se descarta lo que no se pueda mapear a un código conocido o sea igual al
+// primero.
 function nat2FromProfile(prof) {
   if (!prof) return '';
-  let arr = prof.nationalities || prof.citizenship || prof.nationality;
+  const arr = prof.nationalities || prof.citizenship || prof.nationality;
   if (Array.isArray(arr) && arr.length > 1) {
     const b = arr[1];
     return String((b && (b.name || b.country)) || b || '').trim();
   }
-  // La descripción a veces lista las dos: "from Brazil Italy ➤"
-  const d = String(prof.description || '');
-  const m = d.match(/\bfrom\s+([A-ZÁÉÍÓÚÑ][^➤|,]*?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)\s*(?:➤|$)/);
-  if (m) return m[2].trim();
   return '';
 }
 async function probeNats() {
@@ -1324,7 +1338,10 @@ function parseHeight(v) {
   return n < 3 ? Math.round(n * 100) : Math.round(n);
 }
 
-function mapNat(nat) {
+// estricto=true: si el país no se reconoce, devuelve '' en vez de inventar un
+// código con las tres primeras letras. Lo usa la SEGUNDA nacionalidad, que es
+// la que decide el cupo de extranjeros.
+function mapNat(nat, estricto) {
   const n = String(nat || '').toLowerCase();
   const map = {
     'argentina':'ARG','brazil':'BRA','brasil':'BRA','chile':'CHI','paraguay':'PAR',
@@ -1350,6 +1367,15 @@ function mapNat(nat) {
     'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV',
     // Golfo y alrededores: hacen falta para la Saudi Pro League, si no caían
     // en el fallback nat.slice(0,3) y salían códigos inventados.
+    // Alias que faltaban y dejaban códigos rotos: 327 turcos habían quedado
+    // como 'TÜR' porque el mapa sólo conocía turkey/türkei, y 87 marfileños
+    // como 'COT' por "Cote d'Ivoire".
+    'türkiye':'TUR','turkiye':'TUR','turquía':'TUR','turquia':'TUR',
+    "cote d'ivoire":'CIV',"côte d'ivoire":'CIV','cote divoire':'CIV',
+    'korea, south':'COR','korea republic':'COR','republic of korea':'COR',
+    'the gambia':'GAM','gambia':'GAM','puerto rico':'PUR',
+    'central african republic':'CTA','sierra leone':'SLE',
+    'st. lucia':'LCA','saint lucia':'LCA',
     'saudi arabia':'ARB','arabia saudita':'ARB','qatar':'QAT','catar':'QAT',
     'united arab emirates':'UAE','iraq':'IRQ','jordan':'JOR','oman':'OMA',
     'bahrain':'BRN','kuwait':'KUW','syria':'SIR','lebanon':'LIB',
@@ -1398,6 +1424,7 @@ function mapNat(nat) {
   for (const [key, val] of Object.entries(map)) {
     if (new RegExp('(^|[^a-z])' + key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '([^a-z]|$)').test(n)) return val;
   }
+  if (estricto) return '';
   return nat ? nat.slice(0, 3).toUpperCase() : 'UNK';
 }
 
@@ -1471,7 +1498,12 @@ function generateOutput() {
       const cUntil = p.contractUntil || 0;
       const hCm = p.heightCm || 0;
       const p2 = p.pos2 ? mapPos(p.pos2) : '';
-      const nat2 = p.nat2 ? mapNat(p.nat2) : '';
+      // La segunda nacionalidad es la que decide el CUPO DE EXTRANJEROS, así
+      // que acá no vale el fallback slice(0,3) que inventa códigos: si no se
+      // reconoce el país, es mejor no saber que saber mal. Y si da lo mismo
+      // que la primera, no es una segunda nacionalidad.
+      let nat2 = p.nat2 ? mapNat(p.nat2, true) : '';
+      if (nat2 === nat) nat2 = '';
       const cl = p.clauseM || 0;
       const gl = p.goals || 0, as = p.assists || 0, ap = p.apps || 0;
       js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm},'${p2}',${cl},${gl},${as},${ap},'${nat2}'],\n`;
