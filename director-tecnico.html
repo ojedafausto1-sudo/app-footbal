@@ -2551,7 +2551,7 @@ function resolveCopaCorta(m){
   }
   lg('🏆',`¡${G.teamName} CAMPEÓN de la ${nombre}! (${mine}-${theirs})`);
   flash(`🏆 ¡CAMPEÓN DE LA ${String(nombre).toUpperCase()}!`,'win');
-  G.rep=Math.min(100,(G.rep||50)+(esMundial?9:5));
+  repSuma(esMundial?9:5);
   G.boardConf=Math.min(100,(G.boardConf||50)+(esMundial?25:14));
   (G.trophies=G.trophies||[]).push({name:nombre,season:G.season});
 }
@@ -6275,7 +6275,7 @@ function confirmBuildStad(id){
   u.built = true;
   if(u.eff.startsWith('cap+')) G.stadium.capacity += parseInt(u.eff.split('+')[1]);
   if(u.eff.startsWith('inc+')) G.stadium.income = Math.round((G.stadium.income+parseFloat(u.eff.split('+')[1]))*10)/10;
-  if(u.eff.startsWith('rep+')) G.rep = Math.min(100,G.rep+parseInt(u.eff.split('+')[1]));
+  if(u.eff.startsWith('rep+')) repSuma(parseInt(u.eff.split('+')[1]));
   if(u.eff==='train') G.youth.level = Math.min(5,G.youth.level+1);
   if(u.eff==='medical') G.medicalCenter = true;
   G.stadium.level = Math.min(5,1+G.stadium.upgrades.filter(x=>x.built).length);
@@ -6357,7 +6357,7 @@ function promOne(id){
   if(G.pressDemands) G.pressDemands.forEach(d=>{
     if(!d.fulfilled&&!d.expired&&d.type==='debut_youth'&&d.detail&&d.detail.youthId===id){
       d.fulfilled=true;
-      G.morale=Math.min(100,G.morale+3); G.rep=Math.min(100,G.rep+1);
+      G.morale=Math.min(100,G.morale+3); repSuma(1);
       lg('✅','Exigencia presidencial cumplida: '+d.desc);
     }
   });
@@ -7085,7 +7085,7 @@ function checkPressDemands(){
     if(fulfilled){
       d.fulfilled=true;
       G.morale=Math.min(100,G.morale+3);
-      G.rep=Math.min(100,G.rep+1);
+      repSuma(1);
       lg('✅','Exigencia presidencial cumplida: '+d.desc);
       flash('✅ Exigencia presidencial cumplida!','win');
     } else if(G.week > d.deadline){
@@ -8766,10 +8766,25 @@ function rejectEndOffer(pid){
   if(p){p.morale=Math.max(5,(p.morale||70)-4);addPhoneMsg('player',p.name,'😕 Me hubiese gustado dar el salto... pero respeto la decisión del club. Sigo dando todo.','⚽');}
   updateUI();rPresTab();
 }
+// ═══════════════════════════════════════════════════════════════════════
+// CUÁNTAS LIGAS GANASTE
+// ═══════════════════════════════════════════════════════════════════════
+// Cuatro lugares contaban los títulos como G.history.filter(h=>h.champion),
+// que en la Liga ARG ya no vale: ahí el campeón no es el primero de la
+// tabla anual sino el que gana el Apertura o el Clausura, y eso vive en
+// G.trophies. Sin esto, dirigiendo en Argentina el juego creía que nunca
+// habías salido campeón: no llegaban ofertas de otros clubes, la carrera
+// quedaba en "recién llegado" y el modal de despedida decía 0 títulos
+// después de ganar seis torneos.
+function titulosLiga(){
+  const h=(G&&G.history)||[], trs=(G&&G.trophies)||[];
+  return h.filter(x=>x.champion).length
+       + trs.filter(t=>/^Torneo /.test(t.name||'')).length;
+}
 // ═══ CARRERA: otros clubes te ofrecen dirigirlos según tus logros ═══
 function genCareerOffers(){
   G.careerOffers=G.careerOffers||[];
-  const titulos=(G.history||[]).filter(h=>h.champion).length;
+  const titulos=titulosLiga();
   const lastPos=(G.history||[]).slice(-1)[0];
   const rep=G.rep||50;
   // Cuanto mejor te va, más y mejores clubes te tientan
@@ -8796,7 +8811,7 @@ function acceptCareerOffer(club){
   if(!off)return;
   const teamId=Object.keys(TEAMS).find(k=>TEAMS[k].name===club);
   const hist=G.history||[];const career=G.career||[];
-  career.push({club:G.teamName,seasons:G.season-2025,titulos:hist.filter(h=>h.champion).length});
+  career.push({club:G.teamName,seasons:G.season-2025,titulos:titulosLiga()});
   if(teamId){
     const keepHist=hist,keepCareer=career;
     initGame(teamId);
@@ -8811,6 +8826,31 @@ function acceptCareerOffer(club){
   closeMod();updateUI();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LA REPUTACIÓN SE GANA, NO SE REGALA
+// ═══════════════════════════════════════════════════════════════════════
+// Cada victoria daba +1 de reputación plana y cada derrota −1. Con 50
+// partidos por temporada y 35 victorias, la reputación pasaba de 50 a 100
+// en la PRIMERA temporada y se quedaba clavada ahí para siempre. Medido en
+// 8 temporadas dirigiendo a Boca: rep 100 desde 2026 hasta 2033.
+// Eso rompía tres sistemas de un saque: el objetivo de la dirigencia
+// (setBoardTarget sólo mira la rep, así que era "salir 1º o 2º" desde el
+// día uno), la plata de TV (escala con la rep) y las ofertas de otros
+// clubes. Y sobre todo mataba la progresión: no había nada que perseguir.
+// Ahora la ganancia se frena a medida que subís —de 80 para arriba cuesta
+// el triple, de 90 para arriba seis veces más— y la caída NO se frena: se
+// baja al ritmo normal. Llegar a 90 es una carrera entera, y quedarse ahí
+// hay que sostenerlo.
+function repSuma(d){
+  if(!G||!d)return;
+  const r=(G.rep===undefined?50:G.rep);
+  let nd=d;
+  if(d>0){
+    const freno = r>=92?0.12 : r>=85?0.22 : r>=78?0.38 : r>=70?0.58 : r>=60?0.80 : 1;
+    nd=d*freno;
+  }
+  G.rep=Math.round(Math.max(0,Math.min(100,r+nd))*10)/10;
+}
 // ═══ OBJETIVO DE LA ASAMBLEA / COMISIÓN DIRECTIVA ═══
 // La dirigencia fija una meta según la reputación del club. Si terminás
 // muy por debajo y con la confianza por el piso, te piden la renuncia.
@@ -8843,10 +8883,25 @@ function midSeasonReview(){
 }
 function checkFired(pos){
   const meta=G.boardTarget?G.boardTarget.maxPos:99;
-  const nClubs=(G.league&&G.league.clubs.length)||19;
+  // La cantidad de clubes salía de G.league.clubs con un ||19 de rescate. En
+  // la Liga ARG son 30, así que el 19 fantasma no aparecía nunca... salvo si
+  // checkFired corría antes de ensureLeague(), y entonces salir 19º de 30 se
+  // leía como un descenso. Ahora se mira primero la tabla, que es el dato de
+  // verdad, y el 19 quedó como último recurso.
+  const _t=(typeof leagueSorted==='function')?leagueSorted():[];
+  const nClubs=_t.length||(G.league&&G.league.clubs.length)||19;
   const conf=G.boardConf||50;
-  // Te echan si: descendiste, o quedaste muy lejos del objetivo con confianza baja
-  const descendio=pos>=nClubs;
+  // ═══ QUEDAR EN ZONA DE DESCENSO ES EL FIN DEL CICLO ═══
+  // El club del usuario nunca baja de categoría (no hay Primera Nacional en
+  // el juego: archiveSeason saca del descenso a los dos últimos EXCLUYENDO tu
+  // club a propósito). Pero antes eso significaba que salir 29º de 30 no
+  // tenía ninguna consecuencia: sólo te echaban saliendo último, o con la
+  // confianza por debajo de 30. Podías terminar anteúltimo, en zona de
+  // descenso, y seguir sentado en el sillón. Ahora la asamblea te pide la
+  // renuncia igual que en cualquier club de verdad: si quedaste en los
+  // puestos que bajan, se terminó.
+  const nDown=nClubs>=26?2:1;
+  const descendio=pos>nClubs-nDown;
   const fracaso=pos>meta+4&&conf<30;
   if(descendio||fracaso){
     showFiredModal(pos,descendio);
@@ -8864,10 +8919,10 @@ function showFiredModal(pos,descendio){
     <div style="text-align:center;margin:14px 0">
       <div style="font-size:44px;margin-bottom:8px">${descendio?'📉':'😔'}</div>
       <div style="font-size:13px;color:var(--t2);line-height:1.5">
-        ${descendio?`<b>${G.teamName}</b> descendió de categoría.`:`Terminamos <b>${pos}º</b>, lejos del objetivo.`}<br>
+        ${descendio?`<b>${G.teamName}</b> terminó <b>${pos}º</b>, en zona de descenso.`:`Terminamos <b>${pos}º</b>, lejos del objetivo.`}<br>
         La asamblea de socios te pidió la <b>renuncia</b> tras ${G.season-2025} temporada(s) al mando.
       </div>
-      <div style="font-size:11px;color:var(--t3);margin-top:10px">Palmarés: ${(G.history||[]).filter(h=>h.champion).length} título(s) de liga.</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:10px">Palmarés: ${titulosLiga()} título(s) de liga.</div>
     </div>
     ${(G.careerOffers&&G.careerOffers.length)?`
       <div class="note" style="margin-bottom:8px">Pero tu nombre suena en otros clubes. Tenés propuestas para dirigir en otro lado.</div>
@@ -8943,8 +8998,17 @@ function archiveSeason(){
   // Figura del año: el que más MVPs juntó
   const figura=G.squad.filter(p=>p.mvpCount).sort((a,b)=>b.mvpCount-a.mvpCount)[0];
   G.history=G.history||[];
+  // ═══ EN LA LIGA ARGENTINA LA TABLA ANUAL NO DA TÍTULO ═══
+  // Se guardaba champion:pos===1 para todas las ligas por igual. En la Liga
+  // Profesional los campeones son el Apertura y el Clausura —que ya se
+  // anotan en G.trophies apenas se ganan— y la tabla anual sólo sirve para
+  // repartir copas y descensos. Resultado: salir primero en la anual sumaba
+  // un tercer título fantasma, "Liga Argentina", y el palmarés de la
+  // tarjeta de carrera contaba doble. En las otras 23 ligas el campeón SÍ es
+  // el primero de la tabla, así que ahí champion sigue valiendo.
+  const _tablaDaTitulo = !(typeof esLigaLocal==='function'&&ligaMia()==='Liga ARG');
   G.history.push({season:G.season,pos,clubs:t.length,pts:G.wins*3+G.draws,w:G.wins,d:G.draws,l:G.losses,
-    gf:G.gf,ga:G.ga,champion:pos===1,
+    gf:G.gf,ga:G.ga,champion:pos===1&&_tablaDaTitulo,anual1:pos===1,
     topScorerLiga:sc?sc[0]+' — '+sc[1].goals:'—',
     myTopScorer:myTop?myTop.name+' — '+myTop.goals:'—',
     figura:figura?figura.name+' ('+figura.mvpCount+' MVP)':'—'});
@@ -8955,7 +9019,7 @@ function archiveSeason(){
   G.squad.forEach(p=>p.mvpCount=0); // se reinicia cada temporada
   // La reputación del club crece con los logros deportivos
   const repGain=pos===1?8:pos<=4?4:pos<=8?1:pos>=t.length-1?-4:0;
-  if(repGain){G.rep=Math.max(20,Math.min(100,(G.rep||50)+repGain));
+  if(repGain){ if(repGain>0)repSuma(repGain); else G.rep=Math.max(20,Math.round(((G.rep||50)+repGain)*10)/10);
     if(repGain>0)lg('⭐',`La reputación del club sube a ${G.rep} por la campaña`);}
   // ═══ DESCENSOS POR TABLA ANUAL (como en la Liga Profesional de verdad) ═══
   // G.league.table acumula el Apertura Y el Clausura, así que leagueSorted()
@@ -9766,7 +9830,13 @@ function matchStrengths(m){
   // el visitante es el que corre de atrás. Se acota el total: un buen plan
   // sigue valiendo, pero no reemplaza tener mejores jugadores.
   tacMod=Math.max(-0.045,Math.min(0.045,tacMod));
-  return {xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod};
+  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod};
+  // La última medición de fuerzas queda a mano: applyMatchResult arma la
+  // planilla del partido con ella y no tiene la S en su scope (lo llaman la
+  // simulación rápida, el 11v11 y las jugadas clave, cada uno por su lado).
+  // Recalcularla ahí sería hacer dos veces el trabajo más caro del partido.
+  G._S=_out;
+  return _out;
 }
 
 // ═══ AVANCE EN LOS PLAYOFFS DEL APERTURA / CLAUSURA ═══
@@ -9788,7 +9858,7 @@ function arAdvancePlayoff(m,res){
   if(cur==='Final'){
     lg('🏆',`¡${G.teamName} CAMPEÓN del Torneo ${label} ${G.season}!`);
     flash(`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}!`,'win');
-    G.rep=Math.min(100,(G.rep||50)+7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
+    repSuma(7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
     (G.trophies=G.trophies||[]).push({name:`Torneo ${label}`,season:G.season});
     addPhoneMsg('board','Comisión Directiva',`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}, PRESIDENTE! Una gestión histórica.`,'🏛️');
     G.arPlayoff=null;return;
@@ -9877,7 +9947,7 @@ function resolveKO(m){
     if(rnd===5){
       lg('🏆',`¡${G.teamName} CAMPEÓN de la ${compName}! (global ${mine}-${theirs})`);
       flash(`🏆 ¡CAMPEÓN DE LA ${compName.toUpperCase()}!`,'win');
-      G.rep=Math.min(100,(G.rep||50)+6);G.boardConf=Math.min(100,(G.boardConf||50)+18);
+      repSuma(6);G.boardConf=Math.min(100,(G.boardConf||50)+18);
       (G.trophies=G.trophies||[]).push({name:compName,season:G.season});
       // Queda anotado para la Recopa y el Mundial de Clubes de la temporada que viene
       if(isLib){G.campeonLib=G.season;}
@@ -9942,7 +10012,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     finAnota('operativo',matchOps,'Operativo del partido');
   }
   if(res==='W'){
-    G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); G.rep=Math.min(100,G.rep+1*dMul);
+    G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); repSuma(0.35*dMul);
     // Bonos de sponsors por victoria
     const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0)*facilityFx().sponsorMul;
     if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;finAnota('sponsors',spBonus,'Bono de sponsors por ganar');lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
@@ -9950,7 +10020,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
   } else {
     // piso de moral: un mal momento pesa, pero no te deja en 0 sin retorno
-    G.losses++; G.morale=Math.max(28,G.morale-(psychLv>=2?2:psychLv>=1?3:4)*dMul); G.rep=Math.max(0,G.rep-1*dMul);
+    G.losses++; G.morale=Math.max(28,G.morale-(psychLv>=2?2:psychLv>=1?3:4)*dMul); G.rep=Math.max(0,Math.round((G.rep-0.55*dMul)*10)/10);
   }
   // La moral tiende despacio a la normalidad (55): las rachas no son eternas
   G.morale=Math.round(G.morale+(55-G.morale)*0.05);
@@ -10032,6 +10102,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Las amarillas se acumulan: a la 5ª te perdés la próxima fecha. Una roja te
   // saca 1-2 partidos. Un DT picante ve más tarjetas. Ahora tener plantel largo
   // sirve de verdad.
+  // Las tarjetas que salen de acá son las de verdad: las que acumulan los
+  // jugadores y los dejan afuera. La planilla del resumen mostraba OTRAS,
+  // sacadas de un dado, así que podías leer "2 amarillas" en un partido en
+  // el que en realidad amonestaron a cuatro. Se cuentan y se usan abajo.
+  let _amaMias=0,_rojasMias=0;
   (function cards(){
     const prof=(typeof dtProfile==='function')?dtProfile(G.dt):{cyn:0.5,aggr:0.5};
     const heat=0.5+(prof.cyn||0.5)*0.6+(prof.aggr||0.5)*0.4+(derby?0.5:0);
@@ -10040,6 +10115,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
       const defish=pgr(p.pos)==='DEF'||p.pos==='MCD';
       const pY=0.085*heat*(defish?1.5:1);
       if(Math.random()<pY){
+        _amaMias++;
         p.yellows=(p.yellows||0)+1;
         if(p.yellows>=5){
           p.yellows=0;p.susp=(p.susp||0)+1;
@@ -10048,6 +10124,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
         }
       }
       if(Math.random()<0.012*heat){
+        _rojasMias++;
         const games=Math.random()<0.25?2:1;
         p.susp=(p.susp||0)+games;p.yellows=0;
         lg('🟥',`Roja para ${p.name}: ${games} fecha(s) de suspensión`);
@@ -10142,24 +10219,65 @@ function applyMatchResult(m, gf, ga, providedScorers){
       G.league.scorers[s3.name].goals++;
     });
   }
-  // Match stats
-  const goalsAdv = gf - ga;
-  const possPct = Math.max(30, Math.min(70, Math.round(50 + goalsAdv*4 + (Math.random()*12-6))));
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA PLANILLA DEL PARTIDO ES DEL PARTIDO, NO DE UN DADO
+  // ═══════════════════════════════════════════════════════════════════════
+  // Todas las estadísticas del resumen salían de Math.random() y del
+  // marcador: la posesión era 50 ± la diferencia de goles, los remates eran
+  // goles*3 + un dado, y los córners, las faltas y las amarillas eran ruido
+  // puro. O sea que después de armar el once, elegir el esquema y pelearte
+  // con el DT, el resumen del partido no reflejaba NADA de eso: un equipo de
+  // Guardiola y uno de Simeone mostraban la misma planilla, y un 0-0 en el
+  // que dominaste todo el partido te daba 2 remates.
+  // Ahora sale de lo que ya calculó matchStrengths (fuerza propia y del
+  // rival, ataque, defensa) y del perfil del DT, en los rangos que dejó
+  // medidos el 11v11: ~22-24 remates entre los dos, 33% al arco, ~12 faltas
+  // por equipo, ~5 córners. El marcador aporta, pero no manda: se puede
+  // perder mereciendo.
+  const _rnd=(a,b)=>a+Math.random()*(b-a);
+  const S=G._S||{myS:0.7,oppS:0.7,atkPow:70,defPow:70,oppRat:70,avgR:70};
+  const _pr=(typeof dtProfile==='function'&&G.dt)?dtProfile(G.dt):{direct:0.5,press:0.5,cyn:0.5,width:0.5,tempo:0.5,counter:0.5};
+  // Posesión: el que es mejor la tiene más, y el estilo la corrige. Un DT
+  // directo/contragolpeador cede la pelota a propósito.
+  const _fuerza=(S.myS-S.oppS)*46;                       // ±8 puntos aprox
+  const _estilo=(0.5-_pr.direct)*17 + (_pr.press-0.5)*7 - (_pr.counter-0.5)*11;
+  const possPct = Math.max(27, Math.min(73, Math.round(50 + _fuerza + _estilo + _rnd(-5,5))));
+  // Remates: 11 de base, escalados por lo que pesa tu ataque contra su
+  // defensa y por cuánto tuviste la pelota. Los goles suman un poco (para
+  // que una goleada no muestre 9 remates) pero no la determinan.
+  const _atkEdge=((S.atkPow||70)-(S.oppRat||70))/32;     // ~ -0.5 .. +0.7
+  const _defEdge=((S.defPow||70)-(S.oppRat||70))/32;
+  const _shots  = Math.max(3, Math.round(10.2 + _atkEdge*4.2 + (possPct-50)*0.13 + gf*0.9 + _rnd(-2.2,2.2)));
+  const _shotsC = Math.max(3, Math.round(10.2 - _defEdge*4.2 + (50-possPct)*0.13 + ga*0.9 + _rnd(-2.2,2.2)));
+  // Al arco: un tercio de los remates, más si tenés puntería arriba. El gol
+  // convertido siempre fue un remate al arco, así que es el piso.
+  const _sotP =Math.max(0.20,Math.min(0.52,0.33+_atkEdge*0.05));
+  const _sotPC=Math.max(0.20,Math.min(0.52,0.33-_defEdge*0.05));
+  // Faltas: el juego brusco del perfil manda, y el que corre atrás de la
+  // pelota comete más. Amarillas: una cada cuatro faltas y media.
+  const _fouls =Math.max(3,Math.round(10.5+(_pr.cyn-0.5)*9+(50-possPct)*0.05+_rnd(-2.5,2.5)));
+  const _foulsC=Math.max(3,Math.round(10.5+(possPct-50)*0.05+_rnd(-2.5,2.5)));
   const stats = {
     poss: possPct,
     possCpu: 100 - possPct,
-    shots: gf*3 + ~~(Math.random()*7) + 2,
-    shotsCpu: ga*3 + ~~(Math.random()*7) + 2,
-    onTarget: gf + ~~(Math.random()*3) + 1,
-    onTargetCpu: ga + ~~(Math.random()*3) + 1,
-    passes: Math.round(possPct * 5.8 + Math.random()*40),
-    passesCpu: Math.round((100-possPct) * 5.8 + Math.random()*40),
-    corners: ~~(Math.random()*6) + (gf>0?1:0),
-    cornersCpu: ~~(Math.random()*6) + (ga>0?1:0),
-    fouls: 8 + ~~(Math.random()*8),
-    foulsCpu: 8 + ~~(Math.random()*8),
-    yellows: ~~(Math.random()*3),
-    yellowsCpu: ~~(Math.random()*3),
+    shots: _shots,
+    shotsCpu: _shotsC,
+    onTarget: Math.max(gf, Math.round(_shots*_sotP)),
+    onTargetCpu: Math.max(ga, Math.round(_shotsC*_sotPC)),
+    // Pases: la posesión repartida sobre ~1.150 pases de un partido, con el
+    // estilo encima (jugar por abajo son más pases que reventarla).
+    passes: Math.round(1150*(possPct/100)*(0.86+(0.5-_pr.direct)*0.28)+_rnd(-35,35)),
+    passesCpu: Math.round(1150*((100-possPct)/100)*0.94+_rnd(-35,35)),
+    // Córners: nacen de atacar por afuera. Amplitud y posesión los suben.
+    corners: Math.max(0,Math.round(3.9+(possPct-50)*0.070+(_pr.width-0.5)*3.4+_atkEdge*1.5+_rnd(-2,2))),
+    cornersCpu: Math.max(0,Math.round(3.9+(50-possPct)*0.070-_defEdge*1.5+_rnd(-2,2))),
+    fouls: _fouls,
+    foulsCpu: _foulsC,
+    // Las tuyas son las que de verdad les sacaron a tus jugadores más arriba
+    // (las que suman para la quinta amarilla), no un número aparte.
+    yellows: _amaMias,
+    reds: _rojasMias,
+    yellowsCpu: Math.max(0,Math.round(_foulsC/4.5+_rnd(-0.6,0.6))),
   };
 
   // === TOURNEY TRACKING ===
@@ -10388,13 +10506,29 @@ function applyMatchResult(m, gf, ga, providedScorers){
     const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
     const wages=Math.round(wk*4/1000*10)/10;                    // M/mes
     // TV + socios: escala con la masa societaria y el humor, pero sin regalar plata
-    const socInc=(G.socios||20000)/10000*(0.28+(G.fanMood||55)/100*0.28);
+    // El divisor pasó de 10.000 a 42.000 cuando la masa societaria dejó de
+    // estar topeada por la capacidad del estadio: si no, un club de 180.000
+    // socios cobraba 10M por mes de cuotas y la plata dejaba de importar.
+    const socInc=(G.socios||20000)/42000*(0.28+(G.fanMood||55)/100*0.28);
     const tv=Math.round((1.15+(G.rep||50)*0.017+socInc)*10)/10;
     // Gastos operativos del club: cuerpo técnico, inferiores, estadio, logística.
     // Sin esto el presupuesto sólo subía y la plata dejaba de ser un problema.
     const staffLv=Object.values(G.staffLevels||{}).reduce((a,v)=>a+(v||0),0);
     // Paneles solares y accesos digitales abaratan la operación del club
-    const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035-_wfx.opsCut)*10)/10);
+    // ═══ UN CLUB GRANDE CUESTA COMO UN CLUB GRANDE ═══
+    // Los gastos operativos sólo miraban el cuerpo técnico, el estadio y el
+    // plantel: tres cosas que casi no se mueven. Resultado medido en 8
+    // temporadas: el club ganaba entre +18M y +30M NETOS todos los años sin
+    // excepción, y el presupuesto iba de 29M a 167M sin que nada lo frenara.
+    // A partir de la tercera temporada la plata dejaba de ser una decisión.
+    // Ahora la estructura escala con lo que el club ES: la reputación (más
+    // prensa, más viajes, más seguridad, más filiales) y la masa societaria
+    // (sedes, inferiores, empleados). Crecer sale caro, que es lo que hace
+    // que ampliar el estadio o pagar un refuerzo sea una decisión y no un
+    // trámite. Calibrado para que el neto anual quede cerca de +5M en
+    // régimen: las obras grandes se pagan vendiendo bien, no esperando.
+    const _estructura=Math.max(0,((G.rep||50)-50)/100*1.1)+(G.socios||20000)/100000*0.38;
+    const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035+_estructura-_wfx.opsCut)*10)/10);
     G.budget=Math.round((G.budget-wages+tv-ops)*10)/10;
     finAnota('sueldos',wages,'Sueldos del plantel');
     finAnota('tv',tv,'TV y socios');
@@ -10857,6 +10991,11 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
         ['Pases', stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), '#3b8beb'],
         ['Córners', stats.corners||0, stats.cornersCpu||0, (stats.corners||0)+1, (stats.cornersCpu||0)+1, '#9b6bff'],
         ['Faltas', stats.fouls||10, stats.foulsCpu||10, 20, 20, '#e84545'],
+        // Las amarillas se calculaban y no se mostraban en ninguna parte, y
+        // son las que de verdad acumulan tus jugadores para la quinta: verlas
+        // acá es lo que hace que la suspensión no llegue de sorpresa.
+        ['🟨 Amarillas', (stats.yellows||0)+(stats.reds?' 🟥'+stats.reds:''), stats.yellowsCpu||0,
+         (stats.yellows||0)+1, (stats.yellowsCpu||0)+1, '#f6d318'],
       ].map(([label,vL,vR,bL,bR,col])=>{
         const tot=bL+bR||1;
         const pL=Math.round(bL/tot*100);
@@ -10987,6 +11126,14 @@ function initPads(){
 }
 
 // ═══ HUMOR DE LA HINCHADA Y SOCIOS ═══
+// La masa societaria con la que arranca el club: la misma cuenta que usa
+// updateFans, así no hay un salto absurdo (arrancaba en cap*0,35 —18.900
+// socios para Boca— y en una temporada se iba a 219.000).
+function sociosBase(){
+  const cap=(G&&G.stadium&&G.stadium.capacity)||50000;
+  const rep=(G&&G.rep!==undefined)?G.rep:50;
+  return Math.round(cap*(0.9+rep/100*3.6)*0.95);
+}
 function fanMoodLabel(v){
   return v>=80?{t:'Eufórica',e:'🤩',c:'var(--green)'}:v>=60?{t:'Contenta',e:'😀',c:'var(--green)'}:
     v>=40?{t:'Expectante',e:'😐',c:'var(--gold)'}:v>=22?{t:'Molesta',e:'😠',c:'var(--ora)'}:
@@ -10995,7 +11142,7 @@ function fanMoodLabel(v){
 function rFanReport(){
   const el=document.getElementById('fanReport');if(!el||!G)return;
   if(G.fanMood===undefined)G.fanMood=55;
-  if(G.socios===undefined)G.socios=Math.round((G.stadium?G.stadium.capacity:50000)*0.35);
+  if(G.socios===undefined)G.socios=sociosBase();
   const m=fanMoodLabel(G.fanMood);
   el.innerHTML=`
     <div class="sr"><span class="sl">Humor</span><span class="sv" style="color:${m.c}">${m.e} ${m.t} (${G.fanMood}%)</span></div>
@@ -11006,15 +11153,28 @@ function rFanReport(){
 // Actualiza humor/socios tras cada partido
 function updateFans(res,derby,gf){
   if(G.fanMood===undefined)G.fanMood=55;
-  if(G.socios===undefined)G.socios=Math.round((G.stadium?G.stadium.capacity:50000)*0.35);
+  if(G.socios===undefined)G.socios=sociosBase();
   let d=res==='W'?6:res==='D'?-1:-6;
   if(derby)d*=2;
   if(res==='W'&&gf>=3)d+=2; // goleada entusiasma
   G.fanMood=Math.max(0,Math.min(100,G.fanMood+d));
-  // Los socios siguen el humor y la reputación
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA MASA SOCIETARIA ES UN STOCK QUE SE CONSTRUYE, NO UN % DEL ESTADIO
+  // ═══════════════════════════════════════════════════════════════════════
+  // Los socios eran cap*(0,28 + humor*0,5 + rep*0,15): un techo de cap*0,93
+  // que se tocaba en la primera temporada y no se movía nunca más. Medido en
+  // 8 temporadas: 49.498 socios en 2026 y 49.743 en 2033, ganando 24 títulos
+  // en el medio. Ganar no traía un solo socio, y el número que la pestaña de
+  // hinchada muestra como el termómetro del club era una constante.
+  // Ahora los socios son un stock propio: se acercan de a poco (8% por
+  // partido) a un objetivo que sale de la REPUTACIÓN, no del estadio, y que
+  // puede ser varias veces la capacidad —como en cualquier club grande de
+  // verdad, que tiene cuatro o cinco socios por butaca—. El humor de la
+  // gente acelera o frena, pero el que manda es lo que ganaste.
   const cap=G.stadium?G.stadium.capacity:50000;
-  const target=Math.round(cap*(0.28+G.fanMood/100*0.5+(G.rep||50)/100*0.15));
-  G.socios=Math.round(G.socios*0.8+target*0.2);
+  const rep=(G.rep===undefined?50:G.rep);
+  const target=Math.round(cap*(0.9+rep/100*3.6)*(0.72+G.fanMood/100*0.42));
+  G.socios=Math.round(G.socios+(target-G.socios)*0.08);
   // La recaudación de socios NO se cobra acá: ya entra en el balance mensual
   // (TV + socios). Antes se sumaba ~2M por partido además del borderaux, y el
   // presupuesto se inflaba solo con jugar.
@@ -11230,7 +11390,7 @@ function doPreseason(k){
   if(t.income>0)finAnota('otros_in',t.income,'Ingresos de la gira: '+(t.label||k));
   G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+t.fit);});
   G.chem=Math.min(100,(G.chem||45)+t.chem);
-  if(t.rep)G.rep=Math.min(100,(G.rep||50)+t.rep);
+  if(t.rep)repSuma(t.rep);
   // riesgo de alguna lesión en la gira
   if(Math.random()<t.inj*3){
     const victim=G.squad[~~(Math.random()*G.squad.length)];
@@ -13007,7 +13167,7 @@ function careerCard(){
   const GA=h.reduce((a,x)=>a+(x.ga||0),0)+G.ga;
   const pj=W+D+L, pts=W*3+D;
   const efi=pj?Math.round(pts/(pj*3)*100):0;
-  const titulos=trs.length+h.filter(x=>x.champion).length;
+  const titulos=trs.length+h.filter(x=>x.champion).length;   // trofeos + ligas de las otras 23 (en ARG el torneo ya está en trs)
   // Rango según lo ganado y lo aguantado: el mote que te ponés en la vitrina
   const rango= titulos>=8?{t:'LEYENDA',c:'var(--gold)',e:'🗿'}
              : titulos>=4?{t:'ÍDOLO',c:'var(--gold)',e:'⭐'}
@@ -13015,7 +13175,7 @@ function careerCard(){
              : temps>=3?{t:'DE LA CASA',c:'var(--t2)',e:'🧱'}
              : {t:'RECIÉN LLEGADO',c:'var(--t3)',e:'🌱'};
   const cont={}; trs.forEach(t=>cont[t.name]=(cont[t.name]||0)+1);
-  h.filter(x=>x.champion).forEach(()=>cont['Liga Argentina']=(cont['Liga Argentina']||0)+1);
+  h.filter(x=>x.champion).forEach(()=>cont[LIGA_NOMBRE&&LIGA_NOMBRE[ligaMia()]||'Liga']=(cont[LIGA_NOMBRE&&LIGA_NOMBRE[ligaMia()]||'Liga']||0)+1);
   const tile=(n,l)=>`<div class="stat-tile"><div class="sv-n">${n}</div><div class="sv-l">${l}</div></div>`;
   return `<div class="card" style="margin-bottom:10px;border-color:rgba(246,211,24,.28);
        background:linear-gradient(150deg,rgba(246,211,24,.09),rgba(255,255,255,.02))">
@@ -13040,7 +13200,7 @@ function careerCard(){
     ${h.length?`<div style="font-size:9px;color:var(--t3);margin:9px 0 4px">TEMPORADA A TEMPORADA</div>
       ${h.slice().reverse().map(x=>`<div class="crest-row">
         <span style="width:42px;font-family:'Rajdhani',sans-serif;color:var(--t3);font-size:11px">${x.season}</span>
-        <span style="flex:1;font-size:11px">${x.champion?'<b style="color:var(--gold)">🏆 Campeón</b>':(x.pos+'º de '+x.clubs)}</span>
+        <span style="flex:1;font-size:11px">${x.champion?'<b style="color:var(--gold)">🏆 Campeón</b>':x.anual1?'<b style="color:var(--gold)">1º de la tabla anual</b>':(x.pos+'º de '+x.clubs)}</span>
         <span style="font-size:10px;color:var(--t2)">${x.w}-${x.d}-${x.l}</span>
         <span style="font-size:11px;font-weight:700;min-width:34px;text-align:right">${x.pts} pts</span>
       </div>`).join('')}`:''}
@@ -13066,7 +13226,7 @@ function rStats(){
   </div>`;
   // ═══ HISTORIAL MULTI-TEMPORADA ═══
   const hist=G.history||[];
-  const titulos=hist.filter(h=>h.champion).length;
+  const titulos=titulosLiga();
   // ═══ PALMARÉS Y RÉCORDS DE TODA LA GESTIÓN ═══
   const trs=G.trophies||[];
   const trCount={};trs.forEach(t=>{trCount[t.name]=(trCount[t.name]||0)+1;});
@@ -13102,7 +13262,7 @@ function rStats(){
       <span>Temp.</span><span>Pos</span><span>Récord</span><span>Goleador</span><span>Figura</span>
     </div>
     ${hist.slice().reverse().map(h=>`
-      <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:10px;padding:3px 4px;${h.champion?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
+      <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:10px;padding:3px 4px;${(h.champion||h.anual1)?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
         <span>${h.season}</span><span>${h.champion?'🏆':h.pos+'º'}</span>
         <span>${h.w}V ${h.d}E ${h.l}P · ${h.pts}pts</span>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.myTopScorer}</span>

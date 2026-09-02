@@ -59,6 +59,34 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **El DT se adapta**: `weeklyDtPlan` revisa cada 6 fechas; con menos de 1,2
   pts/partido cambia primero el esquema y después el arquetipo (`ARQ_SIN_GOL` /
   `ARQ_LE_HACEN`). Tu DT propio no se toca.
+- **La reputación se gana**: toda suba pasa por `repSuma(d)`, que la frena
+  cuanto más alto estás (×0,38 arriba de 78, ×0,12 arriba de 92); las bajas NO
+  se frenan. Antes cada victoria daba +1 plano y la rep llegaba a 100 en la
+  primera temporada y no se movía más, lo que rompía el objetivo de la
+  dirigencia, la plata de TV y las ofertas de otros clubes. Medido en 8
+  temporadas: ahora hace 77 → 93 → 86 → 88.
+- **Los socios son un stock, no un % del estadio**: `updateFans` los acerca de a
+  8% por partido a un objetivo que sale de la REPUTACIÓN y puede ser 4-5 veces
+  la capacidad (Boca ~220-250k). El arranque lo da `sociosBase()`, la misma
+  cuenta, así que no hay salto. Si tocás esto, ojo con el divisor de `socInc`
+  (42.000) en el balance mensual.
+- **Un club grande cuesta caro**: los gastos operativos suman `_estructura`
+  (reputación + masa societaria). Sin eso el club ganaba +18 a +30M netos TODAS
+  las temporadas y el presupuesto iba de 29 a 167M en ocho años.
+- **Quedar en zona de descenso es el fin del ciclo**: tu club no baja de
+  categoría (no hay Primera Nacional), pero `checkFired` te pide la renuncia si
+  terminás en los puestos que descienden. Antes sólo te echaban saliendo último.
+- **En la Liga ARG la tabla anual NO da título**: los campeones son el Apertura
+  y el Clausura, que ya van a `G.trophies`. `archiveSeason` guarda
+  `champion:false` y `anual1:true` para no contar doble. Usá `titulosLiga()`
+  para contar ligas ganadas, nunca `history.filter(h=>h.champion)`.
+- **La planilla del partido simulado sale del partido**: posesión, remates, al
+  arco, pases, córners y faltas se calculan en `applyMatchResult` desde `G._S`
+  (lo que dejó `matchStrengths`) y el perfil del DT. Antes era todo
+  `Math.random()` + el marcador. Medianas medidas: posesión 62% con un DT de
+  posesión y 42% con uno de contragolpe, 683 vs 386 pases, 9 vs 14,5 faltas.
+  Las amarillas son las de verdad (las que cuenta `cards()` para la quinta),
+  no un número aparte.
 - **Reconvertir a un jugador le cambia el puesto PRINCIPAL** (`weeklyReconv`):
   el viejo queda como `pos2`.
 - **Las instrucciones del banco (`TAC_INSTR`) pisan el perfil** vía
