@@ -7676,7 +7676,35 @@ function rStand(){
 }
 
 // ——— AI TRANSFERS & NEWS ———
-const AI_CLUBS=['River Plate','Racing','Independiente','San Lorenzo','Vélez','Estudiantes','Flamengo','Palmeiras','São Paulo','América','Cruz Azul','Barcelona SC','Nacional','Peñarol','Sevilla','Porto','Ajax','Lyon','Benfica'];
+// ═══ LOS CLUBES QUE MUEVEN EL MERCADO SALEN DE LA BASE ═══
+// Era una lista escrita a mano que no coincidía con los datos extraídos:
+// 'Vélez', 'Cruz Azul' y 'Sevilla' no existen en la base (son 'Vélez
+// Sarsfield', etc.), y 'Racing' existe pero es el de España, no el de
+// Avellaneda. Cada fichaje de la IA a uno de esos inventaba un club fantasma
+// o mandaba un argentino a un club español. Ahora se arma con los clubes más
+// caros de la base, con sus nombres de verdad y su liga.
+let _aiClubsCache=null, _aiClubsSeason=null;
+function aiClubs(){
+  if(_aiClubsCache&&_aiClubsSeason===(G&&G.season))return _aiClubsCache;
+  const val={}, liga={};
+  (G&&G.market||[]).forEach(p=>{
+    if(!p.club||!p.lg||p.freeAgent||p.lg==='Libre')return;
+    val[p.club]=(val[p.club]||0)+(p.val||0);
+    liga[p.club]=p.lg;
+  });
+  const top=Object.entries(val).sort((a,b)=>b[1]-a[1]).slice(0,40).map(([c])=>c);
+  _aiClubsCache={list:top,liga};
+  _aiClubsSeason=(G&&G.season);
+  return _aiClubsCache;
+}
+// La liga REAL de un club (por dónde juega la mayoría de sus jugadores)
+function ligaDeClub(club){
+  if(!G||!club)return '';
+  const c={};
+  (G.market||[]).forEach(p=>{ if(p.club===club&&p.lg&&p.lg!=='Libre')c[p.lg]=(c[p.lg]||0)+1; });
+  const e=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+  return e?e[0]:'';
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // RUMORES DE MERCADO
@@ -7783,7 +7811,8 @@ function aiTransfers(){
   const midClubs=['Racing Club','Independiente','San Lorenzo','Vélez Sarsfield','Estudiantes','Rosario Central','Newell\'s Old Boys','Talleres','Huracán'];
   const n = 1 + ~~(Math.random()*3);
   for(let i=0;i<n;i++){
-    const clubs = AI_CLUBS.filter(c=>c!==G.teamName);
+    const clubs = aiClubs().list.filter(c=>c!==G.teamName);
+    if(!clubs.length) break;
     const buyer = clubs[~~(Math.random()*clubs.length)];
     // Determine buyer budget tier
     const isBig = bigClubs.includes(buyer);
@@ -7800,10 +7829,15 @@ function aiTransfers(){
     const seller = p.club || clubs.filter(c=>c!==buyer)[~~(Math.random()*clubs.length)];
     const feeMultiplier = feeMultMin + Math.random()*(feeMultMax-feeMultMin);
     const fee = Math.round(p.val * feeMultiplier * 10) / 10;
-    // Move player to new club in market
-    G.market = G.market.filter(x=>x.id!==p.id);
-    const np = {...p, club:buyer, id:p.id+'_r'+(Date.now()+i)};
-    G.market.push(np);
+    // ═══ EL JUGADOR SE MUDA DE CLUB **Y DE LIGA** ═══
+    // Sólo se cambiaba el club: un argentino comprado por Palmeiras seguía
+    // figurando en 'Liga ARG', y como los ascensos se calculan mirando quién
+    // juega en esa liga, Palmeiras terminó ascendiendo al fútbol argentino.
+    // Tampoco hace falta inventarle un id nuevo: rompe cualquier referencia.
+    const ligaComp2 = aiClubs().liga[buyer] || ligaDeClub(buyer) || p.lg;
+    p.club = buyer; p.lg = ligaComp2;
+    p.freeAgent = false;
+    p.contract = (G.season||2026) + 1 + ~~(Math.random()*3);
 
     // Generate headline based on fee size
     let headline;
@@ -7825,7 +7859,8 @@ function aiTransfers(){
   }
   // Misc league news
   if(Math.random()<0.45){
-    const randClub = AI_CLUBS[~~(Math.random()*AI_CLUBS.length)];
+    const _ac=aiClubs().list;
+    const randClub = _ac.length?_ac[~~(Math.random()*_ac.length)]:'River Plate';
     const miscNews=[
       {ic:'⚽',msg:`Espectacular hat-trick en la fecha ${~~(Math.random()*20)+1} de la Liga`},
       {ic:'🏟️',msg:`Estadio lleno en el clásico de la jornada — entrada agotada`},
@@ -9439,22 +9474,51 @@ function nextSeason(){
   // Y un libre no se queda libre para siempre: la mayoría consigue club antes
   // de que arranque el torneo. Sin esto se acumulaban temporada tras temporada
   // y a los cuatro años el 43% de la base estaba sin dueño.
-  const clubesPorLiga={};
+  // ═══ EL LIBRE VA AL CLUB QUE LO NECESITA ═══
+  // Se lo mandaba a un club AL AZAR de su liga. Como los clubes pierden gente
+  // todos los años y nadie miraba quién había quedado corto, los planteles de
+  // la IA se vaciaban: medido, de 28,9 jugadores de media a 24,2 en cinco
+  // temporadas, con clubes que quedaban en 5 y 6. Ahora se reparte al más
+  // necesitado primero, que es lo que hace cualquier club de verdad.
+  const tamPorClub={}, clubesPorLiga={};
   G.market.forEach(p=>{ if(p.freeAgent||!p.club||!p.lg)return;
-    (clubesPorLiga[p.lg]=clubesPorLiga[p.lg]||new Set()).add(p.club); });
+    const k=p.lg+'|'+p.club; tamPorClub[k]=(tamPorClub[k]||0)+1; });
+  // ═══ SÓLO A LOS CLUBES QUE DE VERDAD JUEGAN ═══
+  // La base trae muchos más clubes por país que los que juegan la primera (66
+  // argentinos, 40 brasileños). Repartiendo entre TODOS, los jugadores se iban
+  // diluyendo hacia los del ascenso y los 30 de la liga se quedaban sin gente:
+  // medido, de 28,9 de plantel medio a 21,5 en cinco temporadas, con clubes en
+  // 2 y 3 jugadores. Los libres vuelven a los clubes de primera.
+  const _ligasVistas=new Set();
+  G.market.forEach(p=>{ if(!p.lg||p.freeAgent)return; _ligasVistas.add(p.lg); });
+  _ligasVistas.forEach(lg=>{
+    let cl=[];
+    if(lg==='Liga ARG'&&G.arZones) cl=[...G.arZones.A,...G.arZones.B];
+    else if(lg===ligaMia()&&G.ligaClubs&&G.ligaClubs.length) cl=[...G.ligaClubs];
+    else if(typeof clubesDeLiga==='function') cl=clubesDeLiga(lg);
+    if(!cl.length) cl=[...new Set(G.market.filter(p=>p.lg===lg&&!p.freeAgent).map(p=>p.club))];
+    clubesPorLiga[lg]=new Set(cl.filter(Boolean));
+  });
+  // Tu club no recibe refuerzos por esta vía: los tuyos los traés vos
+  const PLANTEL_OBJ=26;
   let colocados=0;
-  G.market.forEach(p=>{
-    if(!p.freeAgent) return;
-    // al bueno lo levantan enseguida; al veterano sin equipo le cuesta
+  // Primero los mejores: un crack libre lo levanta el club que puede
+  const libres=G.market.filter(p=>p.freeAgent).sort((a,b)=>b.rat-a.rat);
+  libres.forEach(p=>{
     const consigue = Math.random() < (p.rat>=78?0.94 : p.rat>=70?0.82 : p.age>=35?0.35 : 0.62);
     if(!consigue) return;
     const liga=p._exLg||p.lg;
     const cl=clubesPorLiga[liga];
     if(!cl||!cl.size) return;
-    const arr=[...cl];
-    p.club=arr[~~(Math.random()*arr.length)];
-    p.lg=liga; p.freeAgent=false; delete p._exLg;
+    // el más corto de la liga (y nunca el club del usuario)
+    let destino=null,menor=1e9;
+    cl.forEach(c=>{ if(c===G.teamName)return;
+      const n=tamPorClub[liga+'|'+c]||0;
+      if(n<menor){menor=n;destino=c;} });
+    if(!destino||menor>=PLANTEL_OBJ+6) return;      // si están todos completos, sigue libre
+    p.club=destino; p.lg=liga; p.freeAgent=false; delete p._exLg; delete p._exClub;
     p.contract=G.season+1+~~(Math.random()*3);
+    tamPorClub[liga+'|'+destino]=menor+1;
     colocados++;
   });
   if(renovados||aLaLibertad||colgaron) lg('📄',`Mercado: ${renovados} renovaron, ${aLaLibertad} quedaron libres, ${colocados} consiguieron club, ${colgaron} se retiraron`);
@@ -19389,6 +19453,10 @@ function weeklyMarketEvolution(){
     // renovarlo en el salto de temporada. Se libera sólo el que ya arrastra un
     // vencimiento del año pasado.
     if(p.contract!==undefined&&p.contract<(G.season||2026)&&!p.freeAgent){
+      // Sin guardar la liga de origen, el reparto de libres del salto de
+      // temporada no sabía a qué liga devolverlo y lo dejaba varado para
+      // siempre: medido, 233 jugadores tirados a las tres temporadas.
+      p._exLg=p.lg; p._exClub=p.club;
       p.freeAgent=true;p.club='Libre';p.lg='Libre';
       if(p.rat>=76&&Math.random()<0.35)
         addPhoneMsg('agent','Mercado de pases',`🆓 <b>${p.name}</b> (${p.rat}) quedó <b>libre</b>. Se lo puede firmar sin pagar ficha, sólo el contrato.`,'🆓');
