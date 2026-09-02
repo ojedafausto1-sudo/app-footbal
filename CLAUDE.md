@@ -144,6 +144,65 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   dibujo, un plantel desbalanceado terminaba con un extremo de MCD (castigo 25)
   y el tope de `posMod` (−11%) hundía al equipo.
 
+## Módulos de gestión (los que hacen que la carrera importe)
+
+- **Mercado por prestigio real**: `clubRank()` calcula el nivel de los 551
+  clubes de la base desde el valor de sus 15 mejores, en log (PSG 93, Porto
+  84, River 75, mediana 63). `pickBuyer(rat)` elige comprador en la ventana
+  R−6..R+3 con peso hacia los grandes, y `pickLoanClub(rat)` en R−14..R−3.
+  Medido: un OVR 90 recibe ofertas de PSG/Barcelona/Real Madrid/City; un 64,
+  de clubes de nivel 60-67. Antes era `opts[random]` sobre 22 nombres a mano
+  (con 'Sevilla', que ni existe en la base). Ojo: tu plantel vive en
+  `G.squad`, no en `G.market`, y `clubRank` lo inyecta a mano.
+- **La obligación de compra se gana jugando**: `G.loaned[].obligApps` es el
+  objetivo de partidos; el cedido los va sumando semana a semana según su
+  nivel contra el del club que lo pidió, y la compra se ejecuta al vencer la
+  cesión sólo si llegó. Antes se cobraba TODO al firmar: era una venta
+  disfrazada. Simétrico para los préstamos entrantes (`p.loanObligApps` +
+  `p.loanApps0`, que hay que restar porque `p.apps` es de toda la carrera).
+- **Precio de entradas**: slider continuo 0.50-2.00 (`setTicket`).
+  `ticketTolerancia()` dice hasta dónde banca la gente según los puntos por
+  partido y la reputación; `weeklyTicket()` erosiona el humor cada semana que
+  estés por encima. `sponsorMood()` ata los sponsors al humor y a la
+  asistencia. Medido a 20 fechas: caro + perdiendo lleva el humor de 37 a 2 y
+  los sponsors a ×0.69, y el borderó da **menos** plata (7.4M) que a precio
+  normal (16.3M).
+- **Elecciones cada 4 temporadas** (`ELECCION_CADA`, `proximaEleccion`,
+  `correrEleccion` dentro de `nextSeason`, después de `checkFired`).
+  `votoEstimado()` pesa el humor de la hinchada tres veces más que la
+  confianza de la CD: **el que vota es el socio**. Medido: gestión normal 56%,
+  desastre 16%, y ganar títulos con la hinchada furiosa 50% (perdés).
+- **Dilemas** (`DILEMAS`, `weeklyDilema`, `dilemaResolver`): 6 escenarios con
+  2-3 salidas que mueven confianza, humor, `dtRel`, vestuario y plata. Llegan
+  al celular con botones. ⚠️ Las funciones `fx` viven en `_DIL_FX`, **fuera de
+  `G`**, porque no se pueden serializar al guardar; si recargás con un dilema
+  abierto se reconstruyen desde `DILEMAS` por su `did`.
+- **La táctica llega al 2D**: `FM.mentality` salía SIEMPRE en 1 y sólo la
+  movía el botón dentro del partido — todo el sistema de `push` por línea
+  (`FM_MENTS` 0.55/1.0/1.5) estaba ahí apagado. Ahora sale de
+  `G.tactic.mentality`, y si el DT no es tuyo, de su perfil. `sitMent()` hace
+  lo mismo en las jugadas clave: acompañantes en el ataque (2.5 / 2.4 / 1.8),
+  desde dónde salen, dónde espera el bloque defensivo y cuántos suben al
+  córner (4 / 3 / 2). `cornerRunners(n)` ahora recibe el cupo: estaba fijo en
+  3 y uno es el pateador, así que al área llegaban siempre 2 exactos.
+  Además `baseShift` corre la línea base del bloque (defensa ±7%, medio ±6%,
+  ataque ±3% del largo de la cancha): `push` sólo multiplicaba el término que
+  depende de dónde está la pelota, y ese se anula con la pelota en el medio.
+
+⚠️ **El efecto del bloque en el 11v11 NO se puede medir con pocos partidos.**
+Medí la posición del bloque condicionada a la pelota, 3 partidos por táctica:
+una corrida dio Defensivo 41,3% contra Equilibrado 45,5%, y la siguiente —con
+el MISMO código en esa rama— dio 48,3%. La varianza entre partidos (±4 puntos)
+es del tamaño del efecto buscado. El mecanismo sí está verificado y es
+determinista (`scratchpad/shift.js`), pero **el efecto emergente sobre el
+bloque quedó sin demostrar**. Hay un intento fallido documentado en el código
+(empuje asimétrico 0.26/0.115, que borró el repliegue). Si vas a tocar esto:
+10+ partidos por táctica, o no lo toques.
+- **Fricción de la pelota** en las jugadas clave: era una constante (.990 /
+  .998) y la pelota rodaba eterna. Ahora distingue aire, rodada fuerte, media
+  y lenta, y se detiene de verdad por debajo de 0.035 — el mismo modelo que
+  ya usaba el 11v11.
+
 ## Sistemas principales (dónde tocar)
 
 - **Simulación rápida**: `simMatch` + `matchStrengths` + `applyMatchResult`
