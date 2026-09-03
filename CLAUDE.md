@@ -216,8 +216,26 @@ bloque quedó sin demostrar**. Hay un intento fallido documentado en el código
 10+ partidos por táctica, o no lo toques.
 - **Fricción de la pelota** en las jugadas clave: era una constante (.990 /
   .998) y la pelota rodaba eterna. Ahora distingue aire, rodada fuerte, media
-  y lenta, y se detiene de verdad por debajo de 0.035 — el mismo modelo que
-  ya usaba el 11v11.
+  y lenta, y se detiene de verdad por debajo de 0.035.
+- **La pelota del 11v11 ahora PARA**: el arrastre era sólo proporcional a la
+  velocidad, o sea que se acercaba a cero sin llegar nunca (medido: 521 ticks
+  —3,5 minutos de juego— para bajar de 0,002, y seguía). Se le suma un
+  **rozamiento lineal** de 0,004/tick, que es desaceleración constante
+  (Coulomb) y frena en tiempo finito: 304 ticks. Se SUMA al arrastre en vez de
+  reemplazarlo para no romper las distancias de pase ya calibradas — un pase
+  fuerte pierde 14% de recorrido y lo que desaparece es la cola infinita.
+  Medido en partido: la pelota está quieta el 10,7% del tiempo (antes era
+  imposible) y los pases quedan en 666, dentro del rango de siempre.
+  ⚠️ Fricción lineal PURA (sin el arrastre) acorta los pases de 839 a 680px:
+  rompe el balance. No la reemplaces, sumala.
+- **El joystick del 11v11 es flotante**: `#fm-joyzone` captura el toque en
+  todo el cuarto inferior izquierdo (90.552px², **7× el área del círculo
+  dibujado**) y el joystick se planta DONDE apoyás el dedo, así que nunca
+  arranca dando una dirección que no pediste. La zona muerta bajó a 0,07 del
+  radio por eso mismo. El overlay se crea dentro de `startFullMatch`, así que
+  el elemento no existe hasta abrir un partido (ojo al testearlo).
+  Medido: **59,9 fps antes y después** — el joystick sólo toca el DOM en
+  `touchstart`/`touchmove`, nunca dentro del `requestAnimationFrame`.
 
 ## Pantalla de inicio — selector País → Liga → Club
 

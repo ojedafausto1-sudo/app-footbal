@@ -15775,9 +15775,16 @@ function startFullMatch(watch){
     </div>
     <div id="fm-game" style="position:relative;flex:1;overflow:hidden;background:#071407">
       <canvas id="fm-cv" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-      <!-- Joystick (DLS-style) -->
-      <div id="fm-joy" style="position:absolute;bottom:22px;left:20px;width:126px;height:126px;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.20);z-index:10;touch-action:none">
-        <div id="fm-jdot" style="position:absolute;top:38px;left:38px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.30);border:2px solid rgba(255,255,255,.55);pointer-events:none"></div>
+      <!-- ═══ JOYSTICK FLOTANTE ═══
+           La zona invisible de abajo captura el toque en TODO el cuarto
+           inferior izquierdo, no sólo dentro del círculo: en el celular se
+           juega sin mirarse el pulgar, y con el área justa del dibujo la
+           mitad de los toques se perdían. Al apoyar el dedo, el joystick se
+           mueve ahí y ESE punto pasa a ser el centro, así que nunca arrancás
+           dando una dirección que no pediste. -->
+      <div id="fm-joyzone" style="position:absolute;left:0;bottom:0;width:52%;height:46%;z-index:9;touch-action:none"></div>
+      <div id="fm-joy" style="position:absolute;bottom:calc(22px + env(safe-area-inset-bottom,0px));left:20px;width:126px;height:126px;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.20);z-index:10;touch-action:none;pointer-events:none;transition:opacity .18s ease;opacity:.55">
+        <div id="fm-jdot" style="position:absolute;top:38px;left:38px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.30);border:2px solid rgba(255,255,255,.55);pointer-events:none;transition:none"></div>
       </div>
       <!-- Botones DLS: A=tiro fuerte, B=pase raso, C=pase elevado -->
       <div ontouchstart="fmTB('tab',1,event)" ontouchend="fmTB('tab',0,event)" style="position:absolute;bottom:180px;right:170px;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani';font-size:15px;font-weight:800;touch-action:none;user-select:none;z-index:10">🔄</div>
@@ -16520,8 +16527,20 @@ function fmBind(){
   document.addEventListener('keyup',FM._ku);
 }
 
+// El joystick vuelve a su rincón cuando soltás el dedo.
+function fmJoyReposo(){
+  const j=document.getElementById('fm-joy');
+  if(j){ j.style.left=''; j.style.top=''; j.style.bottom=''; j.style.opacity='.55';
+         j.style.left='20px'; j.style.bottom='calc(22px + env(safe-area-inset-bottom,0px))'; }
+  const d=document.getElementById('fm-jdot');
+  if(d){d.style.left='38px';d.style.top='38px';}
+}
 function fmJoySetup(){
-  const jz=document.getElementById('fm-joy');if(!jz||!FM)return;
+  // El toque lo captura la ZONA (grande e invisible), no el círculo dibujado.
+  const jz=document.getElementById('fm-joyzone')||document.getElementById('fm-joy');
+  const joy=document.getElementById('fm-joy');
+  const game=document.getElementById('fm-game');
+  if(!jz||!FM)return;
   FM._joyMove=e=>{
     if(!FM||FM._joyId===null)return;
     const t=Array.from(e.changedTouches).find(tt=>tt.identifier===FM._joyId);
@@ -16532,34 +16551,50 @@ function fmJoySetup(){
     const t=Array.from(e.changedTouches).find(tt=>tt.identifier===FM._joyId);
     if(!t&&FM._joyId!==null)return;
     FM._joyId=null;FM.keys.up=FM.keys.dn=FM.keys.lf=FM.keys.rt=0;FM.joyVec=null;
-    const d=document.getElementById('fm-jdot');if(d){d.style.left='38px';d.style.top='38px';}
+    fmJoyReposo();
   };
   jz.addEventListener('touchstart',e=>{
     e.preventDefault();const t=e.changedTouches[0];if(!FM)return;
-    const r=jz.getBoundingClientRect();
-    FM._joyC={x:r.left+r.width/2,y:r.top+r.height/2,mr:48};
+    // El joystick se planta DONDE apoyaste el dedo, dentro de los límites de
+    // la cancha para que no se salga de pantalla.
+    if(joy&&game){
+      const gr=game.getBoundingClientRect(), R=63;   // medio joystick
+      const lx=Math.max(4,Math.min(gr.width-2*R-4, t.clientX-gr.left-R));
+      const ly=Math.max(4,Math.min(gr.height-2*R-4, t.clientY-gr.top-R));
+      joy.style.left=lx+'px'; joy.style.top=ly+'px'; joy.style.bottom='auto';
+      joy.style.opacity='.92';
+      FM._joyC={x:lx+gr.left+R, y:ly+gr.top+R, mr:52};
+    } else {
+      const r=jz.getBoundingClientRect();
+      FM._joyC={x:r.left+r.width/2,y:r.top+r.height/2,mr:52};
+    }
     FM._joyId=t.identifier;fmJoyUpd(t);
   },{passive:false});
   document.addEventListener('touchmove',FM._joyMove,{passive:false});
   document.addEventListener('touchend',FM._joyEnd,{passive:false});
+  document.addEventListener('touchcancel',FM._joyEnd,{passive:false});
 }
 
 function fmJoyUpd(t){
   if(!FM||!FM._joyC)return;
   const c=FM._joyC,dx=t.clientX-c.x,dy=t.clientY-c.y;
-  const d=Math.sqrt(dx*dx+dy*dy),mr=c.mr;
+  const d=Math.sqrt(dx*dx+dy*dy),mr=c.mr||52;
   const cx=d>mr?dx/d*mr:dx,cy=d>mr?dy/d*mr:dy;
   const dot=document.getElementById('fm-jdot');
+  // 38 = (126 del joystick − 50 del dot)/2: el reposo del dot en su caja.
   if(dot){dot.style.left=(38+cx)+'px';dot.style.top=(38+cy)+'px';}
-  // Analógico: dirección exacta + magnitud (al borde = sprint)
+  // Analógico: dirección exacta + magnitud (al borde = sprint).
+  // La zona muerta baja de 0.10 a 0.07 del radio: con el joystick flotante
+  // el centro es donde apoyaste el dedo, así que un micro-movimiento ya es
+  // una intención de moverse, no ruido de haber tocado descentrado.
   const mag=Math.min(1,d/mr);
-  if(mag>0.10){
+  if(mag>0.07){
     FM.joyVec={x:dx/(d||1)*mag,y:dy/(d||1)*mag,mag};
   }else{
     FM.joyVec=null;
   }
   // Compat: teclas binarias para lógica existente
-  const dz=10;
+  const dz=8;
   FM.keys.lf=dx<-dz?1:0;FM.keys.rt=dx>dz?1:0;
   FM.keys.up=dy<-dz?1:0;FM.keys.dn=dy>dz?1:0;
 }
@@ -18590,6 +18625,22 @@ function fmBall(dt){
   const spd=Math.hypot(b.vx,b.vy);
   const fr=b.air>0?Math.pow(.999,dt):spd>0.3?Math.pow(.9908,dt):Math.pow(.97,dt);
   b.vx*=fr;b.vy*=fr;
+  // ═══════════════════════════════════════════════════════════════════════
+  // ROZAMIENTO LINEAL: LA PELOTA TIENE QUE PARAR DE VERDAD
+  // ═══════════════════════════════════════════════════════════════════════
+  // La fricción de arriba es proporcional a la velocidad, así que la pelota
+  // se acerca a cero pero NUNCA llega: medido, tarda 521 ticks (unos 3,5
+  // minutos de juego) en bajar de 0,002 y sigue deslizándose para siempre.
+  // El rozamiento real del pasto no funciona así: es una desaceleración
+  // CONSTANTE (Coulomb), que no depende de la velocidad y frena la pelota en
+  // tiempo finito. Se suma al arrastre en vez de reemplazarlo, para no
+  // romper las distancias de pase que ya estaban calibradas: un pase fuerte
+  // pierde un 14% de recorrido, y lo que desaparece es la cola infinita.
+  if(!(b.air>0)){
+    const _s=Math.hypot(b.vx,b.vy), _dec=0.004*dt;
+    if(_s<=_dec){ b.vx=0; b.vy=0; }
+    else if(_s>0){ const _k=(_s-_dec)/_s; b.vx*=_k; b.vy*=_k; }
+  }
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   // Mientras el arquero la tiene en las manos, la pelota va con él
   if(f._gkHold){
