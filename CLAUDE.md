@@ -183,11 +183,30 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   asistencia. Medido a 20 fechas: caro + perdiendo lleva el humor de 37 a 2 y
   los sponsors a ×0.69, y el borderó da **menos** plata (7.4M) que a precio
   normal (16.3M).
+- **Autoridad del presidente** (`G.autoridad`, 0-100, arranca en 50, se lee
+  siempre con `autoridad()`): sube al multar, al plantarte ante la barra y al
+  imponerle una decisión al DT; baja al proteger a un jugador, al ceder y al
+  arreglar con la barra. **No es decorativa**: con 90 el técnico te acepta un
+  pedido el 87% de las veces y con 10 el 63%, y el plantel se manda 6,2
+  indisciplinas por temporada con autoridad alta contra 9,8 con el vestuario
+  perdido. Suma hasta ±3 puntos al voto de la elección.
+- **La indisciplina es MENSUAL y va aparte de `DILEMAS`**
+  (`weeklyIndisciplina`, cada 4 semanas): 7 macanas distintas, el jugador sale
+  sorteado con peso por rating y moral baja, y hay dos salidas — **multar**
+  (moral −20, autoridad +7, CD +4, entra la multa) o **proteger** (moral +12,
+  autoridad −9, CD −5, humor −4). Metido en el pool general aparecía en el 13%
+  de las temporadas; ahora cae ~8 veces al año. Su `fx` se reconstruye desde
+  `d.pid` en `dilemaFx`, porque no está en `DILEMAS`.
 - **Elecciones cada 4 temporadas** (`ELECCION_CADA`, `proximaEleccion`,
   `correrEleccion` dentro de `nextSeason`, después de `checkFired`).
   `votoEstimado()` pesa el humor de la hinchada tres veces más que la
   confianza de la CD: **el que vota es el socio**. Medido: gestión normal 56%,
   desastre 16%, y ganar títulos con la hinchada furiosa 50% (perdés).
+  ⚠️ Encima del voto hay un **piso duro**: si `(boardConf+fanMood)/2 < 45`
+  perdés la elección **siempre**, tengas los títulos que tengas (la autoridad
+  arriba de 50 te da hasta 4 puntos de gracia). Sin ese piso, `votoEstimado`
+  dejaba ganar con la comisión en 20 y la hinchada en 60 (52%), y con ambos en
+  44 pero tres títulos en la vitrina (67%). Verificado en 10 escenarios.
 - **Dilemas** (`DILEMAS`, `weeklyDilema`, `dilemaResolver`): 6 escenarios con
   2-3 salidas que mueven confianza, humor, `dtRel`, vestuario y plata. Llegan
   al celular con botones. ⚠️ Las funciones `fx` viven en `_DIL_FX`, **fuera de

@@ -3594,7 +3594,10 @@ function dtAskFor(i){
   const rel=(G.dtRel===undefined?65:G.dtRel);
   // Cuanto peor la relación y más grande el técnico, más te discute
   const ego=((G.dt.rat||75)-70)/100;
-  const chance=Math.max(0.05,Math.min(0.95,0.78-(x.resist||0)-ego*0.9+(rel-60)/220));
+  // La autoridad se juega acá: a un presidente que pone límites el técnico
+  // le discute menos, y a uno que afloja siempre lo torea.
+  const _aut=(autoridad()-50)/100*0.30;
+  const chance=Math.max(0.05,Math.min(0.95,0.78-(x.resist||0)-ego*0.9+(rel-60)/220+_aut));
   if(Math.random()<chance){
     x.apply&&x.apply();
     setDtRel(2);
@@ -3633,11 +3636,13 @@ function dtResolve(i,how){
   window._dtPending=null;
   if(how==='ceder'){
     setDtRel(6);
+    autSuma(-3);                     // cedés: el técnico manda más que vos
     lg('🤝',`Le diste libertad a ${G.dt.name} para manejarlo a su manera`);
     flash('🤝 El DT valora tu respaldo','win');
   } else if(how==='imponer'){
     x.apply&&x.apply();
     setDtRel(-14);
+    autSuma(5);                      // te imponés: queda claro quién decide
     G.morale=Math.max(0,G.morale-2);
     lg('📢',`Le impusiste tu decisión a ${G.dt.name}`);
     addPhoneMsg('board',G.dt.name,`😤 Presidente, acato la orden porque usted manda. Pero quiero que quede claro que no estoy de acuerdo y que la responsabilidad del resultado no es mía.`,'👔');
@@ -9446,6 +9451,28 @@ function midSeasonReview(){
 // Cada dilema declara `cuando` (si tiene sentido ahora) y arma sus opciones
 // con el plantel de verdad: el que se manda una macana es un jugador tuyo,
 // con nombre, no un genérico.
+// ═══════════════════════════════════════════════════════════════════════
+// AUTORIDAD DEL PRESIDENTE
+// ═══════════════════════════════════════════════════════════════════════
+// Cuánto te respetan puertas adentro. Sube cuando ponés límites —multás a
+// una figura, te plantás ante la barra, le imponés una decisión al técnico—
+// y baja cuando mirás para otro lado. No es un puntaje decorativo: manda
+// sobre cuántas macanas se manda el plantel, sobre cuánto te discute el DT
+// y sobre cómo aguanta el vestuario.
+// Se lee siempre con default 50 para que una partida vieja no rompa.
+function autoridad(){ return (G&&G.autoridad!==undefined)?G.autoridad:50; }
+function autSuma(d){
+  if(!G||!d)return;
+  G.autoridad=Math.round(Math.max(0,Math.min(100,autoridad()+d))*10)/10;
+}
+function autLabel(){
+  const a=autoridad();
+  return a>=78?{t:'Mano firme',e:'🗿',c:'var(--green)'}
+       : a>=58?{t:'Respetado',e:'🎯',c:'var(--green)'}
+       : a>=40?{t:'Discutido',e:'😐',c:'var(--gold)'}
+       : a>=22?{t:'Débil',e:'😕',c:'var(--ora)'}
+       : {t:'Le perdieron el respeto',e:'🃏',c:'var(--red)'};
+}
 function _dilPlantel(){ return (G&&G.squad)||[]; }
 function _dilFigura(){
   const sq=_dilPlantel().filter(p=>!p.injured);
@@ -9519,6 +9546,7 @@ const DILEMAS=[
          d:'Lo correcto. Preparate para el ruido.',
          fx:()=>{ G.fanMood=Math.max(0,(G.fanMood||55)-9);
            G.boardConf=Math.min(100,(G.boardConf||50)+10); repSuma&&repSuma(2);
+           autSuma(8);
            return `Les dijiste que no. La CD y la prensa te bancaron; la próxima de local va a ser tensa.`; }},
         {t:'🎫 Les doy las entradas',
          d:'Se calma todo. Y quedás atado.',
@@ -9526,6 +9554,7 @@ const DILEMAS=[
            finAnota&&finAnota('otros_out',0.6,'Entradas de protocolo');
            G.fanMood=Math.min(100,(G.fanMood||55)+4);
            G.boardConf=Math.max(0,(G.boardConf||50)-8); G._atadoBarra=true;
+           autSuma(-10);
            return `Arreglaste. Se calmó, pero la CD sabe y no le gustó.`; }},
       ]})
   },
@@ -9598,6 +9627,86 @@ const DILEMAS=[
   },
 ];
 // Un dilema cada tanto, nunca dos seguidos ni el mismo dos veces por temporada
+// ═══════════════════════════════════════════════════════════════════════
+// INDISCIPLINA: EL LÍO QUE LLEGA UNA VEZ POR MES
+// ═══════════════════════════════════════════════════════════════════════
+// Esto va aparte del pool de dilemas: aquéllos son escenarios distintos que
+// no conviene repetir, y éste es el que define tu forma de conducir, así que
+// vuelve. Cae cada 4 semanas y siempre le toca a alguien del plantel de
+// verdad, con nombre. Medido antes: metido en el pool general aparecía en el
+// 13% de las temporadas; ahora cae ~9 veces al año.
+// Cuanta más autoridad tenés, menos se manda macanas el plantel.
+const INDISCIPLINAS=[
+  {t:'apareció en un boliche a las 6 de la mañana dos días antes del partido',ic:'🍸',g:1.0},
+  {t:'llegó tarde a tres entrenamientos seguidos',ic:'⏰',g:0.7},
+  {t:'se peleó con un compañero en el vestuario',ic:'🥊',g:1.1},
+  {t:'salió a criticar al técnico en una nota',ic:'🎤',g:1.2},
+  {t:'faltó al entrenamiento sin avisar',ic:'🚪',g:0.9},
+  {t:'lo filmaron manejando alcoholizado',ic:'🚗',g:1.4},
+  {t:'discutió con un hincha en la puerta del predio',ic:'😤',g:0.8},
+];
+function weeklyIndisciplina(){
+  if(!G||!G.squad||!G.squad.length)return;
+  if((G.week||1)<3)return;
+  if((G.week||1)%4!==0)return;                 // una vez por mes
+  if(G._dilemaAbierto)return;                  // no encimar decisiones
+  // Con la autoridad alta el plantel se cuida; con la autoridad por el piso,
+  // se mandan una atrás de la otra.
+  // Calibrado para que con autoridad media caiga ~8 veces al año (una vez
+  // por mes es la OPORTUNIDAD; que caiga siempre sería agotador). Con la
+  // autoridad alta baja a ~6, con el vestuario perdido sube a ~10.
+  const pBase=0.72+(50-autoridad())/100*0.50;
+  if(Math.random()>=Math.max(0.18,Math.min(0.9,pBase)))return;
+  // Le toca más seguido a las figuras y a los que están con la moral baja
+  const cand=G.squad.filter(p=>!p.injured);
+  if(!cand.length)return;
+  const peso=p=>Math.max(1,(p.rat-62))*(p.morale!==undefined&&p.morale<50?2.2:1);
+  let tot=0; cand.forEach(p=>tot+=peso(p));
+  let r=Math.random()*tot, jug=cand[0];
+  for(const p of cand){ r-=peso(p); if(r<=0){jug=p;break;} }
+  const inc=INDISCIPLINAS[~~(Math.random()*INDISCIPLINAS.length)];
+  const multa=Math.round(Math.max(0.05,(jug.wage||30)/1000*2.5*inc.g)*100)/100;
+  const id='ind'+Date.now()+~~(Math.random()*999);
+  G.dilemas=G.dilemas||[];
+  G.dilemas.push({id, did:'_indis', pid:jug.id, txt:'', resuelto:null, week:G.week});
+  G._dilemaAbierto=id;
+  _DIL_FX[id]=[
+    // MULTAR: el plantel entiende que hay límites. Cuesta la moral del que
+    // se mandó la macana y te lo va a cobrar, pero tu palabra vale más.
+    ()=>{
+      jug.morale=Math.max(10,(jug.morale||70)-20);
+      jug.dtRel=Math.max(0,(jug.dtRel===undefined?60:jug.dtRel)-5);
+      G.budget=Math.round((G.budget+multa)*100)/100;
+      if(typeof finAnota==='function')finAnota('otros_in',multa,'Multa a '+jug.name);
+      autSuma(7);
+      G.boardConf=Math.min(100,(G.boardConf||50)+4);
+      if(typeof setDtRel==='function')setDtRel(4);
+      G.squad.forEach(q=>{ if(q!==jug&&Math.random()<0.5)q.morale=Math.max(12,(q.morale||70)-1); });
+      return `Multaste a ${jug.name} (${fv(multa)}). El plantel tomó nota de que hay un límite.`;
+    },
+    // PROTEGERLO: te lo ganás a él y perdés autoridad sobre el resto.
+    ()=>{
+      jug.morale=Math.min(99,(jug.morale||70)+12);
+      jug.dtRel=Math.min(100,(jug.dtRel===undefined?60:jug.dtRel)+4);
+      autSuma(-9);
+      G.boardConf=Math.max(0,(G.boardConf||50)-5);
+      G.fanMood=Math.max(0,(G.fanMood||55)-4);
+      if(typeof setDtRel==='function')setDtRel(-6);
+      return `Lo bancaste a ${jug.name} puertas adentro. Él te lo va a devolver; el resto del plantel también tomó nota.`;
+    },
+  ];
+  const a=autLabel();
+  addPhoneMsg('board','Jefe de Seguridad',
+    `${inc.ic} Presidente, <b>${jug.name}</b> ${inc.t}. Ya lo tiene la prensa. Su autoridad hoy está en <b style="color:${a.c}">${Math.round(autoridad())}</b> (${a.t.toLowerCase()}). ¿Qué hacemos?`,
+    inc.ic, {dilema:id});
+  // Las etiquetas de los botones se arman acá porque dependen del jugador
+  const d=G.dilemas[G.dilemas.length-1];
+  d.ops=[
+    {i:0,t:`⚖️ Multarlo (${fv(multa)})`,d:'Su moral baja fuerte, pero tu palabra sube. El plantel mira.'},
+    {i:1,t:'🛡️ Protegerlo',d:'Se lo banca puertas adentro. Él lo agradece, el resto afloja.'},
+  ];
+  lg(inc.ic,`${jug.name} ${inc.t}`);
+}
 function weeklyDilema(){
   if(!G||G._dilemaAbierto)return;
   if((G.week||1)<4)return;
@@ -9626,6 +9735,24 @@ let _DIL_FX={};
 function dilemaFx(id){
   if(_DIL_FX[id])return _DIL_FX[id];
   const d=(G.dilemas||[]).find(x=>x.id===id); if(!d)return null;
+  // El de indisciplina no está en DILEMAS (es mensual y va aparte). Si la
+  // partida se recargó con uno abierto, se reconstruye desde el pid.
+  if(d.did==='_indis'){
+    const jug=(G.squad||[]).find(q=>q.id===d.pid);
+    if(!jug)return null;
+    _DIL_FX[id]=[
+      ()=>{ jug.morale=Math.max(10,(jug.morale||70)-20); autSuma(7);
+            G.boardConf=Math.min(100,(G.boardConf||50)+4);
+            if(typeof setDtRel==='function')setDtRel(4);
+            return `Multaste a ${jug.name}. El plantel tomó nota de que hay un límite.`; },
+      ()=>{ jug.morale=Math.min(99,(jug.morale||70)+12); autSuma(-9);
+            G.boardConf=Math.max(0,(G.boardConf||50)-5);
+            G.fanMood=Math.max(0,(G.fanMood||55)-4);
+            if(typeof setDtRel==='function')setDtRel(-6);
+            return `Lo bancaste a ${jug.name} puertas adentro.`; },
+    ];
+    return _DIL_FX[id];
+  }
   const D=DILEMAS.find(x=>x.id===d.did); if(!D)return null;
   try{ const a=D.arma(); _DIL_FX[id]=a.ops.map(o=>o.fx); return _DIL_FX[id]; }catch(e){ return null; }
 }
@@ -9677,7 +9804,7 @@ function votoEstimado(){
   // maltratando al hincha te deje al borde de perder (52%): el club es de la
   // gente, y los títulos solos no alcanzan si les vaciaste la cancha.
   const v = 24 + fm*0.42 + conf*0.14 + tit*7 + copas*4.5 + crec*8 + plata + deuda
-            + (G._atadoBarra?-4:0);
+            + (G._atadoBarra?-4:0) + (autoridad()-50)/100*6;
   return Math.max(0,Math.min(100,Math.round(v)));
 }
 function eleccionAviso(){
@@ -9701,7 +9828,22 @@ function correrEleccion(){
   // ruido (una lista opositora puede ser mejor o peor), pero poco.
   const rival=50+(Math.random()*14-7);
   G.elecciones=G.elecciones||[];
-  const gano=v>rival;
+  // ═══════════════════════════════════════════════════════════════════════
+  // EL PISO: SIN LA CD NI LA GENTE, NO HAY TÍTULO QUE TE SALVE
+  // ═══════════════════════════════════════════════════════════════════════
+  // votoEstimado pesa también los títulos, los socios y la plata, y eso
+  // permitía ganar la elección con el club en llamas: medido, con la
+  // comisión en 20 y la hinchada en 60 (promedio 40) sacabas 52% y seguías,
+  // y con los dos en 44 pero tres títulos en la vitrina, 67%.
+  // La confianza de la comisión y el humor de la hinchada son las dos patas
+  // que te sostienen en el cargo: si promedian menos de 45, se terminó,
+  // hayas ganado lo que hayas ganado. La autoridad puede salvarte medio
+  // punto, no más.
+  const _bc=(G.boardConf===undefined?50:G.boardConf);
+  const _fm=(G.fanMood===undefined?55:G.fanMood);
+  const _apoyo=(_bc+_fm)/2 + Math.max(0,(autoridad()-50))/100*4;
+  const _sinApoyo=_apoyo<45;
+  const gano=(!_sinApoyo)&&v>rival;
   G.elecciones.push({season:G.season,voto:v,rival:Math.round(rival),gano});
   if(gano){
     G.boardConf=Math.min(100,(G.boardConf||50)+12);
@@ -9727,9 +9869,11 @@ function correrEleccion(){
     <div class="mtitle" style="color:var(--red)">🗳️ Perdiste la elección</div>
     <div style="text-align:center;margin:14px 0">
       <div style="font-size:44px;margin-bottom:8px">😔</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:34px;font-weight:900;color:var(--red)">${v}%</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:34px;font-weight:900;color:var(--red)">${_sinApoyo?Math.round(Math.min(v,44)):v}%</div>
       <div style="font-size:12px;color:var(--t2);line-height:1.6">
-        La lista opositora sacó <b>${Math.round(rival)}%</b> y se queda con ${G.teamName}.<br>
+        ${_sinApoyo
+          ? `Te quedaste sin las dos patas que sostienen el cargo: la comisión en <b>${Math.round(_bc)}</b> y la hinchada en <b>${Math.round(_fm)}</b>.<br>Ni los títulos alcanzan cuando el club te suelta.`
+          : `La lista opositora sacó <b>${Math.round(rival)}%</b> y se queda con ${G.teamName}.`}<br>
         Tu ciclo como presidente terminó acá.
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:12px;line-height:1.7">
@@ -11323,6 +11467,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(staffSal>0){ G.budget=Math.round((G.budget-staffSal/1000)*10)/10;
     finAnota('cuerpo',staffSal/1000,'Sueldos del cuerpo técnico'); }
   weeklyTicket();
+  weeklyIndisciplina();
   weeklyDilema();
   eleccionAviso();
   weeklyYouth();
@@ -12129,7 +12274,23 @@ function rFanReport(){
     <div class="sr"><span class="sl">Humor</span><span class="sv" style="color:${m.c}">${m.e} ${m.t} (${G.fanMood}%)</span></div>
     <div class="prog"><div class="pf" style="width:${G.fanMood}%;background:${m.c}"></div></div>
     <div class="sr" style="margin-top:6px"><span class="sl">Socios</span><span class="sv">${G.socios.toLocaleString('es')}</span></div>
-    <div style="font-size:9px;color:var(--t3);margin-top:4px">${G.fanMood>=60?'La gente llena la cancha: más recaudación por partido.':G.fanMood<30?'La hinchada silba: baja la recaudación y crece la presión.':'La hinchada espera resultados.'}</div>`;
+    <div style="font-size:9px;color:var(--t3);margin-top:4px">${G.fanMood>=60?'La gente llena la cancha: más recaudación por partido.':G.fanMood<30?'La hinchada silba: baja la recaudación y crece la presión.':'La hinchada espera resultados.'}</div>
+    ${(function(){
+      // La autoridad, al lado del humor: son las dos cosas que se votan.
+      const a=autLabel(), v=Math.round(autoridad());
+      const bc=Math.round(G.boardConf===undefined?50:G.boardConf);
+      const apoyo=(bc+(G.fanMood||55))/2;
+      return `<div class="sr" style="margin-top:7px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px">
+          <span class="sl">Tu autoridad</span><span class="sv" style="color:${a.c}">${a.e} ${a.t} (${v})</span></div>
+        <div class="prog"><div class="pf" style="width:${v}%;background:${a.c}"></div></div>
+        <div style="font-size:9px;color:var(--t3);margin-top:4px">${
+          v>=58?'El plantel te respeta: se mandan menos macanas y el técnico te discute menos.'
+              :v>=40?'Te discuten las decisiones. Poner un límite a tiempo suma.'
+              :'Perdiste el control del vestuario: las indisciplinas se multiplican.'}</div>
+        <div class="sr" style="margin-top:6px"><span class="sl">Apoyo para la elección</span>
+          <span class="sv" style="color:${apoyo<45?'var(--red)':apoyo<55?'var(--gold)':'var(--green)'}">${Math.round(apoyo)}% ${apoyo<45?'⚠️ perdés':''}</span></div>
+        <div style="font-size:9px;color:var(--t3)">Promedio de la comisión (${bc}) y la hinchada (${Math.round(G.fanMood||55)}). Por debajo de 45 en año electoral, no hay título que te salve.</div>`;
+    })()}`;
 }
 // Actualiza humor/socios tras cada partido
 function updateFans(res,derby,gf){
