@@ -203,6 +203,40 @@ bloque quedó sin demostrar**. Hay un intento fallido documentado en el código
   y lenta, y se detiene de verdad por debajo de 0.035 — el mismo modelo que
   ya usaba el 11v11.
 
+## Sistema de diseño — Tactical Dark Glassmorphism
+
+Los tokens viven en `:root` y **el acento lo pisa `applyTheme()` al arrancar**,
+así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
+
+| token | valor | qué es |
+|---|---|---|
+| `--dark` | `#0b0e14` | fondo maestro, **igual para todos los clubes** |
+| `--card` / `--card-2` | `rgba(18,24,38,.75)` / `.85` | superficies de vidrio |
+| `--blur` | `blur(14px) saturate(1.25)` | el vidrio |
+| `--green` | `#10b981` | verde neón |
+| `--gold` | `#f59e0b` | oro metálico (cambia por club) |
+| `--gold-rgb` | `245,158,11` | el mismo, para los `rgba()` del CSS |
+| `--sh-deep` / `--sh-lift` | — | sombra en reposo / en hover |
+
+- **Tipografías**: `Plus Jakarta Sans` para cuerpo y tablas, `Chakra Petch`
+  para todo dato numérico (`.rb .pv .sv .vc .ac .sv-n`, con `tabular-nums` para
+  que las columnas no bailen), `Rajdhani` para títulos y navegación.
+- ⚠️ **El canvas no resuelve variables CSS**: un `fillStyle='var(--gold)'` sale
+  negro. Para la cancha, las jugadas clave y el 11v11 están `GOLD()` y
+  `GOLDA(alpha)`, que leen el valor computado. Si agregás un dibujo con el
+  color de acento, usá esas dos.
+- **El fondo maestro NO cambia por club**, sólo el acento. Antes cada club
+  traía su propio negro (River bordó, Independiente rojo oscuro) y la pantalla
+  cambiaba de identidad entera.
+- El aviso (`.flash`) va **abajo y al centro**: estaba en `top:14px` con
+  `z-index:300` sobre un topbar de `z-index:100`, así que tapaba el nombre del
+  club, el presupuesto y la semana justo cuando pasaba algo importante.
+- Medido: el `backdrop-filter` cuesta entre −3,6 ms y +2,6 ms por pestaña
+  (nada). Los 128 ms del Mercado son del HTML de la lista, no del vidrio.
+- Contraste: todo el texto pasa AA salvo tres falsos positivos del medidor
+  (texto oscuro sobre el botón dorado, que da 9,6:1). `--t3` se subió de
+  `#6b7686` a `#7c8798` porque daba 4,20 contra el mínimo de 4,5.
+
 ## Sistemas principales (dónde tocar)
 
 - **Simulación rápida**: `simMatch` + `matchStrengths` + `applyMatchResult`

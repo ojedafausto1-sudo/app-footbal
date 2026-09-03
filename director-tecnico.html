@@ -4,26 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#F6D318;--gold-d:#e8c400;--dark:#08090c;--d2:#0d0f14;--d3:#14171e;--mid:#1b1f28;--tx:#f2f4f8;--t2:#9aa3b2;--t3:#6b7382;--green:#3de84a;--green-d:#1fb32c;--red:#ff4d4d;--ora:#ffa03a;--pur:#c07bff;--bdr:rgba(255,255,255,.09);--card:rgba(255,255,255,.035);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(246,211,24,.4);color:var(--gold);background:rgba(246,211,24,.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
+:root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#ef4444;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.09);--card:rgba(18,24,38,.75);--card-2:rgba(24,32,50,.85);--blur:blur(14px) saturate(1.25);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(var(--gold-rgb),.4);color:var(--gold);background:rgba(var(--gold-rgb),.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
  font-stretch:condensed;letter-spacing:.005em}
 .stitle,.hm-play{font-weight:800;font-style:italic;text-transform:uppercase}
-.stat-tile .sv-n{font-family:'Archivo','Rajdhani',sans-serif;font-weight:800}.hm-play{letter-spacing:.06em}
+.stat-tile .sv-n{font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;letter-spacing:.01em}
+/* Los datos numéricos van todos en la misma tipografía técnica y con cifras
+   de ancho fijo, para que las columnas de una tabla no bailen al cambiar. */
+.rb,.pv,.sv,.vc,.ac,.hm-vs,.stat-tile .sv-n{font-family:'Chakra Petch','Rajdhani',sans-serif;font-variant-numeric:tabular-nums}.hm-play{letter-spacing:.06em}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:var(--dark);color:var(--tx);min-height:100vh;overflow-x:hidden;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em;background-image:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(70,80,100,.10),transparent 60%)}
+body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--dark);color:var(--tx);min-height:100vh;overflow-x:hidden;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em;background-image:radial-gradient(ellipse 130% 75% at 50% -12%,rgba(16,185,129,.07),transparent 62%),radial-gradient(ellipse 90% 55% at 88% 8%,rgba(245,158,11,.05),transparent 58%),radial-gradient(ellipse 110% 70% at 10% 96%,rgba(40,60,95,.14),transparent 60%);background-attachment:fixed}
 h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnum" 1}
 /* números tabulares para datos en tablas y stats — look de planilla pro */
 .rb,.pv,.sv,.vc,.ac{font-variant-numeric:tabular-nums}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--d2)}::-webkit-scrollbar-thumb{background:#1a4a8a;border-radius:2px}
 /* STARS */
 .st{display:inline-flex;gap:1px;line-height:1}
-.sf{color:#F6D318}.sh{color:#F6D318;opacity:.5}.se{color:#142540}
+.sf{color:var(--gold)}.sh{color:var(--gold);opacity:.5}.se{color:#142540}
 /* RATING BADGE */
-.rb{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:19px;padding:0 4px;border-radius:4px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;flex-shrink:0;letter-spacing:.02em}
+.rb{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:19px;padding:0 4px;border-radius:4px;font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;font-size:11px;flex-shrink:0;letter-spacing:.02em}
 .rb-s{color:#f77a7a;background:rgba(232,69,69,.18)}
 .rb-b{color:#f0943a;background:rgba(240,148,58,.18)}
-.rb-g{color:#F6D318;background:rgba(246,211,24,.15)}
+.rb-g{color:var(--gold);background:rgba(var(--gold-rgb),.15)}
 .rb-a{color:#0fb866;background:rgba(15,184,102,.18)}
 .rb-e{color:#c084fc;background:rgba(176,110,245,.2)}
 /* AGE TAG */
@@ -32,23 +35,23 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .age-vet{color:var(--t3);font-size:9px}
 /* LAYOUT */
 .scr{display:none;flex-direction:column;min-height:100vh}.scr.on{display:flex}
-.topbar{background:linear-gradient(90deg,var(--dark),var(--d3));border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
-.cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(246,211,24,.3)}
+.topbar{background:linear-gradient(90deg,rgba(11,14,20,.86),rgba(20,26,40,.82));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(var(--gold-rgb),.3)}
 .cname{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:.06em;text-transform:uppercase}
 .pills{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
 .pill{background:rgba(22,25,32,.9);border:1px solid var(--bdr);border-radius:20px;padding:3px 9px;font-size:11px;display:flex;align-items:center;gap:4px}
 .pv{font-weight:700;color:var(--gold)}
-.nav{display:flex;gap:3px;padding:6px 10px;background:linear-gradient(180deg,#08203e 0%,#040f1e 100%);border-bottom:1px solid rgba(246,211,24,.22);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.nav{display:flex;gap:3px;padding:6px 10px;background:linear-gradient(180deg,rgba(20,26,40,.88) 0%,rgba(11,14,20,.92) 100%);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid rgba(var(--gold-rgb),0.20);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .nav::-webkit-scrollbar{display:none}
 .nb{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px 5px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--t2);font-family:'Rajdhani',sans-serif;font-size:9.5px;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .18s;white-space:nowrap;min-width:54px}
 .nb .ni{font-size:16px;line-height:1;filter:grayscale(.5) opacity(.75);transition:all .18s}
-.nb:hover{background:rgba(246,211,24,.07);color:var(--tx);border-color:rgba(246,211,24,.15)}
+.nb:hover{background:rgba(var(--gold-rgb),0.08);color:var(--tx);border-color:rgba(var(--gold-rgb),0.18);transform:translateY(-1px)}
 .nb:hover .ni{filter:none}
-.nb.on{background:linear-gradient(180deg,rgba(246,211,24,.16),rgba(246,211,24,.05));color:var(--gold);border-color:rgba(246,211,24,.45);box-shadow:0 2px 10px rgba(246,211,24,.12),inset 0 1px 0 rgba(255,255,255,.06)}
+.nb.on{background:linear-gradient(180deg,rgba(var(--gold-rgb),0.17),rgba(var(--gold-rgb),0.05));color:var(--gold);border-color:rgba(var(--gold-rgb),0.46);box-shadow:0 3px 14px rgba(var(--gold-rgb),0.18),inset 0 1px 0 rgba(255,255,255,.07)}
 .nb.on .ni{filter:none;transform:scale(1.12)}
 /* DLS-STYLE HERO MATCH CARD */
-.hero-match{background:linear-gradient(135deg,#20242e 0%,#12151b 60%,#0b0d11 100%);border:1px solid rgba(246,211,24,.3);border-radius:14px;padding:16px 14px 13px;position:relative;overflow:hidden;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5)}
-.hero-match::before{content:'';position:absolute;top:-40%;left:-20%;width:70%;height:180%;background:radial-gradient(ellipse,rgba(246,211,24,.08),transparent 70%);pointer-events:none}
+.hero-match{background:linear-gradient(135deg,#20242e 0%,#12151b 60%,#0b0d11 100%);border:1px solid rgba(var(--gold-rgb),.3);border-radius:14px;padding:16px 14px 13px;position:relative;overflow:hidden;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.hero-match::before{content:'';position:absolute;top:-40%;left:-20%;width:70%;height:180%;background:radial-gradient(ellipse,rgba(var(--gold-rgb),.08),transparent 70%);pointer-events:none}
 .hm-comp{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.25em;color:var(--gold);text-transform:uppercase;opacity:.85}
 .hm-teams{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0 8px}
 .hm-team{flex:1;max-width:150px}
@@ -57,12 +60,12 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .hm-name{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:800;letter-spacing:.03em;line-height:1.05;text-transform:uppercase}
 .hm-vs{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:900;color:rgba(255,255,255,.25);letter-spacing:.05em}
 .hm-meta{font-size:9.5px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase}
-.hm-play{margin-top:10px;width:100%;max-width:280px;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--gold),#e8b800);color:var(--dark);font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:900;letter-spacing:.12em;cursor:pointer;box-shadow:0 4px 18px rgba(246,211,24,.35);transition:all .18s}
-.hm-play:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(246,211,24,.5)}
+.hm-play{margin-top:10px;width:100%;max-width:280px;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--gold),#e8b800);color:var(--dark);font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:900;letter-spacing:.12em;cursor:pointer;box-shadow:0 4px 18px rgba(var(--gold-rgb),.35);transition:all .18s}
+.hm-play:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(var(--gold-rgb),.5)}
 .hm-alts{display:flex;gap:5px;justify-content:center;margin-top:7px;flex-wrap:wrap}
 .main{flex:1;padding:12px;overflow-y:auto;max-height:calc(100vh - 108px)}
 /* SECTIONS */
-.stitle{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--gold);margin-bottom:12px;letter-spacing:.06em;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid rgba(246,211,24,.14);position:relative}
+.stitle{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--gold);margin-bottom:12px;letter-spacing:.06em;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid rgba(var(--gold-rgb),.14);position:relative}
 .stitle::after{content:'';position:absolute;left:0;bottom:-1px;width:48px;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
@@ -127,13 +130,14 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
   .nb{padding:4px 8px!important}
   .ni{display:none}
 }
-.card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;box-shadow:var(--sh);transition:transform .15s,border-color .15s,box-shadow .15s}
-.card:hover{border-color:rgba(246,211,24,.28);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.card{background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;box-shadow:var(--sh-deep);transition:transform .18s cubic-bezier(.2,.7,.3,1),border-color .18s,box-shadow .18s;position:relative}
+.card::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.055)}
+.card:hover{border-color:rgba(var(--gold-rgb),0.34);transform:translateY(-3px);box-shadow:var(--sh-lift)}
 .ctitle{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 /* TABS */
 .tabs{display:flex;gap:2px;margin-bottom:10px;background:var(--d3);border-radius:7px;padding:3px}
 .tab{flex:1;padding:5px;text-align:center;border-radius:5px;border:none;background:transparent;color:var(--t2);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;transition:all .18s}
-.tab.on{background:var(--gold);color:var(--dark);box-shadow:0 2px 6px rgba(246,211,24,.2)}
+.tab.on{background:var(--gold);color:var(--dark);box-shadow:0 2px 6px rgba(var(--gold-rgb),.2)}
 .tc{display:none}.tc.on{display:block;animation:tcIn .22s ease}
 @keyframes tcIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 .btn:active,.nb:active,.tab:active,.lmpad:active{transform:scale(.94)}
@@ -142,13 +146,13 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 /* BUTTONS */
 .btn{padding:6px 13px;border-radius:6px;border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;transition:all .18s}
 .bg{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--dark);box-shadow:0 2px 8px rgba(0,0,0,.25)}.bg:hover{filter:brightness(1.1);box-shadow:0 3px 12px rgba(0,0,0,.35)}
-.bo{background:transparent;border:1px solid var(--bdr);color:var(--t2)}.bo:hover{border-color:var(--gold);color:var(--gold);background:rgba(246,211,24,.06)}
+.bo{background:transparent;border:1px solid var(--bdr);color:var(--t2)}.bo:hover{border-color:var(--gold);color:var(--gold);background:rgba(var(--gold-rgb),.06)}
 .bG{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(15,184,102,.2)}.bR{background:var(--red);color:#fff}
 .bs{padding:3px 8px;font-size:11px}
 /* PLAYER ROW */
 .pr{display:grid;gap:4px;align-items:center;padding:7px 8px;border-radius:6px;border:1px solid transparent;cursor:pointer;transition:all .15s;font-size:11px}
-.pr:hover{background:var(--mid);border-color:rgba(246,211,24,.15)}
-.pr.sel{background:rgba(246,211,24,.07);border-color:var(--gold)}
+.pr:hover{background:var(--mid);border-color:rgba(var(--gold-rgb),.15)}
+.pr.sel{background:rgba(var(--gold-rgb),.07);border-color:var(--gold)}
 .pn{font-weight:600;color:var(--tx);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ptag{font-size:9px;padding:2px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-weight:700;letter-spacing:.03em}
 .pt-ARQ{background:#122a50;color:#7ab3f7;border:1px solid rgba(122,179,247,.2)}
@@ -158,7 +162,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .ac{color:var(--t2);font-size:11px}.vc{font-weight:700;color:var(--green);font-size:11px}.cc{font-size:10px;color:var(--t3)}
 /* MARKET ROW */
 .mkrow{display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;align-items:center;padding:8px 10px;border-radius:7px;border:1px solid transparent;cursor:pointer;font-size:11px;transition:all .15s}
-.mkrow:hover{background:var(--mid);border-color:rgba(246,211,24,.15)}
+.mkrow:hover{background:var(--mid);border-color:rgba(var(--gold-rgb),.15)}
 /* STAT ROW */
 .sr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .sr:last-child{border:none}.sl{font-size:11px;color:var(--t2)}.sv{font-size:11px;font-weight:600}
@@ -173,15 +177,15 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .fm-btncap{font-size:6.5px;font-weight:700;letter-spacing:.08em;opacity:.65}
 .fm-hrow{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.75)}
 .fm-keybtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:rgba(255,255,255,.8);font-size:10px;padding:5px 8px;cursor:pointer;text-align:left;font-family:'Inter',sans-serif}
-.fm-keybtn b{color:#F6D318;font-family:'Rajdhani',sans-serif;letter-spacing:.04em}
-.fm-keybtn:hover{border-color:#F6D318}
+.fm-keybtn b{color:var(--gold);font-family:'Rajdhani',sans-serif;letter-spacing:.04em}
+.fm-keybtn:hover{border-color:var(--gold)}
 .fm-spdbtn{background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.25);border-radius:6px;color:rgba(255,255,255,.7);font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:800;padding:5px 10px;cursor:pointer}
-.fm-spdbtn.on{background:rgba(246,211,24,.2);border-color:#F6D318;color:#F6D318}
-.fm-hrow b{color:#F6D318;font-family:'Rajdhani',sans-serif;letter-spacing:.05em;white-space:nowrap}
+.fm-spdbtn.on{background:rgba(var(--gold-rgb),.2);border-color:var(--gold);color:var(--gold)}
+.fm-hrow b{color:var(--gold);font-family:'Rajdhani',sans-serif;letter-spacing:.05em;white-space:nowrap}
 .fm-hrow i{color:rgba(255,255,255,.45)}
 /* VIRTUE BADGES (DLS-style) */
 .vbadge{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:9px;font-size:8.5px;font-weight:700;letter-spacing:.02em;background:rgba(15,184,102,.13);color:#5de89a;border:1px solid rgba(15,184,102,.25);white-space:nowrap}
-.vbadge.velite{background:linear-gradient(135deg,rgba(192,132,252,.18),rgba(246,211,24,.12));color:#d8b4fe;border-color:rgba(192,132,252,.4);box-shadow:0 0 8px rgba(192,132,252,.15)}
+.vbadge.velite{background:linear-gradient(135deg,rgba(192,132,252,.18),rgba(var(--gold-rgb),.12));color:#d8b4fe;border-color:rgba(192,132,252,.4);box-shadow:0 0 8px rgba(192,132,252,.15)}
 /* ATTR CHIPS (DLS hexagon-style grid) */
 .achips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
 .achip{background:var(--d3);border:1px solid var(--bdr);border-radius:8px;padding:7px 6px 6px;text-align:center;position:relative;overflow:hidden}
@@ -190,8 +194,8 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .achip-k{font-size:8.5px;color:var(--t2);margin:3px 0 4px;letter-spacing:.05em;font-weight:600}
 .achip-bar{height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
 /* MODAL */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;backdrop-filter:blur(4px)}
-.modal{background:var(--d2);border:1px solid var(--bdr);border-radius:12px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.7)}
+.ov{position:fixed;inset:0;background:rgba(7,9,14,.72);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1)}
+.modal{background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.06)}
 .mtitle{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;color:var(--gold);margin-bottom:12px;letter-spacing:.03em}
 .mclose{float:right;background:rgba(255,255,255,.06);border:1px solid var(--bdr);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--t2);font-size:14px;cursor:pointer;margin-top:-3px;transition:all .15s}
 .mclose:hover{background:rgba(232,69,69,.15);border-color:var(--red);color:var(--red)}
@@ -199,18 +203,18 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .dtReqRow{display:flex;align-items:center;gap:8px;padding:8px 5px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;border-radius:4px;transition:background .1s}
 .dtReqRow:hover{background:rgba(255,255,255,.06)}
 /* NOTES */
-.note{background:rgba(246,211,24,.06);border:1px solid rgba(246,211,24,.18);border-radius:6px;padding:8px 11px;font-size:11px;color:var(--t2);margin-bottom:9px}
+.note{background:rgba(var(--gold-rgb),.06);border:1px solid rgba(var(--gold-rgb),.18);border-radius:6px;padding:8px 11px;font-size:11px;color:var(--t2);margin-bottom:9px}
 .note.G{background:rgba(15,184,102,.07);border-color:rgba(15,184,102,.25);color:#5de89a}
 .note.R{background:rgba(232,69,69,.07);border-color:rgba(232,69,69,.25);color:#f77a7a}
 /* SEARCH */
 .sb{width:100%;background:var(--d3);border:1px solid var(--bdr);border-radius:6px;padding:8px 12px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;transition:border-color .18s}
-.sb:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(246,211,24,.08)}
+.sb:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(var(--gold-rgb),.08)}
 .frow{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
 .fs{background:var(--d3);border:1px solid var(--bdr);border-radius:5px;padding:4px 8px;color:var(--tx);font-size:11px;cursor:pointer;transition:border-color .15s}
 .fs:focus{outline:none;border-color:var(--gold)}
 /* BADGES */
 .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
-.bau{background:rgba(246,211,24,.14);color:var(--gold)}.baG{background:rgba(15,184,102,.14);color:var(--green)}.baR{background:rgba(232,69,69,.14);color:var(--red)}.baB{background:rgba(26,100,200,.18);color:#7ab3f7}
+.bau{background:rgba(var(--gold-rgb),.14);color:var(--gold)}.baG{background:rgba(15,184,102,.14);color:var(--green)}.baR{background:rgba(232,69,69,.14);color:var(--red)}.baB{background:rgba(26,100,200,.18);color:#7ab3f7}
 /* PROGRESS */
 .prog{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin-top:3px}
 .pf{height:100%;border-radius:3px;transition:width .5s}
@@ -225,9 +229,9 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .pitch{position:relative;border-radius:9px;border:2px solid #1a5c28;overflow:hidden;user-select:none;background:repeating-linear-gradient(180deg,#1a6130 0px,#1a6130 28px,#155428 28px,#155428 56px)}
 .pslot{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:5}
 .pcircle{width:54px;height:54px;border-radius:50%;background:rgba(3,23,46,.92);border:2px solid var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 2px;transition:border-color .2s,transform .15s;box-shadow:0 2px 8px rgba(0,0,0,.5)}
-.pcircle.empty{border-style:dashed;border-color:rgba(246,211,24,.35);background:rgba(3,23,46,.4)}
+.pcircle.empty{border-style:dashed;border-color:rgba(var(--gold-rgb),.35);background:rgba(3,23,46,.4)}
 .pcircle:hover{border-color:#fff;transform:scale(1.1)}
-.pcircle.sel-slot{border-color:var(--gold);background:rgba(246,211,24,.12);transform:scale(1.12);box-shadow:0 0 14px rgba(246,211,24,.3)}
+.pcircle.sel-slot{border-color:var(--gold);background:rgba(var(--gold-rgb),.12);transform:scale(1.12);box-shadow:0 0 14px rgba(var(--gold-rgb),.3)}
 .pcircle.edit-slot{border-color:var(--pur);border-style:dashed;background:rgba(176,110,245,.12)}
 .pslot-lbl{font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap;font-family:'Rajdhani',sans-serif}
 .ps-name{font-size:8px;color:var(--t2);max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
@@ -240,14 +244,21 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .bp .pcircle{width:42px;height:42px;border-color:var(--t3);margin:0 auto 1px}
 /* PLAYER CARD (overview top players) */
 .pcard{background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;transition:all .15s;cursor:pointer}
-.pcard:hover{border-color:rgba(246,211,24,.3);background:rgba(255,255,255,.05)}
+.pcard:hover{border-color:rgba(var(--gold-rgb),.3);background:rgba(255,255,255,.05)}
 /* STADIUM */
-.upg-btn{background:rgba(246,211,24,.05);border:1px solid var(--bdr);border-radius:6px;padding:10px;cursor:pointer;transition:all .2s;margin-bottom:6px;display:block;width:100%;text-align:left}
-.upg-btn:hover{background:rgba(246,211,24,.1);border-color:rgba(246,211,24,.25)}
+.upg-btn{background:rgba(var(--gold-rgb),.05);border:1px solid var(--bdr);border-radius:6px;padding:10px;cursor:pointer;transition:all .2s;margin-bottom:6px;display:block;width:100%;text-align:left}
+.upg-btn:hover{background:rgba(var(--gold-rgb),.1);border-color:rgba(var(--gold-rgb),.25)}
 /* FLASH */
-.flash{position:fixed;top:14px;right:14px;z-index:300;background:var(--d2);border:1px solid var(--bdr);border-radius:9px;padding:11px 15px;max-width:260px;animation:sli .3s cubic-bezier(.22,.68,0,1.2);box-shadow:0 8px 28px rgba(0,0,0,.6);transition:opacity .5s;font-size:12px}
-@keyframes sli{from{opacity:0;transform:translateX(24px) scale(.92)}to{opacity:1;transform:none}}
-.flash.win{border-color:var(--green);box-shadow:0 8px 28px rgba(15,184,102,.15)}.flash.loss{border-color:var(--red)}.flash.draw{border-color:var(--ora)}
+/* El aviso salía en top:14px con z-index 300, o sea SIEMPRE encima de la
+   barra superior (z-index 100): tapaba el nombre del club, el presupuesto y
+   la semana justo cuando pasaba algo importante. Ahora va abajo y al centro,
+   como un toast, donde no hay nada que leer — y con el margen suficiente
+   para no chocar con el botón del celular, que vive abajo a la derecha. */
+.flash{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:300;background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:12px;padding:11px 16px;max-width:min(300px,calc(100vw - 116px));animation:sli .32s cubic-bezier(.22,.68,0,1.2);box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.07);transition:opacity .5s;font-size:12px;text-align:center;pointer-events:none}
+/* El toast está centrado con translateX(-50%): la animación tiene que
+   respetarlo o el aviso entra corrido y salta al lugar al terminar. */
+@keyframes sli{from{opacity:0;transform:translateX(-50%) translateY(16px) scale(.94)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+.flash.win{border-color:var(--green);box-shadow:var(--sh-lift),0 0 22px rgba(16,185,129,.20)}.flash.loss{border-color:var(--red);box-shadow:var(--sh-lift),0 0 22px rgba(239,68,68,.18)}.flash.draw{border-color:var(--gold);box-shadow:var(--sh-lift),0 0 22px rgba(var(--gold-rgb),.18)}
 /* TABLES */
 .twrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:11px}
@@ -259,10 +270,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .fd-w{background:var(--green)}.fd-d{background:var(--ora)}.fd-l{background:var(--red)}.fd-n{background:rgba(255,255,255,.15)}
 /* DIFFICULTY BUTTONS */
 .diff-btn{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 16px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.05em}
-.diff-sel{background:rgba(246,211,24,.15);border-color:#F6D318;color:#F6D318}
+.diff-sel{background:rgba(var(--gold-rgb),.15);border-color:var(--gold);color:var(--gold)}
 /* SOCIAL TWEETS */
 .tweet{background:rgba(22,25,32,.7);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:8px;transition:border-color .15s}
-.tweet:hover{border-color:rgba(246,211,24,.2)}
+.tweet:hover{border-color:rgba(var(--gold-rgb),.2)}
 .tweet-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--d3));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .tweet-handle{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold)}
 .tweet-user{font-size:10px;color:var(--t3)}
@@ -276,11 +287,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
 /* INTRO */
 #intro{background:radial-gradient(ellipse at 30% 40%,#171a22 0%,#0b0d11 60%,#07080b 100%);align-items:center;justify-content:center}
 /* CARD TITLE gradient accent */
-.ctitle{background:linear-gradient(90deg,rgba(246,211,24,.08),transparent);border-left:2px solid var(--gold);padding-left:8px!important;border-radius:2px}
+.ctitle{background:linear-gradient(90deg,rgba(var(--gold-rgb),.08),transparent);border-left:2px solid var(--gold);padding-left:8px!important;border-radius:2px}
 /* NAV active glow */
-.nb.on{text-shadow:0 0 12px rgba(246,211,24,.35)}
+.nb.on{text-shadow:0 0 12px rgba(var(--gold-rgb),.35)}
 /* CARD hover glow */
-.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.45),0 0 0 1px rgba(246,211,24,.12)}
+.card:hover{box-shadow:var(--sh-lift),0 0 0 1px rgba(var(--gold-rgb),0.16)}
 /* TEAM SELECT CARD */
 .ts-card{cursor:pointer;border-radius:14px;padding:22px 18px;text-align:center;transition:.2s;border:2px solid;position:relative;overflow:hidden}
 .ts-card:hover{transform:translateY(-4px) scale(1.03)}
@@ -293,9 +304,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .main{background:radial-gradient(ellipse at 50% -10%,rgba(26,74,138,.10),transparent 60%)}
 .stitle{position:relative;padding-bottom:8px;border-bottom:1px solid var(--bdr)}
 .stitle::after{content:'';position:absolute;left:0;bottom:-1px;width:54px;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
-.card{background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.015))}
+.card{background:linear-gradient(160deg,var(--card-2),var(--card))}
 .pill{background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.02))}
-.topbar{backdrop-filter:blur(6px)}
+
 .btn.bg{position:relative;overflow:hidden}
 .btn.bg::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-18deg);transition:left .5s}
 .btn.bg:hover::after{left:130%}
@@ -306,19 +317,19 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .confbar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-top:3px}
 .conffill{height:100%;border-radius:4px;transition:width .5s,background .5s}
 /* ── PHONE WIDGET ─────────────────────────────────────────── */
-@keyframes phonePulse{0%,100%{box-shadow:0 4px 24px rgba(246,211,24,.5),0 2px 12px rgba(0,0,0,.8)}50%{box-shadow:0 4px 32px rgba(246,211,24,.8),0 2px 16px rgba(0,0,0,.8),0 0 0 8px rgba(246,211,24,.15)}}
-#phoneBtn:hover{transform:scale(1.15)!important;animation:none!important;box-shadow:0 6px 36px rgba(246,211,24,.8)!important}
+@keyframes phonePulse{0%,100%{box-shadow:0 4px 24px rgba(var(--gold-rgb),.5),0 2px 12px rgba(0,0,0,.8)}50%{box-shadow:0 4px 32px rgba(var(--gold-rgb),.8),0 2px 16px rgba(0,0,0,.8),0 0 0 8px rgba(var(--gold-rgb),.15)}}
+#phoneBtn:hover{transform:scale(1.15)!important;animation:none!important;box-shadow:0 6px 36px rgba(var(--gold-rgb),.8)!important}
 #phoneDevice{width:min(360px,calc(100vw - 24px));height:min(660px,calc(100vh - 32px));background:#080818;border-radius:34px;border:3px solid #1e1e3a;box-shadow:0 24px 80px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;position:relative}
 #phoneDevice::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:30px;background:#080818;border-radius:0 0 22px 22px;z-index:12;pointer-events:none}
 .ph-status{height:30px;display:flex;align-items:flex-end;justify-content:space-between;padding:5px 22px 3px;font-size:8.5px;color:rgba(255,255,255,.4);flex-shrink:0;z-index:11;position:relative}
 .ph-header{background:linear-gradient(180deg,#0d1430,var(--d2));padding:11px 16px 9px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bdr);flex-shrink:0}
-.ph-appname{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--gold);letter-spacing:1.5px;text-shadow:0 0 12px rgba(246,211,24,.4)}
+.ph-appname{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--gold);letter-spacing:1.5px;text-shadow:0 0 12px rgba(var(--gold-rgb),.4)}
 .ph-tabs{display:flex;background:rgba(0,0,0,.35);border-bottom:1px solid var(--bdr);flex-shrink:0}
 .ph-tab{flex:1;padding:9px 3px;font-size:8.5px;font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .18s}
 .ph-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 .ph-screen{flex:1;overflow-y:auto;padding:10px 10px 8px}
 .ph-msg{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:7px;background:rgba(22,25,32,.55);border:1px solid var(--bdr);border-radius:12px;position:relative;transition:background .15s}
-.ph-msg.unread{border-left:3px solid var(--gold);background:rgba(246,211,24,.07)}
+.ph-msg.unread{border-left:3px solid var(--gold);background:rgba(var(--gold-rgb),.07)}
 .ph-msg.unread .ph-dot{display:flex}
 .ph-dot{position:absolute;top:11px;right:11px;width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);display:none;align-items:center;justify-content:center}
 .ph-from{font-size:11.5px;font-weight:700;color:#e8f0ff;display:flex;align-items:center;gap:5px}
@@ -327,7 +338,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .ph-acts{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
 .ph-empty{text-align:center;color:var(--t3);font-size:11px;padding:35px 16px;line-height:2}
 .ph-bub{max-width:84%;padding:7px 11px;border-radius:12px;font-size:10.5px;line-height:1.45;margin-bottom:6px;width:fit-content}
-.ph-me{margin-left:auto;background:rgba(246,211,24,.14);border:1px solid rgba(246,211,24,.3);color:#ffe9a8;border-bottom-right-radius:3px}
+.ph-me{margin-left:auto;background:rgba(var(--gold-rgb),.14);border:1px solid rgba(var(--gold-rgb),.3);color:#ffe9a8;border-bottom-right-radius:3px}
 .ph-them{margin-right:auto;background:rgba(22,25,32,.85);border:1px solid var(--bdr);color:var(--tx);border-bottom-left-radius:3px}
 .ph-qr{display:flex;flex-wrap:wrap;gap:4px;padding:8px 0 4px;border-top:1px solid rgba(255,255,255,.07);margin-top:6px}
 .ph-qrbtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);border-radius:14px;color:var(--t2);font-size:9.5px;padding:5px 10px;cursor:pointer;transition:all .15s}
@@ -344,8 +355,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
 <div id="teamSelect" style="position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#161922 0%,#0a0c10 55%,#06070a 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
   <!-- Header -->
   <div style="text-align:center;margin-bottom:22px">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:rgba(246,211,24,.6);letter-spacing:.3em;text-transform:uppercase;margin-bottom:4px">⚽ TEMPORADA 2026</div>
-    <div style="font-family:'Rajdhani',sans-serif;font-size:48px;font-weight:900;color:#fff;letter-spacing:.06em;line-height:.9;text-shadow:0 0 60px rgba(246,211,24,.2)">DIRECTOR<br><span style="color:#F6D318">TÉCNICO</span></div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:rgba(var(--gold-rgb),.6);letter-spacing:.3em;text-transform:uppercase;margin-bottom:4px">⚽ TEMPORADA 2026</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:48px;font-weight:900;color:#fff;letter-spacing:.06em;line-height:.9;text-shadow:0 0 60px rgba(var(--gold-rgb),.2)">DIRECTOR<br><span style="color:var(--gold)">TÉCNICO</span></div>
     <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:6px;letter-spacing:.12em">ELEGÍ TU EQUIPO Y LLEVALO A LO MÁS ALTO</div>
   </div>
   <!-- Difficulty -->
@@ -364,35 +375,35 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="ts-card-name" style="color:#FFD700">BOCA</div>
       <div class="ts-card-sub">JUNIORS</div>
       <div class="ts-card-val">Val: €100.4M</div>
-      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
+      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★★</span></div>
     </div>
     <div onclick="selectTeam('river')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(204,0,0,.35));border-color:#cc3333">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚪</div>
       <div class="ts-card-name" style="color:#fff">RIVER</div>
       <div class="ts-card-sub">PLATE</div>
       <div class="ts-card-val">Val: €99.1M</div>
-      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★★</span></div>
+      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★★</span></div>
     </div>
     <div onclick="selectTeam('indep')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(200,0,0,.35));border-color:#aa2222">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚫</div>
       <div class="ts-card-name" style="color:#ff5555">INDEPENDIENTE</div>
       <div class="ts-card-sub">EL ROJO</div>
       <div class="ts-card-val">Val: €41.1M</div>
-      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★☆☆</span></div>
+      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★☆☆</span></div>
     </div>
     <div onclick="selectTeam('racing')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,80,.8),rgba(0,51,153,.35));border-color:#2255bb">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵⚪</div>
       <div class="ts-card-name" style="color:#aaccff">RACING</div>
       <div class="ts-card-sub">CLUB</div>
       <div class="ts-card-val">Val: €76.9M</div>
-      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
+      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★☆</span></div>
     </div>
     <div onclick="selectTeam('sanlo')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,70,.8),rgba(0,76,151,.35));border-color:#1155aa">
       <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🔴</div>
       <div class="ts-card-name" style="color:#88aaff">SAN LORENZO</div>
       <div class="ts-card-sub">DE ALMAGRO</div>
       <div class="ts-card-val">Val: €43.6M</div>
-      <div class="ts-card-rat"><span style="color:#f6d318;font-size:11px">★★★★☆</span></div>
+      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★☆</span></div>
     </div>
   </div>
   <div style="width:100%;max-width:820px;margin-top:20px">
@@ -410,7 +421,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
     <input type="file" id="impSave" accept=".json,.txt" style="display:none" onchange="importSave(this)">
   </div>
   <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
-    <button onclick="loadGame()" style="cursor:pointer;background:linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06));border:2px solid rgba(246,211,24,.5);border-radius:12px;padding:14px 32px;font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:800;color:#F6D318;letter-spacing:.08em;transition:.2s;text-shadow:0 0 20px rgba(246,211,24,.3)" onmouseover="this.style.background='linear-gradient(135deg,rgba(246,211,24,.25),rgba(246,211,24,.1))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(246,211,24,.15),rgba(246,211,24,.06))'">▶ CONTINUAR PARTIDA</button>
+    <button onclick="loadGame()" style="cursor:pointer;background:linear-gradient(135deg,rgba(var(--gold-rgb),.15),rgba(var(--gold-rgb),.06));border:2px solid rgba(var(--gold-rgb),.5);border-radius:12px;padding:14px 32px;font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:800;color:var(--gold);letter-spacing:.08em;transition:.2s;text-shadow:0 0 20px rgba(var(--gold-rgb),.3)" onmouseover="this.style.background='linear-gradient(135deg,rgba(var(--gold-rgb),.25),rgba(var(--gold-rgb),.1))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(var(--gold-rgb),.15),rgba(var(--gold-rgb),.06))'">▶ CONTINUAR PARTIDA</button>
     <div id="continueSaveLbl" style="font-size:11px;color:rgba(255,255,255,.35);margin-top:6px;letter-spacing:.05em"></div>
   </div>
 </div>
@@ -418,7 +429,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 <!-- INTRO -->
 <div id="intro" class="scr" style="display:none">
   <div style="text-align:center;max-width:480px;padding:24px 16px">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:52px;font-weight:900;color:var(--gold);line-height:.95;margin-bottom:8px;letter-spacing:-.01em;text-shadow:0 0 40px rgba(246,211,24,.25)">DIRECTOR<br>TÉCNICO</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:52px;font-weight:900;color:var(--gold);line-height:.95;margin-bottom:8px;letter-spacing:-.01em;text-shadow:0 0 40px rgba(var(--gold-rgb),.25)">DIRECTOR<br>TÉCNICO</div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:4px;letter-spacing:.12em;text-transform:uppercase" id="teamLabel">Director Técnico · Temporada 2026</div>
     <div style="font-size:11px;color:var(--t2);margin-bottom:22px">v8.0 · Atributos DLS + Virtudes · Planteles 2025/26</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;text-align:left;margin-bottom:20px">
@@ -751,7 +762,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="stitle">📱 Redes Sociales</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">
         <div style="font-size:10px;color:var(--t3);line-height:1.4">Hinchas, periodistas y rivales hablan de vos. Se actualiza tras cada partido.</div>
-        <button onclick="rSocial()" style="flex-shrink:0;background:rgba(246,211,24,.12);border:1px solid rgba(246,211,24,.3);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer">🔄 Actualizar</button>
+        <button onclick="rSocial()" style="flex-shrink:0;background:rgba(var(--gold-rgb),.12);border:1px solid rgba(var(--gold-rgb),.3);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer">🔄 Actualizar</button>
       </div>
       <div id="pressHeadlines"></div>
       <div id="socialFeed"></div>
@@ -803,10 +814,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
 
 <!-- PARTIDO EN VIVO (MODO JUGABLE) -->
 <style>
-#lmOv{display:none;position:fixed;inset:0;background:rgba(0,5,14,.97);z-index:300;flex-direction:column;align-items:center;padding:max(8px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));overflow:hidden;gap:0}
+#lmOv{display:none;position:fixed;inset:0;background:rgba(11,14,20,.93);-webkit-backdrop-filter:blur(18px) saturate(1.15);backdrop-filter:blur(18px) saturate(1.15);z-index:300;flex-direction:column;align-items:center;padding:max(8px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));overflow:hidden;gap:0}
 #lmFeed{width:100%;max-width:480px;flex:1;overflow-y:auto;margin-top:6px;min-height:0;border-radius:10px;background:rgba(255,255,255,.02)}
 #lmFeed .lmev{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.055);font-size:11px;line-height:1.45}
-.lmev-goal{background:rgba(246,211,24,.13)!important;border-left:3px solid #f6d318}
+.lmev-goal{background:rgba(var(--gold-rgb),.13)!important;border-left:3px solid var(--gold)}
 .lmev-danger{background:rgba(220,50,50,.10)!important;border-left:3px solid rgba(220,50,50,.55)}
 .lmev-save{background:rgba(40,140,220,.09)!important;border-left:3px solid rgba(40,140,220,.45)}
 #lmGame{display:none;width:100%;max-width:480px;flex-direction:column;align-items:center;margin-top:4px}
@@ -833,9 +844,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <span class="lmact-key">X</span>
           <span>PASE</span>
         </button>
-        <button class="lmact" data-k="shoot" style="background:rgba(246,211,24,.18);border-color:rgba(246,211,24,.55);">
-          <span class="lmact-key" style="color:#f6d318">Z</span>
-          <span style="color:#f6d318">TIRO</span>
+        <button class="lmact" data-k="shoot" style="background:rgba(var(--gold-rgb),.18);border-color:rgba(var(--gold-rgb),.55);">
+          <span class="lmact-key" style="color:var(--gold)">Z</span>
+          <span style="color:var(--gold)">TIRO</span>
         </button>
       </div>
     </div>
@@ -845,7 +856,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 </div>
 
 <!-- ── PHONE WIDGET — OUTSIDE ALL CONTAINERS ── -->
-<button id="phoneBtn" onclick="openPhone()" style="position:fixed;bottom:24px;right:18px;width:64px;height:64px;background:linear-gradient(135deg,#1b1f28,#14171e);border:3px solid #F6D318;border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 4px 24px rgba(246,211,24,.5),0 2px 12px rgba(0,0,0,.8);font-size:28px;transition:transform .2s;animation:phonePulse 2s ease-in-out infinite">
+<button id="phoneBtn" onclick="openPhone()" style="position:fixed;bottom:24px;right:18px;width:64px;height:64px;background:linear-gradient(135deg,#1b1f28,#14171e);border:3px solid var(--gold);border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 4px 24px rgba(var(--gold-rgb),.5),0 2px 12px rgba(0,0,0,.8);font-size:28px;transition:transform .2s;animation:phonePulse 2s ease-in-out infinite">
   📱
   <span id="phoneBadge" style="position:absolute;top:-6px;right:-6px;background:#e84545;color:#fff;border-radius:50%;width:24px;height:24px;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid #08090c;font-family:'Rajdhani',sans-serif;line-height:1;z-index:100000"></span>
 </button>
@@ -1149,7 +1160,7 @@ function virtues(p){
 function vbadges(p){
   return virtues(p).map(vt=>`<span class="vbadge${vt.elite?' velite':''}" title="${vt.label}: ${vt.v}">${vt.icon} ${vt.virtue}</span>`).join('');
 }
-function attrColor(v){ return v>=85?'#c084fc':v>=78?'#0fb866':v>=70?'#F6D318':v>=60?'#f0943a':'#f77a7a'; }
+function attrColor(v){ return v>=85?'#c084fc':v>=78?'#0fb866':v>=70?'var(--gold)':v>=60?'#f0943a':'#f77a7a'; }
 // Chips DLS-style de los 6 atributos (para modal / cards)
 function attrChips(p){
   ensureAttrs(p);
@@ -2606,12 +2617,16 @@ function resolveCopaCorta(m){
 // =============================================
 // TEAM THEMES
 // =============================================
+// El fondo maestro y las superficies son los mismos para todos los clubes
+// (es lo que hace que el juego se vea como un solo producto); lo que cambia
+// por club es el ACENTO. Antes cada uno traía su propio negro —River bordó,
+// Independiente rojo oscuro— y la pantalla cambiaba de identidad entera.
 const THEMES = {
-  boca:  { dark:'#08090c', d2:'#0d0f14', d3:'#14171e', mid:'#1b1f28', card:'rgba(22,25,32,.75)',  gold:'#F6D318', goldD:'#e8c400', bdr:'rgba(246,211,24,.12)' },
-  river: { dark:'#160008', d2:'#210010', d3:'#2c0016', mid:'#3a021e', card:'rgba(26,0,10,.75)',  gold:'#e3051b', goldD:'#b00010', bdr:'rgba(227,5,27,.16)'   },
-  indep: { dark:'#160000', d2:'#200101', d3:'#2a0101', mid:'#390202', card:'rgba(25,0,0,.75)',   gold:'#e31e24', goldD:'#b01418', bdr:'rgba(227,30,36,.16)'   },
-  racing:{ dark:'#01061a', d2:'#020c24', d3:'#02122e', mid:'#031a3e', card:'rgba(2,6,26,.75)',   gold:'#4da6ff', goldD:'#2480d8', bdr:'rgba(77,166,255,.14)'  },
-  sanlo: { dark:'#010b18', d2:'#011220', d3:'#01182a', mid:'#022038', card:'rgba(1,11,24,.75)',  gold:'#e63946', goldD:'#c0222e', bdr:'rgba(230,57,70,.14)'   },
+  boca:  { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#f59e0b', goldD:'#d97706', bdr:'rgba(245,158,11,.14)' },
+  river: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#ef4444', goldD:'#dc2626', bdr:'rgba(239,68,68,.16)'   },
+  indep: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#e11d48', goldD:'#be123c', bdr:'rgba(225,29,72,.16)'   },
+  racing:{ dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#38bdf8', goldD:'#0ea5e9', bdr:'rgba(56,189,248,.16)'  },
+  sanlo: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#f43f5e', goldD:'#e11d48', bdr:'rgba(244,63,94,.16)'   },
 };
 
 // Los clubes generados no tenían entrada en THEMES y caían al azul de Boca.
@@ -2964,7 +2979,7 @@ function rOtrosTeams(){
   el.innerHTML=otros.map(([id,t])=>`
     <div onclick="selectTeam('${id}')" style="cursor:pointer;display:flex;align-items:center;gap:7px;
          background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 8px"
-         onmouseover="this.style.borderColor='rgba(246,211,24,.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,.09)'">
+         onmouseover="this.style.borderColor='rgba(var(--gold-rgb),.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,.09)'">
       ${typeof clubCrest==='function'?clubCrest(t.name,26):''}
       <div style="min-width:0;flex:1">
         <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</div>
@@ -3205,7 +3220,7 @@ function pressConf(){
       </div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Tu respuesta:</div>
       ${followUp.opts.map(o=>`
-        <div onclick="pressConfAnswer(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(246,211,24,.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
+        <div onclick="pressConfAnswer(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(var(--gold-rgb),.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
           ${o.txt}
           <div style="font-size:9px;color:var(--t3);margin-top:4px">${pcEffLabel(o)}</div>
         </div>
@@ -3226,7 +3241,7 @@ function pressConf(){
       </div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Elegí tu respuesta:</div>
       ${options.map((o,i)=>`
-        <div onclick="${followUp?`document.getElementById('pcMainQ').style.display='none';document.getElementById('pcFollowUp').style.display='block';pressConfPartial(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})`:`pressConfAnswer(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})`}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(246,211,24,.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
+        <div onclick="${followUp?`document.getElementById('pcMainQ').style.display='none';document.getElementById('pcFollowUp').style.display='block';pressConfPartial(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})`:`pressConfAnswer(${o.morale},${o.conf},${o.fans||0},${o.dtRel||0})`}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(var(--gold-rgb),.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
           ${o.txt}
           <div style="font-size:9px;color:var(--t3);margin-top:4px">${pcEffLabel(o)}</div>
         </div>
@@ -4274,7 +4289,7 @@ function _negStepBar(step){
   const steps=[{l:'1 CONTACTO',k:'contact'},{l:'2 OFERTA',k:'offer'},{l:'3 TÉRMINOS',k:'terms'},{l:'4 FIRMA',k:'sign'}];
   return `<div style="display:flex;justify-content:center;gap:0;margin-bottom:12px">${steps.map((s,i)=>{
     const active=i+1===step;const done=i+1<step;
-    const bg=active?'rgba(246,211,24,.15)':done?'rgba(15,184,102,.12)':'rgba(255,255,255,.05)';
+    const bg=active?'rgba(var(--gold-rgb),.15)':done?'rgba(15,184,102,.12)':'rgba(255,255,255,.05)';
     const bdr=active?'var(--gold)':done?'var(--green)':'rgba(255,255,255,.1)';
     const col=active?'var(--gold)':done?'var(--green)':'var(--t3)';
     const rad=i===0?'border-radius:6px 0 0 6px':i===3?'border-radius:0 6px 6px 0':'';
@@ -4414,7 +4429,7 @@ function updNegI(demand, budget){
   if(payNow>budget)    {txt='❌ Sin presupuesto para la 1ª cuota';col='var(--red)';  bg='rgba(232,69,69,.12)';}
   else if(ratio>=0.97)  {txt='✅ Prácticamente seguro';        col='var(--green)';bg='rgba(26,170,107,.12)';}
   else if(ratio>=0.88)  {txt='🟢 Buena oferta — probable acuerdo';col='var(--green)';bg='rgba(26,170,107,.08)';}
-  else if(ratio>=0.76)  {txt='🟡 Posible contraoferta del club';col='var(--gold)'; bg='rgba(246,211,24,.08)';}
+  else if(ratio>=0.76)  {txt='🟡 Posible contraoferta del club';col='var(--gold)'; bg='rgba(var(--gold-rgb),.08)';}
   else if(ratio>=0.60)  {txt='🟠 Probablemente rechacen';      col='var(--ora)';  bg='rgba(240,148,58,.1)';}
   else                  {txt='⚠️ Oferta insuficiente — rechazarán';col='var(--red)';  bg='rgba(232,69,69,.1)';}
   if(plan>1&&payNow<=budget)txt+=` · hoy pagás ${fv(payNow)}`;
@@ -4612,7 +4627,7 @@ function updNegTerms(){
   let txt,col,bg;
   if(score>=5){txt='✅ Aceptará encantado — oferta irresistible';col='var(--green)';bg='rgba(26,170,107,.12)';}
   else if(score>=3.5){txt='🟢 Muy probable que acepte';col='var(--green)';bg='rgba(26,170,107,.08)';}
-  else if(score>=2){txt='🟡 Lo pensará — puede pedir ajustes';col='var(--gold)';bg='rgba(246,211,24,.08)';}
+  else if(score>=2){txt='🟡 Lo pensará — puede pedir ajustes';col='var(--gold)';bg='rgba(var(--gold-rgb),.08)';}
   else if(score>=0.5){txt='🟠 Difícil — subí salario o mejorá rol';col='var(--ora)';bg='rgba(240,148,58,.1)';}
   else{txt='🔴 Rechazará — condiciones insuficientes';col='var(--red)';bg='rgba(232,69,69,.1)';}
   const plan=window._negPlan||1;
@@ -4714,7 +4729,7 @@ function negStep4(p,fee,wage,years,role){
       <div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin-bottom:4px">${p.name}</div>
       <div style="font-size:12px;color:var(--t2);margin-bottom:4px">${p.pos} · ${p.age} años · ${rb(p.rat)}</div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:12px">🎽 Camiseta #${shirtNum}</div>
-      <div style="background:linear-gradient(135deg,rgba(246,211,24,.08),rgba(15,184,102,.06));border:1px solid rgba(246,211,24,.2);border-radius:10px;padding:14px;margin:0 auto;max-width:320px;margin-bottom:12px">
+      <div style="background:linear-gradient(135deg,rgba(var(--gold-rgb),.08),rgba(15,184,102,.06));border:1px solid rgba(var(--gold-rgb),.2);border-radius:10px;padding:14px;margin:0 auto;max-width:320px;margin-bottom:12px">
         <div style="font-size:10px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Detalles del fichaje</div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Traspaso</span><span style="color:var(--gold);font-weight:700">${fv(fee)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Salario</span><span style="font-weight:600">${wage}k/sem</span></div>
@@ -5112,7 +5127,7 @@ function updNegSellI(base){
   let txt,col,bg;
   if(ratio<=1.03)      {txt='✅ Aceptarían fácilmente';    col='var(--green)';bg='rgba(26,170,107,.1)';}
   else if(ratio<=1.10) {txt='🟢 Probable acuerdo';          col='var(--green)';bg='rgba(26,170,107,.07)';}
-  else if(ratio<=1.18) {txt='🟡 Posible contraoferta';      col='var(--gold)'; bg='rgba(246,211,24,.08)';}
+  else if(ratio<=1.18) {txt='🟡 Posible contraoferta';      col='var(--gold)'; bg='rgba(var(--gold-rgb),.08)';}
   else if(ratio<=1.28) {txt='🟠 Pueden retirarse';          col='var(--ora)';  bg='rgba(240,148,58,.1)';}
   else                 {txt='⚠️ Se retirarán seguro';       col='var(--red)';  bg='rgba(232,69,69,.1)';}
   rx.textContent=txt; rx.style.color=col; rx.style.background=bg; rx.style.padding='7px'; rx.style.borderRadius='6px';
@@ -5288,7 +5303,7 @@ function openSubPicker(idx){
     const ratDiff = p.rat - cur.rat;
     const diffTxt = ratDiff>0?`<span style="color:var(--green);font-size:9px">+${ratDiff}</span>`:ratDiff<0?`<span style="color:var(--red);font-size:9px">${ratDiff}</span>`:'';
     return `
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;border:1px solid ${ideal?'rgba(246,211,24,.25)':'rgba(255,255,255,.05)'};margin-bottom:4px;background:${ideal?'rgba(246,211,24,.04)':'transparent'};cursor:pointer" onclick="doSub(${idx},'${p.id}')">
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;border:1px solid ${ideal?'rgba(var(--gold-rgb),.25)':'rgba(255,255,255,.05)'};margin-bottom:4px;background:${ideal?'rgba(var(--gold-rgb),.04)':'transparent'};cursor:pointer" onclick="doSub(${idx},'${p.id}')">
       ${rb(p.rat)}
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;font-family:'Rajdhani',sans-serif">${p.name} ${diffTxt}</div>
@@ -5302,7 +5317,7 @@ function openSubPicker(idx){
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">↔ Cambios — ${s.lbl}</div>
-    <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:rgba(246,211,24,.07);border-radius:7px;margin-bottom:12px;border:1px solid rgba(246,211,24,.15)">
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:rgba(var(--gold-rgb),.07);border-radius:7px;margin-bottom:12px;border:1px solid rgba(var(--gold-rgb),.15)">
       ${rb(cur.rat)}
       <div style="flex:1">
         <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:14px">${cur.name}</div>
@@ -5389,7 +5404,7 @@ function rXI(){
   const sl = getForm();
   // Quién decide el once: vos (DT personalizado) o el técnico del club
   const mine=(typeof dtIsMine==='function')&&dtIsMine();
-  const hdr=`<div style="font-size:9px;padding:3px 4px;margin-bottom:3px;border-radius:5px;background:${mine?'rgba(246,211,24,.10)':'rgba(255,255,255,.05)'};color:${mine?'var(--gold)':'var(--t3)'}">
+  const hdr=`<div style="font-size:9px;padding:3px 4px;margin-bottom:3px;border-radius:5px;background:${mine?'rgba(var(--gold-rgb),.10)':'rgba(255,255,255,.05)'};color:${mine?'var(--gold)':'var(--t3)'}">
     ${mine?'⭐ <b>Vos dirigís</b>: elegís el once, la táctica y los cambios.'
           :`👔 El once lo pone <b>${(G.dt&&G.dt.name)||'el DT'}</b> (${(G.dt&&G.dt.style)||'—'} · ${(G.dt&&G.dt.trait)||'—'}). Sos el presidente: si no te gusta, cambiá de técnico.`}
   </div>`;
@@ -5501,12 +5516,12 @@ function rStyle(){
   const desc = {'Posesión equilibrada':'Construcción + transiciones','Ataque directo':'Pelota larga','Contraataque':'Defensivo + salida rápida','Presión alta':'Pressing agresivo','Control':'Paciencia, toca y espera'};
   const isCustom = G.style === 'Personalizado';
   el.innerHTML = styles.map(s=>`
-    <div class="card" style="padding:7px;cursor:pointer;margin-bottom:5px;${G.style===s?'border-color:var(--gold);background:rgba(246,211,24,.06)':''}" onclick="setStyle('${s}')">
+    <div class="card" style="padding:7px;cursor:pointer;margin-bottom:5px;${G.style===s?'border-color:var(--gold);background:rgba(var(--gold-rgb),.06)':''}" onclick="setStyle('${s}')">
       <div style="font-size:12px;font-weight:600">${s}</div>
       <div style="font-size:10px;color:var(--t3)">${desc[s]}</div>
     </div>
   `).join('') + `
-    <div class="card" style="padding:7px;margin-bottom:5px;${isCustom?'border-color:var(--gold);background:rgba(246,211,24,.06)':'cursor:pointer'}" onclick="setStyle('Personalizado')">
+    <div class="card" style="padding:7px;margin-bottom:5px;${isCustom?'border-color:var(--gold);background:rgba(var(--gold-rgb),.06)':'cursor:pointer'}" onclick="setStyle('Personalizado')">
       <div style="font-size:12px;font-weight:600">✍️ Personalizado</div>
       <div style="font-size:10px;color:var(--t3)">Definí tu propio estilo de juego</div>
       ${isCustom ? `<textarea id="customStyleInput" class="sb" style="margin-top:6px;font-size:11px;height:52px;resize:none" placeholder="Ej: Presión alta con salida corta y extremos..." oninput="G.customStyleDesc=this.value">${G.customStyleDesc||''}</textarea>` : ''}
@@ -6433,7 +6448,7 @@ function rStad(){
     <ellipse cx="${mX}" cy="${mY}" rx="${rX+16}" ry="${rY+12}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"/>
     <!-- Stands (crowd) -->
     <ellipse cx="${mX}" cy="${mY}" rx="${rX+6}" ry="${rY+3}" fill="${hasVip?'#7a5c00':'#1a3a6e'}"/>
-    ${hasVip?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+6}" ry="${rY+3}" fill="none" stroke="#f6d318" stroke-width="2.5" opacity=".7"/>`:'' }
+    ${hasVip?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+6}" ry="${rY+3}" fill="none" stroke="var(--gold)" stroke-width="2.5" opacity=".7"/>`:'' }
     <!-- LED ring -->
     ${hasLed?`<ellipse cx="${mX}" cy="${mY}" rx="${rX+10}" ry="${rY+7}" fill="none" stroke="#ffffaa" stroke-width="1.5" opacity=".5" filter="url(#glow)"/>`:''}
     <!-- Crowd dots (simulate people in stands) -->
@@ -6451,10 +6466,10 @@ function rStad(){
     <rect x="${mX-Math.round(fX*.22)}" y="${mY-fY+1}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.28)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
     <rect x="${mX-Math.round(fX*.22)}" y="${mY+fY-Math.round(fY*.29)}" width="${Math.round(fX*.44)}" height="${Math.round(fY*.28)}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width=".8"/>
     <!-- Scoreboard -->
-    ${hasCt?`<rect x="${mX-22}" y="${mY-fY-14}" width="44" height="11" rx="3" fill="rgba(0,0,0,.8)" stroke="rgba(246,211,24,.4)" stroke-width=".8"/>
-    <text x="${mX}" y="${mY-fY-6}" text-anchor="middle" font-size="5.5" fill="#f6d318" font-family="Rajdhani">MARCADOR</text>`:'' }
+    ${hasCt?`<rect x="${mX-22}" y="${mY-fY-14}" width="44" height="11" rx="3" fill="rgba(0,0,0,.8)" stroke="rgba(var(--gold-rgb),.4)" stroke-width=".8"/>
+    <text x="${mX}" y="${mY-fY-6}" text-anchor="middle" font-size="5.5" fill="var(--gold)" font-family="Rajdhani">MARCADOR</text>`:'' }
     <!-- Level stars -->
-    ${Array.from({length:st.level},(_,i)=>`<text x="${mX-st.level*7+i*14}" y="${svgH-6}" text-anchor="middle" font-size="11" fill="#f6d318" style="text-shadow:0 0 4px #f6d31888">★</text>`).join('')}
+    ${Array.from({length:st.level},(_,i)=>`<text x="${mX-st.level*7+i*14}" y="${svgH-6}" text-anchor="middle" font-size="11" fill="var(--gold)" style="text-shadow:0 0 4px var(--gold)88">★</text>`).join('')}
     ${Array.from({length:5-st.level},(_,i)=>`<text x="${mX+(st.level-2)*7+i*14}" y="${svgH-6}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,.18)">☆</text>`).join('')}
     <!-- Capacity label -->
     <text x="${mX}" y="13" text-anchor="middle" font-size="8.5" fill="rgba(255,255,255,.7)" font-family="Rajdhani" font-weight="700">${st.name.toUpperCase()}</text>
@@ -6693,7 +6708,7 @@ function rStaff(){
     const st=G._dtF=G._dtF||{q:'',nat:'',lg:'',arq:'',form:'',libre:'',ord:'rat'};
     const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
     e3.innerHTML='<div class="ctitle">Contratar DT</div>'+
-    '<div class="card" style="margin-bottom:8px;background:rgba(246,211,24,.04);border-color:rgba(246,211,24,.2)">'+
+    '<div class="card" style="margin-bottom:8px;background:rgba(var(--gold-rgb),.04);border-color:rgba(var(--gold-rgb),.2)">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">'+
     '<div><div style="font-weight:700;font-family:\'Rajdhani\',sans-serif;font-size:13px">🛠️ DT Personalizado</div>'+
     '<div style="font-size:9px;color:var(--t3)">Creá tu propio perfil de DT con tus preferencias</div></div>'+
@@ -7034,7 +7049,7 @@ function rDtXI(){
       const p=G.slots[i]?G.squad.find(x=>x.id===G.slots[i]):null;
       const px=Math.round(s.x/100*svgW);
       const py=Math.round((100-s.y)/100*svgH);
-      const pCol=p?(p.rat>=85?'#b06bf5':p.rat>=80?'#0fb866':p.rat>=75?'#f6d318':p.rat>=70?'#f0943a':'#aaa'):'rgba(255,255,255,.3)';
+      const pCol=p?(p.rat>=85?'#b06bf5':p.rat>=80?'#0fb866':p.rat>=75?'var(--gold)':p.rat>=70?'#f0943a':'#aaa'):'rgba(255,255,255,.3)';
       return `<g>
         <circle cx="${px}" cy="${py}" r="9" fill="${pCol}" stroke="${clr}" stroke-width="1.5"/>
         <text x="${px}" y="${py+3}" text-anchor="middle" font-size="7" font-weight="700" fill="#fff" font-family="Rajdhani">${p?p.name.split(' ').pop().slice(0,5):s.lbl}</text>
@@ -7104,7 +7119,7 @@ function rDtReport(){
           <div style="font-size:10px;color:var(--t2);margin-top:2px">🎭 <em>${dt.trait||'Equilibrado'}</em> · ${dt.style||'4-3-3'}</div>
         </div>
       </div>
-      <div style="background:rgba(246,211,24,.06);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--gold)">
+      <div style="background:rgba(var(--gold-rgb),.06);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--gold)">
         <div style="font-size:9px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;font-family:'Rajdhani',sans-serif">Filosofía</div>
         <div style="font-size:11px;color:var(--tx);line-height:1.5">"${philoMsg}"</div>
       </div>
@@ -7175,7 +7190,7 @@ function rPressDemands(){
     ${active.length ? active.map(d=>{
       const left = d.deadline - G.week;
       const statusCol = left<=1?'var(--red)':left<=3?'var(--ora)':'var(--t2)';
-      return `<div class="card" style="padding:8px;margin-bottom:5px;border-color:rgba(246,211,24,.18)">
+      return `<div class="card" style="padding:8px;margin-bottom:5px;border-color:rgba(var(--gold-rgb),.18)">
         <div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;font-family:'Rajdhani',sans-serif">${d.type.replace('_',' ')}</div>
         <div style="font-size:11px;margin-bottom:4px">${d.desc}</div>
         <div style="font-size:9px;color:${statusCol}">Vence en ${Math.max(0,left)} semana${left===1?'':'s'}</div>
@@ -7523,7 +7538,7 @@ function renderDtReqs(reqs, ctx){
       body=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">${rb(r.player.rat)}<div style="flex:1"><div style="font-weight:700;font-size:12px">${r.player.name}</div><div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a</div></div></div>`;
       actions=`<button class="btn bR bs" onclick="approveDtFire('${r.id}')">🚪 Rescindir contrato</button><button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ Mantenerlo</button>`;
     } else if(type==='stad_upgrade'){
-      typeLabel='🏟️ ESTADIO'; borderColor='rgba(246,211,24,.2)';
+      typeLabel='🏟️ ESTADIO'; borderColor='rgba(var(--gold-rgb),.2)';
       body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
       actions=`<button class="btn bg bs" onclick="approveDtStad('${r.id}')">🏗️ Aprobar mejora</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
     } else if(type==='youth_invest'){
@@ -7531,7 +7546,7 @@ function renderDtReqs(reqs, ctx){
       body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
       actions=`<button class="btn bG bs" onclick="approveDtYouth('${r.id}')">✅ Aprobar</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
     } else {
-      typeLabel='🤝 COMPRAR'; borderColor='rgba(246,211,24,.2)';
+      typeLabel='🤝 COMPRAR'; borderColor='rgba(var(--gold-rgb),.2)';
       body=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">${rb(r.player.rat)}<div style="flex:1"><div style="font-weight:700;font-size:12px">${r.player.name}</div><div style="font-size:10px;color:var(--t2)">${r.player.pos} · ${r.player.age}a · ${r.player.club}</div><div style="font-size:10px;color:var(--gold)">${fv(r.player.val)}</div></div>${ageLabel(r.player.age)}</div>`;
       actions=`<button class="btn bg bs" onclick="approveDtReq('${r.id}')">✓ Aprobar — Negociar</button><button class="btn bo bs" onclick="openP('${r.player.id}',false)">👤 Ver ficha</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
     }
@@ -7824,7 +7839,7 @@ function rStand(){
   const zc=i=>i<4?'#0fb866':i<8?'#f0943a':'transparent';
   const sn=c=>c.replace('Boca Juniors','Boca').replace(' Sarsfield','').replace('Defensa y Justicia','Def.J').replace('Argentinos Jrs','Arg.Jrs').replace('Barracas Central','Barracas').replace('Gimnasia LP','Gimnasia');
   const rowHtml=(t,i,hi)=>`
-    <div style="display:grid;grid-template-columns:14px 18px 20px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;align-items:center;padding:3px 4px;border-radius:3px;${t.c===tn?'background:rgba(246,211,24,.08)':''}">
+    <div style="display:grid;grid-template-columns:14px 18px 20px 1fr 16px 14px 14px 14px 18px 22px;gap:1px;align-items:center;padding:3px 4px;border-radius:3px;${t.c===tn?'background:rgba(var(--gold-rgb),.08)':''}">
       <div style="width:3px;height:14px;border-radius:2px;background:${hi(i)};margin:auto"></div>
       <span style="text-align:center;font-size:9px;color:var(--t3)">${i+1}</span>
       <span style="display:flex;justify-content:center">${clubCrest(t.c,17)}</span>
@@ -8191,7 +8206,7 @@ function rCal(){
   const played=G.calendar.filter(m=>m.played).length;
   const total=G.calendar.length;
   const pts=G.wins*3+G.draws;
-  const banner=`<div style="background:rgba(22,25,32,.7);border:1px solid rgba(246,211,24,.18);border-radius:8px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+  const banner=`<div style="background:rgba(22,25,32,.7);border:1px solid rgba(var(--gold-rgb),.18);border-radius:8px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
     <div>
       <div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:var(--t3);text-transform:uppercase">Temporada ${G.season||1}</div>
       <div style="font-size:13px;font-weight:700;color:var(--gold)">${G.wins}V · ${G.draws}E · ${G.losses}P · <span style="color:#fff">${pts} pts</span></div>
@@ -8223,7 +8238,7 @@ function rCal(){
     return `<div style="font-size:9px;color:var(--t3);font-family:'Rajdhani';font-weight:700;letter-spacing:.06em;margin:5px 0 2px">${label}</div>`+
       fs.map(f=>{
         const mine=f.home===tn||f.away===tn;
-        return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(246,211,24,.10)':''}">
+        return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(var(--gold-rgb),.10)':''}">
           <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;${f.result==='H'?'color:#fff;font-weight:700':'color:var(--t2)'}">${sn2(f.home)}</span>
           <span style="color:var(--gold);font-weight:800;min-width:30px;text-align:center">${f.score||'-'}</span>
           <span style="flex:1;overflow:hidden;white-space:nowrap;${f.result==='A'?'color:#fff;font-weight:700':'color:var(--t2)'}">${sn2(f.away)}</span>
@@ -8248,7 +8263,7 @@ function rCal(){
     <div class="ctitle">📅 Próxima fecha (semana ${nextWk})</div>
     ${nextRound.map(f=>{
       const mine=f.home===tn||f.away===tn;
-      return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':'color:var(--t2)'}">
+      return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(var(--gold-rgb),.10);color:var(--gold);font-weight:700':'color:var(--t2)'}">
         <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${sn2(f.home)}</span>
         <span style="color:var(--t3);min-width:22px;text-align:center">vs</span>
         <span style="flex:1;overflow:hidden;white-space:nowrap">${sn2(f.away)}</span>
@@ -8263,7 +8278,7 @@ function rCal(){
     ${rows.map(r=>{
       const mine=r.club===tn;
       const zone=r.pos===1?'var(--gold)':r.pos<=8?'var(--green)':r.pos>rows.length-nDown?'var(--red)':'transparent';
-      return `<div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${zone};${mine?'background:rgba(246,211,24,.10);font-weight:700;color:var(--gold)':''}">
+      return `<div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${zone};${mine?'background:rgba(var(--gold-rgb),.10);font-weight:700;color:var(--gold)':''}">
         <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sn2(r.club)}</span>
         <span>${r.pj}</span><span style="color:var(--green)">${r.g}</span><span>${r.e}</span><span style="color:var(--red)">${r.p}</span>
         <span>${r.gf-r.gc>=0?'+':''}${r.gf-r.gc}</span><span style="font-weight:700">${r.pts}</span>
@@ -8309,7 +8324,7 @@ function rCal(){
         const rival=m.home===tn?m.away:m.home;
         const isHome=m.home===tn;
         const badgeCls=m.played?(m.result==='W'?'baG':m.result==='D'?'bau':'baR'):'';
-        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:4px;margin-bottom:2px;${isNext?'background:rgba(246,211,24,.12);border-left:3px solid var(--gold);padding-left:7px':m.played?'':'border-left:3px solid transparent;padding-left:7px'}">
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:4px;margin-bottom:2px;${isNext?'background:rgba(var(--gold-rgb),.12);border-left:3px solid var(--gold);padding-left:7px':m.played?'':'border-left:3px solid transparent;padding-left:7px'}">
           <span style="font-size:9px;color:var(--t3);min-width:18px">S${m.week}</span>
           <span style="font-size:8px;color:var(--t3);min-width:26px">${isHome?'🏠 LOC':'✈️ VIS'}</span>
           <span style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isMine&&m.home===tn?'color:var(--gold);font-weight:600':''}">${m.home}</span>
@@ -8842,7 +8857,7 @@ function showSeasonSummary(){
   }
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div style="text-align:center;margin-bottom:12px;padding:10px;background:linear-gradient(135deg,rgba(22,25,32,.8),rgba(246,211,24,.05));border-radius:8px">
+    <div style="text-align:center;margin-bottom:12px;padding:10px;background:linear-gradient(135deg,rgba(22,25,32,.8),rgba(var(--gold-rgb),.05));border-radius:8px">
       <div style="font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px">Fin de Temporada</div>
       <div style="font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:900;color:var(--gold);letter-spacing:.05em">${G.season}</div>
       <div style="font-size:11px;color:var(--t2);margin-top:4px">${resultLabel}</div>
@@ -11210,7 +11225,7 @@ function runContinuousSim(n){
     <div class="mtitle">⏩ ${rows.length} partido${rows.length>1?'s':''} simulado${rows.length>1?'s':''}</div>
     <div style="display:flex;gap:6px;text-align:center;margin-bottom:10px">
       <div style="flex:1;background:rgba(15,184,102,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--green)">${W}</div><div style="font-size:9px;color:var(--t3)">GANADOS</div></div>
-      <div style="flex:1;background:rgba(246,211,24,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--gold)">${D}</div><div style="font-size:9px;color:var(--t3)">EMPATES</div></div>
+      <div style="flex:1;background:rgba(var(--gold-rgb),.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--gold)">${D}</div><div style="font-size:9px;color:var(--t3)">EMPATES</div></div>
       <div style="flex:1;background:rgba(232,69,69,.10);border-radius:8px;padding:7px"><div style="font-family:'Rajdhani';font-size:22px;font-weight:900;color:var(--red)">${L}</div><div style="font-size:9px;color:var(--t3)">PERDIDOS</div></div>
     </div>
     <div class="sr"><span class="sl">Goles</span><span class="sv">${dGf} a favor · ${dGa} en contra</span></div>
@@ -11420,7 +11435,7 @@ function showPreMatch(m){
       <div class="ctitle" style="margin-bottom:6px">📋 Tu XI (${G.formation||'4-3-3'})</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${Object.values(G.slots).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean).map(p=>`
-          <span style="font-size:9px;background:rgba(246,211,24,.08);border:1px solid rgba(246,211,24,.2);padding:2px 5px;border-radius:3px;white-space:nowrap">${p.name.split(' ').pop()} <span style="color:${p.rat>=80?'var(--green)':'var(--gold)'}">${p.rat}</span></span>
+          <span style="font-size:9px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.2);padding:2px 5px;border-radius:3px;white-space:nowrap">${p.name.split(' ').pop()} <span style="color:${p.rat>=80?'var(--green)':'var(--gold)'}">${p.rat}</span></span>
         `).join('')}
       </div>
     </div>
@@ -11540,7 +11555,7 @@ function showMatchLive(m, res, gf, ga, scorersList, stats, isLastMatch){
           <span style="font-size:10px;color:var(--t3);min-width:32px">${pct}%</span>
         </div>
       </div>
-      <div style="background:${ev.isGoal?'rgba(246,211,24,.08)':'var(--d3)'};border:1px solid ${ev.isGoal?'var(--gold)':'var(--bdr)'};border-radius:9px;padding:16px 12px;margin:8px 0;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center">
+      <div style="background:${ev.isGoal?'rgba(var(--gold-rgb),.08)':'var(--d3)'};border:1px solid ${ev.isGoal?'var(--gold)':'var(--bdr)'};border-radius:9px;padding:16px 12px;margin:8px 0;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center">
         <div>
           <div style="font-size:30px;margin-bottom:6px">${ev.icon}</div>
           <div style="font-size:12px;color:var(--tx);line-height:1.4">${ev.txt}</div>
@@ -11598,7 +11613,7 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       ${[
         ['Posesión', stats.poss+'%', (100-stats.poss)+'%', stats.poss, 100-stats.poss, '#0fb866'],
         ['Tiros', stats.shots, stats.shotsCpu||Math.round(stats.shots*0.7), stats.shots, stats.shotsCpu||Math.round(stats.shots*0.7), '#f0943a'],
-        ['Al arco', stats.onTarget, stats.onTargetCpu||ga+1, stats.onTarget, stats.onTargetCpu||ga+1, '#f6d318'],
+        ['Al arco', stats.onTarget, stats.onTargetCpu||ga+1, stats.onTarget, stats.onTargetCpu||ga+1, 'var(--gold)'],
         ['Pases', stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), stats.passes, stats.passesCpu||Math.round(stats.passes*0.8), '#3b8beb'],
         ['Córners', stats.corners||0, stats.cornersCpu||0, (stats.corners||0)+1, (stats.cornersCpu||0)+1, '#9b6bff'],
         ['Faltas', stats.fouls||10, stats.foulsCpu||10, 20, 20, '#e84545'],
@@ -11606,7 +11621,7 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
         // son las que de verdad acumulan tus jugadores para la quinta: verlas
         // acá es lo que hace que la suspensión no llegue de sorpresa.
         ['🟨 Amarillas', (stats.yellows||0)+(stats.reds?' 🟥'+stats.reds:''), stats.yellowsCpu||0,
-         (stats.yellows||0)+1, (stats.yellowsCpu||0)+1, '#f6d318'],
+         (stats.yellows||0)+1, (stats.yellowsCpu||0)+1, 'var(--gold)'],
       ].map(([label,vL,vR,bL,bR,col])=>{
         const tot=bL+bR||1;
         const pL=Math.round(bL/tot*100);
@@ -11682,11 +11697,11 @@ function initJoystick(){
     ctx.beginPath();ctx.moveTo(cx-R+18,cy);ctx.lineTo(cx+R-18,cy);ctx.stroke();
     // Knob
     const g=ctx.createRadialGradient(kx-5,ky-5,2,kx,ky,r);
-    g.addColorStop(0,active?'rgba(246,211,24,.95)':'rgba(220,235,255,.65)');
+    g.addColorStop(0,active?''+GOLDA(.95)+'':'rgba(220,235,255,.65)');
     g.addColorStop(1,active?'rgba(200,160,0,.4)':'rgba(120,160,220,.2)');
     ctx.beginPath();ctx.arc(kx,ky,r,0,Math.PI*2);
     ctx.fillStyle=g;ctx.fill();
-    ctx.strokeStyle=active?'rgba(246,211,24,.8)':'rgba(200,220,255,.4)';
+    ctx.strokeStyle=active?''+GOLDA(.8)+'':'rgba(200,220,255,.4)';
     ctx.lineWidth=2;ctx.stroke();
   }
   function applyKeys(nx,ny){
@@ -12595,11 +12610,11 @@ function sitDrawPlayer(ctx,x,y,r,col,label,isCtrl){
   ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x-r,y-r,r*2,r*.8);
   ctx.restore();
   ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);
-  ctx.strokeStyle=isCtrl?'rgba(246,211,24,.9)':'rgba(255,255,255,.5)';ctx.lineWidth=isCtrl?2.5:1.5;ctx.stroke();
+  ctx.strokeStyle=isCtrl?''+GOLDA(.9)+'':'rgba(255,255,255,.5)';ctx.lineWidth=isCtrl?2.5:1.5;ctx.stroke();
   // Head
   ctx.beginPath();ctx.arc(x,y-r*.72,r*.44,0,Math.PI*2);
   ctx.fillStyle='#e8c49a';ctx.fill();ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=.7;ctx.stroke();
-  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=2.2;ctx.stroke();}
+  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle=''+GOLDA(.45)+'';ctx.lineWidth=2.2;ctx.stroke();}
   if(label){ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+5);}
 }
 
@@ -12643,19 +12658,19 @@ function sitDrawFigure(ctx,x,y,h,shirt,shorts,opt){
   ctx.beginPath();ctx.arc(x,head+hr,hr,0,Math.PI*2);ctx.fillStyle='#e8c49a';ctx.fill();
   ctx.beginPath();ctx.arc(x,head+hr*0.85,hr*0.98,Math.PI*1.05,Math.PI*1.95);ctx.fillStyle=opt.hair||'#3a2415';ctx.fill();
   if(dive)ctx.restore();
-  if(isCtrl){ctx.beginPath();ctx.arc(x,foot+3,w*1.3,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.7)';ctx.lineWidth=2.2;ctx.stroke();}
+  if(isCtrl){ctx.beginPath();ctx.arc(x,foot+3,w*1.3,0,Math.PI*2);ctx.strokeStyle=''+GOLDA(.7)+'';ctx.lineWidth=2.2;ctx.stroke();}
   if(opt.label){ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 8px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(opt.label,x,foot+5);}
 }
 
 // ——— Camisetas de los equipos ———
 const KITS={
-  'Boca Juniors':{c1:'#10316b',c2:'#f6d318'},'River Plate':{c1:'#f2f2f2',c2:'#e3051b'},
+  'Boca Juniors':{c1:'#10316b',c2:'var(--gold)'},'River Plate':{c1:'#f2f2f2',c2:'#e3051b'},
   'Racing Club':{c1:'#75aadb',c2:'#fff'},'Independiente':{c1:'#e31e24',c2:'#fff'},
   'San Lorenzo':{c1:'#1d2f6b',c2:'#e63946'},'Estudiantes LP':{c1:'#f2f2f2',c2:'#e31e24'},
-  'Rosario Central':{c1:'#10316b',c2:'#f6d318'},'Talleres':{c1:'#1d4f91',c2:'#fff'},
+  'Rosario Central':{c1:'#10316b',c2:'var(--gold)'},'Talleres':{c1:'#1d4f91',c2:'#fff'},
   'Vélez Sarsfield':{c1:'#f2f2f2',c2:'#10316b'},'Huracán':{c1:'#f2f2f2',c2:'#e31e24'},
   'Belgrano':{c1:'#6cb2e3',c2:'#0a0a2a'},'Lanús':{c1:'#800f1f',c2:'#fff'},
-  "Newell's":{c1:'#c8102e',c2:'#111'},'Defensa y Justicia':{c1:'#0a7a3c',c2:'#f6d318'},
+  "Newell's":{c1:'#c8102e',c2:'#111'},'Defensa y Justicia':{c1:'#0a7a3c',c2:'var(--gold)'},
   'Godoy Cruz':{c1:'#1d4f91',c2:'#fff'},'Platense':{c1:'#f2f2f2',c2:'#6b3f1d'},
   'Argentinos Jrs':{c1:'#c8102e',c2:'#fff'},'Barracas Central':{c1:'#c8102e',c2:'#fff'},
   'Gimnasia LP':{c1:'#f2f2f2',c2:'#10316b'},'Almagro':{c1:'#10316b',c2:'#fff'},
@@ -12677,12 +12692,12 @@ function sitDrawPlayerK(ctx,x,y,r,kit,label,isCtrl){
   ctx.restore();
   // Jersey outline
   ctx.beginPath();ctx.ellipse(x,y+1,r*.82,r,0,0,Math.PI*2);
-  ctx.strokeStyle=isCtrl?'rgba(246,211,24,.92)':'rgba(255,255,255,.52)';ctx.lineWidth=isCtrl?2.8:1.5;ctx.stroke();
+  ctx.strokeStyle=isCtrl?''+GOLDA(.92)+'':'rgba(255,255,255,.52)';ctx.lineWidth=isCtrl?2.8:1.5;ctx.stroke();
   // Head
   ctx.beginPath();ctx.arc(x,y-r*.72,r*.44,0,Math.PI*2);
   ctx.fillStyle='#e8c49a';ctx.fill();ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=.7;ctx.stroke();
   // Control ring
-  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle='rgba(246,211,24,.42)';ctx.lineWidth=2.2;ctx.stroke();}
+  if(isCtrl){ctx.beginPath();ctx.arc(x,y,r+7,0,Math.PI*2);ctx.strokeStyle=''+GOLDA(.42)+'';ctx.lineWidth=2.2;ctx.stroke();}
   if(label){ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(label,x,y+r+5);}
 }
 
@@ -12766,13 +12781,13 @@ function sitDrawGoalView(ctx,W,H,g){
 }
 
 function sitDrawAim(ctx,x,y){
-  ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2;
+  ctx.strokeStyle=''+GOLDA(.95)+'';ctx.lineWidth=2;
   ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(x-18,y);ctx.lineTo(x-6,y);ctx.moveTo(x+6,y);ctx.lineTo(x+18,y);
   ctx.moveTo(x,y-18);ctx.lineTo(x,y-6);ctx.moveTo(x,y+6);ctx.lineTo(x,y+18);
   ctx.stroke();
-  ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fillStyle='rgba(246,211,24,.95)';ctx.fill();
+  ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fillStyle=''+GOLDA(.95)+'';ctx.fill();
 }
 
 function sitDrawHint(ctx,W,H,hint){
@@ -12990,12 +13005,12 @@ function sitSetupAttack(W,H,oR,mainP,pool){
       if(aim===0)aim=sC((p.x-W/2)/gh*0.5,-0.4,0.4);
       const tx=sC(W/2+aim*(gh-8),W/2-gh+5,W/2+gh-5),ty=glY;
       ctx.save();
-      ctx.strokeStyle=aim!==0?'rgba(246,211,24,.85)':'rgba(246,211,24,.4)';
+      ctx.strokeStyle=aim!==0?''+GOLDA(.85)+'':''+GOLDA(.4)+'';
       ctx.lineWidth=aim!==0?2.6:1.6;ctx.setLineDash([6,5]);
       ctx.beginPath();ctx.moveTo(s.ball.x,s.ball.y);ctx.lineTo(tx,ty);ctx.stroke();
       ctx.setLineDash([]);
       // marcador del palo apuntado
-      ctx.fillStyle=aim!==0?'rgba(246,211,24,.9)':'rgba(246,211,24,.45)';
+      ctx.fillStyle=aim!==0?''+GOLDA(.9)+'':''+GOLDA(.45)+'';
       ctx.beginPath();ctx.arc(tx,ty+3,aim!==0?6:4,0,7);ctx.fill();
       ctx.restore();
     }
@@ -13053,7 +13068,7 @@ function sitDrawContact(ctx,W,H,s){
   // Flecha de dirección resultante (opuesta al punto de contacto)
   const dx=-(s.contact.nx||0),dy=-(s.contact.ny||0);
   if(Math.hypot(dx,dy)>0.08){
-    ctx.strokeStyle='rgba(246,211,24,.85)';ctx.lineWidth=2.5;ctx.lineCap='round';
+    ctx.strokeStyle=''+GOLDA(.85)+'';ctx.lineWidth=2.5;ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+dx*R*1.5,by+dy*R*1.5);ctx.stroke();
     const ang=Math.atan2(dy,dx);
     ctx.beginPath();
@@ -13225,16 +13240,16 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     // mira + potencia (sólo pateando)
     if(!s.kicked&&!isOpp){
       const tgt=proj(s.aimAx*GOAL_HW,1,s.aimAy*BAR);
-      ctx.strokeStyle='rgba(246,211,24,.55)';ctx.lineWidth=3;ctx.setLineDash([7,6]);
+      ctx.strokeStyle=''+GOLDA(.55)+'';ctx.lineWidth=3;ctx.setLineDash([7,6]);
       ctx.beginPath();
       for(let i=0;i<=20;i++){const u=i/20;const pp=proj(s.aimAx*GOAL_HW*u,0.10+0.90*u,(s.aimAy*BAR)*u+0.16*Math.sin(u*Math.PI));
         if(i===0)ctx.moveTo(pp.x,pp.y);else ctx.lineTo(pp.x,pp.y);}
       ctx.stroke();ctx.setLineDash([]);
-      ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2.4;
+      ctx.strokeStyle=''+GOLDA(.95)+'';ctx.lineWidth=2.4;
       ctx.beginPath();ctx.arc(tgt.x,tgt.y,9,0,7);ctx.stroke();
       ctx.beginPath();ctx.moveTo(tgt.x-13,tgt.y);ctx.lineTo(tgt.x+13,tgt.y);ctx.moveTo(tgt.x,tgt.y-13);ctx.lineTo(tgt.x,tgt.y+13);ctx.stroke();
       const pct=Math.min(100,Math.round((s.power-0.6)/(1.3-0.6)*100));
-      ctx.fillStyle='#F6D318';ctx.font='900 22px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillStyle=GOLD();ctx.font='900 22px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText(pct+'%',bp.x,bp.y-26);
     }
     // cuenta regresiva del rival (atajando)
@@ -13444,13 +13459,13 @@ function sitSetupCorner(W,H,oR,mainP,pool){
     if(s.phase==='aim'){
       const a=proj(s.aimWx,s.aimWz,0);
       ctx.save();
-      ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2.5;
+      ctx.strokeStyle=''+GOLDA(.95)+'';ctx.lineWidth=2.5;
       ctx.beginPath();ctx.ellipse(a.x,a.y,22*a.sc+8,9*a.sc+4,0,0,7);ctx.stroke();
       ctx.beginPath();ctx.moveTo(a.x-13,a.y);ctx.lineTo(a.x+13,a.y);
       ctx.moveTo(a.x,a.y-7);ctx.lineTo(a.x,a.y+7);ctx.stroke();
       // línea punteada desde el banderín hasta donde apuntás
       const o0=proj(s.cross.x0,s.cross.z0,0.05);
-      ctx.setLineDash([5,5]);ctx.strokeStyle='rgba(246,211,24,.45)';ctx.lineWidth=1.6;
+      ctx.setLineDash([5,5]);ctx.strokeStyle=''+GOLDA(.45)+'';ctx.lineWidth=1.6;
       ctx.beginPath();ctx.moveTo(o0.x,o0.y);ctx.lineTo(a.x,a.y);ctx.stroke();
       ctx.setLineDash([]);
       // barra de fuerza
@@ -13458,7 +13473,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(bx,by,bw,9);
       const pw=bw*Math.max(0,Math.min(1,s.crossPow));
       const pg2=ctx.createLinearGradient(bx,0,bx+bw,0);
-      pg2.addColorStop(0,'#1aaa6b');pg2.addColorStop(0.6,'#f6d318');pg2.addColorStop(1,'#e84545');
+      pg2.addColorStop(0,'#1aaa6b');pg2.addColorStop(0.6,GOLD());pg2.addColorStop(1,'#e84545');
       ctx.fillStyle=pg2;ctx.fillRect(bx,by,pw,9);
       ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,9);
       ctx.fillStyle='#fff';ctx.font='bold 10px Rajdhani,sans-serif';ctx.textAlign='center';
@@ -13493,7 +13508,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       // reloj del centro
       const f=Math.min(1,s.crossT/s.crossDur);
       ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(W/2-72,H-20,144,8);
-      ctx.fillStyle='#F6D318';ctx.fillRect(W/2-72,H-20,144*(1-f),8);
+      ctx.fillStyle=GOLD();ctx.fillRect(W/2-72,H-20,144*(1-f),8);
       ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 11px Rajdhani,sans-serif';
       ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText('TIME: '+(Math.max(0,(s.crossDur-s.crossT))/60).toFixed(1),W/2,H-24);
@@ -13622,17 +13637,17 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     const tgt=proj(s.aimAx*GOAL_HW,1,s.aimAy*BAR);
     // trayectoria previsualizada (con la comba que vas a pegarle)
     const bowP=(s.aimAx*GOAL_HW-s.wx0)*0.55;
-    ctx.strokeStyle='rgba(246,211,24,.55)';ctx.lineWidth=3.5;ctx.setLineDash([7,6]);ctx.beginPath();
+    ctx.strokeStyle=''+GOLDA(.55)+'';ctx.lineWidth=3.5;ctx.setLineDash([7,6]);ctx.beginPath();
     for(let i=0;i<=24;i++){const u=i/24;const wx=s.wx0+(s.aimAx*GOAL_HW-s.wx0)*u+bowP*Math.sin(u*Math.PI);const wy=(s.aimAy*BAR)*u+0.4*Math.sin(u*Math.PI);const pp=proj(wx,0.06+0.94*u,wy);if(i===0)ctx.moveTo(pp.x,pp.y);else ctx.lineTo(pp.x,pp.y);}
     ctx.stroke();ctx.setLineDash([]);
     // retícula en el arco
-    ctx.strokeStyle='rgba(246,211,24,.95)';ctx.lineWidth=2.4;
+    ctx.strokeStyle=''+GOLDA(.95)+'';ctx.lineWidth=2.4;
     ctx.beginPath();ctx.arc(tgt.x,tgt.y,9,0,7);ctx.stroke();
     ctx.beginPath();ctx.moveTo(tgt.x-13,tgt.y);ctx.lineTo(tgt.x+13,tgt.y);ctx.moveTo(tgt.x,tgt.y-13);ctx.lineTo(tgt.x,tgt.y+13);ctx.stroke();
     // % de potencia junto a la pelota
     const bp=proj(s.wx0,0.06,0);
     const pct=Math.min(100,Math.round((s.power-0.55)/(1.3-0.55)*100));
-    ctx.fillStyle='#F6D318';ctx.font='900 22px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillStyle=GOLD();ctx.font='900 22px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
     ctx.fillText(pct+'%',bp.x,bp.y-24);
   };
 
@@ -13854,8 +13869,8 @@ function careerCard(){
   const cont={}; trs.forEach(t=>cont[t.name]=(cont[t.name]||0)+1);
   h.filter(x=>x.champion).forEach(()=>cont[LIGA_NOMBRE&&LIGA_NOMBRE[ligaMia()]||'Liga']=(cont[LIGA_NOMBRE&&LIGA_NOMBRE[ligaMia()]||'Liga']||0)+1);
   const tile=(n,l)=>`<div class="stat-tile"><div class="sv-n">${n}</div><div class="sv-l">${l}</div></div>`;
-  return `<div class="card" style="margin-bottom:10px;border-color:rgba(246,211,24,.28);
-       background:linear-gradient(150deg,rgba(246,211,24,.09),rgba(255,255,255,.02))">
+  return `<div class="card" style="margin-bottom:10px;border-color:rgba(var(--gold-rgb),.28);
+       background:linear-gradient(150deg,rgba(var(--gold-rgb),.09),rgba(255,255,255,.02))">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       ${typeof clubCrest==='function'?clubCrest(G.teamName,44):''}
       <div style="flex:1;min-width:0">
@@ -13920,7 +13935,7 @@ function rStats(){
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">🏛️ Palmarés y récords de tu gestión</div>
     ${trs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
-      ${Object.entries(trCount).map(([n,c])=>`<span style="background:rgba(246,211,24,.12);border:1px solid var(--gold);border-radius:20px;padding:3px 9px;font-size:10px;color:var(--gold);font-weight:700">🏆 ${n}${c>1?' ×'+c:''}</span>`).join('')}
+      ${Object.entries(trCount).map(([n,c])=>`<span style="background:rgba(var(--gold-rgb),.12);border:1px solid var(--gold);border-radius:20px;padding:3px 9px;font-size:10px;color:var(--gold);font-weight:700">🏆 ${n}${c>1?' ×'+c:''}</span>`).join('')}
     </div>`:'<div class="note" style="margin-bottom:8px">Todavía sin títulos. La primera vez siempre se recuerda.</div>'}
     <div style="display:flex;gap:6px;text-align:center;margin-bottom:6px">
       <div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:6px"><div style="font-family:'Rajdhani';font-size:20px;font-weight:900;color:var(--gold)">${seasons}</div><div style="font-size:8px;color:var(--t3)">TEMPORADAS</div></div>
@@ -13939,7 +13954,7 @@ function rStats(){
       <span>Temp.</span><span>Pos</span><span>Récord</span><span>Goleador</span><span>Figura</span>
     </div>
     ${hist.slice().reverse().map(h=>`
-      <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:10px;padding:3px 4px;${(h.champion||h.anual1)?'background:rgba(246,211,24,.10);color:var(--gold);font-weight:700':''}">
+      <div style="display:grid;grid-template-columns:40px 30px 1fr 70px 70px;gap:2px;font-size:10px;padding:3px 4px;${(h.champion||h.anual1)?'background:rgba(var(--gold-rgb),.10);color:var(--gold);font-weight:700':''}">
         <span>${h.season}</span><span>${h.champion?'🏆':h.pos+'º'}</span>
         <span>${h.w}V ${h.d}E ${h.l}P · ${h.pts}pts</span>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.myTopScorer}</span>
@@ -14174,7 +14189,7 @@ function ptUpd(){
   const sc=ptScore(s.p,ptTerms());
   let t,c,b;
   if(sc>=3.5)      {t='🟢 Le encanta — firma seguro';        c='var(--green)';b='rgba(26,170,107,.12)';}
-  else if(sc>=2)   {t='🟡 Le sirve — probablemente acepte';   c='var(--gold)'; b='rgba(246,211,24,.10)';}
+  else if(sc>=2)   {t='🟡 Le sirve — probablemente acepte';   c='var(--gold)'; b='rgba(var(--gold-rgb),.10)';}
   else if(sc>=0.5) {t='🟠 Lo va a pensar — puede rechazarte';  c='var(--ora)';  b='rgba(240,148,58,.12)';}
   else             {t='🔴 Así no firma';                       c='var(--red)';  b='rgba(232,69,69,.12)';}
   rx.textContent=t;rx.style.color=c;rx.style.background=b;rx.style.padding='8px';rx.style.borderRadius='6px';
@@ -14485,7 +14500,7 @@ function updAsk(val){
   const ask=parseFloat(inp.value)||0, ratio=ask/val;
   let t,c,b;
   if(ratio<=0.85){t='🟢 Venta rápida — varios clubes interesados';c='var(--green)';b='rgba(26,170,107,.1)';}
-  else if(ratio<=1.1){t='🟡 Precio justo — llegarán ofertas pronto';c='var(--gold)';b='rgba(246,211,24,.08)';}
+  else if(ratio<=1.1){t='🟡 Precio justo — llegarán ofertas pronto';c='var(--gold)';b='rgba(var(--gold-rgb),.08)';}
   else if(ratio<=1.5){t='🟠 Caro — pocas ofertas, tardarán';c='var(--ora)';b='rgba(240,148,58,.1)';}
   else {t='🔴 Sobrevalorado — difícil que oferten';c='var(--red)';b='rgba(232,69,69,.1)';}
   rx.textContent=t;rx.style.color=c;rx.style.background=b;rx.style.padding='7px';rx.style.borderRadius='6px';
@@ -14681,7 +14696,7 @@ function updContract(expected){
   let t,c,b;
   if(ratio>=1.0){t='✅ Aceptará con gusto';c='var(--green)';b='rgba(26,170,107,.1)';}
   else if(ratio>=0.85){t='🟢 Probablemente acepte';c='var(--green)';b='rgba(26,170,107,.07)';}
-  else if(ratio>=0.7){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(246,211,24,.08)';}
+  else if(ratio>=0.7){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(var(--gold-rgb),.08)';}
   else {t='🔴 Rechazará — salario muy bajo';c='var(--red)';b='rgba(232,69,69,.1)';}
   const cost=Math.round(wage*years*4/1000*10)/10;
   rx.innerHTML=t+`<div style="font-size:10px;color:var(--t3);margin-top:3px">Costo de firma: ${fv(cost)} · ${years} año(s) · hasta ${G.season+years}</div>`;
@@ -15022,13 +15037,13 @@ function rSocial(){
   ];
   const shuffled=[...templates].sort(()=>Math.random()-.5).slice(0,9);
   const shuffledFans=[...fans].sort(()=>Math.random()-.5);
-  const trendHtml=`<div style="background:rgba(22,25,32,.85);border:1px solid rgba(246,211,24,.22);border-radius:10px;padding:11px 13px;margin-bottom:12px">
+  const trendHtml=`<div style="background:rgba(22,25,32,.85);border:1px solid rgba(var(--gold-rgb),.22);border-radius:10px;padding:11px 13px;margin-bottom:12px">
     <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.06em">🔥 TENDENCIAS EN ARGENTINA</div>
     ${trending.map((t,i)=>`<div style="margin-bottom:5px;display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--gold);font-weight:700">${t}</span><span style="font-size:9px;color:var(--t3)">${['En tendencia','Fútbol ARG','Deportes','Viral','Nacional','Pases','Actualidad','Trending'][i%8]}</span></div>`).join('')}
   </div>`;
   // Los posteos que citan hechos reales van arriba de todo
   const realHtml=(G._socialReal||[]).map(r=>`
-    <div style="background:rgba(255,255,255,.035);border:1px solid rgba(246,211,24,.20);border-radius:11px;padding:11px 13px;margin-bottom:9px">
+    <div style="background:rgba(255,255,255,.035);border:1px solid rgba(var(--gold-rgb),.20);border-radius:11px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
         <span style="font-size:16px">${r.av}</span>
         <b style="font-size:12px">${r.name}</b>${r.v?'<span style="color:#1d9bf0;font-size:11px">✔</span>':''}
@@ -15383,7 +15398,7 @@ function startFullMatch(watch){
   ov.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.9);flex-shrink:0;gap:6px">
       <div style="font-family:'Rajdhani',sans-serif;line-height:1.3;min-width:0">
-        <div style="font-size:12px;font-weight:700;color:#F6D318;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${G.teamName}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${G.teamName}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${myRat} · ${myTac}</div>
       </div>
       <div style="text-align:center;flex-shrink:0">
@@ -15398,8 +15413,8 @@ function startFullMatch(watch){
         <button onclick="fmToggleMute(this)" id="fm-mutebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔊</button>
         <button onclick="fmShowHelp()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">?</button>
         <button onclick="fmPause()" id="fm-pausebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">⏸</button>
-        <button onclick="fmOpenSubs()" id="fm-subsbtn" title="Cambios" style="background:rgba(246,211,24,.15);border:1px solid rgba(246,211,24,.55);color:#F6D318;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔄</button>
-        <button onclick="fmEnd()" style="background:rgba(246,211,24,.15);border:1px solid #F6D318;color:#F6D318;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
+        <button onclick="fmOpenSubs()" id="fm-subsbtn" title="Cambios" style="background:rgba(var(--gold-rgb),.15);border:1px solid rgba(var(--gold-rgb),.55);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔄</button>
+        <button onclick="fmEnd()" style="background:rgba(var(--gold-rgb),.15);border:1px solid var(--gold);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
         <button onclick="fmQuit()" style="background:rgba(228,60,60,.12);border:1px solid #e43c3c;color:#e43c3c;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">✕</button>
       </div>
     </div>
@@ -15428,7 +15443,7 @@ function startFullMatch(watch){
       <!-- PANTALLA DE CONTROLES (se muestra al arrancar) -->
       <div id="fm-help" style="position:absolute;inset:0;background:rgba(2,8,18,.92);z-index:30;display:flex;align-items:center;justify-content:center;overflow-y:auto">
         <div style="max-width:680px;width:92%;padding:18px">
-          <div style="font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:900;color:#F6D318;letter-spacing:.1em;text-align:center;margin-bottom:14px">🎮 CONTROLES</div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:900;color:var(--gold);letter-spacing:.1em;text-align:center;margin-bottom:14px">🎮 CONTROLES</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:12px">
               <div style="font-family:'Rajdhani';font-size:15px;font-weight:800;color:#fff;margin-bottom:8px">⌨️ PC (TECLADO)</div>
@@ -15452,7 +15467,7 @@ function startFullMatch(watch){
           </div>
           <div id="fm-keycfg" style="margin-top:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"></div>
           <div style="text-align:center;margin-top:14px">
-            <button onclick="fmCloseHelp()" style="background:linear-gradient(135deg,#F6D318,#e8b800);color:#08090c;border:none;border-radius:10px;padding:12px 44px;font-family:'Rajdhani';font-size:18px;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 4px 18px rgba(246,211,24,.4)">▶ JUGAR</button>
+            <button onclick="fmCloseHelp()" style="background:linear-gradient(135deg,var(--gold),#e8b800);color:#08090c;border:none;border-radius:10px;padding:12px 44px;font-family:'Rajdhani';font-size:18px;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 4px 18px rgba(var(--gold-rgb),.4)">▶ JUGAR</button>
           </div>
         </div>
       </div>
@@ -15703,7 +15718,7 @@ function fmSetupWatch(){
     const chip=(dt,al,modeId)=>`<div style="background:rgba(6,10,18,.85);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:4px 10px;text-align:${al};max-width:210px">
       <div style="font-family:'Rajdhani';font-size:11px;font-weight:800;color:#fff">${dt.name}</div>
       <div style="font-size:8.5px;color:rgba(255,255,255,.55)">${(DT_TRAIT_FX[dt.trait]||{icon:''}).icon} ${dt.trait} · ${dt.style} · ${dt.str||''}</div>
-      <div id="${modeId}" style="font-size:8.5px;color:#F6D318;font-weight:700"></div>
+      <div id="${modeId}" style="font-size:8.5px;color:var(--gold);font-weight:700"></div>
     </div>`;
     bar.innerHTML=chip(G.dt,'left','fm-mode-my')+
       `<div style="display:flex;gap:3px;align-items:center">
@@ -16124,7 +16139,7 @@ function fmRenderKeyCfg(){
     '<button class="fm-keybtn" style="margin-top:5px;border-color:rgba(232,69,69,.4);color:#f77a7a" onclick="localStorage.removeItem(\'dt_keys\');fmRenderKeyCfg();if(FM)fmBind();">↩ Restaurar teclas por defecto</button>';
 }
 function fmCaptureKey(id,btn){
-  btn.innerHTML='<b style="color:#F6D318">PRESIONÁ UNA TECLA…</b>';
+  btn.innerHTML='<b style="color:var(--gold)">PRESIONÁ UNA TECLA…</b>';
   const h=e=>{
     e.preventDefault();e.stopPropagation();
     document.removeEventListener('keydown',h,true);
@@ -17150,7 +17165,7 @@ function dtProfile(dt){
 function dtArqBadge(dt){
   const a=(typeof dtArq==='function')?dtArq(dt):null;
   if(!a)return '<div style="font-size:9px;color:var(--gold);margin-top:4px">🛠️ Idea propia (DT personalizado)</div>';
-  return `<div style="margin-top:5px;padding:5px 7px;background:rgba(246,211,24,.07);border:1px solid var(--bdr);border-radius:6px">
+  return `<div style="margin-top:5px;padding:5px 7px;background:rgba(var(--gold-rgb),.07);border:1px solid var(--bdr);border-radius:6px">
     <div style="font-size:10px;font-weight:700;color:var(--gold)">${a.i} ${a.n}</div>
     <div style="font-size:9px;color:var(--t3);line-height:1.3;margin-top:2px">${a.d}</div>
   </div>`;
@@ -18467,7 +18482,7 @@ function fmDrawSim(cv,ctx){
     // posesión
     if(possP===p){
       ctx.beginPath();ctx.arc(p.x,p.y,R+6,0,Math.PI*2);
-      ctx.strokeStyle='rgba(246,211,24,.9)';ctx.lineWidth=3;ctx.stroke();
+      ctx.strokeStyle=''+GOLDA(.9)+'';ctx.lineWidth=3;ctx.stroke();
     }
     // ficha
     ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);
@@ -18541,7 +18556,7 @@ function fmDrawSim(cv,ctx){
     ctx.fillStyle='#fff';ctx.font='700 12.5px "Rajdhani",sans-serif';
     ctx.fillText(opAb,sbX+161,sbY+sbH2/2+1);
     ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+183,sbY,5,sbH2);
-    ctx.fillStyle='rgba(246,211,24,.65)';ctx.fillRect(sbX,sbY+sbH2,188,2);
+    ctx.fillStyle=''+GOLDA(.65)+'';ctx.fillRect(sbX,sbY+sbH2,188,2);
     // % de posesión al lado del marcador
     if(f.possT){
       const tot=f.possT.my+f.possT.opp;
@@ -18649,8 +18664,8 @@ function fmDraw(){
     {t:'DIRECTOR TÉCNICO',c:'#c62828',tc:'#fff'},
     {t:'⚽ GOLAZO',c:'#f2f2f2',tc:'#111'},
     {t:'SCORE!',c:'#1256a8',tc:'#fff'},
-    {t:'LIGA ARGENTINA',c:'#0d47a1',tc:'#F6D318'},
-    {t:'#VAMOS',c:'#f6d318',tc:'#08090c'},
+    {t:'LIGA ARGENTINA',c:'#0d47a1',tc:'var(--gold)'},
+    {t:'#VAMOS',c:'var(--gold)',tc:'#08090c'},
     {t:'RADIO LA RED',c:'#1c1c1c',tc:'#fff'},
   ];
   {
@@ -18998,7 +19013,7 @@ function fmDraw(){
     ctx.fillStyle='rgba(0,0,0,.65)';
     ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx4-1.5,by4-1.5,bw2+3,bh2+3,3);else ctx.rect(bx4-1.5,by4-1.5,bw2+3,bh2+3);ctx.fill();
     const pgrad=ctx.createLinearGradient(bx4,0,bx4+bw2,0);
-    pgrad.addColorStop(0,'#0fb866');pgrad.addColorStop(.55,'#f6d318');pgrad.addColorStop(1,'#e84545');
+    pgrad.addColorStop(0,'#0fb866');pgrad.addColorStop(.55,GOLD());pgrad.addColorStop(1,'#e84545');
     ctx.fillStyle=pgrad;
     ctx.fillRect(bx4,by4,bw2*ch,bh2);
     ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=.8;
@@ -19043,7 +19058,7 @@ function fmDraw(){
     ctx.fillText(opAb,sbX+161,sbY+sbH2/2+1);
     ctx.fillStyle=f.oppKit.c1;ctx.fillRect(sbX+183,sbY,5,sbH2);
     // línea inferior dorada fina (broadcast)
-    ctx.fillStyle='rgba(246,211,24,.65)';ctx.fillRect(sbX,sbY+sbH2,188,2);
+    ctx.fillStyle=''+GOLDA(.65)+'';ctx.fillRect(sbX,sbY+sbH2,188,2);
   }
 
   // Chip del jugador controlado
@@ -19056,7 +19071,7 @@ function fmDraw(){
       const pcx=W/2-tw2/2,pcy=H-152;
       ctx.fillStyle='rgba(8,10,18,.75)';
       ctx.beginPath();if(ctx.roundRect)ctx.roundRect(pcx,pcy,tw2,18,9);else ctx.rect(pcx,pcy,tw2,18);ctx.fill();
-      ctx.fillStyle='#f6d318';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=GOLD();ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(txt,W/2,pcy+9.5);
     }
   }
@@ -19084,7 +19099,7 @@ function fmDraw(){
       ctx.strokeRect(vx1,vy1,vx2-vx1,vy2-vy1);
     }
     f.opp.forEach(p=>{const[x2,y2]=toMM(p.x,p.y);ctx.beginPath();ctx.arc(x2,y2,2.1,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();});
-    f.my.forEach((p,i)=>{const[x2,y2]=toMM(p.x,p.y);ctx.beginPath();ctx.arc(x2,y2,i===f.ctrl?3:2.1,0,Math.PI*2);ctx.fillStyle=i===f.ctrl?'#f6d318':(f.myKit.c1==='#ffffff'?'#e84545':f.myKit.c1);ctx.fill();if(i===f.ctrl){ctx.strokeStyle='#fff';ctx.lineWidth=.8;ctx.stroke();}});
+    f.my.forEach((p,i)=>{const[x2,y2]=toMM(p.x,p.y);ctx.beginPath();ctx.arc(x2,y2,i===f.ctrl?3:2.1,0,Math.PI*2);ctx.fillStyle=i===f.ctrl?GOLD():(f.myKit.c1==='#ffffff'?'#e84545':f.myKit.c1);ctx.fill();if(i===f.ctrl){ctx.strokeStyle='#fff';ctx.lineWidth=.8;ctx.stroke();}});
     {const[x2,y2]=toMM(f.ball.x,f.ball.y);ctx.beginPath();ctx.arc(x2,y2,2.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=.7;ctx.stroke();}
     ctx.restore();
   }
@@ -19327,7 +19342,7 @@ function rTacticaTab(){
   const who=document.getElementById('tacWho');
   if(who){
     who.innerHTML=mio
-      ? `<div class="note" style="margin:0;border-color:rgba(246,211,24,.3)">⭐ <b>Vos dirigís</b>: el once, el banco, la táctica y las pelotas paradas los elegís vos.</div>`
+      ? `<div class="note" style="margin:0;border-color:rgba(var(--gold-rgb),.3)">⭐ <b>Vos dirigís</b>: el once, el banco, la táctica y las pelotas paradas los elegís vos.</div>`
       : `<div class="note" style="margin:0;border-color:var(--ora);color:var(--t2)">
            🔒 <b>Táctica bloqueada</b> — el once, la formación, el estilo y los pateadores los decide
            <b>${(G.dt&&G.dt.name)||'el DT'}</b>. Vos sos el <b>presidente</b>: podés mirar, no tocar.
@@ -19363,16 +19378,35 @@ function gTab(name, btn){
   selSlot = null; // clear tactics selection when switching tabs
 }
 // ═══ TEMAS DE COLOR (acento de la interfaz) ═══
+// OJO: esto es la fuente de verdad de --gold, no el :root. applyTheme() corre
+// al arrancar la partida y pisa la variable, así que un acento nuevo va acá.
 const UI_THEMES={
-  oro:{g:'#F6D318',d:'#e8c400',name:'Oro (clásico)'},
-  rojo:{g:'#e8484f',d:'#c62f37',name:'Rojo'},
-  azul:{g:'#3b8beb',d:'#2f6fc4',name:'Azul'},
-  celeste:{g:'#4db6e6',d:'#2f9fd4',name:'Celeste'},
-  verde:{g:'#1aaa6b',d:'#149257',name:'Verde'},
-  violeta:{g:'#b06ef5',d:'#9450e0',name:'Violeta'},
-  bordo:{g:'#d24b6a',d:'#b23555',name:'Bordó'},
+  oro:{g:'#f59e0b',d:'#d97706',name:'Oro metálico'},
+  rojo:{g:'#ef4444',d:'#dc2626',name:'Rojo'},
+  azul:{g:'#3b82f6',d:'#2563eb',name:'Azul'},
+  celeste:{g:'#38bdf8',d:'#0ea5e9',name:'Celeste'},
+  verde:{g:'#10b981',d:'#059669',name:'Verde neón'},
+  violeta:{g:'#a78bfa',d:'#8b5cf6',name:'Violeta'},
+  bordo:{g:'#f43f5e',d:'#e11d48',name:'Bordó'},
 };
 const CLUB_THEME={boca:'oro',river:'rojo',racing:'celeste',indep:'rojo',sanlo:'bordo'};
+// ═══════════════════════════════════════════════════════════════════════
+// EL ACENTO, PARA EL CANVAS
+// ═══════════════════════════════════════════════════════════════════════
+// El canvas 2D no resuelve variables CSS: un fillStyle='var(--gold)' se
+// ignora y el dibujo sale negro. Estas dos leen el valor computado, así que
+// la cancha, las jugadas clave y el 11v11 siguen el tema del club igual que
+// el resto de la interfaz. Se cachea porque se llama por frame.
+let _goldCache=null,_goldKey=null;
+function GOLD(){
+  const raw=getComputedStyle(document.documentElement).getPropertyValue('--gold').trim();
+  if(raw!==_goldKey){_goldKey=raw;_goldCache=raw||'#f59e0b';}
+  return _goldCache;
+}
+function GOLDA(a){
+  const rgb=(getComputedStyle(document.documentElement).getPropertyValue('--gold-rgb')||'245,158,11').trim();
+  return 'rgba('+rgb+','+a+')';
+}
 function applyTheme(k){
   const t=UI_THEMES[k]||UI_THEMES.oro;
   const s=document.documentElement.style;
@@ -19380,6 +19414,7 @@ function applyTheme(k){
   s.setProperty('--gold-d',t.d);
   // recolorear también bordes y badge de rating para que el cambio se note en toda la UI
   const rgb=(hex=>{const n=parseInt(hex.slice(1),16);return (n>>16)+','+((n>>8)&255)+','+(n&255);})(t.g);
+  s.setProperty('--gold-rgb',rgb);          // para los rgba() del CSS
   s.setProperty('--bdr',`rgba(${rgb},.18)`);
   if(G)G.theme=k;
   try{localStorage.setItem('dt_theme',k);}catch(e){}
