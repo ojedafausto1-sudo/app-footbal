@@ -293,6 +293,42 @@ tr:hover td{background:rgba(255,255,255,.025)}
 /* CARD hover glow */
 .card:hover{box-shadow:var(--sh-lift),0 0 0 1px rgba(var(--gold-rgb),0.16)}
 /* TEAM SELECT CARD */
+/* ═══ SELECTOR DE INICIO EN 3 PASOS ═══ */
+.ts-steps{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.ts-step{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;border:1px solid var(--bdr);
+  background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--t3);transition:.2s;cursor:default;white-space:nowrap}
+.ts-step .n{width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:9px;background:rgba(255,255,255,.07);color:var(--t3);font-family:'Chakra Petch',sans-serif}
+.ts-step.on{color:var(--gold);border-color:rgba(var(--gold-rgb),.45);box-shadow:0 0 18px rgba(var(--gold-rgb),.14)}
+.ts-step.on .n{background:var(--gold);color:var(--dark);font-weight:700}
+.ts-step.done{color:var(--green);border-color:rgba(16,185,129,.35);cursor:pointer}
+.ts-step.done:hover{background:var(--card-2);transform:translateY(-1px)}
+.ts-step.done .n{background:var(--green);color:var(--dark)}
+.ts-sep{color:var(--t3);font-size:11px}
+.ts-grid{display:grid;gap:9px}
+/* Cada opción del asistente: la misma superficie de vidrio del resto del juego */
+.ts-opt{cursor:pointer;text-align:left;border-radius:13px;padding:12px 13px;border:1px solid var(--bdr);
+  background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:var(--sh-deep);transition:transform .18s cubic-bezier(.2,.7,.3,1),border-color .18s,box-shadow .18s;
+  display:flex;align-items:center;gap:11px;position:relative;overflow:hidden;color:var(--tx);width:100%}
+.ts-opt::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.055)}
+.ts-opt:hover{transform:translateY(-3px);border-color:rgba(var(--gold-rgb),.42);box-shadow:var(--sh-lift)}
+.ts-opt .tsn{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:800;letter-spacing:.02em;line-height:1.15}
+.ts-opt .tss{font-size:10px;color:var(--t3);margin-top:2px;line-height:1.3}
+.ts-opt .tsv{font-family:'Chakra Petch',sans-serif;font-size:12px;font-weight:700;color:var(--gold);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ts-flag{font-size:26px;line-height:1;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.ts-back{background:none;border:1px solid var(--bdr);border-radius:9px;color:var(--t2);cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;padding:6px 12px;transition:.18s}
+.ts-back:hover{color:var(--tx);border-color:rgba(var(--gold-rgb),.4);background:var(--card)}
+.ts-buscar{width:100%;background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid var(--bdr);border-radius:11px;color:var(--tx);padding:9px 13px;font-size:12.5px;
+  font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:11px;outline:none;transition:.18s}
+.ts-buscar:focus{border-color:rgba(var(--gold-rgb),.45);box-shadow:0 0 0 3px rgba(var(--gold-rgb),.09)}
+.ts-buscar::placeholder{color:var(--t3)}
 .ts-card{cursor:pointer;border-radius:14px;padding:22px 18px;text-align:center;transition:.2s;border:2px solid;position:relative;overflow:hidden}
 .ts-card:hover{transform:translateY(-4px) scale(1.03)}
 .ts-card::before{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.07),transparent 60%);pointer-events:none}
@@ -352,7 +388,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
 <body>
 
 <!-- TEAM SELECTION OVERLAY -->
-<div id="teamSelect" style="position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,#161922 0%,#0a0c10 55%,#06070a 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+<!-- justify-content:center recortaba arriba Y abajo en cuanto la lista
+     crecía (con 30 clubes no se veía ni el título ni los últimos). Con
+     flex-start la pantalla scrollea de verdad de principio a fin. -->
+<div id="teamSelect" style="position:fixed;inset:0;background:radial-gradient(ellipse 120% 70% at 50% -5%,rgba(16,185,129,.08),transparent 60%),radial-gradient(ellipse 90% 60% at 85% 15%,rgba(245,158,11,.06),transparent 58%),radial-gradient(ellipse at 50% 35%,#141a28 0%,#0d1119 55%,#0b0e14 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:max(20px,env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom));overflow-y:auto">
   <!-- Header -->
   <div style="text-align:center;margin-bottom:22px">
     <div style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:rgba(var(--gold-rgb),.6);letter-spacing:.3em;text-transform:uppercase;margin-bottom:4px">⚽ TEMPORADA 2026</div>
@@ -368,53 +407,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <button onclick="setDiff(2,this)" class="diff-btn" id="diff-2">💀 DIFÍCIL</button>
     </div>
   </div>
-  <!-- Team Grid -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px;width:100%;max-width:820px">
-    <div onclick="selectTeam('boca')" class="ts-card" style="background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.03));border-color:rgba(255,255,255,.16)">
-      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🟡</div>
-      <div class="ts-card-name" style="color:#FFD700">BOCA</div>
-      <div class="ts-card-sub">JUNIORS</div>
-      <div class="ts-card-val">Val: €100.4M</div>
-      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★★</span></div>
-    </div>
-    <div onclick="selectTeam('river')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(204,0,0,.35));border-color:#cc3333">
-      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚪</div>
-      <div class="ts-card-name" style="color:#fff">RIVER</div>
-      <div class="ts-card-sub">PLATE</div>
-      <div class="ts-card-val">Val: €99.1M</div>
-      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★★</span></div>
-    </div>
-    <div onclick="selectTeam('indep')" class="ts-card" style="background:linear-gradient(145deg,rgba(80,0,0,.8),rgba(200,0,0,.35));border-color:#aa2222">
-      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔴⚫</div>
-      <div class="ts-card-name" style="color:#ff5555">INDEPENDIENTE</div>
-      <div class="ts-card-sub">EL ROJO</div>
-      <div class="ts-card-val">Val: €41.1M</div>
-      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★☆☆</span></div>
-    </div>
-    <div onclick="selectTeam('racing')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,80,.8),rgba(0,51,153,.35));border-color:#2255bb">
-      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵⚪</div>
-      <div class="ts-card-name" style="color:#aaccff">RACING</div>
-      <div class="ts-card-sub">CLUB</div>
-      <div class="ts-card-val">Val: €76.9M</div>
-      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★☆</span></div>
-    </div>
-    <div onclick="selectTeam('sanlo')" class="ts-card" style="background:linear-gradient(145deg,rgba(0,20,70,.8),rgba(0,76,151,.35));border-color:#1155aa">
-      <div style="font-size:40px;margin-bottom:10px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">🔵🔴</div>
-      <div class="ts-card-name" style="color:#88aaff">SAN LORENZO</div>
-      <div class="ts-card-sub">DE ALMAGRO</div>
-      <div class="ts-card-val">Val: €43.6M</div>
-      <div class="ts-card-rat"><span style="color:var(--gold);font-size:11px">★★★★☆</span></div>
-    </div>
-  </div>
-  <div style="width:100%;max-width:820px;margin-top:20px">
-    <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;text-align:center">
-      …O DIRIGÍ EN CUALQUIER LIGA DEL MUNDO</div>
-    <div style="text-align:center;margin-bottom:10px">
-      <select id="tsLiga" onchange="setLigaSel(this.value)"
-        style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:#fff;padding:7px 12px;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700"></select>
-    </div>
-    <div id="tsOtros" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px"></div>
-  </div>
+  <!-- ═══ SELECTOR EN 3 PASOS: PAÍS → LIGA → CLUB ═══
+       Nada de esto está escrito en el HTML: los países salen de las ligas que
+       ligasJugables() encuentra en PLAYERS_DB, y los clubes de buildAllTeams().
+       Si mañana la base trae una liga nueva, aparece sola. -->
+  <div id="tsWizard" style="width:100%;max-width:880px"></div>
   <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
     <button class="btn bo bs" onclick="exportSave()">💾 Exportar partida</button>
     <button class="btn bo bs" onclick="document.getElementById('impSave').click()">📂 Importar partida</button>
@@ -1225,10 +1222,17 @@ function pIsForeign(p){ return p && isForeign(p.nat, p.nat2); }
 function isMercosur(nat){ return ['URU','PAR','BRA','BOL','CHI','ECU','PER','VEN','COL'].includes(nat); }
 function foreignCount(squad){ return (squad||[]).filter(pIsForeign).length; }
 function foreignStats(squad){
-  const all = (squad||[]).filter(pIsForeign);
+  const sq = squad||[];
+  const all = sq.filter(pIsForeign);
   const mercosur = all.filter(p=>isMercosur(p.nat));
   const nonMercosur = all.filter(p=>!isMercosur(p.nat));
-  return {total:all.length, mercosur:mercosur.length, nonMercosur:nonMercosur.length};
+  // Los que nacieron afuera pero NO ocupan cupo porque tienen la ciudadanía
+  // del país de la liga. Es el dato que hace visible que la regla se aplica:
+  // sin esto no había forma de ver que nacionalizar a alguien sirvió.
+  const loc = (typeof natsLocales==='function')?natsLocales():['ARG'];
+  const nacionalizados = sq.filter(p=>p&&p.nat2&&loc.indexOf(p.nat2)>=0&&loc.indexOf(p.nat)<0);
+  return {total:all.length, mercosur:mercosur.length, nonMercosur:nonMercosur.length,
+          nacionalizados:nacionalizados.length, nombres:nacionalizados.map(p=>p.name)};
 }
 
 function starsH(rat,sz){
@@ -2814,6 +2818,7 @@ function newGame(){
   document.getElementById('game').classList.remove('on');
   document.getElementById('teamSelect').style.display = 'flex';
   try{ rOtrosTeams(); }catch(e){}
+  try{ tsIr(1); }catch(e){}   // el asistente vuelve al primer paso
 }
 
 // =============================================
@@ -2957,35 +2962,189 @@ function ligasJugables(){
   return Object.entries(cnt).filter(([,s])=>s.size>=10)
     .map(([l])=>l).sort((a,b)=>a==='Liga ARG'?-1:b==='Liga ARG'?1:a.localeCompare(b));
 }
+// ═══════════════════════════════════════════════════════════════════════
+// SELECTOR DE INICIO EN 3 PASOS: PAÍS → LIGA → CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// Antes eran cinco tarjetas escritas a mano (con los valores de plantel
+// clavados en el HTML: "Val: €100.4M" no se actualizaba nunca) más un
+// <select> perdido abajo con el resto del mundo. Ahora todo sale de los
+// datos: las ligas de ligasJugables() —que las cuenta en PLAYERS_DB— y los
+// clubes de buildAllTeams(), con su valor de plantel y su reputación reales.
+// Agregar una liga a la base la hace aparecer acá sola, sin tocar el HTML.
+//
+// Lo único escrito a mano es la presentación de cada liga (bandera y nombre
+// del país), que son metadatos de diseño, no la lista: una liga sin entrada
+// acá igual aparece, con una bandera genérica.
+const LIGA_PAIS={
+  'Liga ARG':{p:'Argentina',f:'🇦🇷'}, 'Brasil':{p:'Brasil',f:'🇧🇷'},
+  'Chile':{p:'Chile',f:'🇨🇱'}, 'Uruguay':{p:'Uruguay',f:'🇺🇾'},
+  'Paraguay':{p:'Paraguay',f:'🇵🇾'}, 'Colombia':{p:'Colombia',f:'🇨🇴'},
+  'Perú':{p:'Perú',f:'🇵🇪'}, 'Ecuador':{p:'Ecuador',f:'🇪🇨'},
+  'Bolivia':{p:'Bolivia',f:'🇧🇴'}, 'Venezuela':{p:'Venezuela',f:'🇻🇪'},
+  'Liga MX':{p:'México',f:'🇲🇽'}, 'MLS':{p:'Estados Unidos',f:'🇺🇸'},
+  'Premier':{p:'Inglaterra',f:'🏴󠁧󠁢󠁥󠁮󠁧󠁿'}, 'España':{p:'España',f:'🇪🇸'},
+  'Italia':{p:'Italia',f:'🇮🇹'}, 'Alemania':{p:'Alemania',f:'🇩🇪'},
+  'Francia':{p:'Francia',f:'🇫🇷'}, 'Portugal':{p:'Portugal',f:'🇵🇹'},
+  'Holanda':{p:'Países Bajos',f:'🇳🇱'}, 'Bélgica':{p:'Bélgica',f:'🇧🇪'},
+  'Turquía':{p:'Turquía',f:'🇹🇷'}, 'Arabia':{p:'Arabia Saudita',f:'🇸🇦'},
+  'Rusia':{p:'Rusia',f:'🇷🇺'}, 'Grecia':{p:'Grecia',f:'🇬🇷'},
+};
+function ligaPais(lg){ return LIGA_PAIS[lg]||{p:lg,f:'🏳️'}; }
+// Datos de cada liga sacados de la base, no escritos: cuántos clubes juegan
+// y cuánto valen sus planteles. Se cachea porque recorre 15.000 filas.
+let _tsLigasCache=null;
+function tsLigas(){
+  if(_tsLigasCache)return _tsLigasCache;
+  const db=window.PLAYERS_DB||[];
+  const porLiga={};
+  db.forEach(r=>{
+    const club=r[5],lg=r[6]; if(!club||!lg||lg==='Libre')return;
+    const o=porLiga[lg]=porLiga[lg]||{clubes:{},val:0};
+    o.clubes[club]=(o.clubes[club]||0)+(r[7]||0);
+    o.val+=(r[7]||0);
+  });
+  const jug=(typeof ligasJugables==='function')?ligasJugables():Object.keys(porLiga);
+  _tsLigasCache=jug.map(lg=>{
+    const o=porLiga[lg]||{clubes:{},val:0};
+    const cl=Object.entries(o.clubes).sort((a,b)=>b[1]-a[1]);
+    const inf=ligaPais(lg);
+    // Los que JUEGAN la primera, no todos los que la base tenga con esa
+    // etiqueta: contando la base entera, la Liga Profesional decía 66 clubes
+    // (con el ascenso adentro) cuando la juegan 30, y la Premier 44 en vez
+    // de 20. El paso 3 ya mostraba la cantidad correcta, así que el número
+    // del paso 2 contradecía a la pantalla siguiente.
+    let n=cl.length;
+    try{
+      if(lg==='Liga ARG'&&typeof AR_CLUBS!=='undefined') n=AR_CLUBS.length;
+      else if(typeof clubesDeLiga==='function'){ const c2=clubesDeLiga(lg); if(c2&&c2.length)n=c2.length; }
+    }catch(e){}
+    // El valor de la liga, sobre esos mismos clubes
+    const val=cl.slice(0,n).reduce((a,x)=>a+x[1],0);
+    return {lg, pais:inf.p, flag:inf.f, nClubes:n,
+            val:Math.round(val), top:cl[0]?cl[0][0]:'',
+            nombre:(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[lg])||lg};
+  }).sort((a,b)=>b.val-a.val);
+  return _tsLigasCache;
+}
+let _tsPaso=1,_tsPais=null,_tsLg=null,_tsFiltro='';
+function tsIr(paso,arg){
+  if(paso===1){_tsPaso=1;_tsPais=null;_tsLg=null;}
+  else if(paso===2){_tsPaso=2;_tsPais=arg;_tsLg=null;}
+  else if(paso===3){
+    _tsPaso=3;_tsLg=arg;
+    // Esto es lo mismo que hacía el <select> viejo: fija la liga elegida y
+    // arma sus TEAMS. No se toca el flujo de arranque, sólo se lo alimenta.
+    if(typeof setLigaSel==='function')setLigaSel(arg);
+  }
+  _tsFiltro='';
+  tsRender();
+}
+// Sin quitar los acentos, buscar "vel" no encontraba "Vélez" y "gimnasia"
+// no encontraba "Gimnasia LP" si el usuario escribía sin tilde.
+function _tsNorm(x){ return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function tsFiltrar(v){ _tsFiltro=_tsNorm(v); tsRender(true); }
+function tsRender(soloLista){
+  const el=document.getElementById('tsWizard'); if(!el)return;
+  const L=tsLigas();
+  // ── paso 1: países ──
+  if(_tsPaso===1){
+    const porPais={};
+    L.forEach(x=>{ (porPais[x.pais]=porPais[x.pais]||{flag:x.flag,ligas:[],val:0}).ligas.push(x);
+                   porPais[x.pais].val+=x.val; });
+    const paises=Object.entries(porPais).sort((a,b)=>b[1].val-a[1].val);
+    el.innerHTML=tsPasos()+`
+      <div class="ts-grid" style="grid-template-columns:repeat(auto-fill,minmax(168px,1fr))">
+        ${paises.map(([p,o])=>`
+          <button class="ts-opt" onclick="tsIr(2,'${p.replace(/'/g,"\\'")}')">
+            <span class="ts-flag">${o.flag}</span>
+            <span style="flex:1;min-width:0">
+              <span class="tsn" style="display:block">${p}</span>
+              <span class="tss">${o.ligas.length} liga${o.ligas.length>1?'s':''} · ${o.ligas.reduce((a,x)=>a+x.nClubes,0)} clubes</span>
+            </span>
+          </button>`).join('')}
+      </div>`;
+    return;
+  }
+  // ── paso 2: ligas del país ──
+  if(_tsPaso===2){
+    const ligas=L.filter(x=>x.pais===_tsPais);
+    el.innerHTML=tsPasos()+`
+      <div class="ts-grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">
+        ${ligas.map(x=>`
+          <button class="ts-opt" onclick="tsIr(3,'${x.lg.replace(/'/g,"\\'")}')">
+            <span class="ts-flag">${x.flag}</span>
+            <span style="flex:1;min-width:0">
+              <span class="tsn" style="display:block">${x.nombre}</span>
+              <span class="tss">${x.nClubes} clubes · el más caro: ${x.top}</span>
+            </span>
+            <span class="tsv">€${x.val>=1000?(x.val/1000).toFixed(1)+'B':x.val+'M'}</span>
+          </button>`).join('')}
+      </div>`;
+    return;
+  }
+  // ── paso 3: clubes de la liga ──
+  const clubes=Object.entries(TEAMS)
+    .filter(([id,t])=>(t.liga||'Liga ARG')===_tsLg)
+    .map(([id,t])=>({id,t,val:tsValClub(t.name)}))
+    .sort((a,b)=>(b.t.initRep-a.t.initRep)||(b.val-a.val));
+  const vis=_tsFiltro?clubes.filter(c=>_tsNorm(c.t.name).includes(_tsFiltro)):clubes;
+  const lista=`
+    <div class="ts-grid" style="grid-template-columns:repeat(auto-fill,minmax(214px,1fr))">
+      ${vis.map(c=>`
+        <button class="ts-opt" onclick="selectTeam('${c.id}')">
+          ${typeof clubCrest==='function'?clubCrest(c.t.name,34):'<span class="ts-flag">⚽</span>'}
+          <span style="flex:1;min-width:0">
+            <span class="tsn" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.t.name}</span>
+            <span class="tss">${starsH(c.t.initRep,9)} · Rep ${c.t.initRep}</span>
+          </span>
+          <span class="tsv">€${c.val}M</span>
+        </button>`).join('')
+        || '<div class="note" style="grid-column:1/-1">No hay clubes con ese nombre.</div>'}
+    </div>`;
+  if(soloLista){
+    const cont=document.getElementById('tsLista'); if(cont){cont.innerHTML=lista;return;}
+  }
+  el.innerHTML=tsPasos()+`
+    <input class="ts-buscar" type="text" placeholder="🔍 Buscar club…" value="${_tsFiltro}"
+      oninput="tsFiltrar(this.value)" autocomplete="off">
+    <div id="tsLista">${lista}</div>`;
+  const inp=el.querySelector('.ts-buscar');
+  if(inp&&_tsFiltro){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); }
+}
+// El valor del plantel de un club, de la base. Antes estaba escrito en el
+// HTML ("Val: €100.4M") y no se movía aunque la base cambiara.
+let _tsValCache=null;
+function tsValClub(name){
+  if(!_tsValCache){
+    _tsValCache={};
+    (window.PLAYERS_DB||[]).forEach(r=>{ if(!r[5])return;
+      (_tsValCache[r[5]]=_tsValCache[r[5]]||[]).push(r[7]||0); });
+  }
+  const v=(_tsValCache[name]||[]).sort((a,b)=>b-a).slice(0,18);
+  return Math.round(v.reduce((a,x)=>a+x,0)*10)/10;
+}
+function tsPasos(){
+  const p2=_tsPais||'País', p3=_tsLg?((typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[_tsLg])||_tsLg):'Liga';
+  const cls=n=>_tsPaso===n?'ts-step on':(_tsPaso>n?'ts-step done':'ts-step');
+  return `<div class="ts-steps">
+      <div class="${cls(1)}" ${_tsPaso>1?'onclick="tsIr(1)"':''}><span class="n">1</span>${_tsPaso>1?p2:'Elegí el país'}</div>
+      <span class="ts-sep">→</span>
+      <div class="${cls(2)}" ${_tsPaso>2?`onclick="tsIr(2,'${(_tsPais||'').replace(/'/g,"\\'")}')"`:''}><span class="n">2</span>${_tsPaso>2?p3:'Liga'}</div>
+      <span class="ts-sep">→</span>
+      <div class="${cls(3)}"><span class="n">3</span>Club</div>
+      ${_tsPaso>1?`<button class="ts-back" onclick="tsIr(${_tsPaso-1}${_tsPaso===3?",'"+(_tsPais||'').replace(/'/g,"\\'")+"'":''})">← Volver</button>`:''}
+    </div>`;
+}
 function setLigaSel(lg){ _LIGA_ELEGIDA=lg; rOtrosTeams(); }
+// El asistente reemplazó la grilla fija y el <select> de ligas, pero
+// rOtrosTeams sigue siendo el punto por donde se arma el TEAMS de una liga.
+// Se conserva la llamada a buildAllTeams (que es lo que hacía falta) y se
+// deja de tocar los dos elementos que ya no existen, para no romper a los
+// llamadores (setLigaSel y el arranque).
 function rOtrosTeams(){
-  const el=document.getElementById('tsOtros'); if(!el)return;
   const lg=_LIGA_ELEGIDA||'Liga ARG';
   buildAllTeams(lg);
-  // Selector de país: hasta ahora sólo se podía empezar en la Argentina
-  const sel=document.getElementById('tsLiga');
-  if(sel){
-    if(!sel.dataset.listo){
-      sel.dataset.listo='1';
-      sel.innerHTML=ligasJugables().map(l=>
-        `<option value="${l}">${(LIGA_NOMBRE[l]||l)} — ${l}</option>`).join('');
-    }
-    if(sel.value!==lg)sel.value=lg;   // por si la liga se cambió por código
-  }
-  const grandes=(lg==='Liga ARG')?['boca','river','indep','racing','sanlo']:[];
-  const otros=Object.entries(TEAMS)
-    .filter(([id,t])=>grandes.indexOf(id)<0&&((t.liga||'Liga ARG')===lg))
-    .sort((a,b)=>b[1].initRep-a[1].initRep);
-  el.innerHTML=otros.map(([id,t])=>`
-    <div onclick="selectTeam('${id}')" style="cursor:pointer;display:flex;align-items:center;gap:7px;
-         background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 8px"
-         onmouseover="this.style.borderColor='rgba(var(--gold-rgb),.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,.09)'">
-      ${typeof clubCrest==='function'?clubCrest(t.name,26):''}
-      <div style="min-width:0;flex:1">
-        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.4)">Rep ${t.initRep} · $${t.initBudget}M</div>
-      </div>
-    </div>`).join('');
+  if(document.getElementById('tsWizard')&&_tsPaso===3) tsRender();
 }
 
 function selectTeam(teamId){
@@ -4085,7 +4244,29 @@ function rSq(f){
   if(!el||!G) return;
   const fs = foreignStats(G.squad);
   const quotaEl = document.getElementById('sqForeignCounter');
-  if(quotaEl) quotaEl.innerHTML = `<span style="color:${fs.total>=5?'var(--red)':'var(--gold)'}">Extranjeros: ${fs.total}/5</span>  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`;
+  // ═══════════════════════════════════════════════════════════════════════
+  // EL CARTEL DEL CUPO TIENE QUE DECIR EL CUPO DE ESTA LIGA
+  // ═══════════════════════════════════════════════════════════════════════
+  // El "/5" estaba escrito a mano. Medido dirigiendo afuera: el Real Madrid
+  // mostraba "15/5" EN ROJO con un cupo real de 11, el Al-Hilal "14/5" con 8
+  // y Chivas "0/5" con 10. El número de al lado no tenía nada que ver con la
+  // regla que el juego aplica.
+  // Y "Mercosur / No-Mercosur" es una categoría del reglamento argentino: en
+  // LaLiga o en la Saudi no significa nada, así que sólo se muestra donde la
+  // regla existe. En su lugar se muestran los nacionalizados, que es lo que
+  // de verdad te libera un lugar.
+  if(quotaEl){
+    const _cupo=(typeof cupoExt==='function')?cupoExt():5;
+    const _sin=_cupo>=11;                       // 11 = sin límite efectivo
+    const _lleno=fs.total>=_cupo;
+    const _sud=['Liga ARG','Brasil','Chile','Uruguay','Paraguay','Colombia','Perú','Ecuador','Bolivia','Venezuela']
+      .indexOf((typeof ligaMia==='function')?ligaMia():'Liga ARG')>=0;
+    quotaEl.innerHTML =
+      `<span style="color:${_lleno?'var(--red)':'var(--gold)'}">Extranjeros: ${fs.total}${_sin?'':'/'+_cupo}</span>`
+      + (_sin?`  •  <span style="color:var(--t3)">sin cupo en esta liga</span>`:'')
+      + (_sud?`  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`:'')
+      + (fs.nacionalizados?`  •  <span style="color:var(--green)" title="${fs.nombres.join(', ')}">${fs.nacionalizados} nacionalizado${fs.nacionalizados>1?'s':''} (no ocupan cupo)</span>`:'');
+  }
   const pl = ordenarPlantel(G.squad.filter(p=>f==='all'||pgr(p.pos)===f));
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
@@ -20982,6 +21163,8 @@ function rejectDtReqPhone(id){
   // Antes sólo se hacía dentro de newGame(), que primero borra la partida: en
   // una carga normal la grilla quedaba vacía y no se podía elegir ninguno.
   try{ buildAllTeams(); rOtrosTeams(); }catch(e){}
+  // El asistente arranca siempre en el paso 1 (país)
+  try{ tsIr(1); }catch(e){}
   try{
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return;

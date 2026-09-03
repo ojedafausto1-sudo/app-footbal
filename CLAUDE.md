@@ -50,6 +50,11 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   `'ARG'` fijo de antes, dirigir al Porto daba 25 extranjeros de 27 y el juego
   te bloqueaba autoFill, los cambios, las compras y los libres. Nacionalizar
   suma la nacionalidad LOCAL (`natLocalPrincipal()`), no siempre ARG.
+  El **cartel** de la pestaña Plantel tenía el `/5` escrito a mano: el Real
+  Madrid mostraba "15/5" en rojo con un cupo real de 11 y Chivas "0/5" con 10.
+  Ahora sale de `cupoExt()`, dice "sin cupo" donde no hay límite, muestra
+  Mercosur sólo en las ligas sudamericanas (es una regla argentina) y cuenta
+  los nacionalizados que están liberando lugar.
 - **Todo el que entra o sale pasa por un embudo**: `sacarDelPlantel(p,tipo,det)`
   saca, anota el movimiento (`movAnota` → `G.movs`, pestaña Mercado →
   Movimientos) y **rellena el hueco** del once con `taparHueco`. Antes había
@@ -202,6 +207,27 @@ bloque quedó sin demostrar**. Hay un intento fallido documentado en el código
   .998) y la pelota rodaba eterna. Ahora distingue aire, rodada fuerte, media
   y lenta, y se detiene de verdad por debajo de 0.035 — el mismo modelo que
   ya usaba el 11v11.
+
+## Pantalla de inicio — selector País → Liga → Club
+
+Todo sale de los datos, **nada está escrito en el HTML**: `tsLigas()` cuenta
+las ligas en `PLAYERS_DB` (vía `ligasJugables()`), `buildAllTeams(lg)` arma
+los clubes de la elegida y `tsValClub()` saca el valor del plantel. El HTML
+tiene un solo `<div id="tsWizard">` vacío.
+
+- `LIGA_PAIS` es lo único a mano: bandera y nombre de país por liga. Son
+  metadatos de presentación, no la lista — una liga sin entrada igual aparece,
+  con 🏳️.
+- El estado son tres variables (`_tsPaso`, `_tsPais`, `_tsLg`) y `tsIr(paso,arg)`.
+  El paso 3 llama a `setLigaSel(lg)`, que es el mismo camino que usaba el
+  `<select>` viejo: **el flujo de arranque no se tocó**, se lo alimenta.
+- El buscador normaliza acentos (`_tsNorm`): sin eso "vel" no encontraba
+  "Vélez".
+- ⚠️ El conteo de clubes del paso 2 sale de `clubesDeLiga()` / `AR_CLUBS`, NO
+  de contar la base: contando la base, la Liga Profesional decía 66 clubes
+  (con el ascenso adentro) contra los 30 que muestra el paso siguiente.
+- El contenedor va en `justify-content:flex-start`: con `center` se recortaba
+  arriba y abajo en cuanto la lista crecía.
 
 ## Sistema de diseño — Tactical Dark Glassmorphism
 
