@@ -229,6 +229,35 @@ tiene un solo `<div id="tsWizard">` vacío.
 - El contenedor va en `justify-content:flex-start`: con `center` se recortaba
   arriba y abajo en cuanto la lista crecía.
 
+## ⚠️ Nada que viva en `G` puede ser una función
+
+`JSON.stringify` las descarta **en silencio**, así que al recargar la partida
+el dato vuelve mutilado sin que nada avise. Ya pasó dos veces:
+
+- `G.boardObjectives[].check` — los 3 objetivos de la Junta volvían con
+  `check:undefined` y **no se podían cumplir nunca más** (cada uno vale +5 de
+  confianza de la CD). Medido: 3 de 3 rotos tras guardar y cargar. Arreglado
+  con `BOARD_OBJ` fuera de `G` y `boardObjCheck(id)`: en `G` van sólo
+  `{id, desc, completed}`.
+- `_DIL_FX` (dilemas) — mismo patrón, ya estaba resuelto así.
+
+La regresión ahora **escanea `G` entero** buscando funciones. Si agregás algo
+con un callback adentro, va a fallar ahí.
+
+## La cancha de Táctica
+
+- Las líneas de cal (áreas, área chica, punto de penal, arcos) son hijos
+  vacíos `.pk-*` que agrega `rFormation`; el círculo central y la línea de
+  mitad salen de `.pitch::after` con `box-shadow`. Nada de imágenes.
+- Cada jugador es una mini-card: dorsal en la chapita dorada, nombre, badge
+  de rating abajo y **aro de condición física** (`--fit` / `--fitc` en un
+  `conic-gradient` enmascarado). Los estados se ven de un vistazo: `p-inj`
+  (lesionado, borde rojo), `p-susp` (suspendido, borde punteado) y la llamita
+  o el copo por el estado de forma.
+- ⚠️ Si la ves gris no está rota: con el DT que no es tuyo la cancha va en
+  `opacity:.45` + `grayscale(.7)` a propósito (táctica bloqueada). Para
+  mirarla desbloqueada hace falta `dtIsMine()`.
+
 ## Sistema de diseño — Tactical Dark Glassmorphism
 
 Los tokens viven en `:root` y **el acento lo pisa `applyTheme()` al arrancar**,

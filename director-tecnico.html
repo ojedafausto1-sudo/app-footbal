@@ -226,17 +226,80 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .neg-val{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--gold);text-align:center;padding:8px}
 .neg-rx{font-size:12px;text-align:center;padding:7px;border-radius:6px;margin-top:5px;transition:all .25s;font-weight:500}
 /* PITCH */
-.pitch{position:relative;border-radius:9px;border:2px solid #1a5c28;overflow:hidden;user-select:none;background:repeating-linear-gradient(180deg,#1a6130 0px,#1a6130 28px,#155428 28px,#155428 56px)}
+/* ═══ LA CANCHA ═══
+   Era un rayado plano de dos verdes y un borde. Ahora: degradado con luz
+   desde arriba (como una cancha iluminada de noche), franjas de corte más
+   sutiles encima, y las líneas de cal dibujadas de verdad — círculo central,
+   áreas grandes y chicas, manchón del penal y arcos — con ::before/::after
+   y box-shadow, sin una sola imagen. */
+.pitch{position:relative;border-radius:12px;overflow:hidden;user-select:none;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    repeating-linear-gradient(180deg,rgba(255,255,255,.030) 0px,rgba(255,255,255,.030) 30px,rgba(0,0,0,.030) 30px,rgba(0,0,0,.030) 60px),
+    radial-gradient(ellipse 90% 55% at 50% -8%,rgba(190,255,205,.16),transparent 62%),
+    linear-gradient(178deg,#1c7a3e 0%,#186c37 45%,#14582d 100%);
+  box-shadow:inset 0 0 55px rgba(0,0,0,.28),var(--sh-deep)}
+/* líneas de cal: laterales, mitad y círculo central */
+.pitch::before{content:'';position:absolute;left:2.5%;right:2.5%;top:1.6%;bottom:1.6%;
+  border:2px solid rgba(255,255,255,.46);border-radius:3px;pointer-events:none;z-index:1}
+.pitch::after{content:'';position:absolute;left:50%;top:50%;width:23%;padding-bottom:23%;
+  transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.42);border-radius:50%;
+  pointer-events:none;z-index:1;
+  box-shadow:0 0 0 0 transparent,
+    /* línea de mitad de cancha */
+    -1000px 0 0 -1px rgba(255,255,255,.42), 1000px 0 0 -1px rgba(255,255,255,.42)}
+/* áreas: se dibujan con dos hijos vacíos que agrega el render */
+.pitch .pk-area{position:absolute;left:50%;transform:translateX(-50%);width:58%;
+  border:2px solid rgba(255,255,255,.42);pointer-events:none;z-index:1}
+.pitch .pk-area.top{top:1.6%;height:17%;border-top:0;border-radius:0 0 4px 4px}
+.pitch .pk-area.bot{bottom:1.6%;height:17%;border-bottom:0;border-radius:4px 4px 0 0}
+.pitch .pk-six{position:absolute;left:50%;transform:translateX(-50%);width:27%;
+  border:2px solid rgba(255,255,255,.36);pointer-events:none;z-index:1}
+.pitch .pk-six.top{top:1.6%;height:7.5%;border-top:0}
+.pitch .pk-six.bot{bottom:1.6%;height:7.5%;border-bottom:0}
+.pitch .pk-spot{position:absolute;left:50%;transform:translateX(-50%);width:4px;height:4px;
+  border-radius:50%;background:rgba(255,255,255,.6);pointer-events:none;z-index:1}
+.pitch .pk-spot.top{top:13%}.pitch .pk-spot.bot{bottom:13%}
+.pitch .pk-goal{position:absolute;left:50%;transform:translateX(-50%);width:19%;height:1.6%;
+  border:2px solid rgba(255,255,255,.5);pointer-events:none;z-index:1}
+.pitch .pk-goal.top{top:0}.pitch .pk-goal.bot{bottom:0}
 .pslot{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:5}
-.pcircle{width:54px;height:54px;border-radius:50%;background:rgba(3,23,46,.92);border:2px solid var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 2px;transition:border-color .2s,transform .15s;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+/* ═══ MINI-CARD DEL JUGADOR ═══
+   El anillo de energía es un conic-gradient sobre el borde: se llena según
+   la condición física y cambia de color (verde → oro → rojo). El dorsal va
+   en una chapita arriba a la izquierda y el rating abajo a la derecha. */
+.pcircle{position:relative;width:54px;height:54px;border-radius:50%;
+  background:linear-gradient(160deg,rgba(20,28,44,.94),rgba(10,16,28,.96));
+  border:2px solid var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  margin:0 auto 2px;box-shadow:0 3px 12px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+/* el aro de energía, por fuera del círculo */
+.pcircle .ps-fit{position:absolute;inset:-4px;border-radius:50%;pointer-events:none;
+  background:conic-gradient(var(--fitc) calc(var(--fit) * 1%),rgba(255,255,255,.09) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+  transition:background .2s ease}
+.pcircle .ps-num{position:absolute;top:-5px;left:-5px;min-width:17px;height:17px;padding:0 3px;
+  border-radius:5px;background:linear-gradient(150deg,var(--gold),var(--gold-d));color:var(--dark);
+  font-family:'Chakra Petch',sans-serif;font-size:9.5px;font-weight:700;line-height:17px;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:2}
+.pcircle .ps-badge{position:absolute;bottom:-4px;right:-6px;min-width:21px;height:16px;padding:0 3px;
+  border-radius:5px;font-family:'Chakra Petch',sans-serif;font-size:10px;font-weight:700;line-height:16px;
+  background:rgba(11,14,20,.94);border:1px solid currentColor;box-shadow:0 2px 6px rgba(0,0,0,.55);z-index:2}
+/* estados que se ven de un vistazo */
+.pcircle.p-inj{border-color:var(--red)}
+.pcircle.p-susp{border-color:var(--ora);border-style:dashed}
+.pcircle .ps-flag{position:absolute;top:-6px;right:-4px;font-size:11px;line-height:1;z-index:2;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
 .pcircle.empty{border-style:dashed;border-color:rgba(var(--gold-rgb),.35);background:rgba(3,23,46,.4)}
 .pcircle:hover{border-color:#fff;transform:scale(1.1)}
-.pcircle.sel-slot{border-color:var(--gold);background:rgba(var(--gold-rgb),.12);transform:scale(1.12);box-shadow:0 0 14px rgba(var(--gold-rgb),.3)}
+.pcircle.pslot:hover .pcircle{transform:translateY(-3px) scale(1.06);box-shadow:0 8px 20px rgba(0,0,0,.6),0 0 16px rgba(var(--gold-rgb),.22)}
+.sel-slot{border-color:var(--gold)!important;transform:scale(1.14);box-shadow:0 0 18px rgba(var(--gold-rgb),.38),0 4px 14px rgba(0,0,0,.6)}
 .pcircle.edit-slot{border-color:var(--pur);border-style:dashed;background:rgba(176,110,245,.12)}
 .pslot-lbl{font-size:9px;color:rgba(255,255,255,.5);white-space:nowrap;font-family:'Rajdhani',sans-serif}
-.ps-name{font-size:8px;color:var(--t2);max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.ps-name{font-size:8px;color:var(--t2);max-width:46px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2;font-weight:600}
 .ps-pos{font-size:9px;font-family:'Rajdhani',sans-serif;color:var(--gold);font-weight:700}
-.ps-rat{font-size:13px;font-family:'Rajdhani',sans-serif;font-weight:800;line-height:1}
+.ps-rat{font-size:14px;font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 /* BENCH */
 .bench{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(0,0,0,.3);border-radius:6px;margin-top:7px;min-height:65px;border:1px dashed rgba(255,255,255,.09)}
 .bp{width:50px;text-align:center;cursor:pointer;transition:transform .15s}
@@ -3196,19 +3259,9 @@ function initGame(teamId){
     medicalCenter: false,
     phoneMsgs: [],
     boardConf: 50,
-    boardObjectives: (()=>{
-      const allObj=[
-        {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=10&&(g.wins*3+g.draws)/(pj*3)>=0.55}},
-        {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp.includes('Libertadores')&&x.comp.includes('Semi')&&x.played).length>0},
-        {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>g.squad.some(p=>p.rat>=80&&p.club===g.teamName)},
-        {id:'budget_pos',desc:'Mantener presupuesto positivo',check:g=>g.budget>0},
-        {id:'win60',desc:'Ganar al menos 60% de los partidos',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=5&&g.wins/pj>=0.6}},
-        {id:'youth_debut',desc:'Debutar un juvenil en el primer equipo',check:g=>g.log.some(l=>l.msg&&l.msg.includes('promovido'))},
-        {id:'unbeaten5',desc:'Mantener 5 partidos invicto seguidos',check:g=>{const last5=g.calendar.filter(x=>x.played).slice(-5);return last5.length>=5&&last5.every(x=>x.result!=='L')}},
-      ];
-      const shuffled=allObj.sort(()=>Math.random()-0.5);
-      return shuffled.slice(0,3).map(o=>({...o,completed:false}));
-    })(),
+    // Sólo datos: el `check` se busca por id en BOARD_OBJ, fuera de G
+    boardObjectives: BOARD_OBJ.slice().sort(()=>Math.random()-0.5).slice(0,3)
+      .map(o=>({id:o.id,desc:o.desc,completed:false})),
     pressConfDone: false,
   };
   arAttachLeague();          // zonas + fixture de los 30 clubes (buildCal corrió sin G)
@@ -3519,6 +3572,22 @@ function openDtTalk(){
     </div>`).join('')}
   `);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// EL PEDIDO SE RESUELVE POR ID, NO POR ÍNDICE
+// ═══════════════════════════════════════════════════════════════════════
+// dtAskList() se arma cada vez según el estado del plantel: el pedido
+// "que juegue el pibe" sólo existe si hay un juvenil fuera del once, y
+// "dale descanso a X" sólo si hay alguien fundido. O sea que la lista
+// cambia de largo entre que abrís el modal y respondés, y dtResolve(i)
+// tomaba ds[i] otra vez por posición: podía aplicar el pedido de al lado.
+// _dtPending ya se guardaba para esto y nunca se leía. Ahora se usa.
+// Ojo: esto es dtAskList (presidente → DT). dtDemands(d) es lo otro, lo que
+// el técnico te exige al firmar, y vive en G.dt.contract.demands.
+function dtAskBuscar(id,i){
+  const ds=dtAskList();
+  const porId=id?ds.find(x=>x.id===id):null;
+  return porId||ds[i]||null;      // el índice queda de respaldo
+}
 function dtAskFor(i){
   const ds=dtAskList(), x=ds[i]; if(!x)return;
   window._dtPending=x.id;
@@ -3560,7 +3629,8 @@ function dtAskFor(i){
     </div>`);
 }
 function dtResolve(i,how){
-  const ds=dtAskList(), x=ds[i]; if(!x){closeMod();return;}
+  const x=dtAskBuscar(window._dtPending,i); if(!x){closeMod();return;}
+  window._dtPending=null;
   if(how==='ceder'){
     setDtRel(6);
     lg('🤝',`Le diste libertad a ${G.dt.name} para manejarlo a su manera`);
@@ -4082,7 +4152,11 @@ function updateBoard($){
     objHtml+=`<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px">`;
     objHtml+=`<div style="font-size:9px;color:var(--gold);text-transform:uppercase;font-weight:700;margin-bottom:4px;letter-spacing:.05em">Objetivos de la Junta Directiva</div>`;
     G.boardObjectives.forEach(o=>{
-      try{if(!o.completed&&o.check&&o.check(G)){o.completed=true;G.boardConf=Math.min(100,(G.boardConf||50)+5);lg('🏛️','Objetivo cumplido: '+o.desc);}}catch(e){}
+      // El check ya no viaja en el objeto: se busca por id, así funciona
+      // igual en una partida nueva que en una recargada del guardado.
+      const _fn=(typeof boardObjCheck==='function')?boardObjCheck(o.id):o.check;
+      if(!o.desc&&typeof boardObjDesc==='function')o.desc=boardObjDesc(o.id);
+      try{if(!o.completed&&_fn&&_fn(G)){o.completed=true;G.boardConf=Math.min(100,(G.boardConf||50)+5);lg('🏛️','Objetivo cumplido: '+o.desc);}}catch(e){}
       const icon=o.completed?'✅':'⬜';
       const col=o.completed?'var(--green)':'var(--t3)';
       objHtml+=`<div style="font-size:10px;color:${col};margin-bottom:2px">${icon} ${o.desc}</div>`;
@@ -5345,16 +5419,33 @@ function rFormation(){
   if(!el||!G) return;
   const sl = getForm();
   const edit=G.editMode;
-  el.innerHTML = sl.map((s,i) => {
+  // Las líneas de cal: áreas, punto de penal y arcos. Van como hijos vacíos
+  // para poder posicionarlas en % y que acompañen cualquier alto de cancha.
+  const cal = `<div class="pk-area top"></div><div class="pk-area bot"></div>
+    <div class="pk-six top"></div><div class="pk-six bot"></div>
+    <div class="pk-spot top"></div><div class="pk-spot bot"></div>
+    <div class="pk-goal top"></div><div class="pk-goal bot"></div>`;
+  const ratCol=r=>r>=85?'var(--pur)':r>=80?'var(--green)':r>=75?'var(--gold)':r>=70?'var(--ora)':'var(--t2)';
+  el.innerHTML = cal + sl.map((s,i) => {
     const p = G.slots[i] ? G.squad.find(x=>x.id===G.slots[i]) : null;
     const isSel = selSlot===i;
     const role=(G.slotRoles||{})[i];
+    // Condición física: el aro que rodea la ficha. Verde entero, oro cuando
+    // empieza a caer, rojo cuando el jugador está para salir.
+    const fit=p?Math.max(0,Math.min(100,Math.round(typeof fitOf==='function'?fitOf(p):(p.fit===undefined?100:p.fit)))):0;
+    const fitc=fit>=75?'var(--green)':fit>=50?'var(--gold)':'var(--red)';
+    const estado=p?(p.injured?' p-inj':(p.susp>0?' p-susp':'')):'';
+    const flag=p?(p.injured?'🤕':(p.susp>0?'🚫':((p.form||0)>=2?'🔥':((p.form||0)<=-2?'🥶':'')))):'';
     return `
       <div class="pslot" style="left:${s.x}%;top:${s.y}%;${edit?'cursor:grab;':''}"
         ${edit?`onpointerdown="startDragSlot(event,${i})" ondblclick="cyclePosSlot(${i})"`:`onclick="clickSlot(${i})"`}>
-        <div class="pcircle ${p?'':'empty'}${isSel?' sel-slot':''}${edit?' edit-slot':''}">
-          ${p&&!edit
-            ? `<div class="ps-rat" style="color:${p.rat>=85?'var(--pur)':p.rat>=80?'var(--green)':p.rat>=75?'var(--gold)':p.rat>=70?'var(--ora)':'var(--t2)'}">${p.rat}</div><div class="ps-name">${p.name.split(' ').pop().substr(0,7)}</div>`
+        <div class="pcircle ${p?'':'empty'}${isSel?' sel-slot':''}${edit?' edit-slot':''}${estado}"
+             ${p&&!edit?`style="--fit:${fit};--fitc:${fitc}" title="${p.name} · ${p.pos} · ${p.rat} · ${fit}% de condición"`:''}>
+          ${p&&!edit?`<div class="ps-fit"></div>
+             <div class="ps-num">${p.num||'-'}</div>
+             ${flag?`<div class="ps-flag">${flag}</div>`:''}
+             <div class="ps-name">${p.name.split(' ').pop().substr(0,7)}</div>
+             <div class="ps-badge" style="color:${ratCol(p.rat)}">${p.rat}</div>`
             : `<div class="ps-pos">${s.lbl}</div>`
           }
         </div>
@@ -9294,6 +9385,28 @@ function repSuma(d){
 // ═══ OBJETIVO DE LA ASAMBLEA / COMISIÓN DIRECTIVA ═══
 // La dirigencia fija una meta según la reputación del club. Si terminás
 // muy por debajo y con la confianza por el piso, te piden la renuncia.
+// ═══════════════════════════════════════════════════════════════════════
+// LOS OBJETIVOS DE LA JUNTA NO PUEDEN VIVIR DENTRO DE G
+// ═══════════════════════════════════════════════════════════════════════
+// G.boardObjectives guardaba cada objetivo con su función `check` adentro.
+// JSON.stringify descarta las funciones en silencio, así que al recargar la
+// partida los tres objetivos volvían con check=undefined y NO SE PODÍAN
+// CUMPLIR NUNCA MÁS — y cada uno vale +5 de confianza de la comisión.
+// Medido: guardar y volver a cargar dejaba 3 de 3 rotos.
+// Mismo patrón que los dilemas (_DIL_FX): en G van sólo datos (id, desc,
+// completed) y la función se busca acá por id. Esto NO toca saveGame ni
+// loadGame: lo que cambia es qué se le da para guardar.
+const BOARD_OBJ=[
+  {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=10&&(g.wins*3+g.draws)/(pj*3)>=0.55}},
+  {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp.includes('Libertadores')&&x.comp.includes('Semi')&&x.played).length>0},
+  {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>g.squad.some(p=>p.rat>=80&&p.club===g.teamName)},
+  {id:'budget_pos',desc:'Mantener presupuesto positivo',check:g=>g.budget>0},
+  {id:'win60',desc:'Ganar al menos 60% de los partidos',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=5&&g.wins/pj>=0.6}},
+  {id:'youth_debut',desc:'Debutar un juvenil en el primer equipo',check:g=>g.log.some(l=>l.msg&&l.msg.includes('promovido'))},
+  {id:'unbeaten5',desc:'Mantener 5 partidos invicto seguidos',check:g=>{const last5=g.calendar.filter(x=>x.played).slice(-5);return last5.length>=5&&last5.every(x=>x.result!=='L')}},
+];
+function boardObjCheck(id){ const o=BOARD_OBJ.find(x=>x.id===id); return o?o.check:null; }
+function boardObjDesc(id){ const o=BOARD_OBJ.find(x=>x.id===id); return o?o.desc:''; }
 function setBoardTarget(){
   const rep=G.rep||50;
   const nClubs=(G.league&&G.league.clubs.length)||19;
