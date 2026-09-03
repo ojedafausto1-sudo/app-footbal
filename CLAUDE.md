@@ -93,6 +93,17 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   y el Clausura, que ya van a `G.trophies`. `archiveSeason` guarda
   `champion:false` y `anual1:true` para no contar doble. Usá `titulosLiga()`
   para contar ligas ganadas, nunca `history.filter(h=>h.champion)`.
+- **El partido simulado se juega en DOS TIEMPOS** y la defensa se cae al
+  final: `matchStrengths` calcula `defFit` (energía de la línea de fondo, no
+  del equipo entero) y `defCansada` (0 arriba del 70%, hasta 1 en 40). El xG
+  se reparte 45/55 y el del rival se multiplica por `(1+defCansada*0.45)` sólo
+  en el segundo tiempo. Medido con 5000 sorteos por escenario: la relación
+  goles 2T/1T va de **1,20× con la defensa entera a 1,81× con la defensa en
+  30%**, y cuesta **0,27 puntos por partido** (≈10 en una temporada). Arriba
+  del 70% el efecto es exactamente cero. `G._tiempos` guarda el desglose para
+  el resumen, que ahora muestra el marcador por tiempo y avisa si te fundiste.
+  ⚠️ Esto NO se puede medir con 50 partidos: con ~13 goles por mitad la
+  varianza de Poisson (±28%) se come el efecto. Medí el modelo aislado.
 - **La planilla del partido simulado sale del partido**: posesión, remates, al
   arco, pases, córners y faltas se calculan en `applyMatchResult` desde `G._S`
   (lo que dejó `matchStrengths`) y el perfil del DT. Antes era todo
@@ -228,6 +239,20 @@ tiene un solo `<div id="tsWizard">` vacío.
   (con el ascenso adentro) contra los 30 que muestra el paso siguiente.
 - El contenedor va en `justify-content:flex-start`: con `center` se recortaba
   arriba y abajo en cuanto la lista crecía.
+
+## Retro-compatibilidad con partidas guardadas
+
+Los campos nuevos se agregan **siempre con un valor por defecto en el punto de
+lectura** (`G.socios||sociosBase()`, `l.apps||0`, `p.loanObligApps||0`), nunca
+migrando el save. Un guardado viejo tiene que cargar y seguir jugando sin que
+nada explote. La regresión lo verifica de verdad: borra del JSON guardado
+`_tiempos`, `_S`, `seasonIni`, `miLiga`, `socios`, `ticketPrice`, `dilemas`,
+`elecciones`, `movs`, los `obligApps`/`apps` de los préstamos y los
+`loanObligApps`/`loanApps0` de los jugadores, y después carga esa partida y
+toca los seis sistemas nuevos.
+
+Un préstamo viejo sin `obligApps` se comporta como un préstamo simple: la
+obligación no se dispara nunca (que es lo correcto, nadie la pactó).
 
 ## ⚠️ Nada que viva en `G` puede ser una función
 

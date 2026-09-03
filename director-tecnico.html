@@ -10556,6 +10556,23 @@ function matchStrengths(m){
   // La condición física del XI pesa: un equipo fundido rinde hasta 12% menos
   const avgFit = xi.length ? xi.reduce((a,p)=>a+(p.fit===undefined?100:p.fit),0)/xi.length : 100;
   const fitMod = 0.88 + 0.12*(avgFit/100);
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA DEFENSA SE CAE EN EL SEGUNDO TIEMPO
+  // ═══════════════════════════════════════════════════════════════════════
+  // fitMod es un promedio del equipo entero y pesa igual los 90 minutos: un
+  // central fundido rendía lo mismo al minuto 5 que al 85, y la diferencia
+  // entre llegar entero o con el plantel roto se diluía en un −12% parejo.
+  // Acá se mira la LÍNEA DE ATRÁS (defensores + arquero) por separado: si
+  // llega al partido por debajo del 70% de energía, en el segundo tiempo el
+  // rival encuentra los espacios que no encontraba antes. Es el gol sobre la
+  // hora, que es exactamente lo que pasa cuando no rotás.
+  const _lineaDef = xi.filter(p=>pgr(p.pos)==='DEF'||p.pos==='ARQ');
+  const defFit = _lineaDef.length
+    ? _lineaDef.reduce((a,p)=>a+(p.fit===undefined?100:p.fit),0)/_lineaDef.length
+    : avgFit;
+  // 0 con la defensa entera; crece cuando baja de 70 y se acota en 40 (por
+  // debajo de eso ya no se puede caer más).
+  const defCansada = Math.max(0,Math.min(30,70-defFit))/30;
   // La CALIDAD DEL PLANTEL manda. Antes la moral pesaba 25% y el DT 20%: una
   // mala racha hundía la moral, eso te hacía perder más y entrabas en una espiral
   // de la que no salías por más equipazo que tuvieras.
@@ -10705,7 +10722,7 @@ function matchStrengths(m){
   // el visitante es el que corre de atrás. Se acota el total: un buen plan
   // sigue valiendo, pero no reemplaza tener mejores jugadores.
   tacMod=Math.max(-0.045,Math.min(0.045,tacMod));
-  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod};
+  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod, defFit, defCansada};
   // La última medición de fuerzas queda a mano: applyMatchResult arma la
   // planilla del partido con ella y no tiene la S en su scope (lo llaman la
   // simulación rápida, el 11v11 y las jugadas clave, cada uno por su lado).
@@ -11580,7 +11597,28 @@ function simMatch(auto){
   const myXG  = Math.max(0.22, 1.35 + diff*3.4);
   const opXG  = Math.max(0.22, 1.35 - diff*3.0);
   const pois = (lam)=>{ let L=Math.exp(-lam),k=0,p=1; do{k++;p*=Math.random();}while(p>L); return k-1; };
-  let gf=Math.min(6,pois(myXG)), ga=Math.min(6,pois(opXG));
+  // ═══════════════════════════════════════════════════════════════════════
+  // EL PARTIDO SE JUEGA EN DOS TIEMPOS
+  // ═══════════════════════════════════════════════════════════════════════
+  // Antes era un solo sorteo de Poisson para los 90 minutos, así que la
+  // condición física no podía pesar distinto al principio que al final. Se
+  // reparte 45/55 (en el segundo tiempo se hacen algo más de goles, como en
+  // la realidad) y la fatiga de TU línea de fondo se aplica sólo a la
+  // segunda mitad: con la defensa por debajo del 70% de energía, el rival
+  // genera hasta un 45% más de peligro después del entretiempo.
+  // Con la defensa entera esto no cambia nada: defCansada vale 0.
+  const _fat = (S.defCansada||0);
+  const _myT1=myXG*0.45, _myT2=myXG*0.55;
+  const _opT1=opXG*0.45, _opT2=opXG*0.55*(1+_fat*0.45);
+  // Fundido también te cuesta arriba, pero mucho menos: el que corre atrás
+  // de la pelota es el que se muere.
+  const _myT2f=_myT2*(1-_fat*0.12);
+  const gf1=pois(_myT1), gf2=pois(_myT2f);
+  const ga1=pois(_opT1), ga2=pois(_opT2);
+  let gf=Math.min(6,gf1+gf2), ga=Math.min(6,ga1+ga2);
+  // Para el resumen: cuántos goles cayeron en cada tiempo y si te pasaron
+  // por encima al final por venir fundido.
+  G._tiempos={gf1,gf2,ga1,ga2,fat:_fat,defFit:Math.round(S.defFit===undefined?100:S.defFit)};
   const R = applyMatchResult(m, gf, ga);
   updateUI();
   if(!auto){
@@ -11897,6 +11935,29 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span></div>`).join('')}
     </div>` : `<div class="note" style="margin-bottom:10px">${G&&G.teamName||'El equipo'} no anotó</div>`}
 
+    ${(function(){
+      // ═══ CÓMO SE REPARTIÓ EL PARTIDO, Y SI TE FUNDISTE ═══
+      // Sin esto la fatiga de la defensa era una cuenta invisible: el gol
+      // sobre la hora parecía mala suerte. Acá se ve dónde cayeron los goles
+      // y con qué energía llegó la línea de fondo.
+      const T=G&&G._tiempos; if(!T)return '';
+      const t1=T.gf1+'-'+T.ga1, t2=T.gf2+'-'+T.ga2;
+      const dur=T.fat>0.34;
+      const aviso = dur
+        ? `<div style="font-size:10px;color:var(--red);margin-top:5px;line-height:1.4">🥵 Tu línea de fondo salió al ${T.defFit}% de energía: en el segundo tiempo el rival generó un <b>${Math.round(T.fat*45)}%</b> más de peligro. Con el plantel así, rotar deja de ser opcional.</div>`
+        : (T.fat>0.05
+          ? `<div style="font-size:10px;color:var(--gold);margin-top:5px">😮‍💨 La defensa llegó al ${T.defFit}% — se notó algo en el final.</div>`
+          : `<div style="font-size:10px;color:var(--green);margin-top:5px">💪 La defensa aguantó los 90 minutos (${T.defFit}% de energía).</div>`);
+      return `<div class="ctitle">⏱️ Por tiempo</div>
+        <div class="card" style="padding:8px 10px;margin-bottom:10px">
+          <div style="display:flex;gap:8px;text-align:center">
+            <div style="flex:1"><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">1er tiempo</div>
+              <div style="font-family:'Chakra Petch',sans-serif;font-size:19px;font-weight:700;color:${T.gf1>T.ga1?'var(--green)':T.gf1<T.ga1?'var(--red)':'var(--gold)'}">${t1}</div></div>
+            <div style="flex:1"><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">2do tiempo</div>
+              <div style="font-family:'Chakra Petch',sans-serif;font-size:19px;font-weight:700;color:${T.gf2>T.ga2?'var(--green)':T.gf2<T.ga2?'var(--red)':'var(--gold)'}">${t2}</div></div>
+          </div>${aviso}
+        </div>`;
+    })()}
     <div class="ctitle">📊 Estadísticas del partido</div>
     <div class="card" style="padding:8px 10px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);font-family:'Rajdhani';font-weight:700;margin-bottom:6px">
