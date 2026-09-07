@@ -62,6 +62,15 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Ninguna firma es instantánea**: `firmaProgramar` encola y `firmasTick`
   (diario) cierra 2-5 días después. Ojo con `pagado:true` en los caminos que
   ya descontaron la plata, si no se cobra dos veces.
+- **Rechazar una oferta grande tiene precio**: en `rejOff`, si el club que
+  ofertó es un salto de carrera (`ofertaEsSalto`: liga top Y +1,5 de
+  prestigio sobre el tuyo, o +6 de cualquier liga) y el jugador pasa de 78,
+  hay 60% de que se rebele — moral a 10, `wantsOut`, `dtRel` −20 y un mensaje
+  furioso al celular. Medido: 54-62% con un grande, **0% con un club de tu
+  liga y 0% con un jugador de 75**. `wantsOut` ya bajaba el valor y la chance
+  de retenerlo; ahora además **resta 0,55 al `rf` de `weeklyTraining`**, así
+  que el rebelde rinde ~0,6 menos y, como `rf` alimenta `badSpell`, se oxida
+  si lo dejás pudrir en el plantel.
 - **La cláusula de rescisión abre una charla**, no una venta: `G.clausulas` +
   `clausulaAbrir` / `clausulaResolver` (mejorar contrato, hablar del proyecto,
   dejarlo ir). A los dos intentos fallidos se va igual.

@@ -6502,6 +6502,13 @@ function weeklyTraining(){
     const gRate=played?(p.goals||0)/played:0;
     const scoreBonus=pgr(p.pos)==='DEL'?gRate*1.6:pgr(p.pos)==='MED'?gRate*2.4:gRate*3.2;
     let rf=(share-0.55)*1.5 + Math.min(0.6,scoreBonus) + ((p.form||0)*0.09) + (isXI?0.12:-0.12);
+    // ═══ EL QUE SE QUIERE IR, VA A MENOS ═══
+    // wantsOut ya bajaba su valor de mercado y su chance de irse, pero en la
+    // cancha rendía igual que el resto: podías tener a un tipo pidiendo salir
+    // a los gritos y no notarlo en el rendimiento. Ahora se le va la cabeza,
+    // y como rf alimenta también el declive (badSpell), un rebelde que sigue
+    // en el club se oxida de verdad hasta que le resolvés la situación.
+    if(p.wantsOut) rf-=0.55;
     rf=Math.max(-1,Math.min(1,rf));
     p.rendim=Math.round(rf*100)/100;                            // visible para la UI
     // ═══ DECLIVE: por edad, PERO acelerado o frenado por el rendimiento ═══
@@ -15418,7 +15425,65 @@ function accOffAt(i, val){
   G.offers=G.offers.filter((x,idx)=>idx!==i&&x.player.id!==p.id);
   closeMod(); updateUI();
 }
-function rejOff(i){ if(!G) return; lg('❌',`Oferta de ${G.offers[i].from} rechazada`); G.offers.splice(i,1); rOffs(); flash('Rechazada','draw'); }
+// ═══════════════════════════════════════════════════════════════════════
+// RECHAZAR UNA OFERTA TIENE CONSECUENCIAS
+// ═══════════════════════════════════════════════════════════════════════
+// Antes rechazar era gratis: se borraba la oferta y listo. Pero decirle que
+// no al Real Madrid por un jugador de 84 no es lo mismo que rechazar a un
+// club de mitad de tabla por un suplente: al que le cortás el salto de su
+// carrera se te da vuelta, y con razón.
+// Se rebela si se juntan las tres cosas: el club que ofertó es de jerarquía
+// claramente superior, el jugador es bueno (>78) y le sale el 60%.
+// Ligas donde un jugador da el salto de carrera. No alcanza con la liga:
+// también se mira el prestigio real del club (clubRank), porque el Ipswich
+// también juega la Premier.
+const LIGAS_TOP=['Premier','España','Italia','Alemania','Francia'];
+function ofertaEsSalto(o,p){
+  if(!o||!p)return false;
+  const club=o.from||'';
+  // nivel del club que oferta contra el tuyo, con los datos de la base
+  const nivOf=(typeof nivelClub==='function')?nivelClub(club):0;
+  const nivMio=(typeof nivelClub==='function')?nivelClub(G.teamName||''):0;
+  const lg=(typeof ligaDeClub==='function')?ligaDeClub(club):'';
+  const ligaTop=LIGAS_TOP.indexOf(lg)>=0;
+  // Es un salto si el club es de una liga top Y está por encima tuyo, o si
+  // te saca más de 6 puntos de prestigio (un grande de cualquier lado).
+  return (ligaTop && nivOf>nivMio+1.5) || (nivOf>nivMio+6);
+}
+function rejOff(i){
+  if(!G||!G.offers||!G.offers[i]) return;
+  const o=G.offers[i], p=o.player;
+  lg('❌',`Oferta de ${o.from} rechazada`);
+  G.offers.splice(i,1);
+  // ── ¿se rebela? ──
+  let rebelo=false;
+  if(p && !p.wantsOut && (p.rat||0)>78 && o.type!=='préstamo' && ofertaEsSalto(o,p) && Math.random()<0.60){
+    rebelo=true;
+    p.morale=10;
+    p.wantsOut=true;
+    p.dtRel=Math.max(0,(p.dtRel===undefined?60:p.dtRel)-20);
+    // La bronca de una figura se contagia al vestuario
+    G.morale=Math.max(20,(G.morale||70)-4);
+    if(typeof setDtRel==='function')setDtRel(-5);
+    const _lineas=[
+      `😡 Presidente, me cortaste la carrera. Era <b>${o.from}</b>, no un club cualquiera. Me quiero ir YA.`,
+      `🤬 ¿${o.from} y usted dijo que no? Yo laburé toda mi vida para esto. Póngame en la lista, no juego más así.`,
+      `😤 Me enteré por la prensa que rechazó a <b>${o.from}</b> sin hablarlo conmigo. Se terminó, presidente: quiero salir.`,
+      `😠 Presidente, con todo respeto: usted acaba de decidir por mi futuro. Búsqueme club, yo acá ya no estoy.`,
+    ];
+    addPhoneMsg('player', p.name,
+      _lineas[~~(Math.random()*_lineas.length)]+
+      `<br><br><span style="color:var(--red);font-size:10px">⚠️ Moral por el piso · pidió salir · va a rendir menos hasta que se resuelva</span>`,
+      '🤬', {gotoTab:'sq', tabIdx:1});
+    addPhoneMsg('board','Secretaría Deportiva',
+      `🚨 Presidente, <b>${p.name}</b> explotó por el rechazo a ${o.from}. Está en la lista de transferibles de hecho: o le conseguimos salida, o lo tenemos jugando a media máquina.`,'🏛️');
+    lg('🤬',`${p.name} se rebeló por el rechazo a ${o.from}: quiere irse`);
+    if(typeof _pubRumor==='function')
+      _pubRumor(`🤬 <b>${p.name}</b> habría pedido salir de ${G.teamName} tras el rechazo a la oferta de <b>${o.from}</b>.`,'misc');
+  }
+  rOffs();
+  flash(rebelo?('🤬 '+p.name+' se rebeló por el rechazo'):'Rechazada', rebelo?'loss':'draw');
+}
 function ctrOff(i){
   if(!G) return;
   const o = G.offers[i];
