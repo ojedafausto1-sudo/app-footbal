@@ -12957,7 +12957,9 @@ function playMatch(){
   document.getElementById('lmGame').style.display='none';
   document.getElementById('lmFeed').style.display='block';
   document.getElementById('lmOv').style.display='flex';
+  weatherPick(m.home+'|'+m.away+'|'+(m.round||m.fecha||0));   // una vez por partido
   lmFeedMsg('⚽',`Arranca el partido: <strong>${m.home} vs ${m.away}</strong> · ${m.comp}`);
+  lmFeedMsg(wxNow().icon,`<strong>${wxNow().name}</strong> — ${wxNow().desc}`);
   lmRenderHead();
   lmRun();
 }
@@ -13215,9 +13217,112 @@ function sitLoop(ts){
   s.lastTs=ts;s.t+=dt;
   s.update(dt);
   if(!s.ended){
-    s.draw(document.getElementById('lmCanvas').getContext('2d'));
+    const ctx=document.getElementById('lmCanvas').getContext('2d');
+    s.draw(ctx);
+    // La lluvia se dibuja ARRIBA DE TODO y en el loop, no en la cancha: así
+    // cae sobre los jugadores y sirve para las 5 jugadas, incluidas las
+    // pseudo-3D que no pasan por sitDrawField. El barro sí va en la cancha.
+    wxDrawRain(ctx,s.W,s.H,dt);
     s.raf=requestAnimationFrame(sitLoop);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLIMA DEL PARTIDO — el estado de la cancha cambia las físicas del 2D
+// ═══════════════════════════════════════════════════════════════════════════
+// Se sortea UNA vez por partido jugable (jugadas clave y 11v11 comparten el
+// mismo clima) y vive en window.matchWeather. La simulación de texto NO lo mira.
+//
+// ⚠️ Cómo se aplica la fricción: en los dos motores es Math.pow(k,dt), donde k
+// es lo que la pelota CONSERVA por tick. Escalar k directo no sirve (0.99×2 da
+// 1.98, la pelota aceleraría). Lo que escala el clima es la PÉRDIDA, (1-k), y
+// para eso está wFric(k). El tope de 0.5 evita que el barro frene tanto que la
+// pelota se clave en el pie del que la toca.
+const WEATHER={
+  soleado:{icon:'☀️',name:'Soleado',ballFric:1.00,stopMul:1.00,spd:1.00,stam:1.00,passMul:1.00,
+           desc:'Cancha en buen estado.'},
+  lluvia :{icon:'🌧️',name:'Lluvia', ballFric:0.55,stopMul:0.60,spd:1.00,stam:1.00,passMul:0.70,
+           desc:'La pelota patina: los pases se van largos y el arquero puede soltarla.'},
+  barro  :{icon:'🟤',name:'Barro',  ballFric:2.10,stopMul:1.90,spd:0.80,stam:2.50,passMul:1.72,
+           desc:'Cancha pesada: la pelota se clava, se corre un 20% menos y las piernas se funden al doble.'},
+};
+// key = el partido. Si se vuelve a entrar al MISMO partido (jugadas clave y
+// después el 11v11, o reabrir la pantalla), el clima no se vuelve a sortear.
+// ⚠️ stam:2.50 no es un error de tipeo. El gasto es proporcional a la
+// velocidad REAL, y en el barro esa velocidad ya viene 20% más baja, así que un
+// 2.00 daba 1.60× medido. 2.50 × 0.80 = el 2× por minuto que se buscaba.
+// ⚠️ passMul existe porque la IA calcula la fuerza del pase con una fórmula
+// atada a la fricción del campo (pwr = 1.5 + dd·0.0075). Sin corregir, un pase
+// pensado para 200px recorría 407 con lluvia y 105 con barro: la IA no
+// completaba un pase y el partido se caía. El jugador de verdad también ajusta,
+// pero no del todo: la corrección es PARCIAL (0.70 y 1.72 contra los 0.63 y
+// 1.87 que igualarían el día soleado), así que con lluvia se sigue yendo largo
+// y con barro se sigue quedando corto — que es justamente la gracia.
+function weatherPick(key){
+  if(key&&window._wxMatchKey===key&&window.matchWeather)return window.matchWeather;
+  const r=Math.random();
+  window.matchWeather = r<0.60?'soleado' : r<0.85?'lluvia' : 'barro';   // 60 / 25 / 15
+  window._wxMatchKey=key||null;
+  window._wxDrops=null; window._wxPud=null;   // se regeneran para el clima nuevo
+  if(typeof FM==='object'&&FM)FM._wxPud=null;
+  return window.matchWeather;
+}
+// (se llama wxNow y no wx porque las jugadas pseudo-3D usan 'wx' como
+// coordenada local en proj(wx,wz,wy) y en varios forEach)
+function wxNow(){ return WEATHER[window.matchWeather]||WEATHER.soleado; }
+function wFric(k){ return Math.max(0.5,Math.min(0.99995,1-(1-k)*wxNow().ballFric)); }
+function wStop(v){ return v*wxNow().stopMul; }   // umbral en el que la pelota se planta
+function wxLabel(){ const w=wxNow(); return w.icon+' '+w.name; }
+
+// ── Gotas de lluvia: un pool fijo que se recicla, no objetos nuevos por cuadro ──
+function wxDrops(W,H){
+  if(window._wxDrops&&window._wxDrops.W===W&&window._wxDrops.H===H)return window._wxDrops.a;
+  const n=110,a=[];
+  for(let i=0;i<n;i++)a.push({x:Math.random()*(W+120)-60,y:Math.random()*H,
+    len:8+Math.random()*13,sp:7+Math.random()*7,al:0.16+Math.random()*0.28});
+  window._wxDrops={W,H,a};
+  return a;
+}
+// Charcos: posiciones estables por partido (con semilla), no bailan cada cuadro
+function wxPuddles(W,H,seedKey){
+  const key=seedKey+'|'+W+'x'+H;
+  if(window._wxPud&&window._wxPud.key===key)return window._wxPud.a;
+  let sd=0; for(let i=0;i<key.length;i++)sd=(sd*31+key.charCodeAt(i))>>>0;
+  const rnd=()=>{sd=(sd*16807+12345)%2147483647;return sd/2147483647;};
+  const a=[];
+  for(let i=0;i<14;i++)a.push({x:rnd()*W,y:rnd()*H,rx:16+rnd()*40,ry:6+rnd()*15,
+    rot:rnd()*Math.PI,al:0.10+rnd()*0.16});
+  window._wxPud={key,a};
+  return a;
+}
+// Capa de barro: oscurece el verde y tira los charcos. Va DESPUÉS del césped y
+// ANTES de las líneas de cal, así el barro no tapa la marcación.
+function wxDrawMud(ctx,W,H,seedKey){
+  if(window.matchWeather!=='barro')return;
+  ctx.save();
+  ctx.fillStyle='rgba(24,18,10,.34)';ctx.fillRect(0,0,W,H);            // cancha pesada, sin brillo
+  wxPuddles(W,H,seedKey||'sit').forEach(p=>{
+    ctx.fillStyle='rgba(74,52,30,'+p.al+')';
+    ctx.beginPath();ctx.ellipse(p.x,p.y,p.rx,p.ry,p.rot,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(120,92,58,'+(p.al*0.7)+')';ctx.lineWidth=1;ctx.stroke();
+  });
+  ctx.restore();
+}
+// Lluvia: líneas en diagonal + un velo frío. Va ARRIBA DE TODO (menos el HUD).
+function wxDrawRain(ctx,W,H,dt){
+  if(window.matchWeather!=='lluvia')return;
+  const drops=wxDrops(W,H), d=Math.max(0.3,Math.min(2.5,dt||1));
+  ctx.save();
+  ctx.fillStyle='rgba(120,150,180,.055)';ctx.fillRect(0,0,W,H);        // velo gris
+  ctx.lineWidth=1.1;ctx.lineCap='round';
+  for(const g of drops){
+    ctx.strokeStyle='rgba(174,206,232,'+g.al+')';
+    ctx.beginPath();ctx.moveTo(g.x,g.y);ctx.lineTo(g.x-g.len*0.38,g.y+g.len);ctx.stroke();
+    g.x-=g.sp*0.38*d; g.y+=g.sp*d;
+    if(g.y>H){g.y=-14;g.x=Math.random()*(W+120)-60;}
+    if(g.x<-60)g.x=W+60;
+  }
+  ctx.restore();
 }
 
 // ——— Utilidades de dibujo ———
@@ -13232,6 +13337,8 @@ function sitDrawField(ctx,W,H,glY,gh){
   const vig=ctx.createRadialGradient(W/2,H*.55,H*.08,W/2,H*.55,H*.85);
   vig.addColorStop(0,'transparent');vig.addColorStop(1,'rgba(0,0,0,.38)');
   ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  // Barro: va acá, entre el césped y la cal, así los charcos no tapan las líneas
+  wxDrawMud(ctx,W,H,'sit');
   // Field lines
   ctx.strokeStyle='rgba(255,255,255,.70)';ctx.lineWidth=1.5;
   const paw=gh*3.2,pah=H*0.23;
@@ -13514,9 +13621,10 @@ function sitBodyBall(body,b,br,extra){
 function sitMove(body,dx,dy,dt,acc){
   const mg=Math.hypot(dx,dy)||1;
   if(dx||dy){dx/=mg;dy/=mg;}
-  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*body.spd*(acc||.085)*dt;
-  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*body.spd*(acc||.085)*dt;
-  const v=Math.hypot(body.vx,body.vy),vmax=body.spd*1.25;
+  const spd=body.spd*wxNow().spd;      // en el barro se corre un 20% menos
+  body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*(acc||.085)*dt;
+  body.vy=(body.vy||0)*Math.pow(.93,dt)+dy*spd*(acc||.085)*dt;
+  const v=Math.hypot(body.vx,body.vy),vmax=spd*1.25;
   if(v>vmax){body.vx*=vmax/v;body.vy*=vmax/v;}
   body.x+=body.vx*dt;body.y+=body.vy*dt;
 }
@@ -13585,14 +13693,17 @@ function sitSetupAttack(W,H,oR,mainP,pool){
     // principio (rueda rápido y el pasto casi no la agarra) y se muere de
     // golpe al final, y por el aire casi no frena. Es el mismo modelo que ya
     // usa el 11v11.
+    // El CLIMA entra acá: wFric escala la PÉRDIDA de cada coeficiente (con
+    // lluvia la pelota patina y se va larga, con barro se clava), y wStop
+    // mueve el umbral en el que se planta.
     const _bs=Math.hypot(b.vx,b.vy);
-    const fr = (b.air&&b.air>0) ? Math.pow(.9992,dt)
-             : s.mode==='dribble' ? Math.pow(.990,dt)
-             : _bs>3.2 ? Math.pow(.9968,dt)
-             : _bs>0.9 ? Math.pow(.988,dt)
-                       : Math.pow(.955,dt);
+    const fr = (b.air&&b.air>0) ? Math.pow(wFric(.9992),dt)
+             : s.mode==='dribble' ? Math.pow(wFric(.990),dt)
+             : _bs>3.2 ? Math.pow(wFric(.9968),dt)
+             : _bs>0.9 ? Math.pow(wFric(.988),dt)
+                       : Math.pow(wFric(.955),dt);
     b.vx*=fr;b.vy*=fr;
-    if(Math.hypot(b.vx,b.vy)<0.035){b.vx=0;b.vy=0;}   // se queda quieta de verdad
+    if(Math.hypot(b.vx,b.vy)<wStop(0.035)){b.vx=0;b.vy=0;}   // se queda quieta de verdad
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     if(s.mode==='dribble'){
       let nd=sD(s.atk[s.ctrl],b);
@@ -13898,6 +14009,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
       ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
       ctx.fillStyle=i%2?'#2f8f3e':'#2a8037';ctx.fill();
     }
+    wxDrawMud(ctx,W,H,'sit3d');   // barro: entre el césped y la cal
     // área grande + punto del penal
     ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=2;
     [-1.15,1.15].forEach(wx=>{const a=proj(wx,0.32,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
@@ -14118,6 +14230,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
       ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
       ctx.fillStyle=i%2?'#2f8f3e':'#2a8037';ctx.fill();
     }
+    wxDrawMud(ctx,W,H,'sit3d');   // barro: entre el césped y la cal
     ctx.strokeStyle='rgba(255,255,255,.32)';ctx.lineWidth=2;
     [-1.15,1.15].forEach(wx=>{const a=proj(wx,0.30,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
     const ln=proj(-1.15,0.30,0),rn=proj(1.15,0.30,0);ctx.beginPath();ctx.moveTo(ln.x,ln.y);ctx.lineTo(rn.x,rn.y);ctx.stroke();
@@ -14359,6 +14472,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
       ctx.fillStyle=i%2?'#2f8f3e':'#2a8037';ctx.fill();
     }
+    wxDrawMud(ctx,W,H,'sit3d');   // barro: entre el césped y la cal
     // líneas de cancha
     ctx.strokeStyle='rgba(255,255,255,.30)';ctx.lineWidth=2;
     [-GOAL_HW*2.0,GOAL_HW*2.0].forEach(wx=>{const a=proj(wx,0,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
@@ -14422,14 +14536,17 @@ function sitSetupDefense(W,H,oR){
     // principio (rueda rápido y el pasto casi no la agarra) y se muere de
     // golpe al final, y por el aire casi no frena. Es el mismo modelo que ya
     // usa el 11v11.
+    // El CLIMA entra acá: wFric escala la PÉRDIDA de cada coeficiente (con
+    // lluvia la pelota patina y se va larga, con barro se clava), y wStop
+    // mueve el umbral en el que se planta.
     const _bs=Math.hypot(b.vx,b.vy);
-    const fr = (b.air&&b.air>0) ? Math.pow(.9992,dt)
-             : s.mode==='dribble' ? Math.pow(.990,dt)
-             : _bs>3.2 ? Math.pow(.9968,dt)
-             : _bs>0.9 ? Math.pow(.988,dt)
-                       : Math.pow(.955,dt);
+    const fr = (b.air&&b.air>0) ? Math.pow(wFric(.9992),dt)
+             : s.mode==='dribble' ? Math.pow(wFric(.990),dt)
+             : _bs>3.2 ? Math.pow(wFric(.9968),dt)
+             : _bs>0.9 ? Math.pow(wFric(.988),dt)
+                       : Math.pow(wFric(.955),dt);
     b.vx*=fr;b.vy*=fr;
-    if(Math.hypot(b.vx,b.vy)<0.035){b.vx=0;b.vy=0;}   // se queda quieta de verdad
+    if(Math.hypot(b.vx,b.vy)<wStop(0.035)){b.vx=0;b.vy=0;}   // se queda quieta de verdad
     b.x+=b.vx*dt;b.y+=b.vy*dt;
     if(s.mode==='dribble'){
       if(s.stun>0)s.stun-=dt;
@@ -16114,7 +16231,8 @@ function fmMove(body,dx,dy,dt,acc){
   // partidos se abren en el final y el físico (FIS) de tus jugadores se nota.
   const st=body.stam===undefined?100:body.stam;
   const fatigue=0.72+0.28*(st/100);
-  const spd=body.spd*fatigue;
+  // CLIMA: en el barro se corre un 20% menos y se gasta el doble (más abajo).
+  const spd=body.spd*fatigue*wxNow().spd;
   // El que tiene mejor arranque llega antes a la pelota dividida
   const ac=(acc||.085)*(body.acel||1);
   body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*ac*dt;
@@ -16125,7 +16243,7 @@ function fmMove(body,dx,dy,dt,acc){
   // Gastás según cuánto te movés; el aguante (FIS) define cuánto te dura
   if(!body.isGK&&body.stam!==undefined){
     const fis=(body.attrs&&body.attrs.FIS)||body.rat||70;
-    body.stam=Math.max(52,body.stam-v*dt*0.0036*(1.75-fis/80));
+    body.stam=Math.max(52,body.stam-v*dt*0.0036*(1.75-fis/80)*wxNow().stam);
   }
 }
 
@@ -16141,6 +16259,9 @@ function startFullMatch(watch){
   window._fmWatch=!!watch;
   document.getElementById('fm-ov')?.remove();
   const opp=m.home===G.teamName?m.away:m.home;
+  // El clima se sortea acá; si venís de jugar las jugadas clave del MISMO
+  // partido, la clave coincide y se respeta el que ya había.
+  weatherPick(m.home+'|'+m.away+'|'+(m.round||m.fecha||0));
   const S=matchStrengths(m);
   const myRat=Math.round(S.avgR),oppRat=Math.round(S.oppRat);
   const myTac=G.formation||'4-4-2';
@@ -16156,6 +16277,7 @@ function startFullMatch(watch){
       <div style="text-align:center;flex-shrink:0">
         <div id="fm-sc" style="font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:900;color:#fff;line-height:1">0 – 0</div>
         <div id="fm-tm" style="font-size:10px;color:rgba(255,255,255,.45);font-family:'Rajdhani',sans-serif">0' · 1T</div>
+        <div style="font-size:9.5px;color:rgba(255,255,255,.55);font-family:'Rajdhani',sans-serif" title="${wxNow().desc}">${wxLabel()}</div>
       </div>
       <div style="font-family:'Rajdhani',sans-serif;line-height:1.3;text-align:right;min-width:0">
         <div style="font-size:12px;font-weight:700;color:rgba(180,210,255,1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${opp}</div>
@@ -17204,6 +17326,7 @@ function fmLoop(ts){
   let pasos=enteros*(FM.watch?(FM.speed||1):1);
   if(pasos>170)pasos=170;            // si el navegador se trabó, no recupera todo de golpe
   for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++)fmTick(1);
+  if(FM)FM._dtLast=Math.max(0.3,Math.min(4,real/PASO_MS));   // cuánto avanza la lluvia este cuadro
   if(FM&&FM.phase!=='done')fmDraw();
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
@@ -18994,7 +19117,9 @@ function fmTeamPass(team,fromIdx){
     // salía a 4,7 y recorría 511: le pasaba de largo al compañero por más del
     // doble. Medido, el 57% del tiempo de juego la pelota estaba SUELTA en el
     // piso sin dueño, y de ahí venían los pocos pases, remates y gambetas.
-    const pwr=Math.max(2.4,Math.min(8.2,1.5+dd*0.0075))*(0.94+Math.random()*0.12);
+    // El clima: en el barro hay que pegarle más fuerte, con lluvia más suave.
+    // La corrección es parcial a propósito (ver la tabla WEATHER).
+    const pwr=Math.max(2.4,Math.min(8.2,1.5+dd*0.0075))*(0.94+Math.random()*0.12)*(wxNow().passMul||1);
     // PRECISIÓN DE PASE: a menor PAS, más error lateral (pases desviados que se pierden)
     const pas=(fromP.attrs&&fromP.attrs.PAS)||fromP.rat||70;
     const errAmp=(1-Math.min(92,pas)/100)*Math.min(1,dd/500)*2.6;
@@ -19020,7 +19145,8 @@ function fmBall(dt){
   if(b.air>0) b.air=Math.max(0,b.air-dt);
   // Friction — slower decay (more realistic roll)
   const spd=Math.hypot(b.vx,b.vy);
-  const fr=b.air>0?Math.pow(.999,dt):spd>0.3?Math.pow(.9908,dt):Math.pow(.97,dt);
+  // El CLIMA escala la pérdida por tick: lluvia = patina, barro = se clava.
+  const fr=b.air>0?Math.pow(wFric(.999),dt):spd>0.3?Math.pow(wFric(.9908),dt):Math.pow(wFric(.97),dt);
   b.vx*=fr;b.vy*=fr;
   // ═══════════════════════════════════════════════════════════════════════
   // ROZAMIENTO LINEAL: LA PELOTA TIENE QUE PARAR DE VERDAD
@@ -19033,8 +19159,10 @@ function fmBall(dt){
   // tiempo finito. Se suma al arrastre en vez de reemplazarlo, para no
   // romper las distancias de pase que ya estaban calibradas: un pase fuerte
   // pierde un 14% de recorrido, y lo que desaparece es la cola infinita.
+  // El barro multiplica esta desaceleración constante: es la que de verdad
+  // hace que la pelota se pare, más que el arrastre proporcional de arriba.
   if(!(b.air>0)){
-    const _s=Math.hypot(b.vx,b.vy), _dec=0.004*dt;
+    const _s=Math.hypot(b.vx,b.vy), _dec=0.004*wxNow().ballFric*dt;
     if(_s<=_dec){ b.vx=0; b.vy=0; }
     else if(_s>0){ const _k=(_s-_dec)/_s; b.vx*=_k; b.vy*=_k; }
   }
@@ -19223,6 +19351,16 @@ function fmDrawSim(cv,ctx){
   for(let i=0;i<14;i++){
     ctx.fillStyle=i%2?'#2c6e3c':'#2f7642';
     ctx.fillRect(leftGL-sw+i*sw,-30,sw,VH+60);
+    if(i===13&&window.matchWeather==='barro'){
+      // Barro en la vista cenital: mundo, no pantalla (la cámara sigue la jugada)
+      ctx.fillStyle='rgba(24,18,10,.34)';ctx.fillRect(-pad,-pad,VW+pad*2,VH+pad*2);
+      if(!f._wxPud){
+        let sd=99;const rr=()=>{sd=(sd*16807+7)%2147483647;return sd/2147483647;};
+        f._wxPud=[];for(let j=0;j<22;j++)f._wxPud.push({x:rr()*VW,y:rr()*VH,r:34+rr()*90,a:0.10+rr()*0.16});
+      }
+      f._wxPud.forEach(p=>{ctx.fillStyle='rgba(74,52,30,'+p.a+')';
+        ctx.beginPath();ctx.ellipse(p.x,p.y,p.r,p.r*0.55,0,0,Math.PI*2);ctx.fill();});
+    }
   }
   // Líneas
   ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=3.4;
@@ -19333,6 +19471,9 @@ function fmDrawSim(cv,ctx){
   for(let i=0;i<5;i++){const a=rot+i*Math.PI*2/5;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*4.5,b.y-airH+Math.sin(a)*4.5,2.2,0,Math.PI*2);ctx.fill();}
 
   ctx.restore();
+
+  // Lluvia: en pantalla (después del restore), debajo del HUD
+  wxDrawRain(ctx,W,H,f._dtLast||1);
 
   // ═══ HUD ═══
   if(f.phase!=='play'&&f.phase!=='kickoff'&&f.phase!=='restart'){
@@ -19515,6 +19656,25 @@ function fmDraw(){
   };
   worn(cx,mid,190);
   worn(leftGL+55,mid,160);worn(rightGL-55,mid,160);
+
+  // ═══ BARRO: CANCHA PESADA ═══
+  // Ojo: acá los charcos van en coordenadas de MUNDO y se proyectan con P(),
+  // no en coordenadas de pantalla como en las jugadas clave. Con la cámara
+  // paneando, un charco dibujado sobre la pantalla queda pegado al vidrio.
+  if(window.matchWeather==='barro'){
+    ctx.fillStyle='rgba(24,18,10,.34)';quad3(-60,0,VW+60,VH);ctx.fill();
+    if(!f._wxPud){
+      let sd=99;const rr=()=>{sd=(sd*16807+7)%2147483647;return sd/2147483647;};
+      f._wxPud=[];
+      for(let i=0;i<22;i++)f._wxPud.push({x:rr()*VW,y:rr()*VH,r:34+rr()*90,a:0.10+rr()*0.16});
+    }
+    f._wxPud.forEach(p=>{
+      const[ppx,ppy]=P(p.x,p.y), rr2=p.r*kxAt(p.y);
+      ctx.fillStyle='rgba(74,52,30,'+p.a+')';
+      ctx.beginPath();ctx.ellipse(ppx,ppy,rr2,rr2*0.34,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(120,92,58,'+(p.a*0.65)+')';ctx.lineWidth=1;ctx.stroke();
+    });
+  }
 
   // ═══ LÍNEAS DEL CAMPO (proyectadas) ═══
   ctx.strokeStyle='rgba(255,255,255,.62)';ctx.lineWidth=Math.max(1.4,2.4*kxMid/s);
@@ -19878,6 +20038,9 @@ function fmDraw(){
       ctx.fillText(txt,W/2,pcy+9.5);
     }
   }
+
+  // Lluvia: arriba de la cancha y de los jugadores, debajo del minimapa y el HUD
+  wxDrawRain(ctx,W,H,f._dtLast||1);
 
   // Minimapa (abajo al centro)
   {

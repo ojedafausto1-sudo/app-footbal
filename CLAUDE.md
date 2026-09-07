@@ -396,6 +396,46 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
 - **Relación con el DT**: `G.dtRel` (0-100), `setDtRel`, `dtAskList` (pedidos del
   presidente al DT, que puede retrucar).
 
+## Clima del partido (sólo el 2D)
+
+`window.matchWeather` se sortea UNA vez por partido jugable (`weatherPick(key)`,
+llamado desde `playMatch` y `startFullMatch`; la clave es el partido, así que
+jugar las jugadas clave y después el 11v11 no vuelve a sortear). **La simulación
+de texto no lo mira.** Reparto: soleado 60%, lluvia 25%, barro 15% (medido sobre
+20.000 tiradas: 59,3 / 25,3 / 15,4).
+
+| | pelota | jugadores |
+|---|---|---|
+| ☀️ soleado | 822px de recorrido | — |
+| 🌧️ lluvia | **1500px (1,82×)**, patina | — |
+| 🟤 barro | **387px (0,47×)**, se clava | **−20,1% de velocidad, 2,00× de gasto** |
+
+- ⚠️ **La fricción se escala por la PÉRDIDA, no por el coeficiente.** En los dos
+  motores es `Math.pow(k,dt)` con `k` = lo que la pelota conserva; multiplicar
+  `k` la haría acelerar. Para eso está `wFric(k)` = `1-(1-k)*ballFric`, y
+  `wStop(v)` mueve el umbral en el que se planta.
+- ⚠️ **`stam:2.50` en el barro no es un error de tipeo.** El gasto es
+  proporcional a la velocidad REAL y esa ya viene 20% más baja, así que un 2.00
+  daba **1,60× medido**. Con 2.50 el gasto por minuto es exactamente 2×.
+- ⚠️ **`passMul` es obligatorio, no un ajuste fino.** La IA calcula la fuerza del
+  pase con `pwr = 1.5 + dd·0.0075`, atado a la fricción del campo. Sin corregir,
+  un pase pensado para 200px recorría **407px con lluvia y 105 con barro**: la IA
+  no completaba un pase y el partido se caía. La corrección es **parcial a
+  propósito** (0.70 y 1.72 contra los 0.63 y 1.87 que igualarían el día
+  soleado), así que queda **+15/18% largo con lluvia y −9/11% corto con barro**.
+- El accesor se llama **`wxNow()`, no `wx()`**: las jugadas pseudo-3D usan `wx`
+  como coordenada local en `proj(wx,wz,wy)` y en varios `forEach`.
+- Dibujo: el **barro va en la cancha** (entre el césped y la cal, para no tapar
+  las líneas) y la **lluvia en el loop**, arriba de todo, así cae sobre los
+  jugadores y sirve para las 5 jugadas incluidas las pseudo-3D. En el 11v11 los
+  charcos van en coordenadas de **mundo** y se proyectan con `P()`: dibujados
+  sobre la pantalla quedan pegados al vidrio cuando la cámara panea.
+- Medido a ×16: **60 fps con los tres climas**, y el equipo llega al 55% de
+  stamina en el **minuto 23 con barro contra el 46 con sol**.
+- ⚠️ La stamina NO se puede medir por el promedio al final del partido: el piso
+  es 52 y con los dos climas se llega. Hay que medir en qué minuto se cruza cada
+  escalón (`scratchpad/clima3.js`).
+
 ## Niebla de guerra en el mercado
 
 Fuera de la liga que dirigís, un jugador es un rumor: **11,9% del mercado se ve,
