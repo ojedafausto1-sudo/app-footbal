@@ -196,6 +196,9 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .achip-v{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;color:var(--ac);line-height:1}
 .achip-k{font-size:8.5px;color:var(--t2);margin:3px 0 4px;letter-spacing:.05em;font-weight:600}
 .achip-bar{height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
+/* Niebla de guerra: atributo sin informe de ojeador */
+.achip-unk{opacity:.62;border-style:dashed}
+.achip-unk .achip-v{letter-spacing:.06em}
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(7,9,14,.72);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1)}
 .modal{background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.06)}
@@ -4391,10 +4394,14 @@ function openP(id, inSquad){
   const sq = G.squad.some(x=>x.id===id);
   ensureAttrs(p);
   const known = sq || isKnown(p);
+  // NIEBLA DE GUERRA: sin informe no se manda a la UI ni el rating, ni el
+  // potencial, ni los atributos, ni las insignias. Sólo el rango estimado.
   const attrs = known ? attrChips(p)
-    : `<div class="note" style="text-align:center">🔎 Jugador sin scoutear: rating estimado <b>${ratRangeTxt(p)}</b>. Atributos desconocidos.<br>
-       <button class="btn bo bs" style="margin-top:6px" onclick="scoutOne('${p.id}')">🔎 Pedir informe individual ($0.1M)</button></div>`;
-  const vb = vbadges(p);
+    : `<div class="note" style="text-align:center;margin-bottom:8px">🔎 <b>Sin informe de ojeador.</b> Nuestra gente lo ubica en una media de <b>${ratRangeTxt(p)}</b> y un techo de <b>${potRangeTxt(p)}</b>, pero no le vimos los detalles.<br>
+       <span style="font-size:9.5px;color:var(--t3)">Puede tener insignias que todavía no conocemos.</span><br>
+       <button class="btn bg bs" style="margin-top:7px" onclick="scoutOne('${p.id}')">🔎 Pedir informe individual ($0.1M)</button></div>
+       ${attrChipsK(p)}`;
+  const vb = known ? vbadges(p) : '';
   // Barra de valor TM: log-scale 0.05M=0% ... 200M=100%
   const tmPct = Math.min(100, Math.round(Math.log10(Math.max(0.05,p.val)*100)/Math.log10(20000)*100));
   const tmColor = p.val>=10?'var(--green)':p.val>=3?'var(--gold)':p.val>=1?'var(--ora)':'var(--t3)';
@@ -4402,9 +4409,9 @@ function openP(id, inSquad){
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
       <div style="text-align:center;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px">
-        ${known?rb(p.rat):rbK(p)}
+        ${rbK(p)}
         <div style="font-size:9px;color:var(--t3)">RAT</div>
-        ${known?rb(p.pot):'<span class="badge bau" style="font-size:9px">??</span>'}
+        ${potK(p)}
         <div style="font-size:9px;color:var(--t3)">POT</div>
       </div>
       <div style="flex:1">
@@ -4425,8 +4432,8 @@ function openP(id, inSquad){
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">
-      <div class="card" style="text-align:center;padding:8px">${known?rb(p.rat):rbK(p)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Rating</div></div>
-      <div class="card" style="text-align:center;padding:8px">${known?rb(p.pot):'<span class="badge bau" style="font-size:9px">??</span>'}<div style="font-size:9px;color:var(--t3);margin-top:3px">Potencial</div></div>
+      <div class="card" style="text-align:center;padding:8px">${rbK(p)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Rating${known?'':' est.'}</div></div>
+      <div class="card" style="text-align:center;padding:8px">${potK(p)}<div style="font-size:9px;color:var(--t3);margin-top:3px">Potencial${known?'':' est.'}</div></div>
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;color:var(--green);font-family:'Rajdhani',sans-serif">${p.morale}%</div><div style="font-size:9px;color:var(--t3)">Moral</div></div>
       <div class="card" style="text-align:center;padding:8px"><div style="font-size:14px;font-weight:700;font-family:'Rajdhani',sans-serif">${p.contract}</div><div style="font-size:9px;color:var(--t3)">Contrato</div></div>
     </div>
@@ -4585,7 +4592,7 @@ function openNeg(id){
   const agent=_negAgent(p);
   const demand=_negDemand(p);
   const wageExp=_negWageExpect(p);
-  const isTop=p.rat>=85;
+  const isTop=isKnown(p)&&p.rat>=85;   // la estrellita también es dato de scouting
   const styleTxt={duro:'Agente difícil — pedirá mucho',negociador:'Agente flexible — dispuesto a negociar',razonable:'Agente razonable — trato justo',ambicioso:'Agente ambicioso — quiere comisiones altas'}[agent.style];
   window._negData={id,demand,agent,wageExp,round:1,maxRounds:3,lastOffer:0};
   const agentMsg={duro:`⚠️ Mirá, ${p.club} no necesita vender. Si querés a <b>${p.name}</b>, vas a tener que poner una oferta MUY seria. No me hagas perder el tiempo.`,negociador:`📞 Buenas. Recibí tu interés por <b>${p.name}</b>. ${p.club} está dispuesto a sentarse a negociar si la oferta es razonable. Hablemos.`,razonable:`😊 ¡Hola! Qué bueno que se interesen por <b>${p.name}</b>. Creo que podemos llegar a un acuerdo si ambas partes ponemos voluntad.`,ambicioso:`💰 Mi cliente <b>${p.name}</b> es un jugador top. ${p.club} lo valora mucho, y yo me aseguro de que reciba lo que merece. La comisión es parte del paquete.`}[agent.style];
@@ -4599,7 +4606,8 @@ function openNeg(id){
       <div style="flex:1">
         <div style="font-size:15px;font-weight:700;color:#fff;font-family:'Rajdhani'">${p.name} <span style="color:var(--t3);font-size:11px">${p.age} años</span></div>
         <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${p.lg}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${rb(p.rat)} Rating · ${rb(p.pot)} Potencial · Valor ${fv(p.val)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${rbK(p)} Rating · ${potK(p)} Potencial · Valor ${fv(p.val)}</div>
+        ${isKnown(p)?'':`<div style="font-size:9.5px;color:var(--gold);margin-top:2px">🔎 Estás negociando a ciegas — <a href="javascript:void(0)" style="color:var(--gold);text-decoration:underline" onclick="closeMod();scoutOne('${p.id}')">pedí el informe ($0.1M)</a></div>`}
         <div style="font-size:10px;color:var(--red);margin-top:2px">💥 Cláusula de rescisión: <b>${fv(clauseOf(p))}</b></div>
       </div>
     </div>
@@ -5213,26 +5221,37 @@ function renderMkt(){
     if(nat && p.nat!==nat) return false;
     if(p.val>mv) return false;
     if(p.age>maxAge) return false;
-    if(p.rat<minR) return false;
-    if(virt){ ensureAttrs(p); if((p.attrs[virt]||0) < p.rat+2 && (p.attrs[virt]||0) < 80) return false; }
+    // NIEBLA DE GUERRA: no podés filtrar por lo que no sabés. Al que no
+    // scouteaste se lo juzga por el TECHO de su rango estimado, así no se
+    // cuela el número exacto por la puerta de atrás del filtro.
+    if(minR && (isKnown(p)?p.rat:ratHi(p)) < minR) return false;
+    // Las virtudes son dato de informe: sin scoutear, no entra en la búsqueda.
+    if(virt){ if(!isKnown(p)) return false; ensureAttrs(p); if((p.attrs[virt]||0) < p.rat+2 && (p.attrs[virt]||0) < 80) return false; }
     return true;
   });
+  // NIEBLA DE GUERRA: ordenar por media era la última puerta de atrás —
+  // la lista ordenada por p.rat te daba el ranking EXACTO sin pagar un peso.
+  // Al que no scouteaste se lo ordena por la estimación del informante.
   if(sort==='pos') pl=ordenarPlantel(pl);        // arqueros, defensa, medio, ataque
-  else if(sort==='rat') pl.sort((a,b)=>b.rat-a.rat);
+  else if(sort==='rat') pl.sort((a,b)=>ratEst(b)-ratEst(a));
   else if(sort==='val') pl.sort((a,b)=>b.val-a.val);
-  else if(sort==='pot') pl.sort((a,b)=>b.pot-a.pot);
-  else if(sort==='ganga') pl.sort((a,b)=>(b.rat/Math.max(0.3,b.val))-(a.rat/Math.max(0.3,a.val)));
+  else if(sort==='pot') pl.sort((a,b)=>potEst(b)-potEst(a));
+  else if(sort==='ganga') pl.sort((a,b)=>(ratEst(b)/Math.max(0.3,b.val))-(ratEst(a)/Math.max(0.3,a.val)));
   else pl.sort((a,b)=>a.age-b.age);
   const totalFound=pl.length;
   pl = pl.slice(0,150);
+  const sinInf=pl.filter(p=>!isKnown(p)).length;
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
+  ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe ($0.1M) o mandá un ojeador a la liga.</div>`:''}
   ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
   el.innerHTML = winBanner+pl.map(p=>{
-    const tag = p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>':p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>':p.rat>=78&&p.age<=23?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':'';
-    const vb = vbadges(p);
+    // NIEBLA DE GUERRA: la chapa (⭐/🌟/💡) sale del rating real, así que sin
+    // informe se reemplaza por 🔎 SIN INFORME, y las insignias no se muestran.
+    const tag = tagK(p);
+    const vb = vbK(p);
     return `
     <div class="mkrow" onclick="openP('${p.id}',false)">
       <div style="position:relative">${rbK(p)}<span onclick="event.stopPropagation();cmpToggle('${p.id}')"
@@ -5245,7 +5264,7 @@ function renderMkt(){
         if(m<=6)return `<div style="font-size:8px;color:var(--gold)" title="Le quedan ${m} meses: se abarata y podés firmar precontrato">📝 ${m}m · ${fv(askingPrice(p))}</div>`;
         if(m<=12)return `<div style="font-size:8px;color:var(--ora)" title="Contrato corto: pide menos">⏳ ${m}m · ${fv(askingPrice(p))}</div>`;
         return '';})()}${p.forceSale?'<div style="font-size:8px;color:var(--red)">🔥 QUIERE SALIR</div>':''}</div>
-      <div>${rb(p.pot)}</div>
+      <div>${potK(p)}</div>
       <div style="display:flex;gap:3px">
         <button class="btn bg bs" onclick="event.stopPropagation();negStartPlayer('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'} title="Arreglar primero con el jugador, después con el club">🤝 Fichar</button>
         <button class="btn bo bs" onclick="event.stopPropagation();loanIn('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'}>📥</button>
@@ -8713,28 +8732,105 @@ function checkPromises(){
 }
 
 // =============================================
-// CONOCIMIENTO DE JUGADORES (estilo FM): fuera de tu liga, el rating
-// exacto está oculto hasta que un ojeador lo siga.
+// NIEBLA DE GUERRA (estilo FM)
+// Fuera de TU liga un jugador es un rumor: no ves su rating exacto, ni el
+// potencial, ni los atributos, ni las insignias doradas. Sólo un rango
+// estimado. Un informe de ojeador ($0.1M) o una misión a esa liga lo revela.
+//
+// ⚠️ isKnown() es el ÚNICO portero: todo lo que la UI dibuja de un jugador
+// del mercado tiene que pasar por acá (rbK, potK, vbK, tagK, attrChipsK).
+// Si agregás un dato nuevo a la ficha o a la lista, gatealo también.
+// ⚠️ Es contra la liga que dirigís (ligaMia()), no contra 'Liga ARG' fija:
+// dirigiendo al Porto, los argentinos son tan desconocidos como el resto.
 // =============================================
 function isKnown(p){
-  return p.lg==='Liga ARG'||p.scouted||p.club===G.teamName;
+  if(!p)return false;
+  if(p.scouted===true)return true;                                   // informe pagado o misión de ojeadores
+  if(typeof G!=='object'||!G)return false;
+  if(p.club===G.teamName)return true;                                // los tuyos, obvio
+  if(G.squad&&G.squad.some(x=>x.id===p.id))return true;
+  return p.lg===ligaMia();                                           // tu propia liga la ves entera
 }
-function ratRangeTxt(p){
-  const s=3+((p.name.length*7+p.age*3)%4); // margen estable por jugador
-  return Math.max(55,p.rat-s)+'–'+Math.min(94,p.rat+s);
+// Margen del informante: estable por jugador (3 a 6 puntos), así el rango no
+// baila cada vez que se redibuja la lista.
+function scoutMargin(p){
+  const n=String((p&&p.name)||'').length, a=(p&&p.age)||25;
+  return 3+((n*7+a*3)%4);
 }
+function _scoutHash(p){
+  return String((p&&(p.id||p.name))||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+}
+// ⚠️ EL RANGO NO SE CENTRA EN EL RATING REAL. Medido: con el rango centrado
+// (rat±m), el punto medio de "79–89" era exactamente 84 — el número que se
+// supone que estás pagando por saber, servido en bandeja. Ahora el informante
+// tiene su propia estimación (corrida hasta ±m, estable por jugador) y el
+// rango se dibuja alrededor de ESA: el real cae adentro pero no en el medio.
+function ratEst(p){
+  if(isKnown(p))return p.rat;
+  const m=scoutMargin(p);
+  return Math.max(40,Math.min(99,(p.rat||60)+((_scoutHash(p)%(2*m+1))-m)));
+}
+function potEst(p){
+  if(isKnown(p))return p.pot;
+  const m=scoutMargin(p)+2;
+  return Math.max(ratEst(p),Math.min(99,(p.pot||p.rat||60)+(((_scoutHash(p)>>>5)%(2*m+1))-m)));
+}
+function ratLo(p){ return Math.max(40,ratEst(p)-scoutMargin(p)); }
+function ratHi(p){ return Math.min(99,ratEst(p)+scoutMargin(p)); }
+function ratRangeTxt(p){ return ratLo(p)+'–'+ratHi(p); }
+function potRangeTxt(p){
+  const m=scoutMargin(p)+2, pe=potEst(p);
+  return Math.max(ratLo(p),pe-m)+'–'+Math.min(99,pe+m);
+}
+// ── Los cinco envoltorios que la UI tiene que usar SIEMPRE ──
 function rbK(p){
-  return isKnown(p)?rb(p.rat):`<span class="badge bau" style="font-size:9px" title="Rating estimado — mandá un ojeador">${ratRangeTxt(p)}?</span>`;
+  return isKnown(p)?rb(p.rat)
+    :`<span class="badge bau" style="font-size:9px" title="Rating estimado — pedí un informe de ojeador">${ratRangeTxt(p)}?</span>`;
+}
+function potK(p){
+  return isKnown(p)?rb(p.pot)
+    :`<span class="badge bau" style="font-size:9px" title="Potencial estimado — pedí un informe de ojeador">${potRangeTxt(p)}?</span>`;
+}
+function vbK(p){ return isKnown(p)?vbadges(p):''; }                  // las insignias doradas son dato de scouting
+function tagK(p){
+  if(!isKnown(p))return '<span class="badge bau" style="margin-left:4px;font-size:8px" title="Sin scoutear">🔎 SIN INFORME</span>';
+  return p.rat>=88?'<span class="badge bau" style="margin-left:4px;font-size:8px">⭐ SUPERESTRELLA</span>'
+    :p.rat>=83?'<span class="badge bau" style="margin-left:4px;font-size:8px">🌟 FIGURA</span>'
+    :(p.rat>=78&&p.age<=23)?'<span class="badge baB" style="margin-left:4px;font-size:8px">💡 PROMESA</span>':'';
+}
+// Los 6 chips de atributos: con signos de pregunta si no lo scouteaste.
+function attrChipsK(p){
+  if(isKnown(p))return attrChips(p);
+  ensureAttrs(p);
+  return `<div class="achips">`+Object.keys(p.attrs).map(k=>{
+    const inf=ATTR_INFO[k]||{icon:'',label:k};
+    return `<div class="achip achip-unk" style="--ac:var(--t3)" title="${inf.label}: sin informe">
+      <div class="achip-v">??</div>
+      <div class="achip-k">${inf.icon} ${k}</div>
+      <div class="achip-bar"><div style="width:100%;height:100%;background:repeating-linear-gradient(90deg,rgba(255,255,255,.10) 0 4px,transparent 4px 8px);border-radius:2px"></div></div>
+    </div>`;
+  }).join('')+`</div>`;
 }
 function scoutOne(id){
-  const p=G.market.find(x=>x.id===id);
+  if(!G)return;
+  const p=(G.market||[]).find(x=>x.id===id)||(G.squad||[]).find(x=>x.id===id);
   if(!p)return;
+  if(isKnown(p)){flash('Ya tenés el informe de este jugador','draw');openP(id,false);return;}
   if(G.budget<0.1){flash('❌ Presupuesto insuficiente','loss');return;}
   G.budget=Math.round((G.budget-0.1)*10)/10;
-  finAnota('operativo',0.1,'Informe de ojeador: '+p.name);
+  if(typeof finAnota==='function')finAnota('operativo',0.1,'Informe de ojeador: '+p.name);
   p.scouted=true;
-  lg('🔎',`Informe individual: ${p.name} (rating real ${p.rat})`);
+  ensureAttrs(p);
+  // Qué salió del informe: el rating real, el potencial y las insignias que estaban tapadas
+  const ins=virtues(p);
+  const sorpresa=p.rat>ratHi(p)-1?' (mejor de lo que se decía)':p.rat<ratLo(p)+1?' (peor de lo que se decía)':'';
+  lg('🔎',`Informe individual: ${p.name} — media real ${p.rat}, potencial ${p.pot}${ins.length?', '+ins.map(v=>v.virtue).join(' + '):''}`);
+  addPhoneMsg('board','Jefe de Ojeadores',
+    `🔎 Informe de <b>${p.name}</b> (${p.pos}, ${p.age} años, ${p.club}): media <b>${p.rat}</b>, potencial <b>${p.pot}</b>${sorpresa}.`+
+    (ins.length?` Le vemos ${ins.map(v=>'<b>'+v.virtue+'</b>').join(' y ')}.`:' No le vemos nada que sobresalga.'),'🔎');
+  flash(`🔎 ${p.name}: media ${p.rat}${ins.length?' · '+ins.map(v=>v.icon+' '+v.virtue).join(' '):''}`,'win');
   closeMod();openP(id,false);
+  if(typeof renderMktSafe==='function')renderMktSafe();
 }
 
 // =============================================
@@ -21133,13 +21229,28 @@ function openCompare(){
     <div style="display:grid;grid-template-columns:1fr 92px 1fr;gap:6px;margin-bottom:10px">
       ${cab(a)}<div></div>${cab(b2)}
     </div>
-    ${fila('Media',a.rat,b2.rat)}
-    ${fila('Potencial',a.pot||a.rat,b2.pot||b2.rat)}
+    ${(()=>{ // NIEBLA DE GUERRA: comparar no puede ser la puerta de atrás que
+      // revela los números de un jugador sin informe.
+      const ka=isKnown(a), kb=isKnown(b2);
+      const oc=v=>'<span style="color:var(--t3)">'+v+'?</span>';
+      // con uno solo tapado la comparación numérica no sirve: se muestran rangos
+      return (ka&&kb)?(fila('Media',a.rat,b2.rat)+fila('Potencial',a.pot||a.rat,b2.pot||b2.rat))
+        :`<div style="display:grid;grid-template-columns:1fr 92px 1fr;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="text-align:right">${ka?a.rat:oc(ratRangeTxt(a))}</div>
+            <div style="text-align:center;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Media</div>
+            <div>${kb?b2.rat:oc(ratRangeTxt(b2))}</div></div>
+          <div style="display:grid;grid-template-columns:1fr 92px 1fr;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="text-align:right">${ka?(a.pot||a.rat):oc(potRangeTxt(a))}</div>
+            <div style="text-align:center;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em">Potencial</div>
+            <div>${kb?(b2.pot||b2.rat):oc(potRangeTxt(b2))}</div></div>`;
+    })()}
     ${fila('Edad',-a.age,-b2.age,v=>(-v)+' años')}
     ${fila('Valor',a.val,b2.val,v=>fv(v))}
     ${fila('Sueldo',-(a.wage||0),-(b2.wage||0),v=>(-v)+'k/sem')}
     ${fila('Contrato',a.contract||0,b2.contract||0)}
-    ${claves.map(k=>fila(k,a.attrs[k],b2.attrs[k])).join('')}
+    ${(isKnown(a)&&isKnown(b2))?claves.map(k=>fila(k,a.attrs[k],b2.attrs[k])).join('')
+      :`<div class="note" style="margin-top:8px;text-align:center">🔎 No se pueden comparar los atributos: falta el informe de <b>${[!isKnown(a)?a.name:'',!isKnown(b2)?b2.name:''].filter(Boolean).join('</b> y <b>')}</b>.
+        ${[a,b2].filter(x=>!isKnown(x)).map(x=>`<button class="btn bo bs" style="margin:6px 3px 0" onclick="closeMod();scoutOne('${x.id}')">🔎 Informe de ${x.name.split(' ').pop()} ($0.1M)</button>`).join('')}</div>`}
     ${a.pos!==b2.pos?'<div class="note" style="margin-top:8px">⚠️ Juegan en puestos distintos: la comparación directa engaña.</div>':''}
     <div style="display:flex;gap:6px;margin-top:10px">
       <button class="btn bo bs" style="flex:1" onclick="closeMod();openP('${a.id}',false)">Ver a ${a.name.split(' ').pop()}</button>

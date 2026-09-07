@@ -396,6 +396,39 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
 - **Relación con el DT**: `G.dtRel` (0-100), `setDtRel`, `dtAskList` (pedidos del
   presidente al DT, que puede retrucar).
 
+## Niebla de guerra en el mercado
+
+Fuera de la liga que dirigís, un jugador es un rumor: **11,9% del mercado se ve,
+13.651 de 15.503 están en niebla**. `isKnown(p)` es el ÚNICO portero (liga
+propia, tu plantel, `p.scouted`) y **todo lo que la UI dibuja de un jugador del
+mercado tiene que pasar por sus cinco envoltorios**: `rbK` (media), `potK`
+(potencial), `vbK` (insignias doradas), `tagK` (⭐/🌟/💡, que sale del rating) y
+`attrChipsK` (los 6 chips con `??`). Si agregás un dato a la ficha o a la lista,
+gatealo también.
+
+- ⚠️ **El rango NO se centra en el rating real.** Estaba centrado (`rat±m`), así
+  que el punto medio de "79–89" era exactamente 84: el número que estás pagando
+  por saber, servido en bandeja (medido: **100% de los rangos lo regalaban**).
+  Ahora el informante tiene su propia estimación (`ratEst` / `potEst`, corrida
+  hasta ±m y estable por jugador) y el rango se dibuja alrededor de ESA. Medido
+  sobre los 13.651: el real cae adentro el **100%** de las veces, el punto medio
+  lo clava sólo el **10,5%**, error medio **2,48 puntos**.
+- ⚠️ **Los filtros y el orden son puertas de atrás.** Ordenar por media con
+  `p.rat` te daba el **ranking exacto gratis**; ahora `rat`, `pot` y `ganga`
+  ordenan por `ratEst`/`potEst`. El filtro de media mínima juzga al desconocido
+  por el TECHO de su rango (así no se pierde el que puede servir) y el de
+  virtudes directamente lo excluye: no se busca lo que no sabés.
+- Los otros dos agujeros que había: **el comparador** (marcabas dos y te
+  mostraba todo en claro) y **la pantalla de negociación** (`openNeg` imprimía
+  `rb(p.rat)` y `rb(p.pot)`). Los dos gateados; negociar a ciegas ahora te
+  avisa con un link al informe.
+- `scoutOne(id)` cobra $0.1M, marca `p.scouted=true` y **cuenta qué salió**:
+  media real, potencial, si el jugador es mejor o peor de lo que se decía, y las
+  insignias que estaban tapadas (mensaje al celular + flash + log). La misión de
+  ojeadores (`processScouts`) revela los 5 hallazgos de una liga por $0.5M.
+- Retro-compatible sin migrar: un save viejo no tiene `scouted` en nadie y
+  `undefined` es exactamente "sin informe".
+
 ⚠️ **Ojo con los nombres — `dtDemands` ≠ `dtAskList`**. Van en direcciones
 opuestas y ya hubo una colisión por esto:
 
