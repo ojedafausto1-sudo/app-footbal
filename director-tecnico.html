@@ -1327,9 +1327,13 @@ function starsH(rat,sz){
 }
 
 function fv(v){
-  if(v>=100) return '€'+~~v+'M';
-  if(v>=1) return '€'+v.toFixed(1)+'M';
-  return '€'+~~(v*1000)+'K';
+  // El signo va ANTES del símbolo. Sin esto, un club en rojo mostraba
+  // "€-3000K" en vez de "-€3.0M": los negativos caían siempre en la rama de
+  // los miles porque -3 no es >=1, y el menos quedaba pegado al euro.
+  const s=v<0?'-':'', a=Math.abs(v||0);
+  if(a>=100) return s+'€'+~~a+'M';
+  if(a>=1)   return s+'€'+a.toFixed(1)+'M';
+  return s+'€'+~~(a*1000)+'K';
 }
 function mc(m){ return m>=80?'var(--green)':m>=55?'var(--gold)':'var(--red)'; }
 function ptag(pos){ return `<span class="ptag pt-${pos}">${pos}</span>`; }
@@ -3554,7 +3558,7 @@ function dtAskList(){
     apply:()=>{const sl=getForm();let idx=sl.findIndex((s,i)=>s.pos!=='ARQ'&&posPenalty(joven.pos,s.pos)<=1);
       if(idx<0)idx=sl.findIndex(s=>s.pos!=='ARQ');
       if(idx>=0){G.slots[idx]=joven.id;G.bench=sq.filter(p=>!Object.values(G.slots).includes(p.id));}
-      joven._forced=4;joven.morale=Math.min(99,(joven.morale||70)+10);
+      joven._forced=4;joven.morale=Math.min(99,(joven.morale===undefined?70:joven.morale)+10);
       lg('🌱',`Por pedido tuyo, ${joven.name} entra al equipo titular`);}});
   if(fundido)d.push({id:'rotar',label:`😮‍💨 "Dale descanso a ${fundido.name}"`,
     desc:`Está al ${Math.round(fundido.fit||100)}% de condición. Si sigue, se rompe.`,
@@ -3701,7 +3705,7 @@ function dtRenuncia(motivo){
   const nom=G.dt.name||'El DT';
   if(G.dtPool){ const old=G.dtPool.find(x=>x.name===nom); if(old){old.club=null;old.until=0;} }
   G.boardConf=Math.max(0,(G.boardConf||50)-10);
-  G.morale=Math.max(25,(G.morale||70)-6);
+  G.morale=Math.max(25,(G.morale===undefined?70:G.morale)-6);
   lg('🚪',`${nom} renunció: ${motivo}`);
   addPhoneMsg('board','Secretaría del Club',
     `🚪 <b>${nom}</b> presentó la renuncia — ${motivo}. Queda un interino a cargo. Hay que salir a buscar reemplazante ya.`,'🏛️');
@@ -6191,18 +6195,57 @@ const BANK_OFFERS=[
   {monto:20, semanas:78, tasa:0.24, reqRep:55},
   {monto:45, semanas:104,tasa:0.32, reqRep:68},
 ];
+// ═══ PRÉSTAMOS DE SALVATAJE ═══
+// Plata YA para no caer en embargo, a un interés de usura y a devolver en
+// semanas, no en años. No es un crédito para reforzar: es para no morir.
+// 30% en 10 semanas y 47% en 20 — el que los toma sabe que le van a doler.
+const BANK_RESCUE=[
+  {monto:5,  total:6.5, semanas:10},
+  {monto:15, total:22,  semanas:20},
+];
 function deudaTotal(){ return (G.loans||[]).reduce((a,l)=>a+l.resta,0); }
+function cuotaSemanal(){ return Math.round((G.loans||[]).reduce((a,l)=>a+Math.min(l.cuota,l.resta),0)*100)/100; }
+function rescatesActivos(){ return (G.loans||[]).filter(l=>l.tipo==='salvataje').length; }
 function rLoans(){
   const el=document.getElementById('loanBox'); if(!el||!G)return;
   const deuda=deudaTotal();
-  const cuota=(G.loans||[]).reduce((a,l)=>a+l.cuota,0);
+  const cuota=cuotaSemanal();
+  const rojo=(G.budget||0)<EMBARGO_LIMITE;
+  const sem=G.rojoSemanas||0;
+  // Semáforo del embargo: mientras estés bajo el límite, la cuenta se ve.
+  const alerta = rojo
+    ? `<div style="padding:7px 9px;border-radius:7px;margin-bottom:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.55)">
+         <div style="font-size:11px;font-weight:800;color:var(--red);font-family:'Rajdhani',sans-serif">
+           🚨 EN ROJO HACE ${sem} ${sem===1?'SEMANA':'SEMANAS'} — límite ${EMBARGO_SEMANAS}</div>
+         <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin:5px 0 4px">
+           <div style="width:${Math.min(100,sem/EMBARGO_SEMANAS*100)}%;height:100%;background:var(--red)"></div></div>
+         <div style="font-size:9.5px;color:var(--t2)">Pasadas las ${EMBARGO_SEMANAS} semanas bajo ${fv(EMBARGO_LIMITE)} la AFA embarga:
+           <b>−${EMBARGO_PUNTOS} puntos</b> y el vestuario se va al descenso anímico.
+           ${G.embargos?`Ya te pasó <b>${G.embargos}</b> ${G.embargos===1?'vez':'veces'}.`:''}</div>
+       </div>`
+    : (sem?'':'');
   el.innerHTML=`
-    <div class="ctitle">🏦 Banco</div>
+    <div class="ctitle">🏦 Banco y Finanzas</div>
+    ${alerta}
+    <div class="sr"><span class="sl">Caja del club</span><span class="sv" style="color:${(G.budget||0)<0?'var(--red)':'var(--green)'}">${fv(G.budget||0)}</span></div>
     ${deuda>0?`<div class="sr"><span class="sl">Deuda total</span><span class="sv" style="color:var(--red)">${fv(deuda)}</span></div>
       <div class="sr"><span class="sl">Se descuenta por semana</span><span class="sv" style="color:var(--red)">${fv(cuota)}</span></div>
-      ${(G.loans||[]).map(l=>`<div style="font-size:10px;color:var(--t3)">· ${fv(l.resta)} restantes · ${l.sem} semanas</div>`).join('')}`
-      :'<div class="note" style="margin:0 0 7px">Sin deuda. Podés pedir un crédito para reforzar ahora y pagarlo de a poco.</div>'}
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">
+      ${(G.loans||[]).map(l=>`<div style="font-size:10px;color:var(--t3)">· ${l.tipo==='salvataje'?'🆘 salvataje':'🏦 crédito'} — ${fv(l.resta)} restantes · ${l.sem} semanas · ${fv(l.cuota)}/sem</div>`).join('')}`
+      :'<div class="note" style="margin:6px 0 7px">Sin deuda. Podés pedir un crédito para reforzar ahora y pagarlo de a poco.</div>'}
+
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin:10px 0 4px">🆘 Salvataje — plata ya, se paga en semanas</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      ${BANK_RESCUE.map((b,i)=>{
+        const puede=deuda<40&&rescatesActivos()<2;
+        return `<button class="btn bo bs" style="${puede?'border-color:var(--red);color:var(--red)':'opacity:.35;cursor:not-allowed'}"
+          ${puede?'':'disabled'} onclick="takeRescue(${i})"
+          title="${puede?'Cobrás '+fv(b.monto)+' ahora y devolvés '+fv(b.total)+' a razón de '+fv(Math.round(b.total/b.semanas*100)/100)+' por semana':'Con 40M de deuda o dos salvatajes abiertos el banco no te da más'}">
+          ${fv(b.monto)} → devolvés ${fv(b.total)} en ${b.semanas} sem</button>`;
+      }).join('')}
+    </div>
+
+    <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin:10px 0 4px">🏦 Crédito a largo plazo</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
       ${BANK_OFFERS.map((b,i)=>{
         const ok=(G.rep||50)>=b.reqRep&&deuda<40;
         return `<button class="btn bo bs" ${ok?'':'disabled style="opacity:.35;cursor:not-allowed"'} onclick="takeLoan(${i})"
@@ -6210,7 +6253,81 @@ function rLoans(){
           ${fv(b.monto)} · ${Math.round(b.tasa*100)}% · ${b.semanas}sem</button>`;
       }).join('')}
     </div>
-    <div style="font-size:9px;color:var(--t3);margin-top:5px">Si te atrasás, la CD lo toma como mala gestión.</div>`;
+    <div style="font-size:9px;color:var(--t3);margin-top:6px">Las cuotas se descuentan solas cada semana. Si te atrasás, la CD lo toma como mala gestión.</div>`;
+}
+// El salvataje entra al MISMO array G.loans que los créditos largos, así lo
+// cobra weeklyLoans sin tocar el loop financiero.
+function takeRescue(i){
+  const b=BANK_RESCUE[i]; if(!b||!G)return;
+  if(deudaTotal()>=40){flash('❌ Con esa deuda el banco no te da más','loss');return;}
+  if(rescatesActivos()>=2){flash('❌ Ya tenés dos salvatajes abiertos','loss');return;}
+  G.loans=G.loans||[];
+  G.loans.push({monto:b.monto,resta:b.total,cuota:Math.round(b.total/b.semanas*100)/100,
+                sem:b.semanas,tipo:'salvataje'});
+  G.budget=Math.round((G.budget+b.monto)*10)/10;
+  finAnota('credito',b.monto,'Préstamo de salvataje');
+  lg('🆘',`Salvataje de ${fv(b.monto)} — devolvés ${fv(b.total)} en ${b.semanas} semanas`);
+  addPhoneMsg('board','Tesorería',
+    `🆘 Firmamos un <b>préstamo de salvataje</b> de ${fv(b.monto)}. Devolvemos <b>${fv(b.total)}</b> en ${b.semanas} semanas: ${fv(Math.round(b.total/b.semanas*100)/100)} por semana, se descuenta solo. Es carísimo, presidente — que sea la última vez.`,'🏛️');
+  rLoans(); updateUI();
+  flash('🆘 Salvataje aprobado: '+fv(b.monto),'win');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EMBARGO DE LA AFA — quedarse en rojo tiene consecuencias deportivas
+// ═══════════════════════════════════════════════════════════════════════
+// Antes podías vivir en −20M para siempre: el rojo era un número feo en la
+// barra y nada más. Ahora hay un reloj: tres semanas por debajo del límite y
+// la asociación te descuenta puntos de la tabla y te vacía el vestuario.
+const EMBARGO_LIMITE=-5;      // millones
+const EMBARGO_SEMANAS=3;
+const EMBARGO_PUNTOS=3;
+function weeklyEmbargo(){
+  if(!G)return;
+  if((G.budget||0)<EMBARGO_LIMITE){
+    G.rojoSemanas=(G.rojoSemanas||0)+1;
+    // Dos avisos antes del garrote: nadie tiene que perder 3 puntos de sorpresa
+    if(G.rojoSemanas===1)
+      addPhoneMsg('board','Tesorería',
+        `⚠️ La caja quedó en <b style="color:#ef4444">${fv(G.budget)}</b>. Si seguimos bajo ${fv(EMBARGO_LIMITE)} tres semanas seguidas, la AFA nos sanciona. Vendé, pedí un salvataje o bajá el gasto.`,'🏛️');
+    else if(G.rojoSemanas===EMBARGO_SEMANAS)
+      addPhoneMsg('board','AFA — Departamento Económico',
+        `🚨 <b>ÚLTIMO AVISO.</b> ${G.teamName} lleva ${G.rojoSemanas} semanas por debajo del mínimo exigido. Si la semana que viene no regulariza, se ejecuta el embargo: <b>−${EMBARGO_PUNTOS} puntos</b> en la tabla.`,'⚖️');
+    else if(G.rojoSemanas>EMBARGO_SEMANAS) dispararEmbargo();
+  }else{
+    if((G.rojoSemanas||0)>=EMBARGO_SEMANAS)
+      addPhoneMsg('board','Tesorería','✅ Salimos del rojo. Se levanta la intimación de la AFA.','🏛️');
+    G.rojoSemanas=0;
+  }
+}
+function dispararEmbargo(){
+  G.embargos=(G.embargos||0)+1;
+  // 1) el vestuario se hunde: no se cobró y se enteraron por el diario
+  (G.squad||[]).forEach(p=>{ p.morale=0; });
+  G.morale=0;
+  // 2) la sanción deportiva: la quita va a la tabla de verdad, la misma que
+  //    leen la posición, el descenso y el archivo de la temporada
+  let sanción=false;
+  try{
+    if(typeof ensureLeague==='function')ensureLeague();
+    const row=G.league&&G.league.table&&G.league.table[G.teamName];
+    if(row){ row.pts-=EMBARGO_PUNTOS; sanción=true; }
+  }catch(e){}
+  (G.sanciones=G.sanciones||[]).push({season:G.season,week:G.week,pts:EMBARGO_PUNTOS,motivo:'Embargo por deuda'});
+  // 3) el resto del club se entera
+  G.boardConf=Math.max(0,(G.boardConf||50)-15);
+  G.fanMood=Math.max(0,(G.fanMood||55)-12);
+  if(typeof repSuma==='function')repSuma(-4);
+  if(typeof autSuma==='function')autSuma(-10);
+  addPhoneMsg('board','AFA — Departamento Económico',
+    `⚖️ <b>EMBARGO EJECUTADO.</b> Por deuda impaga, a ${G.teamName} se le descuentan <b>${EMBARGO_PUNTOS} puntos</b> de la tabla${sanción?'':' (se aplicarán al reanudarse el torneo)'} y se le inhibe la caja. El plantel no cobró: la moral está por el piso.`,'⚖️');
+  addPhoneMsg('player','Capitán del plantel',
+    `😤 Presidente, no cobramos. Nos enteramos del embargo por el diario. Así no se puede entrenar ni jugar.`,'😤');
+  lg('⚖️',`EMBARGO: −${EMBARGO_PUNTOS} puntos por deuda · moral del plantel a 0`);
+  flash(`⚖️ EMBARGO DE LA AFA: −${EMBARGO_PUNTOS} puntos`,'loss');
+  if(typeof _pubRumor==='function')try{_pubRumor(`⚖️ Escándalo: le descuentan ${EMBARGO_PUNTOS} puntos a ${G.teamName} por deuda impaga.`,'misc');}catch(e){}
+  // el reloj vuelve a cero: si seguís en rojo, en 4 semanas te sancionan de nuevo
+  G.rojoSemanas=0;
 }
 function takeLoan(i){
   const b=BANK_OFFERS[i]; if(!b||!G)return;
@@ -6269,7 +6386,7 @@ function fechaFIFA(){
   llamados.forEach(p=>{
     p.selUp=2;                                   // 2 semanas afuera
     p.caps=(p.caps||0)+1;
-    p.morale=Math.min(99,(p.morale||60)+7);      // lo llena de orgullo
+    p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+7);      // lo llena de orgullo
     if(p.fit!==undefined)p.fit=Math.max(45,p.fit-14);   // vuelve fundido
   });
   G.fifaWeeks=2;
@@ -6322,7 +6439,19 @@ function weeklyPlayerDt(){
     let d= juega?1.6:(p.colgado?-3.2:-(0.8+Math.max(0,(p.rat-70))*0.05));
     if(p.injured)d=0;
     p.dtRel=Math.max(0,Math.min(100,Math.round((p.dtRel+d)*10)/10));
-    p.morale=Math.max(3,Math.min(99,Math.round((p.morale||60)+(p.dtRel>=62?0.4:p.dtRel<=30?-0.9:0))));
+    // Un decimal, como la línea de vestuario de más abajo: redondeando a
+    // ENTERO cada semana, el +0.4 se perdía siempre (round(3+0.4)=3) y un
+    // plantel hundido no se recuperaba nunca.
+    let dm=(p.dtRel>=62?0.4:p.dtRel<=30?-0.9:0);
+    // ═══ SALIR DEL POZO ═══
+    // Con el +0.4 plano, un plantel devastado (un embargo lo deja en 0) tardaba
+    // 140 semanas —tres temporadas— en volver a 60: la partida quedaba muerta.
+    // Abajo de 35 la recuperación es proporcional al agujero, así que el pozo
+    // se sale rápido al principio y despacio al final. Arriba de 35 no cambia
+    // NADA: la economía de moral del juego queda igual que siempre.
+    const _m0=(p.morale===undefined?60:p.morale);
+    if(_m0<35 && !p.wantsOut && !p.colgado) dm+=(35-_m0)*0.10;
+    p.morale=Math.max(3,Math.min(99,Math.round((_m0+dm)*10)/10));
     // Si se rompe del todo, pide salir y lo dice
     if(p.dtRel<=12&&!p.wantsOut&&Math.random()<0.18){
       p.wantsOut=true;
@@ -6454,7 +6583,7 @@ function weeklyVestuario(){
   const rotos=vestLideres().filter(l=>l.animo<=25);
   if(rotos.length && Math.random()<0.22){
     const l=rotos[0];
-    G.morale=Math.max(20,(G.morale||70)-4);
+    G.morale=Math.max(20,(G.morale===undefined?70:G.morale)-4);
     addPhoneMsg('agent','Prensa',
       `🔥 Se filtró que <b>${l.p.name}</b>, uno de los referentes del plantel, está enfrentado con el cuerpo técnico. El vestuario de <b>${G.teamName}</b> está partido.`,'📰');
     lg('🔥',`${l.p.name} (referente) rompió el clima del vestuario`);
@@ -8338,7 +8467,7 @@ function weeklyRumores(){
       _pubRumor(f(p),'rumor');
       addPhoneMsg('agent','Prensa',f(p),'📰');
       // Que lo nombren le mueve el piso: se ilusiona o se distrae
-      p.morale=Math.max(3,Math.min(99,(p.morale||60)+(real?4:-2)));
+      p.morale=Math.max(3,Math.min(99,(p.morale===undefined?60:p.morale)+(real?4:-2)));
       lg('👀',`Rumor: ${p._rumorClub} por ${p.name}`);
     }
   }
@@ -8367,7 +8496,7 @@ function weeklyRumores(){
       const f=RUMOR_TXT.falso[~~(Math.random()*RUMOR_TXT.falso.length)];
       p._rumorClub=r.club;
       _pubRumor(f(p),'rumor');
-      if(r.mio) p.morale=Math.max(3,(p.morale||60)-2);   // lo ilusionaron al pedo
+      if(r.mio) p.morale=Math.max(3,(p.morale===undefined?60:p.morale)-2);   // lo ilusionaron al pedo
       return;
     }
     if(r.mio){
@@ -8379,7 +8508,7 @@ function weeklyRumores(){
         _pubRumor(`💰 Oficial: <b>${r.club}</b> presentó una oferta formal de <b>${fv(fee)}</b> por <b>${p.name}</b>.`,'transfer');
         addPhoneMsg('agent','Mercado de pases',
           `💰 Se confirmó lo que venía sonando: <b>${r.club}</b> puso <b>${fv(fee)}</b> sobre la mesa por <b>${p.name}</b>. La decisión es suya, presidente.`,'💰');
-        p.morale=Math.min(99,(p.morale||60)+6);
+        p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+6);
       }
     }
   });
@@ -8695,7 +8824,7 @@ function makePromise(id,type){
   const t=PROMISE_TYPES[type];
   G.promises.push({playerId:id,type,made:G.week,deadline:t.weeks?G.week+t.weeks:0,apps0:p.apps||0,
     squadIds:type==='refuerzo'?G.squad.map(q=>q.id):null});
-  p.morale=Math.min(99,(p.morale||70)+10);
+  p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+10);
   addPhoneMsg('player',p.name,`🤝 Gracias por la charla, presidente. Me quedo con su palabra: <b>${t.label.replace(/"/g,'')}</b>. Confío en usted.`,'🤝');
   lg('🤝',`Promesa a ${p.name}: ${t.label}`);
   closeMod();updateUI();
@@ -8723,7 +8852,7 @@ function checkPromises(){
       }
     }
     if(pr.broken){
-      p.morale=Math.max(5,(p.morale||70)-18);
+      p.morale=Math.max(5,(p.morale===undefined?70:p.morale)-18);
       if(Math.random()<0.4)p.wantsOut=true;
       addPhoneMsg('player',p.name,`😡 Me falló, presidente. Me prometió ${PROMISE_TYPES[pr.type].label.replace(/"/g,'')} y no pasó nada.${p.wantsOut?' <b>Quiero irme del club.</b>':' No sé si puedo confiar de nuevo.'}`,'😡');
       lg('💔',`Promesa incumplida con ${p.name}`);
@@ -9422,7 +9551,7 @@ function acceptEndOffer(pid){
 function rejectEndOffer(pid){
   const p=G.squad.find(x=>x.id===pid);
   G.endSeasonOffers=(G.endSeasonOffers||[]).filter(x=>x.playerId!==pid);
-  if(p){p.morale=Math.max(5,(p.morale||70)-4);addPhoneMsg('player',p.name,'😕 Me hubiese gustado dar el salto... pero respeto la decisión del club. Sigo dando todo.','⚽');}
+  if(p){p.morale=Math.max(5,(p.morale===undefined?70:p.morale)-4);addPhoneMsg('player',p.name,'😕 Me hubiese gustado dar el salto... pero respeto la decisión del club. Sigo dando todo.','⚽');}
   updateUI();rPresTab();
 }
 // ═══════════════════════════════════════════════════════════════════════
@@ -9616,19 +9745,19 @@ const DILEMAS=[
       ops:[
         {t:'⚖️ Multa y lo dejo afuera un partido',
          d:'Disciplina para todos. El vestuario mira.',
-         fx:()=>{ p.morale=Math.max(15,(p.morale||70)-18); p.susp=(p.susp||0)+1;
+         fx:()=>{ p.morale=Math.max(15,(p.morale===undefined?70:p.morale)-18); p.susp=(p.susp||0)+1;
            G.boardConf=Math.min(100,(G.boardConf||50)+6); setDtRel&&setDtRel(6);
            G.fanMood=Math.min(100,(G.fanMood||55)+3);
            return `Multaste a ${p.name} y se pierde la próxima. El plantel entendió el mensaje.`; }},
         {t:'🤝 Lo hablo en privado y juega',
          d:'Lo necesitás en cancha. Pero se va a saber.',
-         fx:()=>{ p.morale=Math.min(99,(p.morale||70)+8);
+         fx:()=>{ p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+8);
            G.boardConf=Math.max(0,(G.boardConf||50)-7); G.fanMood=Math.max(0,(G.fanMood||55)-6);
            setDtRel&&setDtRel(-8);
            return `${p.name} juega. La CD y el técnico no lo tomaron bien.`; }},
         {t:'📣 Lo cuento yo antes que la prensa',
          d:'Te ponés al frente. Duele hoy, ordena mañana.',
-         fx:()=>{ p.morale=Math.max(20,(p.morale||70)-10);
+         fx:()=>{ p.morale=Math.max(20,(p.morale===undefined?70:p.morale)-10);
            G.boardConf=Math.min(100,(G.boardConf||50)+3); G.fanMood=Math.max(0,(G.fanMood||55)-2);
            repSuma&&repSuma(1);
            return `Diste la cara vos. La prensa te respetó la jugada.`; }},
@@ -9654,7 +9783,7 @@ const DILEMAS=[
          d:'La gente y el DT te lo van a agradecer. La CD no.',
          fx:()=>{ G.fanMood=Math.min(100,(G.fanMood||55)+11); setDtRel&&setDtRel(10);
            G.boardConf=Math.max(0,(G.boardConf||50)-9);
-           p.morale=Math.min(99,(p.morale||70)+6);
+           p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+6);
            return `Le dijiste que no a ${fv(monto)}. La cancha te lo va a cantar.`; }},
       ]};}
   },
@@ -9690,18 +9819,18 @@ const DILEMAS=[
       ops:[
         {t:'👔 El equipo lo pone el técnico',
          d:'Respaldás al DT. El jugador se calienta.',
-         fx:()=>{ setDtRel&&setDtRel(9); p.morale=Math.max(12,(p.morale||70)-16);
+         fx:()=>{ setDtRel&&setDtRel(9); p.morale=Math.max(12,(p.morale===undefined?70:p.morale)-16);
            p.dtRel=Math.max(0,(p.dtRel===undefined?60:p.dtRel)-12);
            return `Bancaste al técnico. ${p.name} quedó caliente.`; }},
         {t:'🙋 Que juegue',
          d:'Contentás al jugador, le pisás el equipo al DT.',
-         fx:()=>{ p.morale=Math.min(99,(p.morale||70)+14); p._forced=3;
+         fx:()=>{ p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+14); p._forced=3;
            setDtRel&&setDtRel(-11);
            return `${p.name} va a jugar. El técnico no dijo nada, pero lo anotó.`; }},
         {t:'📋 Lo pongo en la lista de transferibles',
          d:'Si quiere irse, que se vaya.',
          fx:()=>{ p.listed=true; p.askPrice=Math.round((p.val||1)*0.9*10)/10;
-           p.morale=Math.max(10,(p.morale||70)-10); setDtRel&&setDtRel(4);
+           p.morale=Math.max(10,(p.morale===undefined?70:p.morale)-10); setDtRel&&setDtRel(4);
            return `${p.name} quedó en la lista de transferibles.`; }},
       ]};}
   },
@@ -9797,19 +9926,19 @@ function weeklyIndisciplina(){
     // MULTAR: el plantel entiende que hay límites. Cuesta la moral del que
     // se mandó la macana y te lo va a cobrar, pero tu palabra vale más.
     ()=>{
-      jug.morale=Math.max(10,(jug.morale||70)-20);
+      jug.morale=Math.max(10,(jug.morale===undefined?70:jug.morale)-20);
       jug.dtRel=Math.max(0,(jug.dtRel===undefined?60:jug.dtRel)-5);
       G.budget=Math.round((G.budget+multa)*100)/100;
       if(typeof finAnota==='function')finAnota('otros_in',multa,'Multa a '+jug.name);
       autSuma(7);
       G.boardConf=Math.min(100,(G.boardConf||50)+4);
       if(typeof setDtRel==='function')setDtRel(4);
-      G.squad.forEach(q=>{ if(q!==jug&&Math.random()<0.5)q.morale=Math.max(12,(q.morale||70)-1); });
+      G.squad.forEach(q=>{ if(q!==jug&&Math.random()<0.5)q.morale=Math.max(12,(q.morale===undefined?70:q.morale)-1); });
       return `Multaste a ${jug.name} (${fv(multa)}). El plantel tomó nota de que hay un límite.`;
     },
     // PROTEGERLO: te lo ganás a él y perdés autoridad sobre el resto.
     ()=>{
-      jug.morale=Math.min(99,(jug.morale||70)+12);
+      jug.morale=Math.min(99,(jug.morale===undefined?70:jug.morale)+12);
       jug.dtRel=Math.min(100,(jug.dtRel===undefined?60:jug.dtRel)+4);
       autSuma(-9);
       G.boardConf=Math.max(0,(G.boardConf||50)-5);
@@ -9864,11 +9993,11 @@ function dilemaFx(id){
     const jug=(G.squad||[]).find(q=>q.id===d.pid);
     if(!jug)return null;
     _DIL_FX[id]=[
-      ()=>{ jug.morale=Math.max(10,(jug.morale||70)-20); autSuma(7);
+      ()=>{ jug.morale=Math.max(10,(jug.morale===undefined?70:jug.morale)-20); autSuma(7);
             G.boardConf=Math.min(100,(G.boardConf||50)+4);
             if(typeof setDtRel==='function')setDtRel(4);
             return `Multaste a ${jug.name}. El plantel tomó nota de que hay un límite.`; },
-      ()=>{ jug.morale=Math.min(99,(jug.morale||70)+12); autSuma(-9);
+      ()=>{ jug.morale=Math.min(99,(jug.morale===undefined?70:jug.morale)+12); autSuma(-9);
             G.boardConf=Math.max(0,(G.boardConf||50)-5);
             G.fanMood=Math.max(0,(G.fanMood||55)-4);
             if(typeof setDtRel==='function')setDtRel(-6);
@@ -10194,7 +10323,7 @@ function archiveSeason(){
   registrarLeyendas();
   if(figura){
     addPhoneMsg('board','Prensa',`🌟 <b>${figura.name}</b> fue elegido la FIGURA DEL AÑO de ${G.teamName} con ${figura.mvpCount} premios al mejor en cancha. ¡Un ídolo!`,'🏅');
-    figura.morale=Math.min(99,(figura.morale||70)+6);
+    figura.morale=Math.min(99,(figura.morale===undefined?70:figura.morale)+6);
   }
   G.squad.forEach(p=>p.mvpCount=0); // se reinicia cada temporada
   // La reputación del club crece con los logros deportivos
@@ -10784,7 +10913,7 @@ function nextSeason(){
   (G.promises||[]).forEach(pr=>{
     if(pr.type==='sueldo'&&!pr.resolved){
       const p=G.squad.find(x=>x.id===pr.playerId);
-      if(p){p.wage=Math.round((p.wage||30)*1.15);p.morale=Math.min(99,(p.morale||70)+8);
+      if(p){p.wage=Math.round((p.wage||30)*1.15);p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+8);
         addPhoneMsg('player',p.name,'💰 Gracias por cumplir con el aumento prometido, presidente. Palabra es palabra.','🤝');}
       pr.resolved=true;
     }
@@ -10951,7 +11080,7 @@ function matchStrengths(m){
   // las cuatro temporadas medidas con 2,63 puntos por partido (un campeón real
   // saca 2,0-2,2). Ahora se centra en 70 y mueve la mitad: sigue importando,
   // pero no se retroalimenta sola.
-  const _moralS=0.70+((G.morale||70)-70)/100*0.5;
+  const _moralS=0.70+((G.morale===undefined?70:G.morale)-70)/100*0.5;
   const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + _moralS*.14)
                *fitMod*posMod*chemMod*capMod*incompleto*climaMod*relMod*reconvMod;
   // Moral del rival: estable por club/fecha (no un dado nuevo cada partido).
@@ -11569,9 +11698,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
         l.apps=(l.apps||0)+1;
         l.player.apps=(l.player.apps||0)+1;
         // Jugar seguido lo hace crecer y lo pone contento: para eso lo cediste
-        l.player.morale=Math.min(99,(l.player.morale||70)+0.5);
+        l.player.morale=Math.min(99,(l.player.morale===undefined?70:l.player.morale)+0.5);
       } else {
-        l.player.morale=Math.max(20,(l.player.morale||70)-0.8);
+        l.player.morale=Math.max(20,(l.player.morale===undefined?70:l.player.morale)-0.8);
       }
       // Aviso a mitad de camino cuando la obligación está a tiro
       if(l.obligApps&&!l._avisado&&l.apps>=Math.ceil(l.obligApps*0.6)){
@@ -11651,6 +11780,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyYouth();
   weeklyColgados();
   weeklyLoans();
+  weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
   weeklySeleccion();
   weeklyPlayerDt();
   weeklyVestuario();
@@ -15361,7 +15491,7 @@ function toggleColgado(id){
   const p=(G.squad||[]).find(x=>x.id===id); if(!p)return;
   if(p.colgado){
     p.colgado=false;
-    p.morale=Math.min(99,(p.morale||60)+8);
+    p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+8);
     lg('🤝',`${p.name} vuelve a entrenar con el plantel`);
     addPhoneMsg('player',p.name,'🤝 Gracias por devolverme al grupo, presidente. Voy a demostrarle que se equivocó conmigo.','🤝');
     flash('🤝 '+p.name+' vuelve al plantel','win');
@@ -15387,8 +15517,8 @@ function confirmColgar(id){
   // Sale del once y del banco de convocados
   Object.keys(G.slots||{}).forEach(k=>{ if(G.slots[k]===id)G.slots[k]=null; });
   if(G.benchList)G.benchList=G.benchList.filter(x=>x!==id);
-  p.morale=Math.max(5,(p.morale||60)-22);
-  G.morale=Math.max(0,(G.morale||60)-4);
+  p.morale=Math.max(5,(p.morale===undefined?60:p.morale)-22);
+  G.morale=Math.max(0,(G.morale===undefined?60:G.morale)-4);
   lg('🧊',`${p.name} queda colgado: entrena aparte`);
   addPhoneMsg('player',p.name,`😤 ¿Me manda a entrenar aparte? Muy bien. Yo tengo contrato y lo voy a hacer valer.`,'😤');
   addPhoneMsg('agent','Prensa',`🧊 <b>${G.teamName}</b> apartó a <b>${p.name}</b> del plantel. En el vestuario no cayó bien.`,'📰');
@@ -15402,7 +15532,7 @@ function weeklyColgados(){
   G.squad.forEach(p=>{
     if(!p.colgado)return;
     p.colgadoSem=(p.colgadoSem||0)+1;
-    p.morale=Math.max(3,(p.morale||60)-3);
+    p.morale=Math.max(3,(p.morale===undefined?60:p.morale)-3);
     if(p.fit!==undefined)p.fit=Math.max(35,p.fit-2);       // sin fútbol se cae el ritmo
     p.val=Math.max(0.05,Math.round(p.val*0.985*100)/100);
     malestar++;
@@ -15417,12 +15547,12 @@ function weeklyColgados(){
       sacarDelPlantel(p,'sale',{motivo:'aceptó rescindir tras '+p.colgadoSem+' semanas colgado',club:'Libre'});
       p.club='Libre';p.freeAgent=true;p.colgado=false;
       G.market.push(p);
-      G.morale=Math.max(0,(G.morale||60)-3);
+      G.morale=Math.max(0,(G.morale===undefined?60:G.morale)-3);
     }
   });
   // Tener gente colgada desgasta al grupo
   if(malestar){
-    G.morale=Math.max(0,(G.morale||60)-Math.min(3,malestar*0.6));
+    G.morale=Math.max(0,(G.morale===undefined?60:G.morale)-Math.min(3,malestar*0.6));
     if(malestar>=3&&Math.random()<0.25)
       addPhoneMsg('board','Vestuario',`😟 Presidente, con ${malestar} compañeros apartados el clima está pesado. Resuelva esas situaciones.`,'🏛️');
   }
@@ -15586,7 +15716,7 @@ function sellWillingness(p,o){
 function sellWhyNo(p,o){
   const esTitular=Object.values(G.slots||{}).includes(p.id);
   if((p.seasonsAtClub||0)>=4) return 'Este club es mi casa, presidente. Acá me hicieron. No me quiero ir.';
-  if(esTitular&&(p.morale||60)>70) return 'Estoy jugando, estoy bien, la gente me quiere. ¿Para qué me voy a mover?';
+  if(esTitular&&(p.morale===undefined?60:p.morale)>70) return 'Estoy jugando, estoy bien, la gente me quiere. ¿Para qué me voy a mover?';
   if((p.age||26)<=21) return 'Todavía me falta. Quiero ganarme el puesto acá antes de irme a ningún lado.';
   return `No me convence ${o.from}. Prefiero quedarme y pelearla.`;
 }
@@ -15609,7 +15739,7 @@ function askPlayerToLeave(i,val,insistiendo){
   lg('🙅',`${p.name} no quiere ir a ${o.from}`);
   if(insistiendo){
     // Ya lo apretaste una vez: se queda y queda dolido
-    p.morale=Math.max(10,(p.morale||60)-12);
+    p.morale=Math.max(10,(p.morale===undefined?60:p.morale)-12);
     if(typeof setDtRel==='function')setDtRel(-3,'Apretaste a un jugador para que se vaya');
     closeMod();updateUI();
     flash('❌ '+p.name+' se planta. Se queda, y quedó dolido.','loss');
@@ -15751,7 +15881,7 @@ function rejOff(i){
     p.wantsOut=true;
     p.dtRel=Math.max(0,(p.dtRel===undefined?60:p.dtRel)-20);
     // La bronca de una figura se contagia al vestuario
-    G.morale=Math.max(20,(G.morale||70)-4);
+    G.morale=Math.max(20,(G.morale===undefined?70:G.morale)-4);
     if(typeof setDtRel==='function')setDtRel(-5);
     const _lineas=[
       `😡 Presidente, me cortaste la carrera. Era <b>${o.from}</b>, no un club cualquiera. Me quiero ir YA.`,
@@ -20714,20 +20844,20 @@ function presMsgDT(kind,label){
 function playerReply(p,kind){
   const per=pPersona(p);
   if(kind==='felicitar'){
-    p.morale=Math.min(100,(p.morale||70)+4);
+    p.morale=Math.min(100,(p.morale===undefined?70:p.morale)+4);
     return per==='humilde'?'Gracias presidente, yo solo trato de aportar al grupo.':per==='picante'?'¡Gracias presi! Si me siguen llegando pelotas, hay más de esto.':per==='carismático'?'¡Un abrazo presidente! Este club es mi casa.':'Se agradece, presidente. A seguir trabajando.';
   }
   if(kind==='exigir'){
     const takes=Math.random()<0.5;
-    p.morale=Math.max(0,(p.morale||70)+(takes?2:-5));
+    p.morale=Math.max(0,(p.morale===undefined?70:p.morale)+(takes?2:-5));
     return takes?'Tiene razón, presidente. Le voy a demostrar en la cancha por qué estoy acá.':(per==='picante'?'Presi, yo dejo todo en cada partido... si el equipo no acompaña no es solo culpa mía.':'Entiendo la exigencia, pero le pido confianza. Estoy pasando un momento difícil.');
   }
   if(kind==='estado'){
-    const m=p.morale||70;
+    const m=(p.morale===undefined?70:p.morale);
     return m>=75?'La verdad, muy bien presidente. El grupo es sano y me siento importante.':m>=50?'Bien, presidente... aunque me gustaría sumar más minutos.':(per==='picante'?'Sinceramente presi, no estoy cómodo. Quiero jugar más o hablamos de mi salida.':'No es mi mejor momento, presidente. Pero voy a pelearla.');
   }
   if(kind==='titular'){
-    p.morale=Math.min(100,(p.morale||70)+6);
+    p.morale=Math.min(100,(p.morale===undefined?70:p.morale)+6);
     if(p.wantsOut){p.wantsOut=false;return 'Presidente... si usted me da ese lugar, me quedo y peleo. Retiro lo dicho: cuente conmigo.';}
     return '¿En serio, presidente? No lo voy a defraudar. Cuente conmigo.';
   }
@@ -21668,7 +21798,7 @@ function _clJugador(c){ return c&&G.squad.find(q=>q.id===c.pid); }
 // Probabilidad de que se quede, dado lo que le ofreciste
 function clausulaChance(c,p,via,mejora){
   let q=0.10;
-  q+=((p.morale||70)-60)/220;                       // si está bien, cuesta menos
+  q+=((p.morale===undefined?70:p.morale)-60)/220;                       // si está bien, cuesta menos
   q+=((G.rep||50)-55)/260;                          // el peso del club
   q+=((p.dtRel===undefined?60:p.dtRel)-60)/300;     // cómo se lleva con el DT
   if(p.wantsOut)q-=0.22;
@@ -21696,7 +21826,7 @@ function clausulaAbrir(pid){
         <b>${c.club}</b> depositó <b style="color:var(--gold)">${fv(c.monto)}</b>. Si se va, entran <b>${fv(cobro)}</b> a las arcas.
       </div>
       <div style="font-size:10px;color:var(--t3);margin-top:5px">
-        Moral ${p.morale||70} · Relación con el DT ${p.dtRel===undefined?60:p.dtRel} · ${p.seasonsAtClub||0} temporada(s) en el club${p.wantsOut?' · <span style="color:var(--red)">quiere salir</span>':''}
+        Moral ${p.morale===undefined?70:p.morale} · Relación con el DT ${p.dtRel===undefined?60:p.dtRel} · ${p.seasonsAtClub||0} temporada(s) en el club${p.wantsOut?' · <span style="color:var(--red)">quiere salir</span>':''}
       </div>
       ${c.intentos?`<div style="font-size:9.5px;color:var(--red);margin-top:5px">Ya hablaste ${c.intentos} vez/veces. Cada insistida lo convence menos.</div>`:''}
     </div>
@@ -21735,7 +21865,7 @@ function clausulaResolver(pid,via){
   }
   if(Math.random()<q){
     G.clausulas=(G.clausulas||[]).filter(x=>x.pid!==pid);
-    p.morale=Math.min(99,(p.morale||70)+6);
+    p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+6);
     p.wantsOut=false;
     p.contract=Math.max(p.contract||G.season+1,G.season+2);   // se ata un año más
     lg('❤️',`${p.name} rechazó irse a ${c.club}: se queda`);
@@ -21748,7 +21878,7 @@ function clausulaResolver(pid,via){
     flash(`💔 ${p.name} se va igual`,'loss');
     irse();
   } else {
-    p.morale=Math.max(3,(p.morale||70)-2);
+    p.morale=Math.max(3,(p.morale===undefined?70:p.morale)-2);
     addPhoneMsg('player',p.name,`😕 Le agradezco, presidente, pero todavía lo estoy pensando. Deme unos días.`,'💭',{clausula:p.id});
     flash(`😕 ${p.name} lo está pensando`,'draw');
   }
@@ -21934,10 +22064,10 @@ function weeklyChats(){
     if(!G.chats.players[p.id])G.chats.players[p.id]=[];
     chatPush(G.chats.players[p.id],'them',`Presidente, no vine a este club para mirar los partidos desde el banco. Le pido que hable con el técnico, o voy a tener que pensar en irme.`);
     addPhoneMsg('player',p.name,`🪑 <b>${p.name}</b> (${p.rat}) reclama minutos: casi no juega y se está oxidando. Si no juega, va a pedir salir.`,'🪑');
-    p.morale=Math.max(0,(p.morale||70)-4);
+    p.morale=Math.max(0,(p.morale===undefined?70:p.morale)-4);
   }
   // Jugador descontento
-  const unhappy=G.squad.filter(p=>(p.morale||70)<45&&!p.wantsOut);
+  const unhappy=G.squad.filter(p=>(p.morale===undefined?70:p.morale)<45&&!p.wantsOut);
   if(unhappy.length&&Math.random()<0.5){
     const p=unhappy[~~(Math.random()*unhappy.length)];
     if(!G.chats.players[p.id])G.chats.players[p.id]=[];
@@ -21945,7 +22075,7 @@ function weeklyChats(){
     addPhoneMsg('player',p.name,'Le escribió por privado — revisá su chat en la pestaña Plantel.','👤');
   }
   // SE PLANTA: moral muy baja o figura tentada por un grande → exige salir
-  const rebels=G.squad.filter(p=>!p.wantsOut&&(((p.morale||70)<32)||((p.rat>=80)&&isTransferWindowOpen()&&Math.random()<0.06)));
+  const rebels=G.squad.filter(p=>!p.wantsOut&&(((p.morale===undefined?70:p.morale)<32)||((p.rat>=80)&&isTransferWindowOpen()&&Math.random()<0.06)));
   if(rebels.length&&Math.random()<0.6){
     const p=rebels[~~(Math.random()*rebels.length)];
     p.wantsOut=true;
@@ -21957,13 +22087,13 @@ function weeklyChats(){
   // Los plantados rinden y valen menos hasta que se resuelva
   G.squad.forEach(p=>{
     if(p.wantsOut){
-      p.morale=Math.max(0,(p.morale||70)-2);
+      p.morale=Math.max(0,(p.morale===undefined?70:p.morale)-2);
       p.perf=Math.max(0.75,(p.perf||1)-0.01);
       p.val=calcVal(p);
     }
   });
   // Goleador contento
-  const scorer=G.squad.filter(p=>p.goals>=3&&(p.morale||70)>=70);
+  const scorer=G.squad.filter(p=>p.goals>=3&&(p.morale===undefined?70:p.morale)>=70);
   if(scorer.length&&Math.random()<0.3){
     const p=scorer[~~(Math.random()*scorer.length)];
     if(!G.chats.players[p.id])G.chats.players[p.id]=[];
@@ -22006,7 +22136,7 @@ function rPhone(){
         <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
           <button onclick="_phPlayer=null;rPhone()" style="background:none;border:none;color:var(--gold);font-size:14px;cursor:pointer">←</button>
           <div>${rb(p.rat)}</div>
-          <div><div style="font-size:12px;font-weight:700">${p.name}</div><div style="font-size:9px;color:var(--t3)">${p.pos} · Moral ${p.morale||70}%</div></div>
+          <div><div style="font-size:12px;font-weight:700">${p.name}</div><div style="font-size:9px;color:var(--t3)">${p.pos} · Moral ${p.morale===undefined?70:p.morale}%</div></div>
         </div>
         ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Sin mensajes con este jugador.</div>'}
         <div class="ph-qr">
@@ -22026,7 +22156,7 @@ function rPhone(){
           ${rb(p.rat)}
           <div style="flex:1;min-width:0">
             <div style="font-size:11px;font-weight:600">${p.name}</div>
-            <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?(last.from==='me'?'Vos: ':'')+last.txt:p.pos+' · Moral '+(p.morale||70)+'%'}</div>
+            <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?(last.from==='me'?'Vos: ':'')+last.txt:p.pos+' · Moral '+(p.morale===undefined?70:p.morale)+'%'}</div>
           </div>
           ${th.length?`<span style="font-size:8px;color:var(--gold)">${th.length}💬</span>`:''}
         </div>`;

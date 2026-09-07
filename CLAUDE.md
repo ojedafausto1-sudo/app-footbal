@@ -396,6 +396,48 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
 - **Relación con el DT**: `G.dtRel` (0-100), `setDtRel`, `dtAskList` (pedidos del
   presidente al DT, que puede retrucar).
 
+## Banco, deuda y embargo
+
+Todo vive en la tarjeta **🏦 Banco y Finanzas** de la pestaña Presidente
+(`#loanBox` → `rLoans()`). Hay dos productos:
+
+- **Crédito largo** (`BANK_OFFERS`): 8/20/45M a 52-104 semanas, con requisito de
+  reputación. Es para reforzar.
+- **Salvataje** (`BANK_RESCUE`, `takeRescue`): **5M → 6,5M en 10 semanas** y
+  **15M → 22M en 20**. Usura a propósito: es para no morir, no para reforzar.
+  Máximo dos abiertos, y ninguno con 40M de deuda.
+
+Los dos entran al **mismo `G.loans`**, así que los cobra `weeklyLoans()` sin
+tocar el loop financiero. Medido: 5M al firmar, 10 cuotas de 0,65 y el préstamo
+se borra solo al llegar a 6,5M devueltos.
+
+**Embargo** (`weeklyEmbargo` / `dispararEmbargo`, corre después de cobrar las
+cuotas porque la cuota misma puede meterte en rojo): abajo de **−5M** arranca un
+contador; a la **cuarta** semana seguida la AFA te saca **3 puntos de
+`G.league.table[club].pts`** (la tabla de verdad: la misma que leen la posición,
+el descenso y `archiveSeason`), te deja **la moral del plantel en 0**, −15 de
+CD, −12 de hinchada, −4 de reputación y −10 de autoridad. Hay dos avisos al
+celular antes (semana 1 y semana 3) y el contador se resetea al salir del rojo.
+
+⚠️ **Dos bugs que este sistema destapó y hubo que arreglar para que sirviera:**
+
+- **`p.morale||60` leía el 0 como "sin dato"** y lo devolvía a 60. O sea: la
+  moral en 0 del embargo se borraba sola en el primer tick semanal (medido:
+  0 → 60 en una semana). Estaba en **41 lugares** del archivo; ahora todos usan
+  `(p.morale===undefined?60:p.morale)`. Si agregás un efecto de moral, **no uses
+  `||`**: en una escala que empieza en 0, `||` es un bug esperando.
+- **El drift semanal de moral se perdía entero por redondeo**: era
+  `Math.round(morale + 0.4)`, y `round(3+0.4)=3`, así que un plantel hundido no
+  subía nunca. Ahora guarda un decimal, como la línea de vestuario de al lado.
+- Con eso arreglado el pozo seguía siendo mortal: a +0,4 por semana, volver de 0
+  a 60 son **140 semanas (tres temporadas)**. Se agregó una **salida del pozo**
+  proporcional (`+(35-morale)*0.10` sólo por debajo de 35, y sólo si no pidió
+  salir ni está colgado). Medido: de 0 a **29 en 16 semanas**, y **arriba de 35
+  no cambia nada** — un plantel sano en 72 sigue con el mismo +0,4 de siempre.
+- **`fv()` con negativos** mostraba `€-3000K` en vez de `-€3.0M`: los negativos
+  caían siempre en la rama de los miles porque `-3` no es `>=1`. Ahora el signo
+  se extrae antes.
+
 ## Clima del partido (sólo el 2D)
 
 `window.matchWeather` se sortea UNA vez por partido jugable (`weatherPick(key)`,
