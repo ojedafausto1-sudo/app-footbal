@@ -363,6 +363,28 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
   (texto oscuro sobre el botón dorado, que da 9,6:1). `--t3` se subió de
   `#6b7686` a `#7c8798` porque daba 4,20 contra el mínimo de 4,5.
 
+## Memoria de la carrera: historial, leyendas y vitrina
+
+- `G.history` (una fila por temporada cerrada, la escribe `archiveSeason`)
+  guarda además del puesto el **patrimonio de cierre** (`budget`), los
+  `titulos` de ESE año (`G.trophies` es de toda la carrera), `socios` y `rep`.
+- `G.legends`: el que pasa `LEYENDA_APPS` (100) o `LEYENDA_GOLES` (50) con la
+  camiseta entra y **no sale más**, aunque se venda o se retire (`activo`
+  marca si sigue en el plantel). Se revisa al cerrar la temporada y también
+  **después de cada partido**, así el salto se festeja cuando pasa.
+  ⚠️ Usa `careerTotals(p)` cuando existe: `p.apps` es de toda la carrera del
+  jugador, no de lo que hizo en TU club.
+  ⚠️ **El umbral es generoso para este juego**: con ~50 partidos por
+  temporada, 100 PJ son dos años, así que a las 6 temporadas hay ~17
+  leyendas. Si querés que sea más exclusivo, subí las dos constantes.
+- La **Vitrina** (`rVitrina`) y el **gráfico de patrimonio** (`rFinChart`)
+  viven en la pestaña Presidente y se dibujan desde `rPresTab()`.
+- El gráfico es **canvas nativo, sin librerías**: escala con
+  `devicePixelRatio` para no salir borroso en el celular, dibuja la grilla, el
+  área bajo la curva, la línea del cero cuando el rango la cruza, y es
+  interactivo (mouse y touch) mostrando año, patrimonio y títulos.
+  Usa `GOLD()` / `GOLDA()` porque el canvas no resuelve variables CSS.
+
 ## Sistemas principales (dónde tocar)
 
 - **Simulación rápida**: `simMatch` + `matchStrengths` + `applyMatchResult`

@@ -6,7 +6,10 @@
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#ef4444;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.09);--card:rgba(18,24,38,.75);--card-2:rgba(24,32,50,.85);--blur:blur(14px) saturate(1.25);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(var(--gold-rgb),.4);color:var(--gold);background:rgba(var(--gold-rgb),.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
+:root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#ef4444;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.09);--card:rgba(18,24,38,.75);--card-2:rgba(24,32,50,.85);--blur:blur(14px) saturate(1.25);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}/* El tag de leyenda: oro metálico con brillo, para que se vea distinto
+   de los demás badges de la ficha. */
+.badge.baLeg{background:linear-gradient(135deg,rgba(var(--gold-rgb),.30),rgba(var(--gold-rgb),.10));color:var(--gold);border:1px solid rgba(var(--gold-rgb),.60);font-weight:700;letter-spacing:.03em;text-shadow:0 0 10px rgba(var(--gold-rgb),.45);box-shadow:0 0 12px rgba(var(--gold-rgb),.18)}
+.chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(var(--gold-rgb),.4);color:var(--gold);background:rgba(var(--gold-rgb),.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
  font-stretch:condensed;letter-spacing:.005em}
 .stitle,.hm-play{font-weight:800;font-style:italic;text-transform:uppercase}
 .stat-tile .sv-n{font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;letter-spacing:.01em}
@@ -836,6 +839,17 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">📊 Confianza de la Junta Directiva</div>
             <div id="presConfDetail"></div>
+          </div>
+          <!-- ═══ VITRINA DEL CLUB: lo que dejó tu gestión ═══ -->
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">🏆 Vitrina del Club</div>
+            <div id="presVitrina"></div>
+          </div>
+          <!-- ═══ EVOLUCIÓN DEL PATRIMONIO (canvas nativo) ═══ -->
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">📈 Patrimonio del club</div>
+            <canvas id="presFinChart" style="width:100%;height:132px;display:block;cursor:crosshair;touch-action:none"></canvas>
+            <div id="presFinLbl" style="font-size:9.5px;color:var(--t3);margin-top:5px;min-height:14px;text-align:center"></div>
           </div>
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">🎯 Objetivos de Temporada</div>
@@ -3262,6 +3276,12 @@ function initGame(teamId){
     // Sólo datos: el `check` se busca por id en BOARD_OBJ, fuera de G
     boardObjectives: BOARD_OBJ.slice().sort(()=>Math.random()-0.5).slice(0,3)
       .map(o=>({id:o.id,desc:o.desc,completed:false})),
+    // ═══ MEMORIA DE LA CARRERA ═══
+    // history: una fila por temporada cerrada (la escribe archiveSeason).
+    // legends: los que dejaron una marca en el club y quedan para siempre,
+    // aunque después se vayan o se retiren.
+    history: [],
+    legends: [],
     pressConfDone: false,
   };
   arAttachLeague();          // zonas + fixture de los 30 clubes (buildCal corrió sin G)
@@ -4350,7 +4370,7 @@ function rSq(f){
   el.innerHTML = squadHealthPanel() + pl.map(p=>`
     <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
       <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.colgado?'<span class="badge baR" style="margin-left:4px;font-size:8px" title="Apartado del plantel">🧊 COLGADO</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
+      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.colgado?'<span class="badge baR" style="margin-left:4px;font-size:8px" title="Apartado del plantel">🧊 COLGADO</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${(typeof yaEsLeyenda==='function'&&yaEsLeyenda(p))?'<span class="badge baLeg" style="margin-left:4px;font-size:8px" title="'+LEYENDA_APPS+'+ partidos o '+LEYENDA_GOLES+'+ goles con la camiseta">👑 LEYENDA</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
       <div class="ac">${p.nat}</div>
       <div class="ac">${p.age}</div>
       <div class="vc">${fv(p.val)}</div>
@@ -10001,6 +10021,50 @@ function rCareer(p){
   </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LEYENDAS DEL CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// El que pasa los 100 partidos o los 50 goles con la camiseta queda para
+// siempre, se vaya cuando se vaya. Se revisa al cerrar cada temporada y en
+// cada partido jugado, así que el ascenso a leyenda se ve cuando pasa.
+// Ojo: p.apps es de toda la carrera del jugador, así que se usa
+// careerTotals(p) cuando existe (lo que hizo EN ESTE club).
+const LEYENDA_APPS=100, LEYENDA_GOLES=50;
+function legendStats(p){
+  if(typeof careerTotals==='function'){
+    try{ const t=careerTotals(p); return {apps:t.apps||0,goals:t.goals||0,assists:t.assists||0}; }catch(e){}
+  }
+  return {apps:p.apps||0,goals:p.goals||0,assists:p.assists||0};
+}
+function esLeyenda(p){
+  if(!p)return false;
+  const t=legendStats(p);
+  return t.apps>=LEYENDA_APPS||t.goals>=LEYENDA_GOLES;
+}
+function yaEsLeyenda(p){
+  if(!p||!G)return false;
+  const L=G.legends||[];              // una partida vieja no trae el array
+  return L.some(l=>l.id===p.id||l.name===p.name);
+}
+function registrarLeyendas(){
+  if(!G)return;
+  G.legends=G.legends||[];
+  (G.squad||[]).forEach(p=>{
+    if(!esLeyenda(p)||yaEsLeyenda(p))return;
+    const t=legendStats(p);
+    G.legends.push({id:p.id,name:p.name,pos:p.pos,num:p.num,
+      apps:t.apps,goals:t.goals,assists:t.assists,
+      desde:(G.season||2026),rat:p.rat,activo:true});
+    lg('👑',`${p.name} entró en la historia de ${G.teamName}: ${t.apps} partidos y ${t.goals} goles`);
+    addPhoneMsg('board','Secretaría del Club',
+      `👑 Presidente, <b>${p.name}</b> llegó a <b>${t.apps} partidos</b> y <b>${t.goals} goles</b> con la camiseta. Ya es una <b style="color:var(--gold)">leyenda del club</b>: su nombre va a la vitrina.`,'👑',
+      {gotoTab:'pres',tabIdx:12});
+    if(typeof _pubRumor==='function')
+      _pubRumor(`👑 <b>${p.name}</b> alcanzó la marca que lo mete en la historia grande de ${G.teamName}.`,'misc');
+  });
+  // Los que ya no están en el plantel quedan como leyendas retiradas
+  G.legends.forEach(l=>{ l.activo=(G.squad||[]).some(q=>q.id===l.id); });
+}
 function archiveSeason(){
   ensureLeague();
   const t=leagueSorted();
@@ -10019,11 +10083,19 @@ function archiveSeason(){
   // tarjeta de carrera contaba doble. En las otras 23 ligas el campeón SÍ es
   // el primero de la tabla, así que ahí champion sigue valiendo.
   const _tablaDaTitulo = !(typeof esLigaLocal==='function'&&ligaMia()==='Liga ARG');
+  // Los títulos que se ganaron ESTE año (G.trophies es de toda la carrera)
+  const _titAnio=(G.trophies||[]).filter(x=>x.season===G.season).map(x=>x.name);
   G.history.push({season:G.season,pos,clubs:t.length,pts:G.wins*3+G.draws,w:G.wins,d:G.draws,l:G.losses,
     gf:G.gf,ga:G.ga,champion:pos===1&&_tablaDaTitulo,anual1:pos===1,
+    // El patrimonio con el que cerraste el año y los títulos que levantaste:
+    // es lo que hace que el historial cuente una historia y no sólo una tabla.
+    budget:Math.round((G.budget||0)*10)/10,
+    titulos:_titAnio,
+    socios:G.socios||0, rep:Math.round(G.rep||0),
     topScorerLiga:sc?sc[0]+' — '+sc[1].goals:'—',
     myTopScorer:myTop?myTop.name+' — '+myTop.goals:'—',
     figura:figura?figura.name+' ('+figura.mvpCount+' MVP)':'—'});
+  registrarLeyendas();
   if(figura){
     addPhoneMsg('board','Prensa',`🌟 <b>${figura.name}</b> fue elegido la FIGURA DEL AÑO de ${G.teamName} con ${figura.mvpCount} premios al mejor en cancha. ¡Un ídolo!`,'🏅');
     figura.morale=Math.min(99,(figura.morale||70)+6);
@@ -11141,6 +11213,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const usedMins = new Set();
   // Track apps for all XI
   xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  // El salto a leyenda se avisa CUANDO PASA, no seis meses después al cerrar
+  // la temporada: es el partido 100 el que se festeja.
+  if(typeof registrarLeyendas==='function') registrarLeyendas();
   // ═══ TARJETAS Y SUSPENSIONES ═══
   // Las amarillas se acumulan: a la 5ª te perdés la próxima fecha. Una roja te
   // saca 1-2 partidos. Un DT picante ve más tarjetas. Ahora tener plantel largo
@@ -19891,8 +19966,173 @@ function flash(msg, type='win'){
   setTimeout(()=>el.style.opacity='0', 2500);
   setTimeout(()=>el.remove(), 3100);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// VITRINA DEL CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// Lo que dejó tu gestión, leído de G.history y G.legends: una copa dorada
+// por cada título, el detalle año por año, y los que se ganaron quedar en
+// la historia del club.
+function rVitrina(){
+  const el=document.getElementById('presVitrina'); if(!el||!G)return;
+  const h=G.history||[], legs=G.legends||[], trs=G.trophies||[];
+  // Copas por tipo, de toda la carrera
+  const cont={};
+  trs.forEach(t=>{ const n=t.name||String(t); cont[n]=(cont[n]||0)+1; });
+  h.filter(x=>x.champion).forEach(()=>{
+    const n=(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[ligaMia()])||'Liga';
+    cont[n]=(cont[n]||0)+1; });
+  const total=Object.values(cont).reduce((a,x)=>a+x,0);
+  const copa=n=>`<span style="font-size:19px;filter:drop-shadow(0 2px 5px rgba(var(--gold-rgb),.5))">🏆</span>`.repeat(Math.min(n,8))
+              +(n>8?`<span style="font-size:11px;color:var(--gold);font-weight:700"> ×${n}</span>`:'');
+  el.innerHTML=`
+    <div style="text-align:center;padding:6px 0 10px">
+      <div style="font-family:'Chakra Petch',sans-serif;font-size:36px;font-weight:700;color:var(--gold);line-height:1;text-shadow:0 0 26px rgba(var(--gold-rgb),.35)">${total}</div>
+      <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.16em;margin-top:2px">título${total===1?'':'s'} en ${h.length+1} temporada${h.length?'s':''}</div>
+    </div>
+    ${total?Object.entries(cont).sort((a,b)=>b[1]-a[1]).map(([n,c])=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;font-family:'Rajdhani',sans-serif;letter-spacing:.02em">${n}</div>
+          <div style="line-height:1;margin-top:1px">${copa(c)}</div>
+        </div>
+        <div style="font-family:'Chakra Petch',sans-serif;font-size:15px;font-weight:700;color:var(--gold)">×${c}</div>
+      </div>`).join('')
+      :'<div class="note" style="margin:0">La vitrina está vacía. Todavía hay tiempo.</div>'}
+
+    <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.14em;margin:12px 0 5px">👑 Leyendas del club</div>
+    ${legs.length?legs.slice().sort((a,b)=>(b.goals+b.apps*0.35)-(a.goals+a.apps*0.35)).map(l=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)">
+        <div style="width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+             background:linear-gradient(150deg,rgba(var(--gold-rgb),.28),rgba(var(--gold-rgb),.08));
+             border:1px solid rgba(var(--gold-rgb),.5);font-family:'Chakra Petch',sans-serif;font-size:10px;font-weight:700;color:var(--gold)">${l.num||'—'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.name}
+            ${l.activo?'<span style="font-size:8px;color:var(--green)">● en el plantel</span>':'<span style="font-size:8px;color:var(--t3)">○ ya no está</span>'}</div>
+          <div style="font-size:9px;color:var(--t3)">${l.pos} · desde ${l.desde}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-family:'Chakra Petch',sans-serif;font-size:10px;color:var(--t2)">
+          <div>${l.apps} <span style="color:var(--t3);font-size:8px">PJ</span></div>
+          <div style="color:var(--gold)">${l.goals} <span style="color:var(--t3);font-size:8px">G</span></div>
+        </div>
+      </div>`).join('')
+      :`<div class="note" style="margin:0;font-size:10px">Nadie llegó todavía a los ${LEYENDA_APPS} partidos o los ${LEYENDA_GOLES} goles con la camiseta.</div>`}
+
+    ${h.length?`<div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.14em;margin:12px 0 5px">📜 Año por año</div>
+      ${h.slice().reverse().map(x=>`
+        <div style="display:grid;grid-template-columns:38px 1fr auto;gap:6px;align-items:center;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);font-size:10px">
+          <span style="font-family:'Chakra Petch',sans-serif;color:var(--t2)">${x.season}</span>
+          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${(x.titulos&&x.titulos.length)?`<span style="color:var(--gold)">🏆 ${x.titulos.join(' · ')}</span>`:`<span style="color:var(--t3)">${x.pos}º de ${x.clubs}</span>`}</span>
+          <span style="font-family:'Chakra Petch',sans-serif;color:${(x.budget||0)>=0?'var(--green)':'var(--red)'}">${x.budget===undefined?'—':fv(x.budget)}</span>
+        </div>`).join('')}`:''}`;
+}
+// ═══════════════════════════════════════════════════════════════════════
+// GRÁFICO DEL PATRIMONIO — canvas nativo, sin librerías
+// ═══════════════════════════════════════════════════════════════════════
+// Una línea con el presupuesto al cierre de cada temporada más el año en
+// curso. Interactivo: al pasar el dedo o el mouse marca el año y muestra
+// cuánto tenías. Se redibuja con el tamaño real del canvas (devicePixelRatio)
+// para que no salga borroso en el celular.
+function rFinChart(hoverX){
+  const cv=document.getElementById('presFinChart'); if(!cv||!G)return;
+  const h=(G.history||[]).map(x=>({t:x.season,v:(x.budget===undefined?null:x.budget)})).filter(x=>x.v!==null);
+  h.push({t:G.season,v:Math.round((G.budget||0)*10)/10});   // el año en curso
+  const lbl=document.getElementById('presFinLbl');
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth||280, H=cv.clientHeight||132;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
+  c.clearRect(0,0,W,H);
+  if(h.length<2){
+    c.fillStyle=(typeof GOLDA==='function')?GOLDA(.5):'rgba(245,158,11,.5)';
+    c.font="600 11px 'Plus Jakarta Sans',sans-serif"; c.textAlign='center';
+    c.fillText('Cerrá una temporada para ver la curva',W/2,H/2);
+    if(lbl)lbl.textContent='';
+    return;
+  }
+  const pad={l:34,r:8,t:10,b:18};
+  const gw=W-pad.l-pad.r, gh=H-pad.t-pad.b;
+  const vs=h.map(x=>x.v);
+  let mn=Math.min(0,...vs), mx=Math.max(...vs);
+  if(mx===mn)mx=mn+1;
+  const rango=mx-mn, m=rango*0.12;
+  mn-=m; mx+=m;
+  const X=i=>pad.l+(h.length===1?gw/2:gw*i/(h.length-1));
+  const Y=v=>pad.t+gh-(v-mn)/(mx-mn)*gh;
+  // grilla y etiquetas del eje
+  c.strokeStyle='rgba(255,255,255,.07)'; c.lineWidth=1;
+  c.fillStyle='rgba(155,166,184,.75)'; c.font="500 8px 'Chakra Petch',sans-serif"; c.textAlign='right';
+  for(let i=0;i<=3;i++){
+    const v=mn+(mx-mn)*i/3, y=Math.round(Y(v))+.5;
+    c.beginPath(); c.moveTo(pad.l,y); c.lineTo(W-pad.r,y); c.stroke();
+    c.fillText(Math.round(v)+'M',pad.l-5,y+3);
+  }
+  // la línea del cero, si el rango la cruza
+  if(mn<0&&mx>0){
+    const y0=Math.round(Y(0))+.5;
+    c.strokeStyle='rgba(239,68,68,.45)'; c.setLineDash([3,3]);
+    c.beginPath(); c.moveTo(pad.l,y0); c.lineTo(W-pad.r,y0); c.stroke(); c.setLineDash([]);
+  }
+  // área bajo la curva
+  const g=c.createLinearGradient(0,pad.t,0,pad.t+gh);
+  g.addColorStop(0,(typeof GOLDA==='function')?GOLDA(.26):'rgba(245,158,11,.26)');
+  g.addColorStop(1,(typeof GOLDA==='function')?GOLDA(0):'rgba(245,158,11,0)');
+  c.beginPath(); c.moveTo(X(0),pad.t+gh);
+  h.forEach((p2,i)=>c.lineTo(X(i),Y(p2.v)));
+  c.lineTo(X(h.length-1),pad.t+gh); c.closePath();
+  c.fillStyle=g; c.fill();
+  // la curva
+  c.beginPath(); h.forEach((p2,i)=>{ const x=X(i),y=Y(p2.v); i?c.lineTo(x,y):c.moveTo(x,y); });
+  c.strokeStyle=(typeof GOLD==='function')?GOLD():'#f59e0b';
+  c.lineWidth=2; c.lineJoin='round'; c.lineCap='round'; c.stroke();
+  // puntos + años
+  c.textAlign='center'; c.font="500 8px 'Chakra Petch',sans-serif";
+  h.forEach((p2,i)=>{
+    const x=X(i),y=Y(p2.v);
+    c.beginPath(); c.arc(x,y,2.6,0,Math.PI*2);
+    c.fillStyle=(typeof GOLD==='function')?GOLD():'#f59e0b'; c.fill();
+    if(h.length<=9||i===0||i===h.length-1||i%2===0){
+      c.fillStyle='rgba(155,166,184,.7)';
+      c.fillText(String(p2.t).slice(2),x,H-5);
+    }
+  });
+  // marcador interactivo
+  if(hoverX!==undefined&&hoverX!==null){
+    let bi=0,bd=1e9;
+    h.forEach((p2,i)=>{ const d=Math.abs(X(i)-hoverX); if(d<bd){bd=d;bi=i;} });
+    const x=X(bi),y=Y(h[bi].v);
+    c.strokeStyle=(typeof GOLDA==='function')?GOLDA(.35):'rgba(245,158,11,.35)';
+    c.lineWidth=1; c.beginPath(); c.moveTo(x,pad.t); c.lineTo(x,pad.t+gh); c.stroke();
+    c.beginPath(); c.arc(x,y,4.6,0,Math.PI*2);
+    c.fillStyle=(typeof GOLD==='function')?GOLD():'#f59e0b'; c.fill();
+    c.strokeStyle='rgba(11,14,20,.9)'; c.lineWidth=2; c.stroke();
+    if(lbl){
+      const reg=(G.history||[]).find(z=>z.season===h[bi].t);
+      const tit=(reg&&reg.titulos&&reg.titulos.length)?' · 🏆 '+reg.titulos.join(', '):'';
+      lbl.innerHTML=`<b style="color:var(--gold)">${h[bi].t}</b> · patrimonio <b>${fv(h[bi].v)}</b>${tit}`;
+    }
+  } else if(lbl){
+    const d=h[h.length-1].v-h[0].v;
+    lbl.innerHTML=`De ${fv(h[0].v)} en ${h[0].t} a <b>${fv(h[h.length-1].v)}</b> hoy · <span style="color:${d>=0?'var(--green)':'var(--red)'}">${d>=0?'+':''}${fv(d)}</span> · tocá el gráfico para ver cada año`;
+  }
+}
+function finChartBind(){
+  const cv=document.getElementById('presFinChart'); if(!cv||cv.dataset.bound)return;
+  cv.dataset.bound='1';
+  const at=e=>{ const r=cv.getBoundingClientRect();
+    const cx=(e.touches&&e.touches[0]?e.touches[0].clientX:e.clientX);
+    return cx-r.left; };
+  const mover=e=>{ rFinChart(at(e)); if(e.cancelable)e.preventDefault(); };
+  cv.addEventListener('mousemove',mover);
+  cv.addEventListener('touchstart',mover,{passive:false});
+  cv.addEventListener('touchmove',mover,{passive:false});
+  cv.addEventListener('mouseleave',()=>rFinChart());
+  cv.addEventListener('touchend',()=>rFinChart());
+}
 function rPresTab(){
   if(!G) return;
+  // Memoria de la carrera: vitrina + curva del patrimonio
+  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); }catch(e){}
   const conf=G.boardConf||50;
   const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Critica';
