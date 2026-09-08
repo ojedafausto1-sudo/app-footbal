@@ -852,6 +852,91 @@ await page.evaluate(() => { startGame('boca'); autoFill(); });
 **Siempre correr la regresión antes de commitear**: las 6 jugadas clave, una
 temporada completa (450 fixtures) y el ciclo de fichaje.
 
+## Dirigir afuera: el bug de la liga que no sobrevivía al guardado
+
+Elegir Real Madrid y encontrarte con los equipos argentinos y la Libertadores no
+era un problema del wizard —por ahí anda bien— sino del **guardado**:
+
+- `_LIGA_ELEGIDA` es una **global que no se serializa**. Al recargar volvía a
+  `'Liga ARG'` aunque `G.miLiga` dijera `'España'`.
+- `loadGame()` llamaba a **`buildAllTeams()` sin argumento**, así que `TEAMS` se
+  rearmaba con los clubes de la liga por defecto: escudo, colores y rivales
+  argentinos.
+- Y como **`buildCal` lee la global** (corre dentro del literal que crea `G`,
+  cuando `G` todavía no existe), al empezar la temporada siguiente el Real
+  Madrid se encontraba con las zonas, el Apertura/Clausura y la Libertadores.
+
+Arreglado en tres puntos:
+
+1. `loadGame()` restaura `_LIGA_ELEGIDA = saved.miLiga` **antes** de reconstruir
+   nada, y llama a `buildAllTeams(_LIGA_ELEGIDA)`.
+2. `squadFromDB` y `buildCal` prefieren **`G.miLiga`** cuando hay partida: es lo
+   que sí se guarda. La global queda sólo para el momento de la creación.
+3. Como consecuencia de (2), `initGame` hace **`G=null`** antes de armar el
+   literal: si no, empezar en el Real Madrid desde una partida de Boca en curso
+   habría leído el `G.miLiga` de Boca.
+
+La regresión prueba el ciclo entero (elegir afuera → guardar → borrar el estado
+en memoria → cargar → pasar de temporada) y verifica que la global, `TEAMS` y el
+calendario queden en España.
+
+### La copa continental depende del continente
+
+Había cuatro textos que decían "Libertadores" sin mirar dónde dirigís: el
+objetivo de temporada, el objetivo de la Junta (`setBoardTarget`), la virtud
+`'Copero'` y el rótulo de la tabla de la pestaña Estadísticas — que además
+dibujaba una tabla de Libertadores con 0 partidos. Ahora salen de **`COPA_CONT`
+/ `copaCont()`** (Libertadores en Sudamérica, Champions en Europa,
+Concachampions en México y la MLS, Champions asiática en Arabia).
+
+⚠️ **Es sólo el NOMBRE que se muestra.** El torneo continental jugable
+(`INT_COPAS`, grupos → octavos → final) sigue siendo únicamente sudamericano y
+sólo para `Liga ARG`. Un club brasileño tampoco juega la Libertadores todavía.
+
+`esLigaARG()` hace lo mismo con el formato: la tabla de la pestaña Calendario le
+explicaba a un club español cómo suman el Apertura y el Clausura y dónde ver las
+zonas. Ahora dice el nombre real de la liga y "todos contra todos, ida y vuelta".
+
+Medido con Real Madrid, Man City y Boca: **0 rastros argentinos** en la UI de los
+dos primeros (el único que quedaba era "Atl. **Rafa**ela" en el filtro de clubes
+del mercado, un falso positivo de la búsqueda) y Boca conserva todo lo suyo.
+
+## La base de datos de julio 2026
+
+**17.108 jugadores · 617 clubes · 24 ligas** (antes 15.582 / 557). Lo que suma
+son segundas divisiones: Alemania y Portugal pasan de 18 a 36 clubes en la base,
+Francia de 18 a 35, la MLS de 26 a 30.
+
+⚠️ **Eso NO agranda las ligas jugables**: `clubesDeLiga()` toma sólo la primera
+división, así que Bundesliga sigue en 18, LaLiga en 20 y la Liga ARG en 30. Las
+segundas quedan como clubes de mercado, que es donde suman. Verificado: el
+conteo del wizard y el de `clubesDeLiga()` coinciden en las 24 ligas.
+
+Tres cosas hubo que arreglar a mano sobre la extracción:
+
+- **Stade Brestois** desapareció (22 jugadores) — el patrón de fallo pasajero de
+  siempre. Recuperado de la base anterior.
+- **Volos NFC** figuraba como perdido y sólo se había **renombrado** a `Volos`.
+  Antes de dar un club por perdido, buscá el nombre parecido.
+- **Níger venía como `NIG_NE`** (largo 6, porque `NIG` ya es Nigeria) en 5
+  jugadores, y el juego exige códigos de 3 letras. Normalizado a **`NER`**.
+
+Los DTs se **fusionaron, no se pisaron** (`dts-db.js` está curada a mano): la
+extracción trae 617 nombres pero **cero edades y cero nacionalidades**, así que
+se recuperan por nombre de la base vieja y se conservan los **47 DTs libres**
+(sin club). Quedan **706 DTs · 618 clubes cubiertos · 134 con edad y
+nacionalidad**.
+
+⚠️ **El check de `nat2` de la regresión tenía un falso positivo.** Daba por
+basura todo código que no apareciera 3+ veces como nacionalidad principal, y con
+una base más grande eso marca países chicos que existen: CUB, SOM, AZE, NCA,
+LVA, UAE, BRN, PUR (21 casos). Ahora verifica los códigos que la extracción
+**realmente inventó** (`STA`, `ARA`, `RIC`, `RET` — los que salían de partir en
+dos un país de dos palabras) más las invariantes estructurales, y **lista** los
+códigos que aparecen sólo como segunda nacionalidad en vez de fallar. Ojo con
+ampliar esa lista negra a ojo: agregarle `ISL`, `GUI` y `NOR` —que son Islandia,
+Guinea y Noruega— daba 36 falsos positivos.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

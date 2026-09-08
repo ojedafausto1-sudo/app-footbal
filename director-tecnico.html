@@ -1468,7 +1468,9 @@ function placeholderSquad(clubName){
 function squadFromDB(clubName, fallbackFn, overrides, liga){
   if(!window.PLAYERS_DB||!Array.isArray(PLAYERS_DB)) return fallbackFn();
   // Filtrar por club Y liga: hay 'Racing Club' e 'Independiente' en otros países
-  const _lg=liga||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
+  // La liga que dirigís sale de G cuando hay partida (es lo que SÍ se guarda) y
+  // de la global sólo mientras se está creando: ver el comentario de loadGame.
+  const _lg=liga||(typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
   let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]===_lg);
   if(rows.length<15) return fallbackFn(); // datos insuficientes → plantel manual
   // Tope 30: los planteles TM traen hasta 37 fichas y el juego permite 35.
@@ -1568,7 +1570,7 @@ const FORM_BIAS = {
 const DT_TRAIT_FX = {
   'Ofensivo':   {icon:'⚔️', fx:'+3% ataque en todos los partidos'},
   'Defensivo':  {icon:'🛡️', fx:'Recibís menos goles, -2% ataque'},
-  'Copero':     {icon:'🏆', fx:'+5% en Copas y Libertadores'},
+  'Copero':     {icon:'🏆', fx:'+5% en copas y torneos continentales'},
   'Guerrero':   {icon:'😤', fx:'+2% de intensidad siempre'},
   'Intenso':    {icon:'🔥', fx:'+2% de intensidad siempre'},
   'Maestro':    {icon:'🎓', fx:'+4% contra equipos grandes'},
@@ -2181,6 +2183,31 @@ const LIGA_NOMBRE={'Liga ARG':'Liga Profesional','Premier':'Premier League',
   'Arabia':'Saudi Pro League','Rusia':'Premier Liga','Grecia':'Super League'};
 function ligaMia(){ return (typeof G==='object'&&G&&G.miLiga)||'Liga ARG'; }
 function ligaComp(){ return LIGA_NOMBRE[ligaMia()]||'Liga Profesional'; }
+// ═══════════════════════════════════════════════════════════════════════
+// LA COPA CONTINENTAL DEPENDE DEL CONTINENTE
+// ═══════════════════════════════════════════════════════════════════════
+// Había cuatro textos que decían "Libertadores" sin mirar dónde dirigís: el
+// objetivo de temporada, el objetivo de la Junta, la virtud 'Copero' y el
+// título de la tabla de la pestaña Estadísticas. Con el Real Madrid quedaba
+// "Salir campeón y llegar a semis de Libertadores".
+// ⚠️ Esto es SÓLO el nombre que se muestra. El torneo continental jugable
+// (INT_COPAS, grupos → octavos → final) sigue siendo únicamente sudamericano
+// y sólo para Liga ARG: ver buildCal.
+const COPA_CONT={
+  'Liga ARG':'Copa Libertadores','Brasil':'Copa Libertadores','Chile':'Copa Libertadores',
+  'Colombia':'Copa Libertadores','Uruguay':'Copa Libertadores','Paraguay':'Copa Libertadores',
+  'Perú':'Copa Libertadores','Ecuador':'Copa Libertadores','Bolivia':'Copa Libertadores',
+  'Venezuela':'Copa Libertadores',
+  'Premier':'Champions League','España':'Champions League','Italia':'Champions League',
+  'Alemania':'Champions League','Francia':'Champions League','Portugal':'Champions League',
+  'Holanda':'Champions League','Bélgica':'Champions League','Grecia':'Champions League',
+  'Turquía':'Champions League','Rusia':'Champions League',
+  'Liga MX':'Concachampions','MLS':'Concachampions','Arabia':'Champions League Asiática'};
+function copaCont(){ return COPA_CONT[ligaMia()]||'copa internacional'; }
+// El formato de zonas + Apertura/Clausura + tabla anual es SÓLO argentino: el
+// resto del mundo juega todos contra todos. La UI tiene que decir lo que
+// corresponde — al Real Madrid le explicaba cómo suma la tabla anual.
+function esLigaARG(){ return ligaMia()==='Liga ARG'; }
 function esLigaLocal(c){ return c===ligaComp(); }
 // Los clubes que juegan la primera de esa liga, por valor de plantel
 function clubesDeLiga(lg){
@@ -2363,7 +2390,10 @@ function buildCal(teamName, teamId){
   // El formato de zonas + Apertura/Clausura es argentino. El resto del mundo
   // juega liga corrida, así que se arma con buildCalOtra y se saltea todo lo
   // que es propio de acá (zonas, interzonal, playoffs, Libertadores).
-  const _lgMia=(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
+  // Igual que en squadFromDB: con partida en curso manda G.miLiga, que es lo que
+  // sobrevive al guardado. Sin esto, al continuar una partida del Real Madrid la
+  // temporada siguiente se armaba con zonas argentinas y Libertadores.
+  const _lgMia=(typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
   if(_lgMia!=='Liga ARG'){
     const L=buildCalOtra(teamName,_lgMia,1+PRE_SEMANAS);
     buildCal._league={zones:null,fixtures:L.fixtures,clubs:L.clubs,liga:_lgMia,
@@ -2954,13 +2984,26 @@ function importSave(input){
 }
 function loadGame(){
   try{
-    // Sin esto, continuar con un club generado dejaba TEAMS[G.teamId] indefinido
-    // (sin color, sin escudo, sin chequeo de Libertadores).
-    try{ buildAllTeams(); }catch(e){}
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return false;
     const saved = JSON.parse(raw);
     if(!saved || !saved.teamId || !saved.teamName) return false;
+    // ═══════════════════════════════════════════════════════════════════
+    // LA LIGA QUE DIRIGÍS TIENE QUE VOLVER DEL SAVE
+    // ═══════════════════════════════════════════════════════════════════
+    // `_LIGA_ELEGIDA` es una global que NO se serializa: al recargar volvía a
+    // 'Liga ARG' aunque `G.miLiga` dijera 'España'. Y como `buildCal` lee la
+    // GLOBAL (corre dentro del literal que crea G, cuando G todavía no existe),
+    // al empezar la temporada siguiente el Real Madrid se encontraba con las
+    // zonas argentinas, el Apertura/Clausura y la Libertadores. Igual de mal
+    // quedaba `TEAMS`: `buildAllTeams()` sin argumento armaba los clubes de la
+    // liga por defecto, así que el escudo, los colores y los rivales salían de
+    // Argentina. Las dos cosas se arreglan restaurando la liga ANTES de
+    // reconstruir nada.
+    _LIGA_ELEGIDA = saved.miLiga || 'Liga ARG';
+    // Sin esto, continuar con un club generado dejaba TEAMS[G.teamId] indefinido
+    // (sin color, sin escudo, sin chequeo de Libertadores).
+    try{ buildAllTeams(_LIGA_ELEGIDA); }catch(e){}
     // Saves viejos guardaban el mercado como objetos: se aceptan igual
     if(saved._mktPacked && Array.isArray(saved.market))
       saved.market = saved.market.map(r=>Array.isArray(r)?unpackPlayer(r):r);
@@ -2986,6 +3029,7 @@ function newGame(){
   if(!confirm('¿Empezar nueva partida? Se perderá el progreso guardado.')) return;
   localStorage.removeItem(SAVE_KEY);
   G = null;
+  _LIGA_ELEGIDA = 'Liga ARG';   // el asistente vuelve a empezar de cero
   applyTeamTheme('boca');
   document.title = 'DIRECTOR TÉCNICO v7 — Fútbol Argentino';
   document.getElementById('game').classList.remove('on');
@@ -3334,6 +3378,13 @@ function selectTeam(teamId){
 function initGame(teamId){
   teamId = teamId || 'boca';
   const tc = TEAMS[teamId] || TEAMS.boca;
+  // ═══ LA PARTIDA VIEJA NO PUEDE OPINAR SOBRE LA NUEVA ═══
+  // `buildCal` y `buildSquad` corren DENTRO del literal que crea G, así que
+  // mientras se arma la partida nueva, `G` todavía es la anterior. Como esas
+  // funciones ahora prefieren `G.miLiga` (para que continuar una partida no
+  // dependa de una global que no se guarda), empezar en el Real Madrid desde
+  // una partida de Boca en curso habría armado el calendario argentino.
+  G = null;
   G = {
     teamId: teamId,
     teamName: tc.name,
@@ -4264,8 +4315,8 @@ function updateBoard($){
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Crítica';
   if($('confV')){ $('confV').textContent=conf+' · '+lbl; $('confV').style.color=col; }
   if($('confBar')){ $('confBar').style.width=conf+'%'; $('confBar').style.background=col; }
-  const obj=G.rep>=80?'Salir campeón y llegar a semis de Libertadores'
-          :G.rep>=70?'Clasificar a la Copa Libertadores (top 4)'
+  const obj=G.rep>=80?('Salir campeón y llegar a semis de '+copaCont())
+          :G.rep>=70?('Clasificar a la '+copaCont()+' (top 4)')
           :G.rep>=58?'Pelear arriba y clasificar a un torneo continental'
           :'Mantener la categoría y sanear las finanzas';
   let objHtml=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
@@ -8849,8 +8900,10 @@ function rCal(){
       </div>`;}).join('')}
   </div>`:''}
   <div class="card" style="margin-bottom:9px">
-    <div class="ctitle">📅 Tabla anual — Liga Profesional</div>
-    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.</div>
+    <div class="ctitle">📅 ${esLigaARG()?'Tabla anual':'Tabla'} — ${ligaComp()}</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">${esLigaARG()
+      ?'Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.'
+      :'Todos contra todos, ida y vuelta. Define el campeón y los descensos.'}</div>
     <div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
       <span>#</span><span>Club</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>DIF</span><span>PTS</span>
     </div>
@@ -9796,7 +9849,7 @@ function setBoardTarget(){
   const nClubs=(G.league&&G.league.clubs.length)||19;
   let maxPos,desc;
   if(rep>=78){maxPos=Math.min(2,nClubs);desc='pelear el campeonato (terminar 1º o 2º)';}
-  else if(rep>=68){maxPos=4;desc='clasificar a la Libertadores (Top 4)';}
+  else if(rep>=68){maxPos=4;desc='clasificar a la '+copaCont()+' (Top 4)';}
   else if(rep>=58){maxPos=8;desc='terminar en la mitad de arriba (Top 8)';}
   else if(rep>=48){maxPos=Math.max(10,nClubs-6);desc='pelear una copa internacional';}
   else{maxPos=nClubs-3;desc='mantener la categoría con comodidad';}
@@ -15085,8 +15138,13 @@ function rStats(){
 
   const t = G.tourney;
   // Detect Copa type
+  // El rótulo sale del calendario REAL. Antes, si no había ningún partido de
+  // copa —el caso de cualquier liga que no sea la argentina— caía igual en
+  // "🏆 Copa Libertadores" y el Real Madrid veía una tabla de la Libertadores
+  // con 0 partidos.
   const copaMatch=G.calendar.find(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
-  const copaLabel=copaMatch&&copaMatch.comp.includes('Sudamericana')?'🥈 Copa Sudamericana':'🏆 Copa Libertadores';
+  const copaLabel=!copaMatch?('🏆 '+copaCont())
+    :copaMatch.comp.includes('Sudamericana')?'🥈 Copa Sudamericana':'🏆 Copa Libertadores';
   const copaT=copaMatch&&copaMatch.comp.includes('Sudamericana')?t.copa:t.lib;
   // Best scorer across all comps
   const allScorers=Object.entries({...(t.liga.scorers||{}),...(t.lib.scorers||{}),...(t.copa.scorers||{})})
