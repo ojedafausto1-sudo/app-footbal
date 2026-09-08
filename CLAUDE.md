@@ -359,6 +359,45 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
   club, el presupuesto y la semana justo cuando pasaba algo importante.
 - Medido: el `backdrop-filter` cuesta entre −3,6 ms y +2,6 ms por pestaña
   (nada). Los 128 ms del Mercado son del HTML de la lista, no del vidrio.
+- ⚠️ **El vidrio va en los CONTENEDORES, no en las filas.** `.card`, `.modal`,
+  `.topbar`, `.tabs`, `.achip` y el cartel del cupo llevan `backdrop-filter`
+  de verdad; las filas de listas (`.plc`, `.mkrow`, `.pr`) usan translucidez +
+  borde luminoso + sombra, que es gratis. Un blur por fila son 30 capas de
+  composición en el Plantel y 150 en el Mercado. La regresión falla si aparece
+  un `backdrop-filter` en una `.plc`.
+
+## Mini-cards del plantel (estilo FUT)
+
+La lista del Plantel era una grilla de texto plano con cabecera de columnas.
+Ahora cada jugador es una `.plc`: disco con la media, **aro de energía** en
+`conic-gradient` (el mismo mecanismo que la cancha, vía `--fit` / `--fitc`),
+dorsal en la chapita dorada, nombre en negrita y los estados como insignias.
+Medido: 30 tarjetas en **1 ms**, todas de 66px (altura pareja) y 60 fps
+scrolleando.
+
+- El **borde del disco** dice el NIVEL (`ovrColor`) y el **aro** dice la ENERGÍA
+  (`fitColor`): son dos datos distintos y no se pisan.
+- `vbadgeTop(p)` muestra **una sola virtud** en las listas (la mejor, y sólo si
+  llega a 80 o es élite). Con las dos de `vbadges()` la tarjeta se partía en dos
+  líneas y las alturas quedaban desparejas.
+- ⚠️ `.plc-sub` va en `nowrap` con `overflow:hidden` a propósito: si no entra,
+  se recorta. Una lista que se escanea de un vistazo necesita filas iguales.
+
+### El color comunica, no decora
+
+| | | |
+|---|---|---|
+| `ovrColor(r)` | oro ≥84 · verde ≥76 · gris debajo | élite / bueno / del montón |
+| `fitColor(f)` | verde ≥80 · oro ≥60 · rojo debajo | energía alta / aviso / problema |
+| `valColor(v)` | oro ≥25M · texto ≥8M · apagado debajo | **la plata no es "éxito"** |
+
+`valColor` existe porque `.vc` pintaba de verde neón CUALQUIER valor: el verde
+es el color de "éxito/energía alta", no el de "acá hay un número".
+
+⚠️ El medidor de contraste marca el **dorsal** como fallo (ratio 1.00): es un
+falso positivo, no resuelve el `linear-gradient` del chip. Verificado a mano:
+`--dark` sobre `--gold` da **8,99:1** y sobre `--gold-d` **6,06:1**, los dos muy
+arriba del 4,5 de AA. Es el mismo falso positivo de los botones dorados.
 - Contraste: todo el texto pasa AA salvo tres falsos positivos del medidor
   (texto oscuro sobre el botón dorado, que da 9,6:1). `--t3` se subió de
   `#6b7686` a `#7c8798` porque daba 4,20 contra el mínimo de 4,5.

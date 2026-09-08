@@ -138,7 +138,9 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .card:hover{border-color:rgba(var(--gold-rgb),0.34);transform:translateY(-3px);box-shadow:var(--sh-lift)}
 .ctitle{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 /* TABS */
-.tabs{display:flex;gap:2px;margin-bottom:10px;background:var(--d3);border-radius:7px;padding:3px}
+.tabs{display:flex;gap:2px;margin-bottom:10px;background:rgba(16,22,36,.62);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:3px}
 .tab{flex:1;padding:5px;text-align:center;border-radius:5px;border:none;background:transparent;color:var(--t2);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;transition:all .18s}
 .tab.on{background:var(--gold);color:var(--dark);box-shadow:0 2px 6px rgba(var(--gold-rgb),.2)}
 .tc{display:none}.tc.on{display:block;animation:tcIn .22s ease}
@@ -154,8 +156,63 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .bs{padding:3px 8px;font-size:11px}
 /* PLAYER ROW */
 .pr{display:grid;gap:4px;align-items:center;padding:7px 8px;border-radius:6px;border:1px solid transparent;cursor:pointer;transition:all .15s;font-size:11px}
-.pr:hover{background:var(--mid);border-color:rgba(var(--gold-rgb),.15)}
+.pr:hover{background:rgba(255,255,255,.045);border-color:rgba(var(--gold-rgb),.22);
+  box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .pr.sel{background:rgba(var(--gold-rgb),.07);border-color:var(--gold)}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MINI-CARD DEL PLANTEL (estilo FUT)
+   ═══════════════════════════════════════════════════════════════════════
+   La lista del plantel era una grilla de texto plano. Ahora cada jugador es
+   una tarjeta que flota: superficie translúcida, borde luminoso de 1px y
+   sombra profunda, con el mismo lenguaje de la cancha (aro de energía en
+   conic-gradient, dorsal en la chapita dorada, badge de media).
+   ⚠️ Las FILAS NO llevan backdrop-filter. Son 30 en el plantel y hasta 150 en
+   el mercado, y un blur por fila es una capa de composición por fila: el
+   vidrio de verdad va en los CONTENEDORES (.card, .modal, .topbar), las
+   tarjetas usan translucidez + borde + sombra, que es gratis. */
+.plc{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;
+  padding:9px 11px;margin-bottom:6px;border-radius:12px;cursor:pointer;
+  background:linear-gradient(150deg,rgba(30,40,60,.62),rgba(16,22,36,.72));
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 3px 12px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:transform .2s cubic-bezier(.2,.7,.3,1),border-color .2s,box-shadow .2s}
+.plc:hover{transform:translateY(-2px);
+  border-color:rgba(var(--gold-rgb),.42);
+  box-shadow:0 10px 26px rgba(0,0,0,.5),0 0 18px rgba(var(--gold-rgb),.10),inset 0 1px 0 rgba(255,255,255,.08)}
+.plc:active{transform:translateY(0)}
+/* el disco de media, con el aro de energía alrededor */
+.plc-av{position:relative;width:46px;height:46px;border-radius:50%;
+  background:linear-gradient(160deg,rgba(22,30,48,.95),rgba(10,15,26,.97));
+  border:2px solid var(--ring,rgba(255,255,255,.20));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 9px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
+.plc-av .plc-fit{position:absolute;inset:-4px;border-radius:50%;pointer-events:none;
+  background:conic-gradient(var(--fitc) calc(var(--fit) * 1%),rgba(255,255,255,.08) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+  transition:background .25s ease}
+.plc-ovr{font-family:'Chakra Petch','Rajdhani',sans-serif;font-size:17px;font-weight:800;
+  line-height:1;font-variant-numeric:tabular-nums;color:var(--ring,var(--tx))}
+.plc-num{position:absolute;top:-5px;left:-6px;min-width:17px;height:17px;padding:0 3.5px;
+  border-radius:5px;background:linear-gradient(150deg,var(--gold),var(--gold-d));color:var(--dark);
+  font-family:'Chakra Petch',sans-serif;font-size:9.5px;font-weight:700;line-height:17px;
+  text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:2}
+.plc-flag{position:absolute;bottom:-4px;right:-5px;font-size:11px;line-height:1;z-index:2;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.75))}
+.plc-av.inj{border-color:var(--red)}
+.plc-av.susp{border-color:var(--ora);border-style:dashed}
+/* el cuerpo: nombre, puesto, estados */
+.plc-name{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12.5px;color:var(--tx);
+  letter-spacing:-.01em;display:flex;align-items:center;gap:5px;flex-wrap:wrap;line-height:1.2}
+.plc-sub{display:flex;align-items:center;gap:4px;margin-top:3px;
+  flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+.plc-en{font-family:'Chakra Petch',sans-serif;font-size:9px;font-weight:700;font-variant-numeric:tabular-nums;
+  display:inline-flex;align-items:center;gap:2px}
+/* la columna derecha: plata y contrato, siempre en cifras tabulares */
+.plc-right{text-align:right;font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums;line-height:1.3}
+.plc-val{font-size:12px;font-weight:700}
+.plc-con{font-size:9px;color:var(--t3)}
 .pn{font-weight:600;color:var(--tx);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ptag{font-size:9px;padding:2px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-weight:700;letter-spacing:.03em}
 .pt-ARQ{background:#122a50;color:#7ab3f7;border:1px solid rgba(122,179,247,.2)}
@@ -165,7 +222,8 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .ac{color:var(--t2);font-size:11px}.vc{font-weight:700;color:var(--green);font-size:11px}.cc{font-size:10px;color:var(--t3)}
 /* MARKET ROW */
 .mkrow{display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;align-items:center;padding:8px 10px;border-radius:7px;border:1px solid transparent;cursor:pointer;font-size:11px;transition:all .15s}
-.mkrow:hover{background:var(--mid);border-color:rgba(var(--gold-rgb),.15)}
+.mkrow:hover{background:rgba(255,255,255,.045);border-color:rgba(var(--gold-rgb),.30);
+  box-shadow:0 4px 16px rgba(0,0,0,.38)}
 /* STAT ROW */
 .sr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .sr:last-child{border:none}.sl{font-size:11px;color:var(--t2)}.sv{font-size:11px;font-weight:600}
@@ -191,7 +249,10 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .vbadge.velite{background:linear-gradient(135deg,rgba(192,132,252,.18),rgba(var(--gold-rgb),.12));color:#d8b4fe;border-color:rgba(192,132,252,.4);box-shadow:0 0 8px rgba(192,132,252,.15)}
 /* ATTR CHIPS (DLS hexagon-style grid) */
 .achips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.achip{background:var(--d3);border:1px solid var(--bdr);border-radius:8px;padding:7px 6px 6px;text-align:center;position:relative;overflow:hidden}
+.achip{background:linear-gradient(150deg,rgba(30,40,60,.58),rgba(16,22,36,.70));
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 6px 6px;text-align:center;
+  position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.05)}
 .achip::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac)}
 .achip-v{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;color:var(--ac);line-height:1}
 .achip-k{font-size:8.5px;color:var(--t2);margin:3px 0 4px;letter-spacing:.05em;font-weight:600}
@@ -307,13 +368,19 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .ps-pos{font-size:9px;font-family:'Rajdhani',sans-serif;color:var(--gold);font-weight:700}
 .ps-rat{font-size:14px;font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 /* BENCH */
-.bench{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(0,0,0,.3);border-radius:6px;margin-top:7px;min-height:65px;border:1px dashed rgba(255,255,255,.09)}
+.bench{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(10,15,26,.42);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border-radius:10px;margin-top:7px;min-height:65px;border:1px dashed rgba(255,255,255,.11)}
 .bp{width:50px;text-align:center;cursor:pointer;transition:transform .15s}
 .bp:hover{transform:scale(1.08)}
 .bp .pcircle{width:42px;height:42px;border-color:var(--t3);margin:0 auto 1px}
 /* PLAYER CARD (overview top players) */
-.pcard{background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;transition:all .15s;cursor:pointer}
-.pcard:hover{border-color:rgba(var(--gold-rgb),.3);background:rgba(255,255,255,.05)}
+.pcard{background:linear-gradient(150deg,rgba(30,40,60,.55),rgba(16,22,36,.66));
+  border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:8px;
+  box-shadow:0 3px 12px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:transform .2s cubic-bezier(.2,.7,.3,1),border-color .2s,box-shadow .2s;cursor:pointer}
+.pcard:hover{transform:translateY(-2px);border-color:rgba(var(--gold-rgb),.40);
+  box-shadow:0 10px 24px rgba(0,0,0,.48),0 0 16px rgba(var(--gold-rgb),.09)}
 /* STADIUM */
 .upg-btn{background:rgba(var(--gold-rgb),.05);border:1px solid var(--bdr);border-radius:6px;padding:10px;cursor:pointer;transition:all .2s;margin-bottom:6px;display:block;width:100%;text-align:left}
 .upg-btn:hover{background:rgba(var(--gold-rgb),.1);border-color:rgba(var(--gold-rgb),.25)}
@@ -655,9 +722,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab" onclick="fSq('MED',this)">MED</button>
         <button class="tab" onclick="fSq('DEL',this)">DEL</button>
       </div>
-      <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:5px 10px;margin-bottom:6px;background:rgba(22,25,32,.5);border-radius:6px;border:1px solid var(--bdr)"></div>
-      <div style="display:grid;grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px;gap:4px;padding:3px 9px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">
-        <span>#</span><span>Jugador</span><span>Nac.</span><span>Edad</span><span>Valor TM</span><span>Rating / Edad</span><span>Ctr.</span>
+      <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(150deg,rgba(30,40,60,.52),rgba(16,22,36,.64));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
+      <!-- La cabecera de columnas se fue con la tabla: ahora cada jugador es
+           una mini-card y lo que queda es la leyenda de lo que dice el disco. -->
+      <div style="display:flex;gap:9px;flex-wrap:wrap;padding:2px 10px 6px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.06em">
+        <span>⭕ Aro = energía</span><span>Borde = nivel</span><span>⚡ Física</span><span>😃 Moral</span>
       </div>
       <div id="sqList"></div>
       <div class="card" style="margin-top:10px" id="vestBox"></div>
@@ -1237,6 +1306,16 @@ function virtues(p){
 function vbadges(p){
   return virtues(p).map(vt=>`<span class="vbadge${vt.elite?' velite':''}" title="${vt.label}: ${vt.v}">${vt.icon} ${vt.virtue}</span>`).join('');
 }
+// Versión para LISTAS: una sola insignia, la mejor, y sólo si de verdad
+// sobresale. Con las dos, la mini-card se partía en dos líneas y las tarjetas
+// quedaban de alturas distintas — la lista dejaba de escanearse de un vistazo.
+function vbadgeTop(p){
+  const v=virtues(p);
+  if(!v.length)return '';
+  const best=v.slice().sort((a,b)=>b.v-a.v)[0];
+  if(best.v<80&&!best.elite)return '';
+  return `<span class="vbadge${best.elite?' velite':''}" title="${best.label}: ${best.v}">${best.icon} ${best.virtue}</span>`;
+}
 function attrColor(v){ return v>=85?'#c084fc':v>=78?'#0fb866':v>=70?'var(--gold)':v>=60?'#f0943a':'#f77a7a'; }
 // Chips DLS-style de los 6 atributos (para modal / cards)
 function attrChips(p){
@@ -1336,6 +1415,13 @@ function fv(v){
   return s+'€'+~~(a*1000)+'K';
 }
 function mc(m){ return m>=80?'var(--green)':m>=55?'var(--gold)':'var(--red)'; }
+// ═══ EL COLOR DICE ALGO ═══
+// Verde neón = éxito / energía alta. Oro = élite o advertencia. Rojo = problema.
+// No se usa el verde para "es un número": para eso está el texto normal.
+function fitColor(f){ return f>=80?'var(--green)':f>=60?'var(--gold)':'var(--red)'; }
+function ovrColor(r){ return r>=84?'var(--gold)':r>=76?'var(--green)':r>=68?'var(--t2)':'var(--t3)'; }
+// La plata NO es "éxito": es un dato. Sólo se ilumina cuando es de élite.
+function valColor(v){ return v>=25?'var(--gold)':v>=8?'var(--tx)':'var(--t2)'; }
 function ptag(pos){ return `<span class="ptag pt-${pos}">${pos}</span>`; }
 function lg(ic,msg){ if(!G) return; G.log.unshift({ic,msg,w:'S'+G.week}); if(G.log.length>40) G.log.pop(); }
 
@@ -4380,17 +4466,49 @@ function rSq(f){
       + (fs.nacionalizados?`  •  <span style="color:var(--green)" title="${fs.nombres.join(', ')}">${fs.nacionalizados} nacionalizado${fs.nacionalizados>1?'s':''} (no ocupan cupo)</span>`:'');
   }
   const pl = ordenarPlantel(G.squad.filter(p=>f==='all'||pgr(p.pos)===f));
-  el.innerHTML = squadHealthPanel() + pl.map(p=>`
-    <div class="pr" onclick="openP('${p.id}',true)" style="grid-template-columns:20px 1fr 38px 30px 58px 1fr 46px">
-      <div style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--t3);font-size:11px;text-align:center">${p.num}</div>
-      <div><div class="pn">${p.name}${p.injured?'<span style="color:var(--red)"> 🏥</span>':''}${p.susp>0?`<span class="badge baR" style="margin-left:4px;font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`:''}${(p.yellows||0)>=3&&!p.susp?`<span class="badge bau" style="margin-left:4px;font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`:''}${p.colgado?'<span class="badge baR" style="margin-left:4px;font-size:8px" title="Apartado del plantel">🧊 COLGADO</span>':''}${p.wantsOut?'<span class="badge baR" style="margin-left:4px;font-size:8px">🚫 SE QUIERE IR</span>':''}${(typeof yaEsLeyenda==='function'&&yaEsLeyenda(p))?'<span class="badge baLeg" style="margin-left:4px;font-size:8px" title="'+LEYENDA_APPS+'+ partidos o '+LEYENDA_GOLES+'+ goles con la camiseta">👑 LEYENDA</span>':''}${p.ownedPct&&p.ownedPct<1?'<span class="badge bau" style="margin-left:4px;font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>':''}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}${vbadges(p)}<span style="font-size:8px;font-weight:700;color:${fitOf(p)>=80?'var(--green)':fitOf(p)>=60?'var(--gold)':'var(--red)'}">⚡${fitOf(p)}%</span>${Math.abs(p.form||0)>=1?`<span style="font-size:8px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:''}</div></div>
-      <div class="ac">${p.nat}</div>
-      <div class="ac">${p.age}</div>
-      <div class="vc">${fv(p.val)}</div>
-      <div style="display:flex;align-items:center;gap:4px">${rb(p.rat)}${trendBadge(p)}${ageLabel(p.age)}</div>
-      <div class="cc">${p.contract}</div>
-    </div>
-  `).join('');
+  // ═══ CADA JUGADOR ES UNA MINI-CARD, NO UNA FILA DE TEXTO ═══
+  // Mismo dato que antes, pero legible de un vistazo: disco de media con el
+  // aro de energía, dorsal en la chapita dorada, nombre en negrita y los
+  // estados como insignias. El color comunica (ovrColor / fitColor / valColor).
+  el.innerHTML = squadHealthPanel() + pl.map(p=>{
+    const fit=fitOf(p), rat=p.rat, mor=(p.morale===undefined?60:p.morale);
+    const anillo=ovrColor(rat), fc=fitColor(fit);
+    const est=[];
+    if(p.injured)                 est.push('<span class="badge baR" style="font-size:8px" title="Lesionado">🏥 LESIONADO</span>');
+    if(p.susp>0)                  est.push(`<span class="badge baR" style="font-size:8px" title="Suspendido">🟥 ${p.susp} FECHA${p.susp>1?'S':''}</span>`);
+    if((p.yellows||0)>=3&&!p.susp) est.push(`<span class="badge bau" style="font-size:8px" title="${p.yellows} amarillas: a las 5 se pierde un partido">🟨 ${p.yellows}</span>`);
+    if(p.colgado)                 est.push('<span class="badge baR" style="font-size:8px" title="Apartado del plantel">🧊 COLGADO</span>');
+    if(p.wantsOut)                est.push('<span class="badge baR" style="font-size:8px">🚫 SE QUIERE IR</span>');
+    if(typeof yaEsLeyenda==='function'&&yaEsLeyenda(p))
+                                  est.push(`<span class="badge baLeg" style="font-size:8px" title="${LEYENDA_APPS}+ partidos o ${LEYENDA_GOLES}+ goles con la camiseta">👑 LEYENDA</span>`);
+    if(p.ownedPct&&p.ownedPct<1)  est.push('<span class="badge bau" style="font-size:8px">➗ '+Math.round(p.ownedPct*100)+'%</span>');
+    const forma=Math.abs(p.form||0)>=1?`<span style="font-size:10px" title="${formInfo(p).t}">${formInfo(p).e}</span>`:'';
+    return `
+    <div class="plc" onclick="openP('${p.id}',true)" style="--ring:${anillo}">
+      <div class="plc-av ${p.injured?'inj':''} ${p.susp>0?'susp':''}" style="--fit:${fit};--fitc:${fc}">
+        <div class="plc-fit"></div>
+        <span class="plc-num">${p.num}</span>
+        <span class="plc-ovr">${rat}</span>
+        ${forma?`<span class="plc-flag">${formInfo(p).e}</span>`:''}
+      </div>
+      <div style="min-width:0">
+        <div class="plc-name">${p.name}${est.join('')}</div>
+        <div class="plc-sub">
+          ${ptag(p.pos)}
+          ${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''}
+          <span style="font-size:9px;color:var(--t3)">${p.nat} · ${p.age}a</span>
+          <span class="plc-en" style="color:${fc}" title="Condición física">⚡${fit}%</span>
+          <span class="plc-en" style="color:${mc(mor)}" title="Moral">${mor>=80?'😃':mor>=55?'🙂':mor>=30?'😐':'😞'}${Math.round(mor)}</span>
+          ${vbadgeTop(p)}
+        </div>
+      </div>
+      <div class="plc-right">
+        <div class="plc-val" style="color:${valColor(p.val)}">${fv(p.val)}</div>
+        <div class="plc-con">📋 ${p.contract}</div>
+        <div style="display:flex;justify-content:flex-end;gap:3px;margin-top:2px">${trendBadge(p)}${ageLabel(p.age)}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 function fSq(f,b){ document.querySelectorAll('#tab-sq .tab').forEach(t=>t.classList.remove('on')); b.classList.add('on'); rSq(f); }
 
