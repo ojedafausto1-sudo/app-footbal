@@ -272,13 +272,6 @@ la falta, y por eso los tiros libres están inflados (30,9 contra 20-25).
 2. **El portador apretado** en campo propio la tira afuera (3% por tick).
 3. **El centro pasado de largo** (26% de los centros) se va por el fondo.
 
-⚠️ **`fmMandarALaBanda` NO usa el aire, al revés que `fmMandarAfuera`.** El
-chequeo del lateral tiene una guarda (`if(b.air>2){b.y=...;return;}`): en el
-aire la pelota se clava en el borde y NO sale. La línea de FONDO no tiene esa
-guarda, por eso el centro pasado sí vuela — de hecho tiene que cubrir **más**
-que el trayecto (×1.25): con el 55% caía antes de la línea y siempre la
-enganchaba alguien.
-
 Medido con el mismo método antes y después (10 partidos, **agregado**):
 
 | saque | antes | después | real |
@@ -291,13 +284,6 @@ Medido con el mismo método antes y después (10 partidos, **agregado**):
 Y el partido sigue sano: pases 710 (antes 691), remates 22,1 (antes 17,5, ahora
 en rango real), faltas 25,5.
 
-⚠️ **Sigue lejos de lo real y estas son las razones medidas:**
-- Los **saques de arco no se movieron** porque el centro pasado casi no se
-  ejecuta: hay ~1 centro por partido contra los 16-20 reales (bug ya
-  documentado y sin resolver). Con 1 centro y 26% de pasados, son 0,26 saques.
-- Los ~9 **remates desviados** por partido deberían dar ~9 saques de arco y no
-  llegan a cruzar la línea. Ese es el hilo con más rendimiento que queda.
-
 ⚠️ **Cada salida cuesta juego.** Medido con la rama del portador apretado en
 0.055: los pases caían de 691 a **560** y los goles de 3,3 a **2,1**. A 0.030
 el compromiso queda parejo. Si querés más laterales, ese es el número, pero
@@ -306,6 +292,98 @@ mirá siempre los pases y los goles.
 ⚠️ **NO subas las probabilidades a ojo.** Se probó (0.34→0.52 y 0.055→0.115) y
 salió PEOR: laterales 15,6 → 12,9 y córners 4,0 → 2,8. Otra vez lo mismo que
 dice la regla de arriba.
+
+### El que arregló los laterales fue la guarda del aire, no las probabilidades
+
+**La línea de banda es vertical.** El chequeo del lateral tenía una guarda,
+`if(b.air>2){b.y=borde;return;}`: la pelota que cruzaba la banda **por el aire
+no salía**, se clavaba contra el borde y volvía a la cancha. La línea de FONDO
+nunca tuvo esa guarda — por eso el centro pasado sí volaba afuera, y por eso
+`fmMandarALaBanda` tenía que ir rasante, que es justamente lo que hacía que la
+enganchara cualquiera antes de cruzar.
+
+Medido con la guarda puesta: **`fmMandarALaBanda` se disparaba 30,6 veces por
+90' y salían 6,5 laterales — el 21% de efectividad.** Sacada la guarda, el
+despeje va por arriba (cubriendo el trayecto, misma cuenta que
+`fmMandarAfuera`) y sale casi siempre.
+
+Y como ahora hay ~20 laterales por partido, `SETPIECE_T.throw` bajó de **80 a
+45 ticks**: con 80 se congelaba más del 10% del partido en saques de banda. El
+lateral es la reanudación más rápida del fútbol.
+
+### Fase 13: error de pase angular, despejes de emergencia y desvíos
+
+Tres mecanismos nuevos, todos con matemática nativa (`Math.cos`/`Math.sin`) y
+sin tocar `fmMandarAfuera`:
+
+1. **Error de pase angular** (`fmTeamPass`) — antes el error era un
+   desplazamiento **lateral** sumado al vector ya armado, y como la fuerza del
+   pase crece con la distancia, el desvío relativo salía igual de chico en un
+   pase de 600px que en uno de 200. Ahora se **rota** el vector: el cono se
+   abre con la distancia y con la presión rival (suma ponderada de los rivales
+   a menos de 150px del pasador) y se cierra con el `PAS`.
+2. **Despeje de emergencia** (`fmDespejeEmergencia` + `fmSinSalida`) — rodeado
+   (2+ rivales a 112px) **en el propio tercio** y sin línea de pase, revienta:
+   55% a la banda, 45% pelotazo al campo rival. `fmSinSalida` es el filtro que
+   lo distingue de "estoy apretado": si hay un compañero a 150-460px sin nadie
+   encima y con la línea limpia, el pase existe y se juega.
+3. **Desvíos en el cuerpo** (`fmBodyBall`) — una pelota a más de 4,6 de
+   velocidad que toca a alguien **que no es su destinatario** no se domina: se
+   rota el vector y pierde fuerza. La guarda del destinatario
+   (`p._recvTick` reciente) es obligatoria: sin ella la IA no completa un pase
+   largo nunca.
+
+Los tres coeficientes viven en **`FM13`** (`conoPase`, `desvio`, `despeje`),
+fuera de las funciones y mutables, para poder hacer **ablación medida**
+(`scratchpad/abl13.js`). Ablación a 6 partidos por escenario:
+
+| escenario | pases | remates | laterales | córners |
+|---|---|---|---|---|
+| todo apagado | 557 | 19,8 | **21,3** | 2,2 |
+| sólo cono de pase | 483 | 24,7 | 19,8 | 2,3 |
+| sólo desvíos | 518 | 17,0 | 19,2 | 2,6 |
+| sólo despeje emerg. | 587 | 19,5 | 22,1 | 2,5 |
+| los tres al 100% | 557 | **13,0** | 19,6 | 1,4 |
+| **los tres al 50%** | **589** | **25,3** | 19,2 | 2,1 |
+
+⚠️ **Los tres mecanismos NO aportan laterales por sí solos** — "todo apagado"
+ya da 21,3. Lo que compró los laterales fue la guarda del aire. Al 100% los
+tres juntos hunden los remates a 13; a 0.50 quedan en 25,3 y los pases en el
+máximo de los seis escenarios. Por eso `FM13` va en **0.50 / 0.50 / 0.115**.
+
+Estado final, 12 partidos agregados, contra el estado anterior:
+
+| | antes | ahora | real |
+|---|---|---|---|
+| lateral | 8,6 | **23,3** | 40-50 |
+| tiro libre | 38,5 | **25,5** | 20-25 |
+| faltas | 25,5 | **21,4** | 20-24 |
+| goles | 1,7 | 2,4 | 2,5-3,0 |
+| córner | 4,3 | **1,8** | 9-11 |
+| saque de arco | 0,3 | 0,3 | 14-18 |
+| pases | 710 | **558** | 800-900 |
+| remates | 22,1 | 18,6 | 22-26 |
+
+⚠️ **Los córners bajaron y es el precio, no un bug suelto.** Con la guarda
+puesta, la pelota alta que se iba por la banda rebotaba contra el borde y
+volvía a la cancha, muchas veces cerca del área, y algunas terminaban cruzando
+la línea de fondo. Ahora sale por lateral. Se intentó recuperarlos abriendo el
+cono del desvío hasta 2,0 rad **sólo dentro del área propia** (un rebote contra
+una pierna a dos metros del arco sale para cualquier lado): medido a 12
+partidos, córners 1,8 → 2,3 —ruido— y los pases se caían de 558 a 479.
+**Revertido.** Es el cuarto intento fallido de comprar córners con un
+parámetro; lo que falta es juego de área, no un número.
+
+⚠️ **Sigue lejos de lo real y estas son las razones medidas:**
+- Los **saques de arco no se movieron** (0,3 contra 14-18) porque el centro
+  pasado casi no se ejecuta: hay ~1 centro por partido contra los 16-20 reales
+  (bug ya documentado y sin resolver). Con 1 centro y 26% de pasados, son 0,26
+  saques.
+- Los ~9 **remates desviados** por partido deberían dar ~9 saques de arco y no
+  llegan a cruzar la línea. Ese es el hilo con más rendimiento que queda.
+- La rama `cBody` (despeje en el área → córner) se dispara **0 veces en 994
+  minutos**: los centros llegan con `air>13` y nadie los toca, y las pelotas
+  rápidas hacia el arco son `b.isShot` y se resuelven en la rama de bloqueo.
 
 ⚠️ **Medí AGREGADO, no la mediana por partido.** Un partido tiene 1-3 córners:
 la mediana de eso salta entre corridas más que cualquier cambio de código

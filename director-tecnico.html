@@ -16512,6 +16512,42 @@ function fmBodyBall(p,b,team){
   b.isShot=null;            // la tocó un jugador de campo: ya no es un remate
   if(team&&FM){FM._lastTouch=team;FM._fmScorer=p;}   // quién la tocó: sirve para el festejo
   const nx=ddx/d,ny=ddy/d;
+  // ═══════════════════════════════════════════════════════════════════════
+  // DESVÍOS Y BLOQUEOS: LA PELOTA FUERTE NO SE DOMINA
+  // ═══════════════════════════════════════════════════════════════════════
+  // Todo lo que llegaba acá salía por el rebote elástico de abajo, que refleja
+  // la pelota contra el cuerpo Y la topea en 7: cualquier remate o centro que
+  // pegaba en un defensor terminaba controlado y en juego. Un balonazo contra
+  // una pierna sale para donde puede — y de ahí nacen los córners y los
+  // laterales de verdad, no de un dado nuevo.
+  // ⚠️ NO se desvía la pelota que viene DIRIGIDA a este jugador (la está
+  // recibiendo): sin esa guarda la IA no completa un pase largo nunca.
+  const _vDes=Math.hypot(b.vx,b.vy);
+  const _esperada=(p._recvTick&&FM&&(FM.ticks-p._recvTick)<110);
+  if(_vDes>4.6&&!_esperada&&!p.isGK){
+    const _dom=(p.attrs&&(p.attrs.DEF||p.attrs.tec))||p.rat||70;
+    const _pDes=Math.min(0.85,0.24+(_vDes-4.6)*0.12-(_dom-70)/420)*FM13.desvio;
+    if(Math.random()<_pDes){
+      // Rotación nativa del vector: no se toca ninguna coordenada de cancha, la
+      // salida la detecta sola la evaluación de límites del motor.
+      // ⚠️ INTENTO FALLIDO DOCUMENTADO: se probó abrir el cono hasta 2,0 rad y
+      // subir la conservación de fuerza SÓLO dentro del área propia, buscando
+      // recuperar los córners que se perdieron al hacer salir la pelota por la
+      // banda. Medido a 12 partidos (agregado): córners 1,8 → 2,3 (ruido) y los
+      // pases se caían de 558 a 479. No compra córners y cuesta juego.
+      const _aDes=(Math.random()*2-1)*(0.45+Math.min(0.60,(_vDes-4.6)*0.09));
+      const _cDes=Math.cos(_aDes),_sDes=Math.sin(_aDes);
+      const _nvx=b.vx*_cDes-b.vy*_sDes,_nvy=b.vx*_sDes+b.vy*_cDes;
+      const _mer=0.62+Math.random()*0.26;            // pierde fuerza en el rebote
+      b.vx=_nvx*_mer;b.vy=_nvy*_mer;
+      b.x=p.x+nx*(R+1.5);b.y=p.y+ny*(R+1.5);         // la despega del cuerpo
+      b.isShot=null;b.air=Math.min(b.air,6);
+      p._recvTick=0;
+      if(b._beat&&FM&&FM.ticks-b._beat<80){b._beat=0;if(FM.learn)FM.learn.beatTocada=(FM.learn.beatTocada||0)+1;}
+      if(FM){FM._lastTouch=team;if(FM.learn)FM.learn.desvios=(FM.learn.desvios||0)+1;}
+      return true;
+    }
+  }
   b.x=p.x+nx*(R+.5);b.y=p.y+ny*(R+.5);
   const rvn=(b.vx-p.vx)*nx+(b.vy-p.vy)*ny;
   if(rvn<0){b.vx-=1.55*rvn*nx;b.vy-=1.55*rvn*ny;}
@@ -17260,10 +17296,29 @@ function fmMandarAfuera(team,ownGX){
 // Un defensor apurado no siempre juega la pelota: muchas veces la revienta a la
 // tribuna. Eso es lo que faltaba.
 //
-// ⚠️ A DIFERENCIA DE fmMandarAfuera, ACÁ NO SE USA EL AIRE. El chequeo del
-// lateral tiene una guarda (`if(b.air>2){b.y=...;return;}`): en el aire la
-// pelota se clava en el borde y NO sale. Así que va rasante y fuerte; como el
-// despeje sale cerca de la banda, cruza antes de que nadie la enganche.
+// ═══════════════════════════════════════════════════════════════════════
+// LOS TRES NÚMEROS DE LA FASE 13
+// ═══════════════════════════════════════════════════════════════════════
+// Van juntos y AFUERA de las funciones a propósito: son la palanca del balance
+// entre "la pelota sale de la cancha" y "el partido se juega". Cada salida
+// cuesta pases y remates, así que subir cualquiera de los tres SIN medir los
+// pases y los goles es exactamente el error que ya documenta CLAUDE.md.
+// Se dejan mutables para poder hacer ablación desde el banco de pruebas.
+// ⚠️ MEDIDO POR ABLACIÓN (6 partidos por escenario, agregado): con los tres en
+// 1.00 los remates se caían a 13 por 90' y los córners a 1,4; a 0.50 quedan en
+// 25,3 remates (rango real) y 589 pases, el mejor de los seis escenarios. Los
+// tres mecanismos NO aportan laterales por sí solos — eso lo dio sacar la guarda
+// del aire (ver fmMandarALaBanda) —, así que subirlos sólo cuesta juego.
+const FM13={
+  conoPase:0.50,   // apertura angular del error de pase (×)
+  desvio:0.50,     // probabilidad de que un balonazo se desvíe en un cuerpo (×)
+  despeje:0.115,   // chance por tick del despeje de emergencia
+};
+// ⚠️ ANTES ESTO IBA RASANTE (b.air=0) porque el chequeo del lateral tenía una
+// guarda que clavaba en el borde la pelota alta. Esa guarda ya no está (la línea
+// de banda es vertical), así que el despeje va POR ARRIBA como el de la línea de
+// fondo: mientras air>13 nadie la puede jugar y el vuelo cubre todo el trayecto.
+// Medido rasante: 30,6 despejes por 90' daban 6,5 laterales (21%).
 function fmMandarALaBanda(team){
   const f=FM;if(!f)return;
   const b=f.ball;
@@ -17273,10 +17328,62 @@ function fmMandarALaBanda(team){
   const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1;
   const pwr=Math.max(6.0,Math.min(11.0,3.6+dd*0.024));
   b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;
-  b.air=0;
+  // El vuelo tiene que cubrir el trayecto entero (misma cuenta que
+  // fmMandarAfuera): si cae antes, alguien la engancha y no sale.
+  b.air=Math.min(48,8+dd/pwr*1.30);
   b.isShot=null;
   f._lastTouch=team;                              // el que la tiró afuera
   if(f.learn)f.learn.cSalida=(f.learn.cSalida||0)+1;
+}
+// ═══ ¿TIENE A QUIÉN DARSELA? ═══
+// El despeje de emergencia no puede dispararse por estar apretado nomás: si hay
+// un compañero solo, el pase existe y la pelota tiene que seguir jugándose. Se
+// mira que haya alguien a distancia de pase (150-460px) SIN un rival encima y
+// con la línea razonablemente limpia. Barato: un solo barrido por candidato.
+function fmSinSalida(team,p){
+  const f=FM;if(!f)return true;
+  const mates=(team==='my')?f.my:f.opp, rivals=(team==='my')?f.opp:f.my;
+  for(let i=0;i<mates.length;i++){
+    const q=mates[i];
+    if(!q||q===p||q.isGK)continue;
+    const dq=Math.hypot(q.x-p.x,q.y-p.y);
+    if(dq<150||dq>460)continue;
+    let libre=true;
+    for(let j=0;j<rivals.length;j++){
+      const o=rivals[j];
+      if(!o||o.isGK)continue;
+      if(Math.hypot(o.x-q.x,o.y-q.y)<80){libre=false;break;}
+      // ¿está metido en la línea de pase? (proyección sobre el segmento)
+      const t=((o.x-p.x)*(q.x-p.x)+(o.y-p.y)*(q.y-p.y))/(dq*dq);
+      if(t>0.12&&t<0.92){
+        const px=p.x+(q.x-p.x)*t, py=p.y+(q.y-p.y)*t;
+        if(Math.hypot(o.x-px,o.y-py)<52){libre=false;break;}
+      }
+    }
+    if(libre)return false;                        // hay salida: que juegue
+  }
+  return true;
+}
+// ═══ DESPEJE DE EMERGENCIA ═══
+// Rodeado en el propio tercio defensivo y sin línea de pase, un defensor no
+// inventa: la revienta. Dos destinos, los dos con fuerza de despeje (no de pase):
+// la banda (sale, lateral) o el campo rival lejano (sigue en juego, pero la
+// pelota viaja lejos y se disputa arriba). La salida la detecta sola la
+// evaluación de límites del motor: acá sólo se le pone el vector.
+function fmDespejeEmergencia(team,p){
+  const f=FM;if(!f)return;
+  const b=f.ball;
+  if(Math.random()<0.55){ fmMandarALaBanda(team); if(f.learn)f.learn.despEmerg=(f.learn.despEmerg||0)+1; return; }
+  const attRight=(team==='my')===f.myAttRight;
+  const tx=attRight?f.rightGL-(f.rightGL-f.leftGL)*0.22:f.leftGL+(f.rightGL-f.leftGL)*0.22;
+  const ty=f.VH/2+(Math.random()*2-1)*f.VH*0.46;   // a cualquier lado, sin puntería
+  const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1;
+  const pwr=Math.max(7.0,Math.min(11.5,4.2+dd*0.016));
+  b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;
+  b.air=Math.min(34,8+dd/pwr*0.55);                // pelotazo: se va por arriba
+  b.isShot=null;
+  f._lastTouch=team;
+  if(f.learn)f.learn.despEmerg=(f.learn.despEmerg||0)+1;
 }
 function fmFoul(offTeam,offender,victim){
   const f=FM;if(!f||f.phase!=='play')return;
@@ -17670,7 +17777,12 @@ function fmLoop(ts){
 // Cuánto tarda cada pelota parada en ejecutarse (ticks; ~60 por segundo).
 // El saque de banda es rápido; el córner y el tiro libre necesitan que suban
 // los que van a rematar y que se arme la barrera.
-const SETPIECE_T={throw:80,goalkick:150,corner:260,freekick:230,penalty:150};
+// ⚠️ EL LATERAL ES LA REANUDACIÓN MÁS RÁPIDA DEL FÚTBOL. Estaba en 80 ticks,
+// que era irrelevante mientras salían 2 laterales por partido; con los ~20 de
+// ahora son 1.600 ticks congelados (más del 10% del partido) y de ahí salía
+// parte de la caída de pases. En la cancha un saque de banda se ejecuta en
+// segundos: 45 ticks alcanzan para que se vea a alguien ir a buscarla.
+const SETPIECE_T={throw:45,goalkick:150,corner:260,freekick:230,penalty:150};
 
 // ═══ ACOMODARSE EN LA PELOTA PARADA ═══
 // Durante la espera, cada equipo se ubica según el tipo de jugada: en el córner
@@ -18805,6 +18917,10 @@ function fmAI(p,team,idx,dt){
       // El toque de primera es un recurso, no la norma: sale cuando lo vienen
       // a apretar, en una pared, o si el técnico juega a un toque de verdad.
       const _apretado=rivals.some(o=>!o.isGK&&Math.hypot(o.x-p.x,o.y-p.y)<78);
+      // RODEADO no es lo mismo que apretado: dos o más encima, y en el propio
+      // tercio. Es la condición del despeje de emergencia (ver más abajo).
+      const _rodeado=rivals.reduce((a,o)=>a+(!o.isGK&&Math.hypot(o.x-p.x,o.y-p.y)<112?1:0),0)>=2;
+      const _enMiTercio=Math.abs(p.x-ownGX)<fieldW*0.30;
       const oneTouch=((_apretado?0.085:0.010)+prof.tempo*(_apretado?0.13:0.025)
                       +counterBoost*0.10)*(holding?0.6:1);
       // ═══ LEVANTA LA CABEZA ═══
@@ -18877,6 +18993,14 @@ function fmAI(p,team,idx,dt){
         b.air=_pasado?Math.min(70,dd5/6.2*1.25):Math.min(70,dd5/6.2);
         if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
+      } else if(_rodeado&&_enMiTercio&&!clearOnGoal&&Math.random()<FM13.despeje*dt&&fmSinSalida(team,p)){
+        // ═══ DESPEJE DE EMERGENCIA ═══
+        // Distinto de la rama de abajo: acá NO es "estoy apretado", es "estoy
+        // rodeado en mi tercio y no hay a quién dársela". Es la jugada que en la
+        // cancha manda la pelota a la tribuna o al otro campo, y la que faltaba
+        // para que la pelota cruce las líneas sin inventar dados nuevos.
+        fmDespejeEmergencia(team,p);
+        p._recvTick=0;p._kickT=9;fmSndKick(0.72);
       } else if(_apretado&&!clearOnGoal&&Math.abs(p.x-ownGX)<fieldW*0.40&&Math.random()<0.030*dt){
         // ═══ LA TIRA AFUERA PARA CORTAR ═══
         // Segunda fuente de salidas, después del despeje del defensor. El
@@ -19485,11 +19609,33 @@ function fmTeamPass(team,fromIdx){
     // El clima: en el barro hay que pegarle más fuerte, con lluvia más suave.
     // La corrección es parcial a propósito (ver la tabla WEATHER).
     const pwr=Math.max(2.4,Math.min(8.2,1.5+dd*0.0075))*(0.94+Math.random()*0.12)*(wxNow().passMul||1);
-    // PRECISIÓN DE PASE: a menor PAS, más error lateral (pases desviados que se pierden)
+    // ═══ ERROR DE PASE ANGULAR (SPREAD VECTORIAL) ═══
+    // Antes el error era un desplazamiento LATERAL sumado al vector ya armado, y
+    // como la fuerza del pase crece con la distancia, el desvío relativo salía
+    // casi igual de chico en un pase de 600px que en uno de 200: la pelota
+    // llegaba siempre cerca del compañero y NUNCA se iba por la banda.
+    // Ahora se ROTA el vector un ángulo (coseno/seno nativos, sin librerías): a
+    // la misma apertura, el pase largo termina el triple más lejos del destino,
+    // que es exactamente como se pierde una pelota de verdad. El cono se abre
+    // con la distancia y con la presión rival, y se cierra con el PAS.
     const pas=(fromP.attrs&&fromP.attrs.PAS)||fromP.rat||70;
-    const errAmp=(1-Math.min(92,pas)/100)*Math.min(1,dd/500)*2.6;
-    const ex=(Math.random()-.5)*errAmp,ey=(Math.random()-.5)*errAmp;
-    b.vx=(dx/dd)*pwr+ex;b.vy=(dy/dd)*pwr+(Math.random()-.5)*0.4+ey;
+    const _rivP=(team==='my')?f.opp:f.my;
+    let _presP=0;
+    for(let i=0;i<_rivP.length;i++){
+      const o=_rivP[i];
+      if(!o||o.isGK)continue;
+      const dP=Math.hypot(o.x-fromP.x,o.y-fromP.y);
+      if(dP<150)_presP+=(1-dP/150);
+    }
+    _presP=Math.min(2.2,_presP);
+    // Apertura del cono en RADIANES. Con PAS 75, sin presión y 600px da ~0,09
+    // rad (≈5°, unos 54px de desvío); rodeado y con mal pase pasa de 0,19 rad
+    // (≈115px), que es el pase que se va al lateral solo.
+    const _cono=(1-Math.min(92,pas)/100)*(0.14+Math.min(1,dd/620)*0.21)*(1+_presP*0.55)*FM13.conoPase;
+    const _angP=(Math.random()*2-1)*_cono;
+    const _cP=Math.cos(_angP),_sP=Math.sin(_angP);
+    const _ux=(dx/dd)*_cP-(dy/dd)*_sP, _uy=(dx/dd)*_sP+(dy/dd)*_cP;
+    b.vx=_ux*pwr;b.vy=_uy*pwr;
     f._lastTouch=team;
     f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
     if(fromP)fromP._giveGo=f.ticks; // el que pasa pica al vacío (uno-dos)
@@ -19593,7 +19739,15 @@ function fmBall(dt){
   }
   // LATERAL: la pelota salió por la banda → saque de banda
   if(b.y<bR||b.y>f.VH-bR){
-    if(b.air>2){b.y=b.y<bR?bR:f.VH-bR;return;} // en el aire aún no salió
+    // ═══ LA LÍNEA DE BANDA ES VERTICAL ═══
+    // Acá había una guarda `if(b.air>2){b.y=borde;return;}`: la pelota por el
+    // aire NO salía, se clavaba contra el borde y volvía a la cancha. La línea
+    // de fondo nunca tuvo esa guarda — por eso el centro pasado sí volaba
+    // afuera y el despeje a la banda tenía que ir rasante, que es justamente lo
+    // que hacía que lo enganchara cualquiera.
+    // Medido con la guarda puesta: fmMandarALaBanda se disparaba 30,6 veces por
+    // 90' y sólo salían 6,5 laterales (21% de efectividad). En el fútbol de
+    // verdad la banda se cruza por arriba igual que por abajo.
     const team=f._lastTouch==='my'?'opp':'my';
     b.y=b.y<bR?bR:f.VH-bR;b.vx=0;b.vy=0;
     fmSetRestart('throw',team,Math.max(f.leftGL+40,Math.min(f.rightGL-40,b.x)),b.y<mid2?18:f.VH-18,'SAQUE DE BANDA');
