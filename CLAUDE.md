@@ -728,6 +728,27 @@ alias que faltaban están agregados y la base normalizada (475 nat1 + 141 nat2).
 Quedan **3.608 segundas nacionalidades válidas**, de las cuales 2.375 liberan
 cupo en alguna liga.
 
+## Estado auditado de los 3 bugs prioritarios
+
+Re-auditados de cero sobre el código actual (`scratchpad/audit3.js` + `audit4.js`),
+y ahora **blindados en la regresión** para que no puedan volver en silencio:
+
+| bug | estado medido |
+|---|---|
+| `nat2` / cupos | 3.608 segundas nacionalidades, **0 basura**, 0 iguales al nat1, 0 con largo ≠3. `isForeign(nat,nat2)` con aridad 2 y los 5 casos correctos. **0 nacionalizados** contados como extranjeros por error |
+| API | `fetch=0`, `XMLHttpRequest=0`, `tmapi/tmcoach/sportdb=0` en el juego, 0 URLs http fuera de las fuentes de Google, los 2 scripts locales. **0 peticiones** jugando una temporada + recorriendo toda la UI |
+| `dtDemands` ≠ `dtAskList` | aridad 1 vs 0 · array de strings vs array de objetos `{id,label,desc,resist,argue,apply}` · las exigencias quedan en `G.dt.contract.demands`, los pedidos no dejan nada en `G`, y ninguno se cuela en el otro |
+
+- **Nacionalizar da el pasaporte de la liga que dirigís**, no un `ARG` fijo.
+  Verificado en 6 ligas: ARG→ARG, Portugal→POR, Premier→ING, MX→MEX,
+  Turquía→TUR, MLS→USA, y en las seis el jugador deja de ocupar cupo.
+- ⚠️ `naturalizePlayer(id)` **sólo abre el modal**; el que aplica es
+  `confirmNaturalize(id)`. Si lo probás llamando al primero no pasa nada.
+- ⚠️ **`autoFill` puede dejar huecos y eso es correcto.** Con 18 extranjeros
+  forzados, cupo 5 y los lesionados de una temporada, puede no haber once
+  jugadores LEGALES: el juego deja el puesto vacío antes que romper el cupo. La
+  regresión verifica que nunca se pase, no que siempre llene 11.
+
 ## El juego NO pide nada por red
 
 `director-tecnico.html` no tiene un solo `fetch` ni `XMLHttpRequest`: la base
