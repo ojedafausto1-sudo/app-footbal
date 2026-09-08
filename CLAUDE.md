@@ -233,6 +233,58 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   ataque ±3% del largo de la cancha): `push` sólo multiplicaba el término que
   depende de dónde está la pelota, y ese se anula con la pelota en el medio.
 
+### ⚠️ El 11v11 está sano salvo UNA cosa: la pelota nunca sale de la cancha
+
+Medido sobre 8 partidos (`scratchpad/ia11.js`), normalizado a 90 minutos:
+
+| | medido | fútbol real | |
+|---|---|---|---|
+| goles | 3,3 | 2,5-3,0 | ✅ |
+| remates | 17,5 | 22-26 | ✅ |
+| al arco | 8,7 | 8-9 | ✅ |
+| faltas | 22,4 | 20-24 | ✅ |
+| pases | 691 | 800-900 | ✅ |
+| **córners** | **2,7** | **9-11** | ❌ |
+
+Y la geometría (`scratchpad/corner.js`), que explica el por qué:
+
+| saque | medido /90' | real |
+|---|---|---|
+| córner | 2,3 | 9-11 |
+| **saque de arco** | **0** | 14-18 |
+| **lateral** | **2,3** | 40-50 |
+| tiro libre | 30,9 | 20-25 |
+
+**La pelota cruza la línea de fondo 2,3 veces por partido; en la realidad son
+~25.** No es que falten córners: es que **la pelota no sale nunca**. Está a
+menos de 60px de una banda el **2,3% del tiempo** y a menos de 20px el
+**0,37%**, aunque el ancho de cancha se usa entero (la pelota recorre y=15 a
+1592 sobre 1600, y los jugadores 8 a 1586). Los pases de la IA siempre
+encuentran compañero y nada se va afuera: la única interrupción que existe es
+la falta, y por eso los tiros libres están inflados (30,9 contra 20-25).
+
+Los mecanismos para mandarla afuera **ya existen y funcionan**
+(`fmMandarAfuera`, con un 100% de salida medido, y el manotazo al córner del
+arquero con probabilidad 0,55). Lo que casi nunca se cumple es la CONDICIÓN
+para llamarlos. Si vas a atacar esto, el lugar no son esas probabilidades: es
+que falten eventos que saquen la pelota (desvíos, centros pasados, despejes a
+la banda).
+
+⚠️ **Lo demás del pedido de "reescribir la IA" ya está y medido**, algunas
+cosas en dirección contraria a lo que parece intuitivo:
+- **Amontonamiento**: ya hay repulsión tipo Boids (`sepR=100`). Medido: 177px
+  al compañero más cercano, con ~200 como reparto ideal. No hay amontonamiento.
+- **Presión**: ya es por cercanía rankeada (`dists.sort` + `myRank`). Medido:
+  mediana de **1** jugador encima del portador rival.
+- **Arquero**: NO hay que achicarle el alcance. Se lo agrandó a propósito
+  porque con `p.r+22` cubría el 10% del arco y el 67% de lo que iba al arco
+  era gol. Hoy ataja el 44% de los remates al arco (real 69%): si algo, está
+  flojo. Y sale poco: se queda al 2,25% de la cancha de su línea.
+- **Arquetipos de DT**: la tabla `T` de `dtProfile()` ya tiene Filósofo, Cholo,
+  Heavy Metal, Técnico, Intenso y Defensivo con sus `press`/`line`/`direct`, y
+  el 11v11 lee el perfil (10 claves, `press` 0,62 mío vs 0,50 del rival).
+- **Faltas**: 22,4 por partido, clavado en el rango real.
+
 ### ⚠️ La mentalidad NO mueve el bloque en el 11v11. Medido, cerrado.
 
 Esto estuvo abierto mucho tiempo con la excusa de "hacen falta más partidos".
