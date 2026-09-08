@@ -233,15 +233,50 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   ataque ±3% del largo de la cancha): `push` sólo multiplicaba el término que
   depende de dónde está la pelota, y ese se anula con la pelota en el medio.
 
-⚠️ **El efecto del bloque en el 11v11 NO se puede medir con pocos partidos.**
-Medí la posición del bloque condicionada a la pelota, 3 partidos por táctica:
-una corrida dio Defensivo 41,3% contra Equilibrado 45,5%, y la siguiente —con
-el MISMO código en esa rama— dio 48,3%. La varianza entre partidos (±4 puntos)
-es del tamaño del efecto buscado. El mecanismo sí está verificado y es
-determinista (`scratchpad/shift.js`), pero **el efecto emergente sobre el
-bloque quedó sin demostrar**. Hay un intento fallido documentado en el código
-(empuje asimétrico 0.26/0.115, que borró el repliegue). Si vas a tocar esto:
-10+ partidos por táctica, o no lo toques.
+### ⚠️ La mentalidad NO mueve el bloque en el 11v11. Medido, cerrado.
+
+Esto estuvo abierto mucho tiempo con la excusa de "hacen falta más partidos".
+Ya se midió con **48 partidos por táctica** (4 corridas independientes de 12,
+`scratchpad/bloque3.js`) y el resultado es concluyente y **negativo**.
+
+La métrica: posición media del bloque propio a lo largo de la cancha (0% = sobre
+mi arco, 100% = sobre el arco rival), muestreada cada 35 ms, mediana por partido,
+y después el cruce de cada partido ofensivo contra cada defensivo.
+
+| corrida | Ofensivo − Defensivo | cruces que dan el signo correcto |
+|---|---|---|
+| 1 | −2,43 | **30,6%** |
+| 2 | +3,56 | **75,7%** |
+| 3 | −4,57 | **47,9%** |
+| 4 | +1,02 (línea defensiva sola) | **50,7%** |
+
+Promedio de los cruces: **51%** — o sea **azar puro** (50% sería tirar una
+moneda). Las medianas por partido van de 16% a 64% de la cancha: la varianza
+entre partidos es **diez veces** el efecto buscado.
+
+Se probaron tres métricas, todas negativas: el bloque entero, el bloque
+condicionado a la pelota en el medio, y **sólo la línea defensiva** (que es la
+que más empuja `gBase` y la que menos persigue la pelota).
+
+**Qué significa esto:**
+- El mecanismo existe y es correcto: `baseShift=(push-1)*fieldW*0.115*gBase` da
+  ±7% de cancha a la línea de fondo, es determinista y está verificado aislado
+  (`scratchpad/shift.js`). La regresión verifica que `sitMent()` llegue a los
+  dos motores.
+- Pero es un **objetivo blando**: los jugadores lo persiguen con `fmMove(...,
+  0.038)`, y antes de llegar ya cambió todo. La posición real la mandan la
+  pelota, la presión, la línea de offside y los `return` tempranos de la IA.
+- **No afirmes que la mentalidad mueve el bloque en el 11v11.** Donde SÍ se
+  siente y está verificado es en las **jugadas clave** (`sitMent()`:
+  acompañantes 2.5/2.4/1.8, cuántos suben al córner 4/3/2) y en el sim de texto.
+
+**Si lo querés arreglar de verdad**, no toques las constantes (ya falló dos
+veces: el empuje asimétrico 0.26/0.115 borró el repliegue, y subir `baseShift`
+no se puede verificar). La única salida medible es cambiar el objetivo blando
+por un **tope duro** a la línea de fondo (que no pueda replegarse más allá de
+cierto % según la mentalidad): un tope se verifica determinista, tick a tick,
+sin estadística. Ojo que hay que medir también los goles en contra, y eso sí
+necesita muchísimos partidos.
 - **Fricción de la pelota** en las jugadas clave: era una constante (.990 /
   .998) y la pelota rodaba eterna. Ahora distingue aire, rodada fuerte, media
   y lenta, y se detiene de verdad por debajo de 0.035.
