@@ -372,12 +372,33 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
 | token | valor | qué es |
 |---|---|---|
 | `--dark` | `#0b0e14` | fondo maestro, **igual para todos los clubes** |
-| `--card` / `--card-2` | `rgba(18,24,38,.75)` / `.85` | superficies de vidrio |
-| `--blur` | `blur(14px) saturate(1.25)` | el vidrio |
-| `--green` | `#10b981` | verde neón |
-| `--gold` | `#f59e0b` | oro metálico (cambia por club) |
+| `--card` | `rgba(6,24,48,.80)` | superficie plana / stop oscuro del vidrio |
+| `--card-2` | `rgba(12,40,80,.55)` | stop claro del vidrio (el azul del glassmorphism) |
+| `--bdr` | `rgba(255,255,255,.08)` | borde luminoso, **blanco en todos los temas** |
+| `--blur` | `blur(12px) saturate(1.2)` | el vidrio |
+| `--green` | `#10b981` | verde neón — éxito / energía alta / finanzas en verde |
+| `--gold` | `#f59e0b` | oro metálico — élite o advertencia (cambia por club) |
 | `--gold-rgb` | `245,158,11` | el mismo, para los `rgba()` del CSS |
+| `--red` | `#e84545` | rojo alarma — lesión, deuda, moral baja, expulsión |
 | `--sh-deep` / `--sh-lift` | — | sombra en reposo / en hover |
+
+La tarjeta estándar es una sola regla y **todo la hereda**:
+`background:linear-gradient(160deg,var(--card-2),var(--card))` + `var(--blur)` +
+`1px solid var(--bdr)`, y en hover `translateY(-2px)` con
+`border-color:rgba(var(--gold-rgb),.28)`.
+
+- ⚠️ **El club cambia el ACENTO, nunca la superficie.** `applyTeamTheme` pisaba
+  `--card` y `--bdr` con valores propios por club, así que el vidrio estándar se
+  perdía apenas arrancaba la partida: `--bdr` terminaba **dorado al 18%** en vez
+  del blanco al 8%. Ahora `applyTeamTheme` y `applyTheme` sólo tocan
+  `--gold` / `--gold-d` / `--gold-rgb`.
+- ⚠️ **El borde de las tarjetas no se tiñe.** Un borde dorado permanente
+  contradice la regla de que el oro significa "élite o advertencia": el acento
+  aparece en el hover, los títulos y las insignias, que es donde comunica algo.
+- La barra superior y la navegación van en la misma familia azul pero un escalón
+  más oscuras que las tarjetas, para que el contenido quede adelante.
+- Medido: 22 cajas de contenido con vidrio real y 2 sin (la cancha de Táctica,
+  que es césped, y el bloque de notas). 732 números con `tabular-nums`, 0 sin.
 
 - **Tipografías**: `Plus Jakarta Sans` para cuerpo y tablas, `Chakra Petch`
   para todo dato numérico (`.rb .pv .sv .vc .ac .sv-n`, con `tabular-nums` para

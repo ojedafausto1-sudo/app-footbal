@@ -6,7 +6,7 @@
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#ef4444;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.09);--card:rgba(18,24,38,.75);--card-2:rgba(24,32,50,.85);--blur:blur(14px) saturate(1.25);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}/* El tag de leyenda: oro metálico con brillo, para que se vea distinto
+:root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#e84545;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.08);--card:rgba(6,24,48,.80);--card-2:rgba(12,40,80,.55);--blur:blur(12px) saturate(1.2);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}/* El tag de leyenda: oro metálico con brillo, para que se vea distinto
    de los demás badges de la ficha. */
 .badge.baLeg{background:linear-gradient(135deg,rgba(var(--gold-rgb),.30),rgba(var(--gold-rgb),.10));color:var(--gold);border:1px solid rgba(var(--gold-rgb),.60);font-weight:700;letter-spacing:.03em;text-shadow:0 0 10px rgba(var(--gold-rgb),.45);box-shadow:0 0 12px rgba(var(--gold-rgb),.18)}
 .chip{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:999px;padding:3px 10px;font-size:10px;margin:2px 3px 2px 0;font-family:'Rajdhani',sans-serif;font-weight:600}.chip.gold{border-color:rgba(var(--gold-rgb),.4);color:var(--gold);background:rgba(var(--gold-rgb),.07)}.crest-row{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05)}.crest-row:last-child{border-bottom:0}.mtitle,.ctitle,.stitle,.hm-name,.hm-play,.nb{font-family:'Archivo','Rajdhani',sans-serif;
@@ -38,13 +38,13 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .age-vet{color:var(--t3);font-size:9px}
 /* LAYOUT */
 .scr{display:none;flex-direction:column;min-height:100vh}.scr.on{display:flex}
-.topbar{background:linear-gradient(90deg,rgba(11,14,20,.86),rgba(20,26,40,.82));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.topbar{background:linear-gradient(90deg,rgba(6,20,40,.88),rgba(10,32,64,.80));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
 .cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(var(--gold-rgb),.3)}
 .cname{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:.06em;text-transform:uppercase}
 .pills{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
 .pill{background:rgba(22,25,32,.9);border:1px solid var(--bdr);border-radius:20px;padding:3px 9px;font-size:11px;display:flex;align-items:center;gap:4px}
 .pv{font-weight:700;color:var(--gold)}
-.nav{display:flex;gap:3px;padding:6px 10px;background:linear-gradient(180deg,rgba(20,26,40,.88) 0%,rgba(11,14,20,.92) 100%);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid rgba(var(--gold-rgb),0.20);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.nav{display:flex;gap:3px;padding:6px 10px;background:linear-gradient(180deg,rgba(10,32,64,.84) 0%,rgba(6,18,36,.92) 100%);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid rgba(var(--gold-rgb),0.20);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .nav::-webkit-scrollbar{display:none}
 .nb{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px 5px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--t2);font-family:'Rajdhani',sans-serif;font-size:9.5px;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .18s;white-space:nowrap;min-width:54px}
 .nb .ni{font-size:16px;line-height:1;filter:grayscale(.5) opacity(.75);transition:all .18s}
@@ -53,7 +53,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .nb.on{background:linear-gradient(180deg,rgba(var(--gold-rgb),0.17),rgba(var(--gold-rgb),0.05));color:var(--gold);border-color:rgba(var(--gold-rgb),0.46);box-shadow:0 3px 14px rgba(var(--gold-rgb),0.18),inset 0 1px 0 rgba(255,255,255,.07)}
 .nb.on .ni{filter:none;transform:scale(1.12)}
 /* DLS-STYLE HERO MATCH CARD */
-.hero-match{background:linear-gradient(135deg,#20242e 0%,#12151b 60%,#0b0d11 100%);border:1px solid rgba(var(--gold-rgb),.3);border-radius:14px;padding:16px 14px 13px;position:relative;overflow:hidden;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.hero-match{background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid rgba(var(--gold-rgb),.3);border-radius:14px;padding:16px 14px 13px;position:relative;overflow:hidden;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5)}
 .hero-match::before{content:'';position:absolute;top:-40%;left:-20%;width:70%;height:180%;background:radial-gradient(ellipse,rgba(var(--gold-rgb),.08),transparent 70%);pointer-events:none}
 .hm-comp{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.25em;color:var(--gold);text-transform:uppercase;opacity:.85}
 .hm-teams{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0 8px}
@@ -135,10 +135,10 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 }
 .card{background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;box-shadow:var(--sh-deep);transition:transform .18s cubic-bezier(.2,.7,.3,1),border-color .18s,box-shadow .18s;position:relative}
 .card::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.055)}
-.card:hover{border-color:rgba(var(--gold-rgb),0.34);transform:translateY(-3px);box-shadow:var(--sh-lift)}
+.card:hover{border-color:rgba(var(--gold-rgb),.28);transform:translateY(-2px);box-shadow:var(--sh-lift)}
 .ctitle{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--gold);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
 /* TABS */
-.tabs{display:flex;gap:2px;margin-bottom:10px;background:rgba(16,22,36,.62);
+.tabs{display:flex;gap:2px;margin-bottom:10px;background:var(--card);
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:3px}
 .tab{flex:1;padding:5px;text-align:center;border-radius:5px;border:none;background:transparent;color:var(--t2);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;transition:all .18s}
@@ -173,7 +173,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
    tarjetas usan translucidez + borde + sombra, que es gratis. */
 .plc{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;
   padding:9px 11px;margin-bottom:6px;border-radius:12px;cursor:pointer;
-  background:linear-gradient(150deg,rgba(30,40,60,.62),rgba(16,22,36,.72));
+  background:linear-gradient(160deg,var(--card-2),var(--card));
   border:1px solid rgba(255,255,255,.08);
   box-shadow:0 3px 12px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05);
   transition:transform .2s cubic-bezier(.2,.7,.3,1),border-color .2s,box-shadow .2s}
@@ -183,7 +183,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .plc:active{transform:translateY(0)}
 /* el disco de media, con el aro de energía alrededor */
 .plc-av{position:relative;width:46px;height:46px;border-radius:50%;
-  background:linear-gradient(160deg,rgba(22,30,48,.95),rgba(10,15,26,.97));
+  background:linear-gradient(160deg,rgba(12,40,80,.88),rgba(6,24,48,.96));
   border:2px solid var(--ring,rgba(255,255,255,.20));
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 9px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
@@ -249,7 +249,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .vbadge.velite{background:linear-gradient(135deg,rgba(192,132,252,.18),rgba(var(--gold-rgb),.12));color:#d8b4fe;border-color:rgba(192,132,252,.4);box-shadow:0 0 8px rgba(192,132,252,.15)}
 /* ATTR CHIPS (DLS hexagon-style grid) */
 .achips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.achip{background:linear-gradient(150deg,rgba(30,40,60,.58),rgba(16,22,36,.70));
+.achip{background:linear-gradient(160deg,var(--card-2),var(--card));
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 6px 6px;text-align:center;
   position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.05)}
@@ -368,14 +368,14 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .ps-pos{font-size:9px;font-family:'Rajdhani',sans-serif;color:var(--gold);font-weight:700}
 .ps-rat{font-size:14px;font-family:'Chakra Petch','Rajdhani',sans-serif;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 /* BENCH */
-.bench{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(10,15,26,.42);
+.bench{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(6,24,48,.42);
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   border-radius:10px;margin-top:7px;min-height:65px;border:1px dashed rgba(255,255,255,.11)}
 .bp{width:50px;text-align:center;cursor:pointer;transition:transform .15s}
 .bp:hover{transform:scale(1.08)}
 .bp .pcircle{width:42px;height:42px;border-color:var(--t3);margin:0 auto 1px}
 /* PLAYER CARD (overview top players) */
-.pcard{background:linear-gradient(150deg,rgba(30,40,60,.55),rgba(16,22,36,.66));
+.pcard{background:linear-gradient(160deg,var(--card-2),var(--card));
   border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:8px;
   box-shadow:0 3px 12px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.05);
   transition:transform .2s cubic-bezier(.2,.7,.3,1),border-color .2s,box-shadow .2s;cursor:pointer}
@@ -408,8 +408,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .diff-btn{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 16px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.05em}
 .diff-sel{background:rgba(var(--gold-rgb),.15);border-color:var(--gold);color:var(--gold)}
 /* SOCIAL TWEETS */
-.tweet{background:rgba(22,25,32,.7);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:8px;transition:border-color .15s}
-.tweet:hover{border-color:rgba(var(--gold-rgb),.2)}
+.tweet{background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 3px 12px rgba(0,0,0,.30);transition:transform .2s cubic-bezier(.2,.7,.3,1),border-color .2s,box-shadow .2s}
+.tweet:hover{transform:translateY(-2px);border-color:rgba(var(--gold-rgb),.28);box-shadow:var(--sh-deep)}
 .tweet-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--d3));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .tweet-handle{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold)}
 .tweet-user{font-size:10px;color:var(--t3)}
@@ -722,7 +722,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab" onclick="fSq('MED',this)">MED</button>
         <button class="tab" onclick="fSq('DEL',this)">DEL</button>
       </div>
-      <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(150deg,rgba(30,40,60,.52),rgba(16,22,36,.64));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
+      <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
       <!-- La cabecera de columnas se fue con la tabla: ahora cada jugador es
            una mini-card y lo que queda es la leyenda de lo que dice el disco. -->
       <div style="display:flex;gap:9px;flex-wrap:wrap;padding:2px 10px 6px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.06em">
@@ -2796,11 +2796,11 @@ function resolveCopaCorta(m){
 // por club es el ACENTO. Antes cada uno traía su propio negro —River bordó,
 // Independiente rojo oscuro— y la pantalla cambiaba de identidad entera.
 const THEMES = {
-  boca:  { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#f59e0b', goldD:'#d97706', bdr:'rgba(245,158,11,.14)' },
-  river: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#ef4444', goldD:'#dc2626', bdr:'rgba(239,68,68,.16)'   },
-  indep: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#e11d48', goldD:'#be123c', bdr:'rgba(225,29,72,.16)'   },
-  racing:{ dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#38bdf8', goldD:'#0ea5e9', bdr:'rgba(56,189,248,.16)'  },
-  sanlo: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', card:'rgba(18,24,38,.75)', gold:'#f43f5e', goldD:'#e11d48', bdr:'rgba(244,63,94,.16)'   },
+  boca:  { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', gold:'#f59e0b', goldD:'#d97706'},
+  river: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', gold:'#ef4444', goldD:'#dc2626'},
+  indep: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', gold:'#e11d48', goldD:'#be123c'},
+  racing:{ dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', gold:'#38bdf8', goldD:'#0ea5e9'},
+  sanlo: { dark:'#0b0e14', d2:'#0f1420', d3:'#141a28', mid:'#1c2334', gold:'#f43f5e', goldD:'#e11d48'},
 };
 
 // Los clubes generados no tenían entrada en THEMES y caían al azul de Boca.
@@ -2815,14 +2815,17 @@ function themeForTeam(teamId){
 function applyTeamTheme(teamId){
   const t = THEMES[teamId] || THEMES.boca;
   const s = document.documentElement.style;
+  // ⚠️ EL CLUB CAMBIA EL ACENTO, NO LA SUPERFICIE.
+  // Antes esto pisaba --card y --bdr con valores propios por club, así que el
+  // vidrio estándar del sistema de diseño se perdía apenas arrancaba la
+  // partida (--bdr terminaba dorado al 18% en vez del blanco al 8% del
+  // estándar). El fondo maestro y el vidrio son iguales para todos los clubes.
   s.setProperty('--dark',   t.dark);
   s.setProperty('--d2',     t.d2);
   s.setProperty('--d3',     t.d3);
   s.setProperty('--mid',    t.mid);
-  s.setProperty('--card',   t.card);
   s.setProperty('--gold',   t.gold);
   s.setProperty('--gold-d', t.goldD);
-  s.setProperty('--bdr',    t.bdr);
   // Si el usuario eligió un tema propio, tiene prioridad sobre el del club
   let saved=null;try{saved=localStorage.getItem('dt_theme');}catch(e){}
   if(saved&&typeof applyTheme==='function')applyTheme(saved);
@@ -20850,7 +20853,10 @@ function applyTheme(k){
   // recolorear también bordes y badge de rating para que el cambio se note en toda la UI
   const rgb=(hex=>{const n=parseInt(hex.slice(1),16);return (n>>16)+','+((n>>8)&255)+','+(n&255);})(t.g);
   s.setProperty('--gold-rgb',rgb);          // para los rgba() del CSS
-  s.setProperty('--bdr',`rgba(${rgb},.18)`);
+  // El borde de las tarjetas NO se tiñe: es blanco al 8% en todos los temas.
+  // El acento aparece en el hover, en los títulos y en las insignias, que es
+  // donde comunica algo. Un borde dorado permanente contradice la regla de que
+  // el oro significa "élite o advertencia".
   if(G)G.theme=k;
   try{localStorage.setItem('dt_theme',k);}catch(e){}
 }
