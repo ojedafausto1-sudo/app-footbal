@@ -3315,7 +3315,7 @@ function initGame(teamId){
   addPhoneMsg('board', 'Secretaría del Club', `📋 Presidente, quedó operativa su línea directa. Desde acá puede chatear con el DT y los jugadores, recibir ofertas de representantes y aprobar pedidos. El club es suyo.`, '🏛️');
   const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.desc}`).join('<br>');
   addPhoneMsg('board', 'Presidente', `🏛️ Como presidente del club, espero resultados esta temporada. Tus <b>objetivos</b> son:<br><br>${objList}<br><br>La confianza de la directiva depende de vos. ¡Éxitos!`, '👔');
-  setTimeout(()=>{try{offerPreseason();}catch(e){}},400);
+  setTimeout(()=>{try{offerPreseason();}catch(e){}},500);
 }
 
 function pressConf(){
@@ -4203,6 +4203,12 @@ function updateBoard($){
 // =============================================
 function updateUI(){
   if(!G||!G.squad) return;
+  // La física elegida en la gira se ancla en cuanto empieza el torneo. Va acá
+  // y no sólo en el bloque semanal por dos motivos: los amistosos adelantan la
+  // semana con un return temprano (nunca pasan por el bloque), y el bloque
+  // corre DESPUÉS de G.week++, o sea después de jugada la fecha 1.
+  // Es idempotente: G._giraFitAplicada corta al segundo llamado.
+  try{ preseasonFit(); }catch(e){}
   const $ = id => document.getElementById(id);
   $('bTop').textContent='$'+G.budget+'M';
   $('wTop').textContent=(DIAS[curDay()-1]||'').slice(0,3)+' S'+G.week;
@@ -10942,7 +10948,7 @@ function nextSeason(){
   updateUI();
   flash('🏆 ¡Nueva temporada '+G.season+'!','win');
   gTab('ov', document.querySelector('.nb'));
-  setTimeout(()=>{try{offerPreseason();}catch(e){}},400);
+  setTimeout(()=>{try{offerPreseason();}catch(e){}},500);
 }
 
 // =============================================
@@ -11781,6 +11787,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyColgados();
   weeklyLoans();
   weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
+  preseasonFit();    // ancla la física elegida en la gira a la fecha 1 del torneo
   weeklySeleccion();
   weeklyPlayerDt();
   weeklyVestuario();
@@ -12726,12 +12733,40 @@ function rHeadlines(containerId){
   </div>`;
 }
 
-// ═══ PRETEMPORADA / GIRAS DE AMISTOSOS ═══
+// ═══════════════════════════════════════════════════════════════════════
+// PRETEMPORADA: PLATA CONTRA DESGASTE
+// ═══════════════════════════════════════════════════════════════════════
+// Tres opciones excluyentes, una decisión de presidente: la gira larga deja
+// caja y marketing pero el plantel llega fundido; quedarse en el predio no
+// deja un peso pero llega entero y con la táctica aceitada.
+//
+// ⚠️ `fitIni` es un objetivo ABSOLUTO para el ARRANQUE DEL TORNEO, no un
+// sumando. Fijar la física en la semana 1 no sirve de nada: entre la
+// recuperación diaria (+1,6/día) y el descanso semanal, un plantel puesto en
+// 75 llega a 100 para la fecha 1 (medido: 75 → 84,6 → 94,2 → 100). Por eso se
+// guarda en G.giraFit y lo aplica preseasonFit() cuando empieza la liga.
 const PRESEASON_TOURS={
-  local:{label:'🏟️ Pretemporada local',desc:'Amistosos en casa. Barato y seguro.',cost:0,income:1.5,fit:18,chem:8,rep:0,inj:0.02},
-  regional:{label:'🌎 Gira regional (Sudamérica)',desc:'Recaudás más y sumás roce. Algo de desgaste.',cost:1,income:5,fit:10,chem:14,rep:2,inj:0.06},
-  intl:{label:'✈️ Gira internacional (Europa/Asia)',desc:'Muchísima plata y prestigio, pero cansa y arriesga lesiones.',cost:3,income:14,fit:2,chem:16,rep:5,inj:0.12},
+  asia:{label:'✈️ Gira por Asia / EEUU',
+        desc:'Estadios llenos del otro lado del mundo, camisetas vendidas y la marca del club en todos lados. El plantel vuelve muerto.',
+        income:3, fitIni:75, moral:10, chem:0, rep:2, inj:0.12},
+  verano:{label:'🏖️ Copa de Verano local',
+        desc:'El clásico de enero en la costa. Deja poco, pero se viaja poco y el equipo llega bien.',
+        income:0.5, fitIni:90, moral:0, chem:0, rep:0, inj:0.05},
+  predio:{label:'🏋️ Quedarse en el predio',
+        desc:'Nada de giras: doble turno, video y trabajo táctico. Cero ingresos, pero llegan enteros y se entienden de memoria.',
+        income:0, fitIni:100, moral:0, chem:15, rep:0, inj:0.02},
 };
+// La física elegida se ancla en la fecha 1 del torneo, no en la semana 1.
+function preseasonFit(){
+  if(!G||G.giraFit===undefined)return;                 // save viejo o sin elegir
+  if(G._giraFitAplicada===G.season)return;
+  if((G.week||1)<1+PRE_SEMANAS)return;                 // todavía es pretemporada
+  G.squad.forEach(p=>{ p.fit=G.giraFit; });
+  G._giraFitAplicada=G.season;
+  if(G.giraFit<90)
+    addPhoneMsg('board','Preparador físico',
+      `🩺 Presidente, arrancamos el torneo con el plantel al <b>${G.giraFit}%</b>. La gira nos pasó factura: hasta que levanten, cuidá la rotación.`,'🩺');
+}
 // ═══ RIVALES DE VERDAD PARA LA GIRA ═══
 // La gira era un número: elegías destino y te sumaba física y plata. Ahora
 // elegís CONTRA QUIÉN, los rivales salen de las ligas que tenés cargadas en la
@@ -12818,28 +12853,44 @@ function rFriendlies(){
 }
 
 function offerPreseason(){
-  if(G._preseasonDone===G.season)return;
+  if(!G||G._preseasonDone===G.season)return;
+  const chip=(txt,col)=>`<span style="display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;margin:3px 3px 0 0;background:rgba(${col},.14);border:1px solid rgba(${col},.5);color:rgb(${col})">${txt}</span>`;
+  const VERDE='16,185,129', ORO='245,158,11', ROJO='239,68,68';
   showMod(`
-    <button class="mclose" onclick="closeMod();G._preseasonDone=G.season"></button>
-    <div class="mtitle">🧳 Pretemporada ${G.season}</div>
-    <div class="note" style="margin-bottom:8px">Elegí cómo preparar al equipo. Cada opción deja plata, pone a punto la condición física y mejora la química — con distinto costo y riesgo.</div>
+    <button class="mclose" onclick="closeMod();G._preseasonDone=G.season">✕</button>
+    <div class="mtitle">✈️ Ofertas de Pretemporada</div>
+    <div class="note" style="margin-bottom:9px">Llegaron tres propuestas para preparar la temporada ${G.season}, presidente. <b>Se elige una sola.</b> La plata de la gira se cobra ahora; el desgaste se paga en la fecha 1.</div>
     ${Object.entries(PRESEASON_TOURS).map(([k,t])=>`
-      <button class="btn bo" style="width:100%;margin-bottom:6px;text-align:left" onclick="doPreseason('${k}')">
-        <div style="font-weight:700">${t.label}</div>
-        <div style="font-size:9px;color:var(--t3)">${t.desc}</div>
-        <div style="font-size:9px;color:var(--gold);margin-top:2px">${t.cost?'Costo '+fv(t.cost)+' · ':''}Ingreso ${fv(t.income)} · +${t.fit} física · +${t.chem} química${t.rep?' · +'+t.rep+' rep':''}</div>
+      <button class="btn bo" style="width:100%;margin-bottom:7px;text-align:left;white-space:normal" onclick="doPreseason('${k}')">
+        <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:14px">${t.label}</div>
+        <div style="font-size:9.5px;color:var(--t3);line-height:1.35;margin-top:2px">${t.desc}</div>
+        <div style="margin-top:3px">
+          ${chip(t.income>0?'+'+fv(t.income)+' a la caja':'Sin ingresos', t.income>0?VERDE:'124,135,152')}
+          ${chip('Física en la fecha 1: '+t.fitIni+'%', t.fitIni>=100?VERDE:t.fitIni>=90?ORO:ROJO)}
+          ${t.moral?chip('Moral +'+t.moral,VERDE):''}
+          ${t.chem?chip('Química +'+t.chem,VERDE):''}
+          ${t.rep?chip('Reputación +'+t.rep,ORO):''}
+        </div>
       </button>`).join('')}
-    <button class="btn bR bs" style="width:100%" onclick="closeMod();G._preseasonDone=G.season">Saltar pretemporada</button>
+    <button class="btn bR bs" style="width:100%" onclick="closeMod();G._preseasonDone=G.season">No viajar ni entrenar distinto</button>
   `);
 }
 function doPreseason(k){
-  const t=PRESEASON_TOURS[k];if(!t)return;
-  if(G.budget<t.cost){flash('❌ Sin presupuesto para esta gira','loss');return;}
-  G.budget=Math.round((G.budget-t.cost+t.income)*10)/10;
-  if(t.cost>0)finAnota('operativo',t.cost,'Gira de pretemporada: '+(t.label||k));
-  if(t.income>0)finAnota('otros_in',t.income,'Ingresos de la gira: '+(t.label||k));
-  G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+t.fit);});
-  G.chem=Math.min(100,(G.chem||45)+t.chem);
+  const t=PRESEASON_TOURS[k];if(!t||!G)return;
+  if(t.income>0){
+    G.budget=Math.round((G.budget+t.income)*10)/10;
+    finAnota('otros_in',t.income,'Pretemporada: '+(t.label||k));
+  }
+  // La física va como OBJETIVO para la fecha 1 (ver preseasonFit): fijarla acá
+  // y nada más no serviría, la pretemporada la devuelve a 100 igual.
+  G.giraFit=t.fitIni;
+  G._giraFitAplicada=null;
+  G.squad.forEach(p=>{ p.fit=t.fitIni; });
+  if(t.moral){
+    G.morale=Math.min(100,(G.morale===undefined?70:G.morale)+t.moral);
+    G.squad.forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+t.moral); });
+  }
+  if(t.chem)G.chem=Math.min(100,(G.chem||45)+t.chem);
   if(t.rep)repSuma(t.rep);
   // riesgo de alguna lesión en la gira
   if(Math.random()<t.inj*3){
@@ -12848,13 +12899,18 @@ function doPreseason(k){
     victim.injuredWeeks=1+~~(Math.random()*2);victim.injTotal=victim.injuredWeeks;
     lg('🤕',`${victim.name} se resintió en la gira (${victim.injuredWeeks} sem)`);
   }
-  const riv=bookFriendlies(k,k==='intl'?4:k==='regional'?3:2);
-  if(riv.length)addPhoneMsg('board','Secretaría del Club',`📋 Cerramos los amistosos de la gira: <b>${riv.map(r=>r.club).join('</b>, <b>')}</b>. Los podés jugar desde la portada.`,'🏛️');
+  // Los amistosos siguen siendo partidos de verdad del calendario. La zona de
+  // los rivales sale de la opción: en el predio se juega contra vecinos.
+  const zona=k==='asia'?'intl':k==='verano'?'regional':'local';
+  const riv=bookFriendlies(zona,k==='asia'?4:k==='verano'?3:2);
+  if(riv.length)addPhoneMsg('board','Secretaría del Club',`📋 Cerramos los amistosos: <b>${riv.map(r=>r.club).join('</b>, <b>')}</b>. Los podés jugar desde la portada.`,'🏛️');
   G._preseasonDone=G.season;
-  lg('🧳',`Pretemporada: ${t.label} (+${fv(t.income)}, +${t.fit} física, +${t.chem} química)`);
-  addPhoneMsg('board','Secretaría del Club',`🧳 Cerramos la ${t.label}. Ingresos <b style="color:var(--gold)">${fv(t.income)}</b>, el plantel llega a punto para arrancar la temporada.`,'🏛️');
+  lg('🧳',`Pretemporada: ${t.label} — ${t.income>0?'+'+fv(t.income)+', ':''}física ${t.fitIni}% en la fecha 1${t.moral?', moral +'+t.moral:''}${t.chem?', química +'+t.chem:''}`);
+  addPhoneMsg('board','Secretaría del Club',
+    `🧳 Cerramos la <b>${t.label}</b>. ${t.income>0?`Entraron <b style="color:var(--gold)">${fv(t.income)}</b>. `:'No hubo ingresos por gira. '}`+
+    `El cuerpo médico calcula que llegamos a la fecha 1 al <b>${t.fitIni}%</b>${t.chem?' y con la táctica muy trabajada':''}.`,'🏛️');
   closeMod();updateUI();
-  flash('✅ Pretemporada completada','win');
+  flash('✅ '+t.label.replace(/^\S+\s/,'')+' confirmada','win');
 }
 
 // ═══ QUÍMICA DEL EQUIPO Y SOCIEDADES ═══

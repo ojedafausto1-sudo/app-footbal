@@ -396,6 +396,45 @@ así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
 - **Relación con el DT**: `G.dtRel` (0-100), `setDtRel`, `dtAskList` (pedidos del
   presidente al DT, que puede retrucar).
 
+## Pretemporada: plata contra desgaste
+
+`offerPreseason()` abre **✈️ Ofertas de Pretemporada** al arrancar la partida y
+al empezar cada temporada (`setTimeout` de 500ms al final de `initGame`). Tres
+opciones excluyentes (`PRESEASON_TOURS`):
+
+| | caja | física en la fecha 1 | extra |
+|---|---|---|---|
+| ✈️ Asia/EEUU | **+3M** | **75%** | moral +10, rep +2 |
+| 🏖️ Copa de Verano | +0,5M | 90% | — |
+| 🏋️ Predio | 0 | 100% | química +15 |
+
+⚠️ **`fitIni` es un objetivo para la FECHA 1, no un sumando.** Fijar la física en
+la semana 1 no sirve para nada: entre la recuperación diaria (+1,6/día) y el
+descanso semanal, un plantel puesto en 75 llega a 100 para la fecha 1 (medido:
+**75 → 84,6 → 94,2 → 100**). Por eso se guarda en `G.giraFit` y lo ancla
+`preseasonFit()` cuando empieza el torneo, una sola vez por temporada
+(`G._giraFitAplicada`).
+
+⚠️ **`preseasonFit()` se llama desde `updateUI()`, no sólo desde el bloque
+semanal**, por dos motivos que se descubrieron midiendo: los amistosos adelantan
+la semana con un `return` temprano en `simMatch` y **nunca pasan por el bloque
+semanal**, y el bloque corre DESPUÉS de `G.week++`, o sea después de jugada la
+fecha 1. Es idempotente, así que llamarlo seguido no cuesta nada.
+
+**El costo deportivo está casi todo en el 11v11, no en el sim de texto:**
+
+- Texto: la fuerza del equipo va de **0,77 (100%) a 0,75 (75%)** y la física se
+  recupera sola para la fecha 2 (88,6%). Medido a 8 fechas con 7 corridas por
+  opción: **22 puntos con la gira contra 20 en el predio** — o sea, ruido. La
+  química tampoco mueve la aguja: `chemMod` es `0.97+chem/100*0.06`, así que
+  +15 de química valen **+0,7%**.
+- 11v11: `fmInit` saca la stamina inicial del `fit` del jugador, y ahí sí duele.
+  Medido: llegando al **75%** el equipo cruza el 55% de stamina en el **minuto
+  18**; llegando al 100%, en el **minuto 37**.
+
+Si querés que la gira se sienta también simulando, el lugar es `matchStrengths`
+(el peso de `avgFit`), no las constantes de la tabla.
+
 ## Banco, deuda y embargo
 
 Todo vive en la tarjeta **🏦 Banco y Finanzas** de la pestaña Presidente
