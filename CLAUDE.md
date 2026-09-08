@@ -263,12 +263,55 @@ menos de 60px de una banda el **2,3% del tiempo** y a menos de 20px el
 encuentran compañero y nada se va afuera: la única interrupción que existe es
 la falta, y por eso los tiros libres están inflados (30,9 contra 20-25).
 
-Los mecanismos para mandarla afuera **ya existen y funcionan**
-(`fmMandarAfuera`, con un 100% de salida medido, y el manotazo al córner del
-arquero con probabilidad 0,55). Lo que casi nunca se cumple es la CONDICIÓN
-para llamarlos. Si vas a atacar esto, el lugar no son esas probabilidades: es
-que falten eventos que saquen la pelota (desvíos, centros pasados, despejes a
-la banda).
+**Arreglado a medias.** Se agregaron las tres fuentes de salida que faltaban:
+
+1. **`fmMandarALaBanda(team)`** — el defensor que roba FUERA del área con un
+   rival encima y en campo propio la revienta a la tribuna (34%). El quite
+   dentro del área ya iba al córner; fuera del área siempre terminaba en pelota
+   jugada, y de ahí venía la ausencia total de laterales.
+2. **El portador apretado** en campo propio la tira afuera (3% por tick).
+3. **El centro pasado de largo** (26% de los centros) se va por el fondo.
+
+⚠️ **`fmMandarALaBanda` NO usa el aire, al revés que `fmMandarAfuera`.** El
+chequeo del lateral tiene una guarda (`if(b.air>2){b.y=...;return;}`): en el
+aire la pelota se clava en el borde y NO sale. La línea de FONDO no tiene esa
+guarda, por eso el centro pasado sí vuela — de hecho tiene que cubrir **más**
+que el trayecto (×1.25): con el 55% caía antes de la línea y siempre la
+enganchaba alguien.
+
+Medido con el mismo método antes y después (10 partidos, **agregado**):
+
+| saque | antes | después | real |
+|---|---|---|---|
+| lateral | 3,6 | **8,6** | 40-50 |
+| córner | 2,4 | **4,3** | 9-11 |
+| tiro libre | 36,9 | 38,5 | 20-25 |
+| saque de arco | 0,7 | 0,3 | 14-18 |
+
+Y el partido sigue sano: pases 710 (antes 691), remates 22,1 (antes 17,5, ahora
+en rango real), faltas 25,5.
+
+⚠️ **Sigue lejos de lo real y estas son las razones medidas:**
+- Los **saques de arco no se movieron** porque el centro pasado casi no se
+  ejecuta: hay ~1 centro por partido contra los 16-20 reales (bug ya
+  documentado y sin resolver). Con 1 centro y 26% de pasados, son 0,26 saques.
+- Los ~9 **remates desviados** por partido deberían dar ~9 saques de arco y no
+  llegan a cruzar la línea. Ese es el hilo con más rendimiento que queda.
+
+⚠️ **Cada salida cuesta juego.** Medido con la rama del portador apretado en
+0.055: los pases caían de 691 a **560** y los goles de 3,3 a **2,1**. A 0.030
+el compromiso queda parejo. Si querés más laterales, ese es el número, pero
+mirá siempre los pases y los goles.
+
+⚠️ **NO subas las probabilidades a ojo.** Se probó (0.34→0.52 y 0.055→0.115) y
+salió PEOR: laterales 15,6 → 12,9 y córners 4,0 → 2,8. Otra vez lo mismo que
+dice la regla de arriba.
+
+⚠️ **Medí AGREGADO, no la mediana por partido.** Un partido tiene 1-3 córners:
+la mediana de eso salta entre corridas más que cualquier cambio de código
+(medido: 8,8 / 15,6 / 12,9 / 7,6 laterales en corridas del mismo tipo). Sumando
+todos los eventos sobre todos los minutos hay diez veces más señal.
+`scratchpad/corner.js` ya lo hace así.
 
 ⚠️ **Lo demás del pedido de "reescribir la IA" ya está y medido**, algunas
 cosas en dirección contraria a lo que parece intuitivo:

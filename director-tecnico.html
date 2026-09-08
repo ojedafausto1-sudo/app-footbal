@@ -17249,6 +17249,35 @@ function fmMandarAfuera(team,ownGX){
   b.isShot=null;
   f._lastTouch=team;                              // el que despejó: por eso será córner
 }
+// ═══════════════════════════════════════════════════════════════════════
+// LA PELOTA TIENE QUE SALIR DE LA CANCHA
+// ═══════════════════════════════════════════════════════════════════════
+// Medido antes de esto: la pelota cruzaba la línea de fondo 2,3 veces por
+// partido contra las ~25 reales, había 2,3 laterales contra 40-50 y CERO saques
+// de arco. Los pases de la IA siempre encontraban compañero y nada salía nunca,
+// así que la única interrupción del juego era la falta — por eso los tiros
+// libres estaban inflados (30,9 contra los 20-25 reales).
+// Un defensor apurado no siempre juega la pelota: muchas veces la revienta a la
+// tribuna. Eso es lo que faltaba.
+//
+// ⚠️ A DIFERENCIA DE fmMandarAfuera, ACÁ NO SE USA EL AIRE. El chequeo del
+// lateral tiene una guarda (`if(b.air>2){b.y=...;return;}`): en el aire la
+// pelota se clava en el borde y NO sale. Así que va rasante y fuerte; como el
+// despeje sale cerca de la banda, cruza antes de que nadie la enganche.
+function fmMandarALaBanda(team){
+  const f=FM;if(!f)return;
+  const b=f.ball;
+  const arriba=(b.y<f.VH/2);
+  const ty=arriba?-40:f.VH+40;                    // un punto PASANDO la línea
+  const tx=b.x+(Math.random()*260-130);           // sin dirección preferida a lo largo
+  const dx=tx-b.x,dy=ty-b.y,dd=Math.hypot(dx,dy)||1;
+  const pwr=Math.max(6.0,Math.min(11.0,3.6+dd*0.024));
+  b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;
+  b.air=0;
+  b.isShot=null;
+  f._lastTouch=team;                              // el que la tiró afuera
+  if(f.learn)f.learn.cSalida=(f.learn.cSalida||0)+1;
+}
 function fmFoul(offTeam,offender,victim){
   const f=FM;if(!f||f.phase!=='play')return;
   const to=offTeam==='my'?'opp':'my';
@@ -18830,8 +18859,14 @@ function fmAI(p,team,idx,dt){
         return dq<fieldW*0.20&&Math.abs(q.y-mid)<f.GH*2.1;
       });
       if(wide&&nearByline&&_hayEnArea&&(prof.flank||0.5)>0.28&&Math.random()<(0.175+prof.flank*0.230)*dt){
-        const tx5=attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09;
-        const ty5=mid+(Math.random()*120-60);
+        // ═══ Y UNO DE CADA CUATRO SE PASA DE LARGO ═══
+        // Los saques de arco estaban en CERO (real 14-18): nada mandaba nunca
+        // la pelota por el fondo rival. El centro pasado es de dónde salen en
+        // la cancha, y de paso deja de ser un centro perfecto siempre.
+        const _pasado=Math.random()<0.26;
+        const tx5=_pasado?(attRight?f.rightGL+40:f.leftGL-40)
+                         :(attRight?f.rightGL-fieldW*0.09:f.leftGL+fieldW*0.09);
+        const ty5=mid+(Math.random()*120-60)+(_pasado?(Math.random()*260-130):0);
         const ddx5=tx5-b.x,ddy5=ty5-b.y,dd5=Math.hypot(ddx5,ddy5)||1;
         b.vx=ddx5/dd5*6.2;b.vy=ddy5/dd5*6.2;
         // El vuelo cubría sólo el 70% de la distancia al objetivo: el centro
@@ -18839,9 +18874,20 @@ function fmAI(p,team,idx,dt){
         // encima del área 22 ticks por partido pero su punto de caída estaba
         // más allá, así que nadie iba a disputarla (el defensor más cercano
         // quedaba a 141px) y el cabezazo defensivo no ocurría nunca.
-        b.air=Math.min(70,dd5/6.2);
+        b.air=_pasado?Math.min(70,dd5/6.2*1.25):Math.min(70,dd5/6.2);
         if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
         f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
+      } else if(_apretado&&!clearOnGoal&&Math.abs(p.x-ownGX)<fieldW*0.40&&Math.random()<0.030*dt){
+        // ═══ LA TIRA AFUERA PARA CORTAR ═══
+        // Segunda fuente de salidas, después del despeje del defensor. El
+        // portador apretado en campo propio no siempre encuentra el pase: la
+        // revienta a la banda y el equipo se acomoda.
+        // ⚠️ ESTA RAMA TIENE UN COSTO: cada salida corta la posesión. Medido a
+        // 0.055 los pases caían de 691 a 560 y los goles de 3,3 a 2,1. A 0.030
+        // el compromiso queda parejo. Si querés MÁS laterales, este número es
+        // el que hay que subir, pero mirá siempre los pases y los goles.
+        fmMandarALaBanda(team);
+        p._recvTick=0;p._kickT=9;fmSndKick(0.5);
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
@@ -19054,6 +19100,18 @@ function fmAI(p,team,idx,dt){
             if(Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.9&&!fmDespejeReciente()&&Math.random()<0.85){
               fmMandarAfuera(team,ownGX);
               if(f.learn){f.learn.cDesp=(f.learn.cDesp||0)+1;f.learn.tackles=(f.learn.tackles||0)+1;}
+              return;
+            }
+            // ═══ O LA REVIENTA A LA BANDA ═══
+            // El quite dentro del área ya iba al córner; fuera del área SIEMPRE
+            // terminaba en pelota jugada y por eso no existían los laterales
+            // (2,3 por partido contra 40-50 reales). Un defensor con un rival
+            // encima y su arco cerca no construye: la tira afuera y acomoda.
+            const _encima=rivals.reduce((a,o)=>a+(Math.hypot(o.x-p.x,o.y-p.y)<130?1:0),0);
+            const _propioCampo=Math.abs(p.x-ownGX)<fieldW*0.42;
+            if(_encima>=1&&_propioCampo&&Math.random()<0.34){
+              fmMandarALaBanda(team);
+              if(f.learn)f.learn.tackles=(f.learn.tackles||0)+1;
               return;
             }
             // roba limpio: saca la pelota lejos del rival
