@@ -849,6 +849,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="card" style="margin-bottom:10px" id="trainFocusBox"></div>
       <div class="ctitle">⚡ Sesión extra de la semana</div>
       <div class="g3" style="margin-bottom:12px" id="trainOpts"></div>
+      <div class="card" style="margin-bottom:10px" id="mentorBox"></div>
       <div class="card"><div class="ctitle">Entrenamiento individual</div><div class="note">$0.1M por sesión · +3 al atributo elegido</div><div id="indTrain"></div></div>
     </div>
 
@@ -7279,6 +7280,113 @@ function facilityFx(){
   };
 }
 // Desarrollo automático semanal de TODO el plantel hacia su potencial
+// ═══════════════════════════════════════════════════════════════════════
+// MENTOREO: EL VETERANO QUE LE ENSEÑA AL PIBE
+// ═══════════════════════════════════════════════════════════════════════
+// `G.mentoring` son parejas {mid,pid} — objetos planos, nada de funciones (ver
+// la regla de que nada en G puede serlo). Retro-compatible sin migrar: un save
+// viejo no lo tiene y `||[]` es exactamente "todavía no armaste ninguna".
+const MENTOR_MAX=3;
+const MENTOR_DEV=1.40;          // +40% al desarrollo del pupilo
+const MENTOR_HERENCIA=0.02;     // 2% por semana de heredar una virtud élite
+function mentorias(){ return (G&&G.mentoring)||[]; }
+function esMentor(p){ return !!p&&(p.age||0)>=30&&(p.rat||0)>=75; }
+function esPupilo(p){ return !!p&&(p.age||99)<=22; }
+// La pareja sólo rinde si los dos siguen en el club y sanos.
+function mentorActiva(m){
+  if(!m)return null;
+  const men=(G.squad||[]).find(x=>x.id===m.mid);
+  const pup=(G.squad||[]).find(x=>x.id===m.pid);
+  if(!men||!pup)return null;
+  if(men.injured||pup.injured)return null;
+  return {men,pup};
+}
+// El pupilo de una pareja activa, si lo es
+function mentorDe(pid){
+  for(const m of mentorias()){
+    if(m.pid!==pid)continue;
+    const a=mentorActiva(m);
+    if(a)return a.men;
+  }
+  return null;
+}
+function mentorAdd(mid,pid){
+  if(!G)return;
+  if(!G.mentoring)G.mentoring=[];
+  if(G.mentoring.length>=MENTOR_MAX){flash('❌ Ya tenés '+MENTOR_MAX+' grupos de mentoreo','loss');return;}
+  const men=G.squad.find(x=>x.id===mid), pup=G.squad.find(x=>x.id===pid);
+  if(!men||!pup){flash('Jugador no disponible','draw');return;}
+  if(!esMentor(men)){flash('❌ El mentor tiene que tener 30+ años y 75+ de media','loss');return;}
+  if(!esPupilo(pup)){flash('❌ El pupilo tiene que tener 22 años o menos','loss');return;}
+  if(pgr(men.pos)!==pgr(pup.pos)){flash('❌ Tienen que ser de la misma línea','loss');return;}
+  if(G.mentoring.some(m=>m.pid===pid)){flash('❌ Ese pibe ya tiene mentor','loss');return;}
+  if(G.mentoring.some(m=>m.mid===mid)){flash('❌ Ese veterano ya tiene un pupilo','loss');return;}
+  G.mentoring.push({mid,pid,desde:G.week||1});
+  lg('🎓',`${men.name} toma bajo su ala a ${pup.name}`);
+  addPhoneMsg('board','Coordinador Deportivo',
+    `🎓 Armamos el grupo de trabajo: <b>${men.name}</b> se hace cargo de <b>${pup.name}</b>. Con un referente al lado, el pibe va a crecer mucho más rápido.`,'🏛️');
+  flash('🎓 '+men.name+' → '+pup.name,'win');
+  rTrain();
+}
+function mentorDel(pid){
+  if(!G||!G.mentoring)return;
+  const m=G.mentoring.find(x=>x.pid===pid);
+  G.mentoring=G.mentoring.filter(x=>x.pid!==pid);
+  if(m){
+    const pup=G.squad.find(x=>x.id===m.pid);
+    if(pup)lg('🎓',`Se disolvió el grupo de mentoreo de ${pup.name}`);
+  }
+  rTrain();
+}
+function rMentor(){
+  const el=document.getElementById('mentorBox');
+  if(!el||!G||!G.squad)return;
+  const sq=G.squad;
+  const mentores=sq.filter(esMentor);
+  const pupilos=sq.filter(esPupilo);
+  const activas=mentorias();
+  const filas=activas.map(m=>{
+    const men=sq.find(x=>x.id===m.mid), pup=sq.find(x=>x.id===m.pid);
+    if(!men||!pup)return '';
+    const viva=mentorActiva(m);
+    const motivo=!viva?(men.injured?men.name+' está lesionado':pup.injured?pup.name+' está lesionado':'pareja rota'):'';
+    const leg=pup._mentorLegado;
+    return `<div class="mpanel" style="margin-bottom:6px">
+      <div class="mpanel-row">
+        <span style="font-size:11px"><b style="color:var(--gold)">${men.name}</b>
+          <span style="color:var(--t3)">${men.age}a · ${men.rat}</span>
+          <span style="color:var(--t3)"> → </span>
+          <b>${pup.name}</b> <span style="color:var(--t3)">${pup.age}a · ${pup.rat}</span></span>
+        <button class="btn bo bs" style="font-size:9px" onclick="mentorDel('${pup.id}')">Disolver</button>
+      </div>
+      <div style="font-size:9px;color:${viva?'var(--green)':'var(--red)'};margin-top:3px">
+        ${viva?'✓ Activo — '+pgr(pup.pos)+' · +'+Math.round((MENTOR_DEV-1)*100)+'% de desarrollo':'⚠️ En pausa: '+motivo}
+      </div>
+      ${leg?`<div style="font-size:9px;color:var(--gold);margin-top:2px">🎓 Aprendiendo ${ATTR_INFO[leg.k]?ATTR_INFO[leg.k].label:leg.k}: ${pup.attrs[leg.k]} → ${leg.techo}</div>`:''}
+    </div>`;
+  }).join('');
+  // armador: pupilos libres que tengan al menos un mentor compatible
+  const libres=pupilos.filter(p=>!activas.some(m=>m.pid===p.id));
+  const compat=p=>mentores.filter(m=>pgr(m.pos)===pgr(p.pos)&&!activas.some(x=>x.mid===m.id));
+  const armador=(activas.length>=MENTOR_MAX)
+    ? `<div style="font-size:10px;color:var(--t3)">Llegaste al máximo de ${MENTOR_MAX} grupos.</div>`
+    : libres.filter(p=>compat(p).length).slice(0,6).map(p=>{
+        const ms=compat(p);
+        return `<div class="sr" style="align-items:center">
+          <span class="sl" style="width:96px;font-size:10px">${p.name} <span style="color:var(--t3)">${p.age}a·${pgr(p.pos)}</span></span>
+          <select class="fs" style="flex:1;margin:0" id="mSel_${p.id}">
+            ${ms.map(m=>`<option value="${m.id}">${m.name} (${m.age}a · ${m.rat})</option>`).join('')}
+          </select>
+          <button class="btn bg bs" style="font-size:9px;margin-left:4px"
+            onclick="mentorAdd(document.getElementById('mSel_${p.id}').value,'${p.id}')">🎓 Armar</button>
+        </div>`;
+      }).join('') || `<div style="font-size:10px;color:var(--t3)">No hay parejas posibles: hace falta un veterano (30+, media 75+) y un pibe (≤22) de la <b>misma línea</b>.</div>`;
+  el.innerHTML=`<div class="ctitle">🎓 Grupos de Mentoreo</div>
+    <div class="note" style="margin-bottom:8px">Un referente al lado acelera al pibe un <b>${Math.round((MENTOR_DEV-1)*100)}%</b> y puede pasarle una de sus virtudes. Hasta ${MENTOR_MAX} grupos.</div>
+    ${filas}
+    ${activas.length?'<div style="height:6px"></div>':''}
+    ${armador}`;
+}
 function weeklyTraining(){
   const intK=G.trainIntensity||'normal';
   const foc=TRAIN_FOCI[G.trainFocus||'general'];
@@ -7339,7 +7447,46 @@ function weeklyTraining(){
     if(p.age<=21&&ycLv)ageMul*=(1+ycLv*0.2);
     // El rendimiento multiplica el crecimiento: sin minutos casi no progresás
     const perfMul=Math.max(0.12,1+rf*1.15);
-    const gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr*perfMul;
+    let gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr*perfMul;
+    // ═══ EL PIBE CON UN REFERENTE AL LADO CRECE MÁS ═══
+    const _men=mentorDe(p.id);
+    if(_men){
+      gain*=MENTOR_DEV;
+      // ── HERENCIA DE VIRTUDES ──
+      // Si el veterano tiene una virtud ÉLITE (>=85, la misma marca que usa
+      // `virtues()`) que el pibe no tiene, hay 2% por semana de que se la
+      // empiece a pasar. No es un salto: queda un objetivo y el atributo sube
+      // de a un punto por semana hasta el nivel del mentor.
+      if(!p._mentorLegado&&Math.random()<MENTOR_HERENCIA){
+        const suyas=virtues(p).map(v=>v.k);
+        const cand=virtues(_men).filter(v=>v.elite&&suyas.indexOf(v.k)<0
+          &&(p.attrs[v.k]!==undefined)&&p.attrs[v.k]<v.v-3);
+        if(cand.length){
+          const v=cand[~~(Math.random()*cand.length)];
+          p._mentorLegado={k:v.k,techo:Math.min(99,v.v)};
+          lg('🎓',`${_men.name} le está enseñando ${(ATTR_INFO[v.k]||{}).label||v.k} a ${p.name}`);
+          addPhoneMsg('player',_men.name,
+            `🎓 Presidente, con <b>${p.name}</b> estamos trabajando aparte después de cada entrenamiento. El pibe agarra rápido: le estoy pasando lo de <b>${(ATTR_INFO[v.k]||{}).virtue||v.k}</b>. En unas semanas lo va a mostrar en la cancha.`,'🧓');
+        }
+      }
+    }
+    // El legado avanza de a un punto por semana hasta alcanzar al mentor
+    if(p._mentorLegado){
+      const L=p._mentorLegado;
+      if(p.attrs[L.k]===undefined||p.attrs[L.k]>=L.techo||!mentorDe(p.id)){
+        if(p.attrs[L.k]>=L.techo){
+          const inf=ATTR_INFO[L.k]||{};
+          lg('🏅',`${p.name} ya domina ${inf.label||L.k} (${p.attrs[L.k]}): heredó la virtud de su mentor`);
+          addPhoneMsg('board','Coordinador Deportivo',
+            `🏅 Presidente, <b>${p.name}</b> completó el trabajo con su mentor: su <b>${inf.label||L.k}</b> llegó a <b>${p.attrs[L.k]}</b> y ya es una virtud suya. El tutelaje funcionó.`,'📈');
+          if(G.news)G.news.unshift({w:'S'+(G.week||1),ic:'🎓',
+            msg:`🎓 ${p.name} sorprende: heredó la ${inf.virtue||inf.label||L.k} de su mentor en ${G.teamName}`,type:'misc'});
+        }
+        delete p._mentorLegado;
+      } else {
+        p.attrs[L.k]=Math.min(L.techo,p.attrs[L.k]+1);
+      }
+    }
     p.dev+=gain;
     // Subir un punto de foco al atributo elegido cuando acumula
     if(foc.attr&&p.dev>=6){
@@ -7351,12 +7498,20 @@ function weeklyTraining(){
       p.val=calcVal(p);
       p.dev=0;
       if(p.rat>=78&&p.age<=21&&!p._breakout){p._breakout=true;addPhoneMsg('board','Coordinador Deportivo',`📈 Presidente, <b>${p.name}</b> dio un salto de calidad en los entrenamientos: ya es rating <b>${p.rat}</b>. La apuesta rinde.`,'📈');}
+      // Si el salto vino con un mentor al lado, el veterano se lleva el crédito
+      const _m2=mentorDe(p.id);
+      if(_m2&&p.rat%3===0){
+        lg('🎓',`${p.name} subió a ${p.rat} trabajando con ${_m2.name}`);
+        addPhoneMsg('player',_m2.name,
+          `😄 Le cuento, presidente: <b>${p.name}</b> subió otro escalón (media <b>${p.rat}</b>). Este pibe va a jugar en la selección, acuérdese de lo que le digo.`,'🧓');
+      }
     }
   });
 }
 
 function rTrain(){
   rTrainMeta();
+  try{ rMentor(); }catch(e){}
   const el = document.getElementById('trainOpts');
   if(!el||!G) return;
   const types = [

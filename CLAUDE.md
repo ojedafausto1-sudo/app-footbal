@@ -1371,6 +1371,54 @@ Dos conflictos, los dos en `capitanTrasOnce()`:
   furioso del técnico al celular y noticia de vestuario. Medido: 65 → 51.
   Se dispara una vez por semana (`G._capQuejaSem`), no una por render.
 
+## Fase 20: mentoreo (el veterano que le enseña al pibe)
+
+Tarjeta **🎓 Grupos de Mentoreo** en la pestaña Entrenamiento (`#mentorBox` →
+`rMentor()`). Hasta `MENTOR_MAX=3` parejas en `G.mentoring` — objetos planos
+`{mid,pid,desde}`, nada de funciones (ver la regla de `G`). Retro-compatible sin
+migrar: `mentorias()` lee `G.mentoring||[]`, que en un save viejo es exactamente
+"todavía no armaste ninguna".
+
+Requisitos, validados en `mentorAdd`: **mentor** 30+ y media 75+, **pupilo** ≤22,
+y los dos de la **misma línea** (`pgr`). Un jugador no puede tener dos mentores
+ni un veterano dos pupilos.
+
+- **`MENTOR_DEV=1.40`** — el pupilo desarrolla 40% más rápido.
+- **`MENTOR_HERENCIA=0.02`** — 2% por semana de empezar a heredar una virtud
+  élite (≥85, la misma marca que usa `virtues()`) que el mentor tenga y el
+  pupilo no.
+- La pareja se **pausa sola** si alguno de los dos se lesiona o se va del club
+  (`mentorActiva`), y la tarjeta lo muestra en rojo con el motivo.
+
+### La herencia no es un salto
+
+Al heredar queda `p._mentorLegado={k,techo}` y el atributo sube **de a un punto
+por semana** hasta el nivel del mentor. Un salto instantáneo de 62 a 89 sería un
+regalo; así se ve venir y el veterano se lleva el crédito cuando llega.
+Verificado determinista: **ATA 62 → 89 en 27 semanas**, con aviso al celular,
+noticia, y el legado se borra al completarse.
+
+### Medido con clones idénticos
+
+⚠️ **La primera medición estaba sesgada y daba +1.** Le había dado titularidad
+al pupilo y no al control, y `isXI` mueve `rf`, que multiplica el crecimiento
+por `perfMul` — el efecto medido era en buena parte el de jugar, no el del
+mentor. Con dos clones idénticos, ambos titulares y los mismos partidos:
+
+| | media ganada en 52 semanas |
+|---|---|
+| con mentor | **16** |
+| sin mentor | 13 |
+
+**+3 puntos de media por temporada.** Y la herencia sobre 200 pupilos: 161
+heredan dentro de 150 semanas, **mediana 24 semanas** (el teórico de 2%/semana
+es 34; la observada baja porque los 39 que nunca heredaron quedan censurados).
+
+⚠️ **El check de la regresión no puede confiar en el plantel de Boca**: los
+checks que corren antes venden, ceden y fuerzan cupos, así que puede no quedar
+un veterano y un pibe de la misma línea. Si no los hay, los fabrica — lo que se
+prueba es la regla, no la suerte de esa corrida.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
