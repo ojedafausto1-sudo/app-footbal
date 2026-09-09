@@ -1222,6 +1222,83 @@ jugando—. Lo único roto era lo que veías. `ofertaCtx(o)` centraliza los rót
 (título, campo, verbo, referencia) y el modal ahora lista las condiciones
 vigentes aclarando que sólo estás regateando el cargo.
 
+## Fase 18: el mercado de la IA
+
+Estaba en **1-3 fichajes cada 3 semanas**: medido, **40 transferencias por
+temporada** sobre un mercado de 17.000 jugadores (el 0,23%), todas del mismo
+tipo —compra a secas—, sin un solo préstamo, cláusula ni libre.
+
+### La jerarquía salía de dos listas escritas a mano, y estaban rotas
+
+`bigClubs` / `midClubs` tenían 21 nombres a mano de los que **4 ni existían en
+la base** ('Inter de Porto Alegre', 'Universidad de Chile', "Newell's Old
+Boys", 'Talleres'), y los 17 restantes eran **todos sudamericanos**: dirigiendo
+en Europa la jerarquía no aplicaba a nadie, y por eso el AC Milan fichaba a un
+jugador de 2,8M sin despeinarse. Ahora el nivel sale de `clubRank()` —el
+sistema de prestigio real del proyecto, que cubre los 612 clubes— vía
+`aiTier()`: 1 grande (≥80), 2 medio (≥68), 3 chico.
+
+Medido en una temporada: el club **grande** ficha una media de **81**, el
+**chico** de **69**.
+
+### Cuatro mecanismos, no uno
+
+`aiCompra` (el grande va por la estrella o el pibe de potencial ≥84; el chico
+por la ganga ≤74 y ≤6M), `aiPrestamo` (sub-21 de club grande a club chico, con
+`pickBuyer(rat,-1)` que ya existía para eso), `aiClausula` (el grande le paga
+la cláusula al de abajo) y `aiLibre` (veterano ≥33 a coste cero).
+
+Medido en una temporada: **117 transferencias** (antes 40) repartidas en compra
+38% · libre 39% · préstamo 22% · **cláusula 2%**. La cláusula es rara a
+propósito: un bombazo no pasa todas las semanas.
+
+⚠️ **La cláusula no aparecía en las noticias y NO era la lógica.** Aislada,
+funciona el 61% de las veces; lo que pasaba es que sus titulares se caían por
+el tope de noticias. Antes de tocar una probabilidad, contá la operación, no el
+titular.
+
+⚠️ **El primer umbral de la cláusula daba 0 candidatos.** Con `rat>=76 && tier
+3` medido sobre una muestra de 260 había **cero**: un jugador de 76+ casi nunca
+milita en un club de nivel <68. Aflojado a `rat>=74 && nivel<72`.
+
+### El mercado era casi todo internacional
+
+`pickBuyer` elige por NIVEL sin mirar el país, y como hay 24 ligas el comprador
+casi nunca era compatriota: medido, **el 89% de los pases cruzaba de liga**.
+`_aiComprador(rat,lgPref,dir)` intenta primero en la liga del jugador
+(`AI_DOMESTICO=0.62`) y cae a `pickBuyer` si no hay nadie del nivel adecuado.
+Medido: los pases dentro del mismo país pasan de **11% a 37%**.
+
+⚠️ **`ligaDeClub()` recorre los 17.000 del mercado en CADA llamada.** Usarla
+para filtrar los 612 clubes por liga serían 10 millones de operaciones por
+fichaje. Por eso está `_ligaMap()`, cacheado por temporada igual que `aiClubs`.
+
+### Dos detalles que sólo se ven mirando los titulares
+
+- **El mismo jugador fichaba dos veces en la misma corrida** (Sven Ulreich
+  apareció firmando en West Brom y en Stade Brestois). La muestra se arma una
+  vez por corrida, así que se marca al que ya se movió (`p._aiMov`) y **la marca
+  se limpia al terminar**: si quedara puesta, ese jugador no volvería a
+  transferirse en toda la partida.
+- **Las noticias de color hablaban siempre de Argentina** ("la Liga ARG es una
+  de las más competitivas de Sudamérica", "la prensa argentina debate…") aunque
+  dirigieras en la Premier. Ahora salen de `ligaComp()`.
+
+### El tope de noticias estaba partido en dos
+
+`aiNews` cortaba a 50 pero **`_pubRumor` seguía cortando a 35**, y como los
+rumores se publican seguido, aplastaban las noticias de fichaje: se veían 11 de
+transferencia contra 21 de rumor y el mercado parecía muerto. Los dos comparten
+`AI_NEWS_MAX=50`.
+
+Rendimiento: `aiTransfers` cuesta **2,6-3,2 ms por corrida** y el save queda en
+3,4 MB. `_aiMuestra(260)` es lo que lo mantiene barato — filtrar los 17.000 por
+cada operación y por cada semana es lo que haría lenta esta función.
+
+⚠️ La IA **no puede robarte un fichaje que estás cerrando**: `_aiMuestra`
+descarta los ids que están en `G.negs`, y `firmaProgramar` ya saca al jugador
+de `G.market` apenas hay acuerdo.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

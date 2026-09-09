@@ -8942,7 +8942,9 @@ const RUMOR_CLUBES=['Real Madrid','Barcelona','Man City','Bayern Munich','PSG','
 function _pubRumor(msg,tipo){
   if(!G.news)G.news=[];
   G.news.unshift({w:'S'+G.week, ic:'📰', msg, type:tipo||'rumor'});
-  if(G.news.length>35) G.news=G.news.slice(0,35);
+  // Mismo tope que aiNews: con 35 acá y 50 allá, los rumores —que se publican
+  // seguido— aplastaban las noticias de fichaje y el mercado parecía muerto.
+  if(G.news.length>AI_NEWS_MAX) G.news.length=AI_NEWS_MAX;
 }
 function weeklyRumores(){
   if(!G||!G.market) return;
@@ -9013,77 +9015,211 @@ function weeklyRumores(){
   G.rumores=(G.rumores||[]).filter(r=>r.vence>G.week);
 }
 
-function aiTransfers(){
-  if(!G||!G.news)G.news=[];
-  // Budget-tier system: big clubs spend more
-  const bigClubs=['Boca Juniors','River Plate','Flamengo','Palmeiras','Corinthians','Santos','Grêmio','Inter de Porto Alegre','Nacional','Peñarol','Universidad de Chile','Colo-Colo'];
-  const midClubs=['Racing Club','Independiente','San Lorenzo','Vélez Sarsfield','Estudiantes','Rosario Central','Newell\'s Old Boys','Talleres','Huracán'];
-  const n = 1 + ~~(Math.random()*3);
-  for(let i=0;i<n;i++){
-    const clubs = aiClubs().list.filter(c=>c!==G.teamName);
-    if(!clubs.length) break;
-    const buyer = clubs[~~(Math.random()*clubs.length)];
-    // Determine buyer budget tier
-    const isBig = bigClubs.includes(buyer);
-    const isMid = midClubs.includes(buyer);
-    // Budget tier affects which players they can buy
-    let minRat, maxRat, feeMultMin, feeMultMax;
-    if(isBig){ minRat=75; maxRat=92; feeMultMin=1.0; feeMultMax=1.8; }
-    else if(isMid){ minRat=68; maxRat=80; feeMultMin=0.8; feeMultMax=1.3; }
-    else { minRat=60; maxRat=74; feeMultMin=0.6; feeMultMax=1.0; }
-
-    const pool = G.market.filter(p=>p.rat>=minRat && p.rat<=maxRat);
-    if(!pool.length) continue;
-    const p = pool[~~(Math.random()*pool.length)];
-    const seller = p.club || clubs.filter(c=>c!==buyer)[~~(Math.random()*clubs.length)];
-    const feeMultiplier = feeMultMin + Math.random()*(feeMultMax-feeMultMin);
-    const fee = Math.round(p.val * feeMultiplier * 10) / 10;
-    // ═══ EL JUGADOR SE MUDA DE CLUB **Y DE LIGA** ═══
-    // Sólo se cambiaba el club: un argentino comprado por Palmeiras seguía
-    // figurando en 'Liga ARG', y como los ascensos se calculan mirando quién
-    // juega en esa liga, Palmeiras terminó ascendiendo al fútbol argentino.
-    // Tampoco hace falta inventarle un id nuevo: rompe cualquier referencia.
-    const ligaComp2 = aiClubs().liga[buyer] || ligaDeClub(buyer) || p.lg;
-    p.club = buyer; p.lg = ligaComp2;
-    p.freeAgent = false;
-    p.contract = (G.season||2026) + 1 + ~~(Math.random()*3);
-
-    // Generate headline based on fee size
-    let headline;
-    if(fee>=20){
-      headline = `💎 MEGA FICHAJE: ${buyer} rompe el mercado y paga €${fee}M por ${p.name} (${p.pos}, ${p.nat})`;
-    } else if(fee>=10){
-      headline = `🔥 Bombazo: ${p.name} deja ${seller} y firma con ${buyer} por €${fee}M`;
-    } else if(fee>=5){
-      headline = `✅ Oficial: ${p.name} es nuevo refuerzo de ${buyer} — llega por €${fee}M`;
-    } else {
-      const opts=[
-        `${buyer} cierra la llegada de ${p.name} (${p.pos}) ante la mirada de varios clubes — €${fee}M`,
-        `${p.name} cambia de aires: de ${seller} a ${buyer} por €${fee}M`,
-        `${buyer} refuerza su ${p.pos} con la incorporación de ${p.name}`,
-      ];
-      headline = opts[~~(Math.random()*opts.length)];
-    }
-    G.news.unshift({w:'S'+G.week, ic:'🔄', msg:headline, type:'transfer'});
+// ═══════════════════════════════════════════════════════════════════════
+// EL MERCADO DE LA IA
+// ═══════════════════════════════════════════════════════════════════════
+// Antes: 1-3 fichajes cada 3 semanas — medido, **40 transferencias por
+// temporada** sobre un mercado de 17.000 jugadores (el 0,23%), y todas del
+// mismo tipo: compra a secas. Ni un préstamo, ni una cláusula, ni un libre.
+// Y la jerarquía salía de dos listas ESCRITAS A MANO (`bigClubs`/`midClubs`)
+// de las que 4 nombres ni existían en la base ('Inter de Porto Alegre',
+// 'Universidad de Chile', "Newell's Old Boys", 'Talleres') y las 17 restantes
+// eran todas sudamericanas: dirigiendo en Europa no aplicaba a nadie, y por
+// eso el AC Milan fichaba a un jugador de 2,8M sin despeinarse.
+// Ahora el nivel sale de `clubRank()`, que es el sistema de prestigio real del
+// proyecto y cubre los 617 clubes.
+const AI_NEWS_MAX=50;
+const AI_OPS={abierta:[7,15], cerrada:[0,2]};   // operaciones por corrida
+function aiNews(ic,msg,type){
+  if(!G)return;
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+(G.week||1),ic,msg,type:type||'transfer'});
+  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
+}
+// 1 = grande (Tier 1), 2 = mediano, 3 = chico
+function aiTier(club){ const n=nivelClub(club); return n>=80?1:n>=68?2:3; }
+// ⚠️ RENDIMIENTO: `G.market` son 17.000 jugadores. Filtrarlo entero por cada
+// operación y por cada semana es lo que haría lenta esta función. Se muestrea
+// una vez por corrida y todas las operaciones buscan sobre esa muestra.
+function _aiMuestra(n){
+  const M=G.market;
+  if(!M||!M.length)return [];
+  const out=[],vistos={},L=M.length;
+  const negociando={};
+  (G.negs||[]).forEach(x=>{ if(x&&x.pid)negociando[x.pid]=1; });
+  for(let i=0;i<n*3&&out.length<n;i++){
+    const k=~~(Math.random()*L), p=M[k];
+    if(!p||vistos[k])continue;
+    vistos[k]=1;
+    if(p.club===G.teamName)continue;          // tu plantel no vive acá, pero por las dudas
+    if(negociando[p.id])continue;             // no te roban lo que estás cerrando
+    if(p._aiMov)continue;                     // ya lo fichó otra operación de esta corrida
+    out.push(p);
   }
-  // Misc league news
+  return out;
+}
+// ⚠️ `ligaDeClub()` recorre los 17.000 del mercado en CADA llamada. Usarla para
+// filtrar los 612 clubes por liga serían 10 millones de operaciones por
+// fichaje. Este mapa se arma una vez por temporada, igual que `aiClubs`.
+let _aiLigaMap=null,_aiLigaSeason=null;
+function _ligaMap(){
+  if(_aiLigaMap&&_aiLigaSeason===(G&&G.season))return _aiLigaMap;
+  const m={};
+  (G&&G.market||[]).forEach(p=>{ if(p.club&&p.lg&&p.lg!=='Libre'&&!m[p.club])m[p.club]=p.lg; });
+  _aiLigaMap=m; _aiLigaSeason=(G&&G.season);
+  return m;
+}
+// ═══ EL MERCADO ES SOBRE TODO DOMÉSTICO ═══
+// `pickBuyer` elige por NIVEL sin mirar el país, y como hay 24 ligas el
+// comprador casi nunca era compatriota: medido, **el 89% de los pases cruzaba
+// de liga**. En el fútbol real la mayoría se juega dentro del mismo país. Acá
+// se intenta primero en la liga del jugador y se cae a `pickBuyer` si no hay
+// nadie del nivel adecuado.
+const AI_DOMESTICO=0.62;
+function _aiComprador(rat,lgPref,dir){
+  if(lgPref&&Math.random()<AI_DOMESTICO){
+    const LM=_ligaMap();
+    const abajo=(dir===-1)?14:6, arriba=(dir===-1)?-3:3;
+    const pool=clubRank().filter(x=>x.club!==G.teamName&&LM[x.club]===lgPref
+      &&x.niv>=rat-abajo&&x.niv<=rat+arriba);
+    if(pool.length)return pool[~~(Math.random()*pool.length)].club;
+  }
+  return pickBuyer(rat,dir);
+}
+// El jugador se muda de club Y de liga (si no, un argentino comprado por el
+// Palmeiras seguía figurando en 'Liga ARG' y Palmeiras ascendía al fútbol
+// argentino, porque los ascensos miran quién juega en esa liga).
+function _aiMudar(p,club){
+  p._aiMov=1;                 // ya se movió en esta corrida (ver _aiLibre)
+  p.club=club;
+  p.lg=aiClubs().liga[club]||ligaDeClub(club)||p.lg;
+  p.freeAgent=false;
+  p.contract=(G.season||2026)+1+~~(Math.random()*3);
+}
+// ── COMPRA ────────────────────────────────────────────────────────────
+// La jerarquía es estricta: el grande va por la estrella o por el pibe de
+// potencial altísimo, el chico por la ganga.
+function aiCompra(muestra){
+  // El comprador se elige primero, pero la liga de referencia sale del pool:
+  // se toma un candidato al azar para saber en qué país estamos comprando.
+  const semilla=muestra.length?muestra[~~(Math.random()*muestra.length)]:null;
+  const buyer=_aiComprador(60+~~(Math.random()*32),semilla&&semilla.lg);
+  if(!buyer||buyer===G.teamName)return false;
+  const t=aiTier(buyer);
+  const ok=t===1
+    ? (p=>p.rat>=80||((p.pot||p.rat)>=84&&p.age<=22))     // estrella o joyita
+    : t===2 ? (p=>p.rat>=71&&p.rat<=82)
+            : (p=>p.rat<=74&&p.val<=6);                    // ganga
+  const cand=muestra.filter(q=>!q._aiMov&&ok(q));
+  if(!cand.length)return false;
+  const p=cand[~~(Math.random()*cand.length)];
+  if(p.club===buyer)return false;
+  if(esClasico(p.club,buyer))return false;                 // tampoco entre ellos
+  const seller=p.club;
+  const fee=Math.round(p.val*(t===1?1.2+Math.random()*0.7:t===2?0.9+Math.random()*0.4:0.6+Math.random()*0.4)*10)/10;
+  _aiMudar(p,buyer);
+  const joven=(p.pot||p.rat)>=84&&p.age<=22;
+  if(fee>=40)      aiNews('💎',`💎 TRASPASO RÉCORD: ${buyer} desembolsa <b>€${fee}M</b> por el pase de ${p.name}`,'transfer');
+  else if(fee>=20) aiNews('🔥',`🔥 Bombazo: ${buyer} rompe el mercado y paga €${fee}M por ${p.name} (${p.pos}, ${p.nat})`,'transfer');
+  else if(joven)   aiNews('🌱',`🌱 ${buyer} se lleva a la joya de ${seller}: ${p.name}, ${p.age} años, por €${fee}M`,'transfer');
+  else if(fee>=8)  aiNews('✅',`✅ Oficial: ${p.name} deja ${seller} y firma con ${buyer} por €${fee}M`,'transfer');
+  else             aiNews('🔄',[`${p.name} cambia de aires: de ${seller} a ${buyer} por €${fee}M`,
+                     `${buyer} refuerza su ${p.pos} con ${p.name} — €${fee}M`,
+                     `Acuerdo cerrado: ${p.name} pasa de ${seller} a ${buyer}`][~~(Math.random()*3)],'transfer');
+  return true;
+}
+// ── PRÉSTAMO ──────────────────────────────────────────────────────────
+// El sub-21 de un club grande se va cedido a uno chico a sumar minutos.
+function aiPrestamo(muestra){
+  const cand=muestra.filter(p=>!p._aiMov&&p.age<=21&&aiTier(p.club)<=2&&p.rat>=64);
+  if(!cand.length)return false;
+  const p=cand[~~(Math.random()*cand.length)];
+  const dest=_aiComprador(p.rat,p.lg,-1);      // dir=-1: club más chico
+  if(!dest||dest===G.teamName||dest===p.club)return false;
+  const origen=p.club;
+  _aiMudar(p,dest);
+  p.onLoan=true; p.loanedFrom=origen;
+  aiNews('📤',[`📤 ${p.name} (${p.age}) se va a préstamo a ${dest} para sumar minutos`,
+    `📤 ${origen} cede a ${p.name} al ${dest}: buscan que juegue todo el año`,
+    `📤 Cesión: el juvenil ${p.name} jugará en ${dest} hasta fin de temporada`][~~(Math.random()*3)],'transfer');
+  return true;
+}
+// ── CLÁUSULA ──────────────────────────────────────────────────────────
+// El grande le paga la cláusula a un club chico y se lo lleva de prepo.
+function aiClausula(muestra){
+  // ⚠️ Con `rat>=76 && tier 3` medido daba **0 candidatos** en una muestra de
+  // 260: un jugador de 76+ casi nunca milita en un club de nivel <68. Se afloja
+  // a 74 y a nivel <72 (chico o medio-bajo), que sigue siendo "el grande le
+  // roba al de abajo" pero existe de verdad.
+  const cand=muestra.filter(p=>!p._aiMov&&p.rat>=74&&nivelClub(p.club)<72);
+  if(!cand.length)return false;
+  const p=cand[~~(Math.random()*cand.length)];
+  const buyer=_aiComprador(p.rat+6,p.lg);
+  if(!buyer||buyer===G.teamName||aiTier(buyer)!==1)return false;
+  if(esClasico(p.club,buyer))return false;
+  const origen=p.club, cl=clauseOf(p);
+  _aiMudar(p,buyer);
+  aiNews('💥',[`💥 ¡Bombazo! ${buyer} ejecutó la cláusula de rescisión de ${p.name}: €${cl}M al contado`,
+    `💥 ${buyer} deposita la cláusula de ${p.name} (€${cl}M) y ${origen} no pudo hacer nada`,
+    `💥 Golpe de mercado: ${p.name} deja ${origen} rumbo a ${buyer} por cláusula (€${cl}M)`][~~(Math.random()*3)],'transfer');
+  return true;
+}
+// ── LIBRE ─────────────────────────────────────────────────────────────
+function aiLibre(muestra){
+  const cand=muestra.filter(p=>!p._aiMov&&p.age>=33&&p.rat>=68);
+  if(!cand.length)return false;
+  const p=cand[~~(Math.random()*cand.length)];
+  const dest=_aiComprador(p.rat-4,p.lg);
+  if(!dest||dest===G.teamName||dest===p.club)return false;
+  const origen=p.club;
+  _aiMudar(p,dest);
+  aiNews('🆓',[`🆓 A coste cero: ${p.name} (${p.age}) firma con ${dest} tras quedar libre`,
+    `🆓 ${dest} suma experiencia gratis: llega ${p.name}, ${p.age} años, sin cargo`,
+    `🆓 ${p.name} deja ${origen} con el pase en su poder y firma en ${dest}`][~~(Math.random()*3)],'transfer');
+  return true;
+}
+function aiTransfers(){
+  if(!G)return;
+  if(!G.news)G.news=[];
+  const abierta=(typeof isTransferWindowOpen==='function')?isTransferWindowOpen():true;
+  const [lo,hi]=abierta?AI_OPS.abierta:AI_OPS.cerrada;
+  const n=lo+~~(Math.random()*(hi-lo+1));
+  if(n>0){
+    const muestra=_aiMuestra(260);
+    muestra.forEach(q=>{q._aiMov=0;});
+    for(let i=0;i<n;i++){
+      // Con la ventana abierta el mercado es sobre todo compras, pero el resto
+      // de los mecanismos aparece seguido; cerrada, sólo libres y cesiones.
+      const r=Math.random();
+      if(!abierta)            { (r<0.6?aiLibre:aiPrestamo)(muestra); }
+      else if(r<0.58)         { aiCompra(muestra); }
+      else if(r<0.80)         { aiPrestamo(muestra); }
+      else if(r<0.92)         { aiLibre(muestra); }
+      else                    { aiClausula(muestra); }
+    }
+    // La marca es SÓLO para esta corrida: si quedara puesta, un jugador que se
+    // movió una vez no volvería a transferirse en toda la partida.
+    muestra.forEach(q=>{ if(q._aiMov)delete q._aiMov; });
+  }
+  // Noticias de color: hablan de TU liga, no siempre de la argentina.
   if(Math.random()<0.45){
-    const _ac=aiClubs().list;
-    const randClub = _ac.length?_ac[~~(Math.random()*_ac.length)]:'River Plate';
+    const _ac=aiClubs().list.filter(c=>c!==G.teamName);
+    const randClub=_ac.length?_ac[~~(Math.random()*_ac.length)]:'River Plate';
+    const liga=(typeof ligaComp==='function')?ligaComp():'la Liga';
     const miscNews=[
-      {ic:'⚽',msg:`Espectacular hat-trick en la fecha ${~~(Math.random()*20)+1} de la Liga`},
+      {ic:'⚽',msg:`Espectacular hat-trick en la última fecha de ${liga}`},
       {ic:'🏟️',msg:`Estadio lleno en el clásico de la jornada — entrada agotada`},
       {ic:'🏥',msg:`Importante jugador de ${randClub} se pierde varios partidos por lesión muscular`},
       {ic:'🌟',msg:`El jugador de la semana: figura del ${randClub} deslumbró en la última fecha`},
-      {ic:'📊',msg:`Las estadísticas indican que la Liga ARG es una de las más competitivas de Sudamérica`},
-      {ic:'🤝',msg:`Rumores de un gran traspaso europeo sacuden el mercado sudamericano`},
-      {ic:'💪',msg:`${randClub} recibe el apoyo de su hinchada de cara a los playoffs`},
-      {ic:'📰',msg:`La prensa argentina debate sobre el mejor técnico del torneo — ¿quién lidera?`},
+      {ic:'📊',msg:`${liga} es una de las competencias más parejas de los últimos años, dicen los números`},
+      {ic:'🤝',msg:`Rumores de un gran traspaso sacuden el mercado`},
+      {ic:'💪',msg:`${randClub} recibe el apoyo de su hinchada en un momento clave`},
+      {ic:'📰',msg:`La prensa debate quién es el mejor técnico de ${liga}`},
     ];
-    const item = miscNews[~~(Math.random()*miscNews.length)];
-    G.news.unshift({w:'S'+G.week, ic:item.ic, msg:item.msg, type:'misc'});
+    const item=miscNews[~~(Math.random()*miscNews.length)];
+    aiNews(item.ic,item.msg,'misc');
   }
-  if(G.news.length>35) G.news = G.news.slice(0,35);
+  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
 }
 
 function rNewsTab(){
@@ -12309,7 +12445,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   }
   // DT requests every ~5 weeks
   if(G.week%5===0||(G.week===2)) genDtRequest();
-  if(G.week%3===0) aiTransfers();
+  aiTransfers();   // el volumen lo regula la ventana de pases, no el módulo 3
   // Check president demands
   checkPressDemands();
   // Sponsor income
