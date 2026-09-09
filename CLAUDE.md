@@ -1488,6 +1488,84 @@ estándar de vidrio: el contenedor (`.card`) ya es vidrio real, así que cada ob
 va en un `.mpanel` — translucidez + borde luminoso, **sin `backdrop-filter`**,
 para no anidar blur.
 
+## Fase 22: patrocinadores regionales
+
+Dirigiendo al Real Madrid te ofrecían **YPF, Quilmes y el naming de LA
+BOMBONERA**. Cada sponsor lleva ahora `region` (`GLOBAL` / `LATAM` / `EU`) y
+`SPON_REGION` dice qué mercados te golpean la puerta según la liga.
+`sponsorEnRegion(s,lg)` es el portero.
+
+### ⚠️ Filtrar sin rellenar habría borrado ingresos, no regionalizado nada
+
+Medido sobre la tabla vieja: de las 10 categorías, **cuatro eran 100% LATAM**
+(Patrocinador Principal 4/4, Bebidas 2/2, Tecnología 2/2, App 2/2). Y las
+categorías son **excluyentes** (un contrato activo por `cat`), así que un club
+europeo filtrado contra esa tabla se quedaba sin cuatro categorías enteras de
+ingreso, sin nada con qué reemplazarlas. Por eso entraron marcas nuevas hasta
+que **ninguna de las 24 ligas tiene una categoría vacía** — es la invariante
+que verifica la regresión, no una lista a ojo.
+
+### ⚠️ El segundo agujero lo destapó el número: el club chico europeo quedaba peor
+
+Con los EU premium solamente (Emirates 84, Spotify 80, Sky 76, Allianz 78), el
+**Girona (rep 64) llegaba a 2 categorías y 7,8M por temporada** contra las **7
+categorías y 15,7M de un club argentino chico (rep 62)**: las marcas LATAM
+baratas piden rep 48-55 y sus equivalentes europeas arrancaban en 64. Se agregó
+la gama baja europea (Betsson 56, Eurosport 52, Kappa 50, Estrella Damm 52,
+Orange 48, SEAT 50, Glovo 50) y el Girona pasó a **8 categorías y 19,6M**. La
+curva de acceso quedó pareja: Europa paga más en **todos** los escalones, no
+sólo arriba.
+
+| club | rep | categorías | por temporada |
+|---|---|---|---|
+| Boca | 78 | 9 | 32,3M |
+| club ARG chico | 62 | 7 | 15,7M |
+| Real Madrid | 90 | 10 | **55,4M** |
+| Girona | 64 | 8 | 19,6M |
+
+### Lo que cuesta, aislado
+
+Corriendo el Real Madrid una temporada completa con el catálogo viejo forzado
+(`SPON_REGION['España']=['GLOBAL','LATAM']`) contra el nuevo, mediana de 3:
+**+379M → +421M**. O sea el cambio pesa **+42M, el 11%**.
+
+⚠️ **Los +379M por temporada del Real Madrid ya existían.** Es un desbalance
+preexistente para clubes europeos grandes (TV, borderó, socios), NO algo que
+trajo esta fase. Si se va a tocar, el lugar es el loop financiero, no los
+sponsors.
+
+⚠️ **`winBonus` amplifica el ingreso ×3,5 por victoria.** Los 0,33/sem extra
+del Madrid son 16M teóricos en 49 semanas, pero el delta medido es 42M: la
+diferencia son los bonos por partido ganado, que salen de `income*3.5`. Subir
+el `income` de un sponsor pega **mucho** más fuerte de lo que dice la ficha.
+
+### Tres cosas más que había que arreglar para que esto sirviera
+
+- **El naming era `'Naming Bombonera'` escrito a mano** y se lo ofrecían a
+  cualquiera. Ahora los sponsors con `dyn:'stad'` pasan por `sponName(s)`, que
+  lo arma con `G.stadium.name`: "Naming Santiago Bernabéu", "Allianz Santiago
+  Bernabéu".
+- **El filtro también va en `signSponsor`**, no sólo en la lista: si no,
+  `signSponsor('sp5')` firmaba YPF dirigiendo en la Premier. Misma regla que
+  las cuatro vías de la Fase 16.
+- **Los contratos activos NO se filtran.** `G.sponsors` guarda una COPIA, así
+  que un save viejo puede tener Quilmes firmado en el Madrid: ese contrato se
+  sigue cobrando hasta que vence. Filtrarlo le borraría al jugador un ingreso
+  que ya pactó. Un sponsor sin `region` (save o tabla vieja) se trata como
+  LATAM, que es lo que era el juego entero antes de esto.
+
+### Y de paso, 23 capas de blur
+
+Las filas de la pestaña eran **23 `.card` con `backdrop-filter` real**, contra
+la regla medida del proyecto ("el vidrio va en los CONTENEDORES, no en las
+filas"). Pasaron a `.mpanel`: misma translucidez + borde luminoso, sin blur. La
+regresión falla si vuelve a aparecer una `.card` ahí.
+
+⚠️ **MLS y Arabia van con el paquete `EU`, no con `LATAM`.** No tienen marcas
+propias en la base, y dejarlas sólo con `GLOBAL` les daba una única opción por
+categoría. Emirates es del Golfo y Spotify/Santander/Heineken operan en Estados
+Unidos, así que se les abre el mismo mercado premium que a Europa.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

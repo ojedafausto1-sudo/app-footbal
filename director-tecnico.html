@@ -1868,40 +1868,109 @@ const DTS = [
 // =============================================
 // SPONSORSHIPS
 // =============================================
+// ═══════════════════════════════════════════════════════════════════════
+// PATROCINIOS REGIONALES
+// ═══════════════════════════════════════════════════════════════════════
+// Dirigiendo al Real Madrid te ofrecían YPF, Quilmes y el naming de LA
+// BOMBONERA. Cada sponsor lleva ahora una `region`:
+//   GLOBAL → marcas que patrocinan en todos lados (Adidas, Nike, Toyota)
+//   LATAM  → las de acá (YPF, Mercado Libre, Quilmes, Claro)
+//   EU     → las europeas, que pagan MUCHO más (Emirates, Spotify, Allianz)
+//
+// ⚠️ FILTRAR SIN RELLENAR HABRÍA BORRADO INGRESOS, NO REGIONALIZADO NADA.
+// Medido sobre la tabla vieja: de las 10 categorías, cuatro eran 100% LATAM
+// (Patrocinador Principal 4/4, Bebidas 2/2, Tecnología 2/2, App 2/2). Un club
+// europeo filtrado contra esa tabla se quedaba sin CUATRO categorías enteras
+// —y las categorías son excluyentes, o sea plata que no se puede reemplazar—.
+// Por eso cada categoría tiene ahora al menos una opción para cada región.
+// La invariante está en la regresión: ninguna liga puede quedarse con una
+// categoría vacía.
 const SPONSORS = [
-  // CAMISETA (solo uno activo a la vez)
-  {id:'sp1',cat:'Camiseta',name:'Adidas',icon:'👕',income:0.09,weeks:26,reqRep:60},
-  {id:'sp2',cat:'Camiseta',name:'Nike',icon:'👕',income:0.13,weeks:26,reqRep:72},
-  {id:'sp3',cat:'Camiseta',name:'Puma',icon:'👕',income:0.07,weeks:26,reqRep:55},
-  {id:'sp4',cat:'Camiseta',name:'Umbro',icon:'👕',income:0.05,weeks:26,reqRep:48},
-  // PRINCIPAL (pecho, solo uno)
-  {id:'sp5',cat:'Patrocinador Principal',name:'YPF',icon:'⛽',income:0.06,weeks:26,reqRep:62},
-  {id:'sp6',cat:'Patrocinador Principal',name:'Mercado Libre',icon:'🛒',income:0.08,weeks:26,reqRep:72},
-  {id:'sp7',cat:'Patrocinador Principal',name:'Banco Galicia',icon:'🏦',income:0.05,weeks:20,reqRep:58},
-  {id:'sp8',cat:'Patrocinador Principal',name:'Mercado Pago',icon:'💚',income:0.07,weeks:26,reqRep:68},
+  // CAMISETA (solo uno activo a la vez) — las marcas de indumentaria son globales
+  {id:'sp1',cat:'Camiseta',name:'Adidas',icon:'👕',income:0.09,weeks:26,reqRep:60,region:'GLOBAL'},
+  {id:'sp2',cat:'Camiseta',name:'Nike',icon:'👕',income:0.13,weeks:26,reqRep:72,region:'GLOBAL'},
+  {id:'sp3',cat:'Camiseta',name:'Puma',icon:'👕',income:0.07,weeks:26,reqRep:55,region:'GLOBAL'},
+  {id:'sp4',cat:'Camiseta',name:'Umbro',icon:'👕',income:0.05,weeks:26,reqRep:48,region:'GLOBAL'},
+  // PRINCIPAL (pecho, solo uno) — acá es donde más se nota la diferencia de mercado
+  {id:'sp5',cat:'Patrocinador Principal',name:'YPF',icon:'⛽',income:0.06,weeks:26,reqRep:62,region:'LATAM'},
+  {id:'sp6',cat:'Patrocinador Principal',name:'Mercado Libre',icon:'🛒',income:0.08,weeks:26,reqRep:72,region:'LATAM'},
+  {id:'sp7',cat:'Patrocinador Principal',name:'Banco Galicia',icon:'🏦',income:0.05,weeks:20,reqRep:58,region:'LATAM'},
+  {id:'sp8',cat:'Patrocinador Principal',name:'Mercado Pago',icon:'💚',income:0.07,weeks:26,reqRep:68,region:'LATAM'},
+  {id:'sp24',cat:'Patrocinador Principal',name:'Fly Emirates',icon:'✈️',income:0.22,weeks:52,reqRep:84,region:'EU'},
+  {id:'sp25',cat:'Patrocinador Principal',name:'Spotify',icon:'🎧',income:0.19,weeks:52,reqRep:80,region:'EU'},
+  {id:'sp26',cat:'Patrocinador Principal',name:'Santander',icon:'🏛️',income:0.15,weeks:26,reqRep:70,region:'EU'},
+  {id:'sp34',cat:'Patrocinador Principal',name:'Betsson',icon:'🎲',income:0.07,weeks:26,reqRep:56,region:'EU'},
   // TV (solo uno)
-  {id:'sp9',cat:'Derechos TV',name:'TyC Sports',icon:'📺',income:0.04,weeks:26,reqRep:55},
-  {id:'sp10',cat:'Derechos TV',name:'ESPN Premium',icon:'📺',income:0.06,weeks:26,reqRep:68},
-  {id:'sp11',cat:'Derechos TV',name:'DAZN',icon:'🎬',income:0.09,weeks:52,reqRep:80},
+  {id:'sp9',cat:'Derechos TV',name:'TyC Sports',icon:'📺',income:0.04,weeks:26,reqRep:55,region:'LATAM'},
+  {id:'sp10',cat:'Derechos TV',name:'ESPN Premium',icon:'📺',income:0.06,weeks:26,reqRep:68,region:'LATAM'},
+  {id:'sp11',cat:'Derechos TV',name:'DAZN',icon:'🎬',income:0.09,weeks:52,reqRep:80,region:'GLOBAL'},
+  {id:'sp27',cat:'Derechos TV',name:'Sky Sports',icon:'🛰️',income:0.14,weeks:52,reqRep:76,region:'EU'},
+  {id:'sp35',cat:'Derechos TV',name:'Eurosport',icon:'🏅',income:0.04,weeks:26,reqRep:52,region:'EU'},
   // MANGA
-  {id:'sp12',cat:'Manga',name:'San Cristóbal',icon:'🛡️',income:0.03,weeks:26,reqRep:50},
-  {id:'sp13',cat:'Manga',name:'Mastercard',icon:'💳',income:0.05,weeks:26,reqRep:65},
-  // NAMING
-  {id:'sp14',cat:'Naming Estadio',name:'Naming Bombonera',icon:'🏟️',income:0.10,weeks:52,reqRep:82},
+  {id:'sp12',cat:'Manga',name:'San Cristóbal',icon:'🛡️',income:0.03,weeks:26,reqRep:50,region:'LATAM'},
+  {id:'sp13',cat:'Manga',name:'Mastercard',icon:'💳',income:0.05,weeks:26,reqRep:65,region:'GLOBAL'},
+  {id:'sp28',cat:'Manga',name:'Vodafone',icon:'📶',income:0.10,weeks:26,reqRep:68,region:'EU'},
+  {id:'sp36',cat:'Manga',name:'Kappa',icon:'🧢',income:0.03,weeks:26,reqRep:50,region:'EU'},
+  // NAMING — el nombre sale del estadio TUYO (ver sponName), no de la Bombonera
+  {id:'sp14',cat:'Naming Estadio',name:'Naming del Estadio',icon:'🏟️',income:0.10,weeks:52,reqRep:82,region:'GLOBAL',dyn:'stad'},
+  {id:'sp29',cat:'Naming Estadio',name:'Allianz',icon:'🏟️',income:0.16,weeks:52,reqRep:78,region:'EU',dyn:'stad'},
   // GLOBAL (apuestas/cripto)
-  {id:'sp15',cat:'Global',name:'Betano',icon:'🎰',income:0.06,weeks:52,reqRep:80},
-  {id:'sp16',cat:'Global',name:'Stake.com',icon:'♠️',income:0.05,weeks:52,reqRep:76},
+  {id:'sp15',cat:'Global',name:'Betano',icon:'🎰',income:0.06,weeks:52,reqRep:80,region:'GLOBAL'},
+  {id:'sp16',cat:'Global',name:'Stake.com',icon:'♠️',income:0.05,weeks:52,reqRep:76,region:'GLOBAL'},
   // BEBIDAS
-  {id:'sp17',cat:'Bebidas',name:'Quilmes',icon:'🍺',income:0.04,weeks:26,reqRep:55},
-  {id:'sp18',cat:'Bebidas',name:'Brahma',icon:'🍻',income:0.03,weeks:26,reqRep:50},
+  {id:'sp17',cat:'Bebidas',name:'Quilmes',icon:'🍺',income:0.04,weeks:26,reqRep:55,region:'LATAM'},
+  {id:'sp18',cat:'Bebidas',name:'Brahma',icon:'🍻',income:0.03,weeks:26,reqRep:50,region:'LATAM'},
+  {id:'sp30',cat:'Bebidas',name:'Heineken',icon:'🟢',income:0.11,weeks:26,reqRep:68,region:'EU'},
+  {id:'sp31',cat:'Bebidas',name:'Coca-Cola',icon:'🥤',income:0.08,weeks:26,reqRep:66,region:'GLOBAL'},
+  {id:'sp37',cat:'Bebidas',name:'Estrella Damm',icon:'🍺',income:0.04,weeks:26,reqRep:52,region:'EU'},
   // TECNOLOGÍA
-  {id:'sp19',cat:'Tecnología',name:'Claro',icon:'📱',income:0.03,weeks:20,reqRep:50},
-  {id:'sp20',cat:'Tecnología',name:'Movistar',icon:'📡',income:0.03,weeks:20,reqRep:48},
+  {id:'sp19',cat:'Tecnología',name:'Claro',icon:'📱',income:0.03,weeks:20,reqRep:50,region:'LATAM'},
+  {id:'sp20',cat:'Tecnología',name:'Movistar',icon:'📡',income:0.03,weeks:20,reqRep:48,region:'LATAM'},
+  {id:'sp32',cat:'Tecnología',name:'Samsung',icon:'💠',income:0.07,weeks:26,reqRep:64,region:'GLOBAL'},
+  {id:'sp38',cat:'Tecnología',name:'Orange',icon:'🍊',income:0.03,weeks:20,reqRep:48,region:'EU'},
   // TRANSPORTE/OTROS
-  {id:'sp21',cat:'Transporte',name:'Toyota',icon:'🚗',income:0.05,weeks:52,reqRep:68},
-  {id:'sp22',cat:'App',name:'Rappi',icon:'🛵',income:0.03,weeks:20,reqRep:50},
-  {id:'sp23',cat:'App',name:'PedidosYa',icon:'🚀',income:0.03,weeks:20,reqRep:48},
+  {id:'sp21',cat:'Transporte',name:'Toyota',icon:'🚗',income:0.05,weeks:52,reqRep:68,region:'GLOBAL'},
+  {id:'sp39',cat:'Transporte',name:'SEAT',icon:'🚙',income:0.03,weeks:26,reqRep:50,region:'EU'},
+  {id:'sp22',cat:'App',name:'Rappi',icon:'🛵',income:0.03,weeks:20,reqRep:50,region:'LATAM'},
+  {id:'sp23',cat:'App',name:'PedidosYa',icon:'🚀',income:0.03,weeks:20,reqRep:48,region:'LATAM'},
+  {id:'sp33',cat:'App',name:'EA Sports',icon:'🎮',income:0.09,weeks:52,reqRep:70,region:'GLOBAL'},
+  {id:'sp40',cat:'App',name:'Glovo',icon:'🛴',income:0.03,weeks:20,reqRep:50,region:'EU'},
 ];
+
+// Qué marcas te golpean la puerta según dónde dirigís. La lista siempre
+// incluye GLOBAL: son las que patrocinan en cualquier liga.
+// ⚠️ MLS y Arabia no tienen marcas propias en la base, y dejarlas sólo con
+// GLOBAL les daba una única opción por categoría. Van con el paquete
+// internacional (Emirates es del Golfo y Spotify/Santander/Heineken operan en
+// Estados Unidos): se les abre el mismo mercado premium que a Europa.
+const SPON_REGION={
+  'Liga ARG':['GLOBAL','LATAM'], 'Brasil':['GLOBAL','LATAM'], 'Chile':['GLOBAL','LATAM'],
+  'Paraguay':['GLOBAL','LATAM'], 'Uruguay':['GLOBAL','LATAM'], 'Colombia':['GLOBAL','LATAM'],
+  'Perú':['GLOBAL','LATAM'], 'Ecuador':['GLOBAL','LATAM'], 'Venezuela':['GLOBAL','LATAM'],
+  'Bolivia':['GLOBAL','LATAM'], 'Liga MX':['GLOBAL','LATAM'],
+  'Premier':['GLOBAL','EU'], 'España':['GLOBAL','EU'], 'Italia':['GLOBAL','EU'],
+  'Alemania':['GLOBAL','EU'], 'Francia':['GLOBAL','EU'], 'Portugal':['GLOBAL','EU'],
+  'Holanda':['GLOBAL','EU'], 'Bélgica':['GLOBAL','EU'], 'Turquía':['GLOBAL','EU'],
+  'Rusia':['GLOBAL','EU'], 'Grecia':['GLOBAL','EU'],
+  'MLS':['GLOBAL','EU'], 'Arabia':['GLOBAL','EU'],
+};
+function sponRegiones(lg){
+  const l=lg||((typeof ligaMia==='function')?ligaMia():'Liga ARG');
+  return SPON_REGION[l]||['GLOBAL','LATAM'];   // liga desconocida: como siempre
+}
+// Un sponsor sin `region` es de un save/tabla vieja: se trata como LATAM, que
+// es lo que era el juego entero antes de esto.
+function sponsorEnRegion(s,lg){ return sponRegiones(lg).indexOf((s&&s.region)||'LATAM')>=0; }
+// El naming es de TU cancha: "Naming Bombonera" estaba escrito a mano y se lo
+// ofrecían al Real Madrid igual.
+function sponName(s){
+  if(!s) return '';
+  if(s.dyn==='stad'){
+    const est=(G&&G.stadium&&G.stadium.name)||'Estadio';
+    return s.region==='EU' ? `${s.name} ${est}` : `Naming ${est}`;
+  }
+  return s.name;
+}
 
 const STAFF_ROLES = [
   {id:'scout',role:'Jefe de Scouting',icon:'🔭',desc:'Descubre jugadores del mercado que no aparecían en el radar.',
@@ -1979,22 +2048,30 @@ function rSponsors(){
   const el=document.getElementById('sponsorsList');
   if(!el||!G) return;
   if(!G.sponsors) G.sponsors=[];
+  // ⚠️ LOS CONTRATOS ACTIVOS NO SE FILTRAN POR REGIÓN. G.sponsors guarda una
+  // COPIA del sponsor, así que una partida vieja puede tener a Quilmes firmado
+  // en el Real Madrid: ese contrato se sigue cobrando hasta que vence. Filtrar
+  // acá le borraría al jugador un ingreso que ya pactó.
   const active=G.sponsors;
   const activeIds=new Set(active.map(s=>s.id));
   const activeCats=new Set(active.map(s=>s.cat));
-  const available=SPONSORS.filter(s=>!activeIds.has(s.id)&&G.rep>=s.reqRep&&!activeCats.has(s.cat));
-  const locked=SPONSORS.filter(s=>!activeIds.has(s.id)&&(G.rep<s.reqRep||activeCats.has(s.cat)));
+  // Lo que se OFRECE sí mira dónde dirigís.
+  const delMercado=SPONSORS.filter(s=>sponsorEnRegion(s));
+  const available=delMercado.filter(s=>!activeIds.has(s.id)&&G.rep>=s.reqRep&&!activeCats.has(s.cat));
+  const locked=delMercado.filter(s=>!activeIds.has(s.id)&&(G.rep<s.reqRep||activeCats.has(s.cat)));
+  const regs=sponRegiones();
+  const mercadoLbl=regs.indexOf('EU')>=0?'🇪🇺 Mercado europeo':'🌎 Mercado latinoamericano';
 
   const incomeWeek=active.reduce((a,s)=>a+s.income,0);
   el.innerHTML=`
     ${active.length?`
     <div class="ctitle">✅ Contratos activos — <span style="color:var(--green)">+$${incomeWeek.toFixed(2)}M/sem</span></div>
     ${active.map(s=>`
-      <div class="card" style="padding:9px;margin-bottom:5px">
+      <div class="mpanel" style="padding:9px;margin-bottom:5px">
         <div style="display:flex;align-items:center;gap:9px">
           <div style="font-size:22px">${s.icon}</div>
           <div style="flex:1">
-            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${s.name}</div>
+            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(s)}</div>
             <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span>${s.winBonus?` · <span style="color:var(--gold)">🏆 +$${s.winBonus}M/victoria</span>`:''}</div>
             ${s.obj?`<div style="font-size:9px;color:${s.obj.done?'var(--green)':'var(--t3)'};margin-top:2px">🎯 ${s.obj.desc} → <b>+${fv(s.obj.bonus)}</b>${s.obj.done?' ✅':''}</div>`:''}
           </div>
@@ -2008,13 +2085,15 @@ function rSponsors(){
     '<div class="note">Sin contratos activos.</div>'}
 
     ${available.length?`
-    <div class="ctitle" style="margin-top:10px">🤝 Disponibles para firmar</div>
+    <div class="ctitle" style="margin-top:10px">🤝 Disponibles para firmar
+      <span style="font-size:9px;color:var(--t3);font-weight:400;letter-spacing:.04em">· ${mercadoLbl}</span></div>
     ${available.map(s=>`
-      <div class="card" style="padding:9px;margin-bottom:5px">
+      <div class="mpanel" style="padding:9px;margin-bottom:5px">
         <div style="display:flex;align-items:center;gap:9px">
           <div style="font-size:22px">${s.icon}</div>
           <div style="flex:1">
-            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${s.name}</div>
+            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(s)}
+              ${s.region==='GLOBAL'?'<span style="font-size:8px;color:var(--t3);font-weight:400">🌐</span>':''}</div>
             <div style="font-size:10px;color:var(--t3)">${s.cat} · ${s.weeks} semanas · Rep ${s.reqRep}+</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
@@ -2030,7 +2109,7 @@ function rSponsors(){
     ${locked.slice(0,4).map(s=>`
       <div style="display:flex;align-items:center;gap:8px;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,.05);margin-bottom:3px;opacity:.5">
         <div style="font-size:18px">${s.icon}</div>
-        <div style="flex:1;font-size:11px">${s.name} <span style="color:var(--t3)">(${activeCats.has(s.cat)?'categoría ocupada':'Rep. '+s.reqRep+' req'})</span></div>
+        <div style="flex:1;font-size:11px">${sponName(s)} <span style="color:var(--t3)">(${activeCats.has(s.cat)?'categoría ocupada':'Rep. '+s.reqRep+' req'})</span></div>
         <div style="font-size:10px;color:var(--t3)">+$${s.income}M/sem</div>
       </div>
     `).join('')}`:''}
@@ -2043,6 +2122,9 @@ function signSponsor(id){
   const sp=SPONSORS.find(s=>s.id===id);
   if(!sp) return;
   if(G.rep<sp.reqRep){flash('❌ Reputación insuficiente (necesitás '+sp.reqRep+')','loss');return;}
+  // El filtro va también acá, no sólo en la lista: si no, alcanza con llamar a
+  // signSponsor('sp5') para firmar YPF dirigiendo en la Premier.
+  if(!sponsorEnRegion(sp)){flash('❌ '+sponName(sp)+' no patrocina en '+(typeof ligaComp==='function'?ligaComp():'esta liga'),'loss');return;}
   const activeCats=new Set(G.sponsors.map(s=>s.cat));
   if(activeCats.has(sp.cat)){flash('❌ Ya tenés un contrato en '+sp.cat,'loss');return;}
   // Bonos por rendimiento: cada sponsor paga por victoria y por cumplir un objetivo
@@ -2054,8 +2136,8 @@ function signSponsor(id){
   ];
   const obj=OBJS[~~(Math.random()*OBJS.length)];
   G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks,winBonus,obj});
-  lg('✍️',`Patrocinio: ${sp.name} (+$${sp.income}M/sem + $${winBonus}M/victoria)`);
-  flash('✅ ¡'+sp.name+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
+  lg('✍️',`Patrocinio: ${sponName(sp)} (+$${sp.income}M/sem + $${winBonus}M/victoria)`);
+  flash('✅ ¡'+sponName(sp)+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
   rSponsors();
   if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
 }
