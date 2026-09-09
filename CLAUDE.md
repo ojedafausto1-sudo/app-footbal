@@ -1718,6 +1718,65 @@ ofertas de patrocinio, que manda ~50 mensajes. Ahora compara el **id del
 mensaje más nuevo**, que sí cambia siempre. Si escribís un check que verifica
 una notificación, no uses el largo.
 
+## Fase 25: auditoría de los 5 pedidos de "reescribir la IA del 2D"
+
+Se pidió reescribir `fmAI` (905 líneas) entero con máquina de estados, gravedad
+zonal, raycasting de pases, tiro racional y física desacoplada. **Cuatro de los
+cinco ya estaban**, medidos sobre 3 partidos y 670 muestras:
+
+| pedido | estado medido |
+|---|---|
+| **Gravedad zonal / tethering** | ✅ ya está: el DFI pasa **0%** del tiempo en el campo derecho. `homeX`/`homeY` salen de la posición en el dibujo (`p.hx`/`p.hy`) + `gBase` + `blockLen` |
+| **Raycasting en el pase** | ✅ ya está, y es **más fuerte** que un raycast: proyecta cada rival sobre la recta pasador→receptor y compara **tiempo de pelota contra tiempo de defensor**. El score de pase ya premia progresión (`fwdScore`), desmarque (`near`) y respeta la línea de offside |
+| **Tiro racional** | ✅ ya está: `canShoot` escala la distancia con el `TIR` del rematador (`_pegada`) y el remate lejano exige TIR ≥74 **y** ángulo central (`\|b.y−mid\|<VH·0.34`) |
+| **Física desacoplada** | ✅ ya está: la pelota está **sin nadie a menos de 26px el 70% del tiempo**. No está pegada al pie |
+| **Fases de juego** | ❌ **roto de verdad** — ver abajo |
+
+⚠️ **No hay campos de estado por jugador** (`estado`/`state`/`mode`): la IA es
+una cascada de condiciones, no una máquina de estados explícita. Funciona, pero
+si algún día se reescribe, ese es el cambio estructural.
+
+### El único pedido que faltaba, y el tope duro NO lo arregla
+
+Medido sobre 3 partidos: el equipo termina **más ancho DEFENDIENDO (1039px) que
+atacando (923px)**, al revés del fútbol real. El multiplicador ya existe
+(`spread` escala ×1,1 con pelota y ×0,8 sin) pero se lo comen los overrides que
+vienen después —todos hacia la pelota, los de arriba al área—.
+
+Se probó el **tope duro** al final de `homeY` (piso de amplitud atacando, techo
+defendiendo), que es lo que la nota de la mentalidad dejó escrito como "la única
+salida medible". Ablación a 5 partidos por escenario, 445 minutos por lado:
+
+| | apagado | encendido (0.30 / 0.36) |
+|---|---|---|
+| ancho con pelota | 962 | 879 |
+| ancho sin pelota | 1003 | 952 |
+| **delta buscado** | **−41** | **−73 (PEOR)** |
+| pases | 672 | **584** (−13%) |
+| remates | 17,8 | **14,0** (−21%) |
+| córners | 1,8 | 3,2 |
+| faltas | 28,1 | 33,6 |
+
+Con el techo apretado (0.26) fue peor todavía: **los remates se partieron al
+medio, de 108 a 56 crudos**. **REVERTIDO.**
+
+⚠️ Y la métrica es **ruidosa entre corridas**: el mismo tipo de código dio
+delta **+26, −19 y −73** en tres corridas. Es la misma trampa que ya está
+documentada para la posición del bloque (48 partidos por táctica → 51% de
+aciertos, azar puro). No sirve para decidir con pocas corridas.
+
+**Por qué falla y qué habría que hacer.** El ancho no lo manda el objetivo
+lateral: lo mandan dónde está la pelota y los overrides de ataque al área.
+Clampear `homeY` al final pelea contra esos y sólo empeora el posicionamiento
+—de ahí que caigan pases y remates—. El arreglo estructural sería que la FASE
+cambie la **base del dibujo** (`p.hy`), o sea dos formaciones por equipo que se
+intercambian al perder/recuperar la pelota, en vez de corregir el objetivo
+final. Eso es un motor nuevo, no un parámetro.
+
+Es el **quinto** intento fallido de comprar comportamiento acá con una
+constante. El patrón ya está claro: en este motor la geometría manda sobre los
+números.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
