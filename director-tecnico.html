@@ -1373,16 +1373,61 @@ function natsLocales(){
   const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
   return LIGA_NAT[lg]||['ARG'];
 }
-function isForeign(nat,nat2){
-  const loc=natsLocales();
+// ═══════════════════════════════════════════════════════════════════════
+// EXTRACOMUNITARIOS: EN EUROPA EL CUPO NO ES DE "EXTRANJEROS"
+// ═══════════════════════════════════════════════════════════════════════
+// En España, Italia y Francia la plaza limitada es la de EXTRACOMUNITARIO: un
+// francés en el Real Madrid no ocupa cupo, un brasileño sí. Sin esta regla el
+// cupo europeo no podía existir (por eso estaba en 11 = sin límite): contando
+// a todo no-español, el Madrid daba 15 de 27 y bloqueaba el equipo.
+// Medido con esta lista sobre la base: el Real Madrid pasa de 15 extranjeros a
+// **4 extracomunitarios** (2 en el once ideal), el Barcelona a 2 (0 en el once)
+// y el Girona a 7 (4 en el once) — recién ahí un cupo de 3 significa algo.
+//
+// ⚠️ LOS CÓDIGOS SON LOS DE LA BASE, NO LOS ISO. Escocia es `ESC` (no `SCO`) y
+// Gales `GAL` (no `WAL`): con los ISO, los 109 británicos de esos dos países
+// se contaban como extracomunitarios.
+// ⚠️ Y `MAL` es MALÍ, no Malta (116 jugadores; Malta es `MLT`, con 1). Meter
+// `MAL` acá haría comunitarios a 116 malienses.
+const EU_NATS=[
+  // UE
+  'ESP','FRA','ALE','ITA','HOL','POR','BEL','SUE','DIN','AUT','POL','CZE','RUM',
+  'GRE','IRL','FIN','CRO','HUN','BUL','SVK','SVN','EST','LVA','LTU','LUX','MLT','CYP',
+  // EEE + Suiza (acuerdo bilateral): juegan como comunitarios
+  'NOR','ISL','SUI',
+  // Serbia y los británicos: los pidió el usuario. Ojo que en la realidad
+  // POST-BREXIT un inglés SÍ ocupa plaza de extracomunitario en LaLiga, y
+  // Serbia no está en el EEE. Si lo querés realista, borrá esta línea.
+  'SER','ING','ESC','GAL','NIR',
+];
+// Las tres ligas donde el cupo es de extracomunitarios y no de extranjeros.
+const LIGA_UE=['España','Italia','Francia'];
+function esLigaUE(lg){ return LIGA_UE.indexOf(lg||((typeof ligaMia==='function')?ligaMia():'Liga ARG'))>=0; }
+// ═══ EL TERCER PARÁMETRO ES LA LIGA, Y ES OPCIONAL ═══
+// Por defecto es la liga que DIRIGÍS, que es contra la que se cuenta el cupo.
+// ⚠️ NO uses la liga del jugador (`p.lg`): un brasileño que compra el Real
+// Madrid tiene `lg:'Brasil'`, y preguntar "¿es extranjero en Brasil?" da que no
+// — se colaría sin ocupar plaza. Además los jugadores de tu plantel no siempre
+// tienen `lg`.
+function isForeign(nat,nat2,league){
+  // Sin dato de nacionalidad no se castiga a nadie: hay 246 `UNK` en la base y
+  // contarlos como extracomunitarios llenaba el cupo con jugadores de los que
+  // ni siquiera sabemos de dónde son.
+  if((!nat||nat==='UNK')&&(!nat2||nat2==='UNK')) return false;
+  const lg=league||((typeof ligaMia==='function')?ligaMia():'Liga ARG');
+  if(esLigaUE(lg)) return EU_NATS.indexOf(nat)<0 && EU_NATS.indexOf(nat2)<0;
+  const loc=LIGA_NAT[lg]||['ARG'];
   return loc.indexOf(nat)<0 && loc.indexOf(nat2)<0;
 }
-function pIsForeign(p){ return p && isForeign(p.nat, p.nat2); }
+function pIsForeign(p,league){ return !!p && isForeign(p.nat, p.nat2, league); }
 function isMercosur(nat){ return ['URU','PAR','BRA','BOL','CHI','ECU','PER','VEN','COL'].includes(nat); }
-function foreignCount(squad){ return (squad||[]).filter(pIsForeign).length; }
+function foreignCount(squad,league){ return (squad||[]).filter(p=>pIsForeign(p,league)).length; }
+// Cómo se llama la plaza en esta liga: en Europa el que sobra es el
+// extracomunitario, en América el extranjero.
+function labelCupo(lg){ return esLigaUE(lg)?'Extracomunitarios':'Extranjeros'; }
 function foreignStats(squad){
   const sq = squad||[];
-  const all = sq.filter(pIsForeign);
+  const all = sq.filter(p=>pIsForeign(p));
   const mercosur = all.filter(p=>isMercosur(p.nat));
   const nonMercosur = all.filter(p=>!isMercosur(p.nat));
   // Los que nacieron afuera pero NO ocupan cupo porque tienen la ciudadanía
@@ -4216,19 +4261,35 @@ function sacarDelPlantel(p,tipo,det){
 // hay libre circulación y no existe cupo práctico, en la Liga MX son 10, en
 // Arabia 8. Con el 5 fijo, dirigir al Real Madrid o al Al-Hilal era imposible
 // aunque isForeign contara bien. 11 = sin límite efectivo.
+// ═══ CUÁNTOS ENTRAN, POR LIGA ═══
+// España/Italia/Francia cuentan EXTRACOMUNITARIOS (ver EU_NATS), el resto
+// extranjeros. 99 = sin límite que bloquee el equipo.
+// ⚠️ "Sin límite" y "todos son locales" son cosas distintas: `isForeign` sigue
+// diciendo la verdad en la Premier o en Alemania (el cartel muestra cuántos
+// extranjeros tenés), lo que no hay es un tope. Si `isForeign` devolviera
+// `false` para todos, el cartel diría "0 extranjeros" en el Man City —falso— y
+// además se romperían `natsLocales()` y nacionalizar, que leen lo mismo.
 const CUPO_LIGA={
-  'Liga ARG':5, 'Brasil':5, 'Chile':5, 'Paraguay':5, 'Uruguay':5,
-  'Colombia':4, 'Perú':5, 'Ecuador':5, 'Venezuela':5, 'Bolivia':5,
-  'Liga MX':10, 'MLS':8, 'Arabia':8, 'Rusia':8, 'Turquía':11,
-  'Premier':11, 'España':11, 'Italia':11, 'Alemania':11, 'Francia':11,
-  'Portugal':11, 'Holanda':11, 'Bélgica':11, 'Grecia':11,
+  'España':3, 'Italia':3, 'Francia':4,
+  'Liga ARG':6, 'Chile':6, 'Uruguay':6,
+  'Brasil':9, 'Liga MX':9, 'Colombia':4, 'MLS':8,
+  'Paraguay':5, 'Perú':5, 'Ecuador':5, 'Venezuela':5, 'Bolivia':5,
+  'Arabia':8, 'Rusia':8,
+  'Premier':99, 'Alemania':99, 'Holanda':99, 'Portugal':99,
+  'Turquía':99, 'Bélgica':99, 'Grecia':99,
 };
+// El límite de la liga que se le pase; sin argumento, el de la que dirigís.
+function getLeagueQuota(league){
+  const lg=league||((typeof ligaMia==='function')?ligaMia():'Liga ARG');
+  const q=CUPO_LIGA[lg];
+  return (q===undefined)?5:q;
+}
 // Se lee como función porque la liga se elige al empezar la partida, después
 // de que este archivo ya se evaluó: una const fija se quedaba con el 5.
-function cupoExt(){
-  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
-  return CUPO_LIGA[lg]||5;
-}
+// Se mantiene el nombre viejo porque lo usan varios call sites; la lógica vive
+// en getLeagueQuota. Ojo con `||`: un cupo 0 no existe hoy, pero `||` sería un
+// bug esperando igual que con la moral.
+function cupoExt(){ return getLeagueQuota(); }
 // Compatibilidad: los llamadores viejos usan CUPO_EXT como número. Se deja
 // como getter para que sigan andando sin tocar los diez lugares que lo miran.
 Object.defineProperty(window,'CUPO_EXT',{get:cupoExt,configurable:true});
@@ -4508,14 +4569,18 @@ function rSq(f){
   // regla existe. En su lugar se muestran los nacionalizados, que es lo que
   // de verdad te libera un lugar.
   if(quotaEl){
-    const _cupo=(typeof cupoExt==='function')?cupoExt():5;
-    const _sin=_cupo>=11;                       // 11 = sin límite efectivo
+    // ⚠️ La liga sale de la que DIRIGÍS, no de `G.squad[0].lg`: los jugadores del
+    // plantel no siempre traen `lg`, y el de un fichaje es el de su club ANTERIOR.
+    const _lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+    const _cupo=getLeagueQuota(_lg);
+    const _sin=_cupo>=11;                       // sin límite que bloquee el equipo
     const _lleno=fs.total>=_cupo;
     const _sud=['Liga ARG','Brasil','Chile','Uruguay','Paraguay','Colombia','Perú','Ecuador','Bolivia','Venezuela']
-      .indexOf((typeof ligaMia==='function')?ligaMia():'Liga ARG')>=0;
+      .indexOf(_lg)>=0;
     quotaEl.innerHTML =
-      `<span style="color:${_lleno?'var(--red)':'var(--gold)'}">Extranjeros: ${fs.total}${_sin?'':'/'+_cupo}</span>`
+      `<span style="color:${_lleno?'var(--red)':'var(--gold)'}">${labelCupo(_lg)}: ${fs.total}${_sin?'':'/'+_cupo}</span>`
       + (_sin?`  •  <span style="color:var(--t3)">sin cupo en esta liga</span>`:'')
+      + (esLigaUE(_lg)?`  •  <span style="color:var(--t3)">los comunitarios (UE/EEE) no ocupan plaza</span>`:'')
       + (_sud?`  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`:'')
       + (fs.nacionalizados?`  •  <span style="color:var(--green)" title="${fs.nombres.join(', ')}">${fs.nacionalizados} nacionalizado${fs.nacionalizados>1?'s':''} (no ocupan cupo)</span>`:'');
   }
@@ -4923,7 +4988,7 @@ function subNegI(id, demand){
   const plan=window._negPlan||1;
   const payNow=Math.round(offer*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
   if(G.budget<payNow){flash('❌ No te alcanza para la primera cuota ('+fv(payNow)+')','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
   nd.lastOffer=offer;nd.plan=plan;
   // El club valora menos el pago diferido
@@ -4993,7 +5058,7 @@ function accCounter(id, val){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<val){flash('❌ Sin presupuesto','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   const nd=window._negData||{agent:{name:'Agente',wageExp:_negWageExpect(p)}};
   nd.agreedFee=val;
   window._negData=nd;
@@ -5286,7 +5351,7 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // El club ya no contesta en el acto. Primero arreglás con el jugador y recién
   // ahí sale la solicitud; la respuesta llega semanas después, con la chance de
   // que contraoferten pidiendo más cargo.
@@ -5754,7 +5819,7 @@ function clickSlot(idx){
     const _ent=G.squad.find(q=>q.id===benchPid);
     if(_ent&&typeof pIsForeign==='function'&&pIsForeign(_ent)&&extEnOnce(oldSlotPid)>=CUPO_EXT){
       selSlot=null; rFormation(); rXI();
-      flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss');
+      flash('❌ Ya hay '+CUPO_EXT+' '+labelCupo().toLowerCase()+' en cancha','loss');
       return;
     }
     G.slots[idx] = benchPid;
@@ -5833,7 +5898,7 @@ function doSub(idx, pid){
   const oldPid = G.slots[idx];
   const _e=G.squad.find(q=>q.id===pid);
   if(_e&&typeof pIsForeign==='function'&&pIsForeign(_e)&&extEnOnce(oldPid)>=CUPO_EXT){
-    flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss'); return;
+    flash('❌ Ya hay '+CUPO_EXT+' '+labelCupo().toLowerCase()+' en cancha','loss'); return;
   }
   G.slots[idx] = pid;
   G.bench = G.bench.filter(p=>p.id!==pid);
@@ -5852,7 +5917,7 @@ function clickBench(pid){
     const _e2=G.squad.find(q=>q.id===pid);
     if(_e2&&typeof pIsForeign==='function'&&pIsForeign(_e2)&&extEnOnce(oldPid)>=CUPO_EXT){
       selSlot=null; rFormation(); rXI();
-      flash('❌ Ya hay '+CUPO_EXT+' extranjeros en cancha','loss'); return;
+      flash('❌ Ya hay '+CUPO_EXT+' '+labelCupo().toLowerCase()+' en cancha','loss'); return;
     }
     G.slots[selSlot] = pid;
     G.bench = G.bench.filter(p=>p.id!==pid);
@@ -6699,7 +6764,11 @@ function vestGrupos(){
   const sq=G.squad||[];
   if(!sq.length) return [];
   const gr=[];
-  const extranjeros=sq.filter(p=>typeof isForeign==='function'?isForeign(p.nat,p.nat2):(p.nat&&p.nat!=='ARG'));
+  // ⚠️ Acá NO va la regla del cupo. "Los de afuera" es un grupo SOCIAL: un
+  // francés en el Real Madrid hace rancho aparte igual, aunque como comunitario
+  // no ocupe plaza. Se mira la nacionalidad local pura.
+  const _loc=(typeof natsLocales==='function')?natsLocales():['ARG'];
+  const extranjeros=sq.filter(p=>p&&p.nat&&p.nat!=='UNK'&&_loc.indexOf(p.nat)<0&&_loc.indexOf(p.nat2)<0);
   if(extranjeros.length>=3) gr.push({id:'ext',ic:'🌎',t:'Los de afuera',
     d:'Extranjeros que hacen rancho aparte',miembros:extranjeros});
   const casa=sq.filter(p=>(p.seasonsAtClub||0)>=3);
@@ -15441,7 +15510,7 @@ function confirmClause(id){
   const cl=clauseOf(p);
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // La cláusula saltea AL CLUB, no al jugador: primero tiene que firmar él.
   // Si dice que no, no se deposita un peso.
   openPlayerTerms({
@@ -15521,7 +15590,7 @@ function confirmHalfPass(id){
   const wageCost=Math.round(wageExp*3*4/1000*10)/10;    // 3 años de contrato
   if(G.budget<cost+wageCost){flash(`❌ Presupuesto insuficiente (ficha ${fv(cost)} + salarios ${fv(wageCost)})`,'loss');return;}
   if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
-  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de extranjeros lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // El club ya no contesta en el acto: primero arreglás con el jugador y la
   // oferta sale. pctInterest pasa a ser la chance con la que contestará dentro
   // de unas semanas, no un dado que se tira ahora.

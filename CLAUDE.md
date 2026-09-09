@@ -937,6 +937,78 @@ códigos que aparecen sólo como segunda nacionalidad en vez de fallar. Ojo con
 ampliar esa lista negra a ojo: agregarle `ISL`, `GUI` y `NOR` —que son Islandia,
 Guinea y Noruega— daba 36 falsos positivos.
 
+## Fase 14: extracomunitarios y cupos dinámicos
+
+En España, Italia y Francia la plaza limitada **no es la de extranjero sino la
+de EXTRACOMUNITARIO**: un francés en el Real Madrid no ocupa cupo, un brasileño
+sí. Sin esa regla el cupo europeo no podía existir —por eso estaba en 11 = sin
+límite—, porque contando a todo no-español el Madrid daba 15 de 27 y bloqueaba
+el equipo.
+
+`EU_NATS` (UE + EEE + Suiza) y `LIGA_UE` (`['España','Italia','Francia']`) son
+lo nuevo. Medido sobre la base: el Real Madrid pasa de **15 extranjeros a 4
+extracomunitarios** (2 en el once), el Barcelona a 2 (0 en el once) y el Girona
+a 7 (4). Recién ahí un cupo de 3 significa algo.
+
+| liga | cupo | qué cuenta |
+|---|---|---|
+| España, Italia | 3 | extracomunitarios |
+| Francia | 4 | extracomunitarios |
+| Colombia | 4 | extranjeros |
+| Liga ARG, Chile, Uruguay | 6 | extranjeros |
+| MLS | 8 | extranjeros |
+| Brasil, Liga MX | 9 | extranjeros |
+| Premier, Alemania, Holanda, Portugal, Turquía, Bélgica, Grecia | 99 | sin tope |
+
+⚠️ **Los códigos son los de la BASE, no los ISO.** Escocia es `ESC` (no `SCO`) y
+Gales `GAL` (no `WAL`): con los ISO, los 109 británicos de esos dos países se
+contaban como extracomunitarios. Y **`MAL` es MALÍ, no Malta** (116 jugadores;
+Malta es `MLT`, con 1): meterlo en `EU_NATS` haría comunitarios a 116 malienses.
+Los que faltaban y sí son UE están agregados: HUN, BUL, SVK, SVN, EST, LVA, LTU,
+LUX, MLT, CYP.
+
+⚠️ **`UNK` no ocupa cupo.** Hay 246 jugadores sin nacionalidad en la base;
+contarlos como extracomunitarios llenaba la plaza con gente de la que ni
+sabemos de dónde es.
+
+⚠️ **Serbia y los británicos están dentro de `EU_NATS` porque el usuario los
+pidió**, pero en la realidad post-Brexit un inglés SÍ ocupa plaza de
+extracomunitario en LaLiga, y Serbia no está en el EEE. Es una línea sola: si se
+quiere realista, se borra.
+
+### Dos cosas que la especificación pedía y habrían roto el juego
+
+- **`pIsForeign(p)` NO puede sacar la liga de `p.lg`.** El cupo es contra la liga
+  que **dirigís**: un brasileño que compra el Real Madrid tiene `lg:'Brasil'`, y
+  preguntar "¿es extranjero en Brasil?" da que no — se colaría sin ocupar plaza.
+  Además los jugadores de tu plantel no siempre traen `lg`. El tercer parámetro
+  de `isForeign(nat,nat2,league)` es **opcional** y por defecto es `ligaMia()`.
+- **`isForeign` no devuelve `false` para todos en la Premier.** "Sin límite" y
+  "todos son locales" son cosas distintas: si mintiera, el cartel del Man City
+  diría "0 extranjeros" (son 15) y se romperían `natsLocales()` y nacionalizar,
+  que leen lo mismo. Lo que vale 99 es el **cupo**, no la nacionalidad.
+
+### El grupo del vestuario es social, no administrativo
+
+`vestGrupos()` usaba `isForeign` para armar "Los de afuera". Con la regla
+comunitaria, el grupo del Real Madrid habría bajado a 4. Un francés en Madrid
+hace rancho aparte igual aunque no ocupe plaza, así que ese grupo mira la
+nacionalidad local pura: **15 jugadores contra los 4 del cupo**.
+
+### Medido en 10 clubes de 5 ligas
+
+Ningún once se pasa del cupo, ninguno queda con huecos y ninguna liga se bloquea
+en 8 fechas. Los **planteles** sí exceden (Juventus 8/3, Nice 9/4) y eso es
+correcto: el cupo se cumple en el ONCE, y el cartel en rojo es el problema a
+resolver, igual que en la realidad.
+
+Fichando con el cupo lleno (Madrid 4/3): el francés y el alemán entran, el
+argentino queda bloqueado, y un brasileño **con pasaporte búlgaro** entra — que
+es exactamente cómo funciona el mercado real.
+
+⚠️ El cupo de la Liga ARG subió de 5 a **6** porque el usuario lo pidió. Afloja
+un poco la liga principal respecto de la regla real de 5.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
@@ -993,7 +1065,7 @@ y ahora **blindados en la regresión** para que no puedan volver en silencio:
 
 | bug | estado medido |
 |---|---|
-| `nat2` / cupos | 3.608 segundas nacionalidades, **0 basura**, 0 iguales al nat1, 0 con largo ≠3. `isForeign(nat,nat2)` con aridad 2 y los 5 casos correctos. **0 nacionalizados** contados como extranjeros por error |
+| `nat2` / cupos | 3.608 segundas nacionalidades, **0 basura**, 0 iguales al nat1, 0 con largo ≠3. `isForeign(nat,nat2,league)` con aridad 3 (la liga es opcional) y los 12 casos de la regla comunitaria correctos. **0 nacionalizados** contados como extranjeros por error |
 | API | `fetch=0`, `XMLHttpRequest=0`, `tmapi/tmcoach/sportdb=0` en el juego, 0 URLs http fuera de las fuentes de Google, los 2 scripts locales. **0 peticiones** jugando una temporada + recorriendo toda la UI |
 | `dtDemands` ≠ `dtAskList` | aridad 1 vs 0 · array de strings vs array de objetos `{id,label,desc,resist,argue,apply}` · las exigencias quedan en `G.dt.contract.demands`, los pedidos no dejan nada en `G`, y ninguno se cuela en el otro |
 
