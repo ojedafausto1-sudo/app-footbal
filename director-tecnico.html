@@ -18778,6 +18778,35 @@ function fmMandarAfuera(team,ownGX){
 // 25,3 remates (rango real) y 589 pases, el mejor de los seis escenarios. Los
 // tres mecanismos NO aportan laterales por sí solos — eso lo dio sacar la guarda
 // del aire (ver fmMandarALaBanda) —, así que subirlos sólo cuesta juego.
+// ═══ RED DE SEGURIDAD DE LA PELOTA ═══
+// ⚠️ NO se reprodujo el bug: 0 NaN y 0 ticks fuera de la cancha en 450 minutos
+// medidos. Esto es un SEGURO contra un estado del que no se puede volver, no el
+// arreglo de algo observado. Un NaN en la posición envenena todo lo que la lee
+// (distancias, colisiones, el dibujo) y el partido no se recupera nunca.
+// Devuelve true si tuvo que intervenir.
+function fmBallGuard(f){
+  const b=f&&f.ball; if(!b) return false;
+  if(!isFinite(b.x)||!isFinite(b.y)||!isFinite(b.vx)||!isFinite(b.vy)||
+     !isFinite(b.air===undefined?0:b.air)){
+    // Irrecuperable: al medio y quieta, que es lo único sensato con un NaN.
+    b.x=f.VW/2; b.y=f.VH/2; b.vx=0; b.vy=0; b.air=0;
+    f._ballGuard=(f._ballGuard||0)+1;
+    return true;
+  }
+  // Fuera de los límites con margen: la lógica de lateral/córner/fondo ya corrió
+  // en este tick, así que si sigue afuera es que ninguna la agarró. Se la mete
+  // adentro SIN teletransportarla al centro — mover la pelota media cancha se
+  // vería peor que el bug.
+  const M=40;
+  if(b.x<-M||b.x>f.VW+M||b.y<-M||b.y>f.VH+M){
+    b.x=Math.max(2,Math.min(f.VW-2,b.x));
+    b.y=Math.max(2,Math.min(f.VH-2,b.y));
+    b.vx*=0.2; b.vy*=0.2;
+    f._ballGuard=(f._ballGuard||0)+1;
+    return true;
+  }
+  return false;
+}
 const FM13={
   conoPase:0.50,   // apertura angular del error de pase (×)
   desvio:0.50,     // probabilidad de que un balonazo se desvíe en un cuerpo (×)
@@ -19492,6 +19521,9 @@ function fmTick(dt){
   f.my.forEach(p=>fmBodyBall(p,f.ball,'my'));
   f.opp.forEach(p=>fmBodyBall(p,f.ball,'opp'));
   fmBall(dt);
+  // Última línea de la física: si después de fmBall (que ya resolvió lateral,
+  // córner y saque de arco) la pelota quedó en NaN o afuera, se la rescata.
+  fmBallGuard(f);
   document.getElementById('fm-pw')&&(document.getElementById('fm-pw').style.display='none');
 }
 

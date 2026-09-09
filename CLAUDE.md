@@ -1777,6 +1777,79 @@ Es el **quinto** intento fallido de comprar comportamiento acá con una
 constante. El patrón ya está claro: en este motor la geometría manda sobre los
 números.
 
+## Fase 26: los 4 "bugs críticos" del 11v11, medidos uno por uno
+
+Se reportaron cuatro: pelota fantasma/NaN, enjambre, faltas constantes y offside
+roto. Medido sobre **5 partidos y 450 minutos**:
+
+| reportado | medido | veredicto |
+|---|---|---|
+| pelota desaparece / NaN | **0 NaN y 0 ticks fuera de la cancha** en 1.951 muestras | no se reproduce |
+| enjambre / se amontonan | **167px** al compañero más cercano (~200 es el reparto ideal); mediana de **0** compañeros a menos de 70px de la pelota | no se reproduce |
+| faltas constantes | 25,4 por 90 contra 20-24 reales | apenas alto — **pero ver abajo** |
+| offside roto | 3,2 por 90 contra 4-5 reales | se cobra **de menos**, no de más |
+
+### El offside ya estaba exactamente como pedía la especificación
+
+Se evalúa **sólo en el frame del pase** (dentro de `fmTeamPass`), **sólo sobre
+el receptor previsto** (`squad[bestI]`) y contra el **2º defensor más atrasado
+sin contar al arquero** (`oDefXs` filtra `!o.isGK`). No hay chequeo por frame ni
+sobre atacantes que no participan. Endurecerlo lo habría empeorado: ya está por
+debajo del rango real.
+
+### Lo único que se agregó: la red de seguridad de la pelota
+
+`fmBallGuard(f)` corre como **última línea de la física**, después de `fmBall()`
+(que ya resolvió lateral, córner y saque de arco):
+
+- **NaN** en `x/y/vx/vy/air` → al centro con velocidad 0. Un NaN envenena todo
+  lo que lo lee (distancias, colisiones, dibujo) y el partido no vuelve.
+- **Fuera de los límites con 40px de margen** → se la mete adentro y se le baja
+  la velocidad al 20%. ⚠️ **NO al centro**: mover la pelota media cancha se
+  vería peor que el bug.
+- Pelota sana → no la toca.
+
+⚠️ **Es un SEGURO, no el arreglo de algo observado**: 0 activaciones en 450
+minutos. Verificado determinista en la regresión inyectando los tres casos.
+
+### ⚠️ El cooldown de faltas se probó y se REVIRTIÓ por no poder medirlo
+
+`fmAI` no tiene ningún cooldown: **cada** defensor cerca del portador tira el
+dado en **cada** tick. Se implementó uno (marca en `fmFoul`, chequeo en `fmAI`)
+y al medirlo el instrumento se contradijo:
+
+| corrida (mismo código, baseline) | faltas por 90 |
+|---|---|
+| 1 | **25,4** |
+| 2 | **3,6** |
+| 3 | **4,5** |
+
+**Un factor 7 sobre el mismo código.** Y las ablaciones daban que un cooldown de
+faltas **duplicaba los pases** (257 → 521), que es causalmente posible (menos
+pitazos = más juego corrido) pero no verificable con un instrumento así.
+
+La causa del ruido está identificada: al terminar el partido **`FM` se reinicia**
+y la muestra siguiente trae los contadores en cero, así que el resultado depende
+de en qué momento del ciclo cayó el último `setInterval`. Congelar en el minuto
+más alto visto no alcanzó.
+
+**Revertido.** La regla del proyecto es explícita: si no se puede verificar, se
+dice — no se shippea. Si se retoma, primero hay que arreglar el arnés
+(muestrear con un hook dentro del motor en vez de por `setInterval` desde
+afuera), y recién ahí tocar el balance.
+
+⚠️ **NO se tocó la hitbox del quite**, que era parte del pedido: la geometría
+del robo está calibrada (`winProb` con `DEF` contra `REG`) y en este motor tocar
+constantes de geometría salió mal cinco veces documentadas.
+
+### Nombres de campos del motor, para no volver a perder tiempo
+
+| dato | campo |
+|---|---|
+| minuto del partido | **`f.minute`** (no `f.min`) |
+| marcador | **`f.sc`** (array `[my, opp]`) |
+| estadísticas | **`f.stat`** (no `f.stats`), con `shots/sot/pass/corner/foul/off` |
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
