@@ -651,7 +651,23 @@ arriba del 4,5 de AA. Es el mismo falso positivo de los botones dorados.
   `devicePixelRatio` para no salir borroso en el celular, dibuja la grilla, el
   área bajo la curva, la línea del cero cuando el rango la cruza, y es
   interactivo (mouse y touch) mostrando año, patrimonio y títulos.
-  Usa `GOLD()` / `GOLDA()` porque el canvas no resuelve variables CSS.
+- ⚠️ **La curva del patrimonio va en VERDE o ROJO, no en el acento.** El oro
+  significa "élite o advertencia"; acá lo que comunica es la plata, así que
+  manda la paleta financiera (`FINCOL` / `FINCOLA`, que leen `--green` /
+  `--red` computados porque el canvas no resuelve variables CSS, igual que
+  `GOLD()`). El trazo y el área toman el color del ÚLTIMO año y cada punto el
+  del SUYO, así un ejercicio en rojo se ve dentro de una carrera en azul.
+  Medido: 1.952 px verdes y 0 de oro con el patrimonio en azul, 2.065 rojos
+  con deuda.
+- ⚠️ **El check de memoria de la regresión no probaba nada.** Con 0
+  temporadas cerradas y 0 leyendas, los `every` sobre arrays vacíos daban
+  `true` y el check pasaba en verde sin haber ejercitado el sistema. Ahora
+  fuerza el caso: cruza los dos umbrales por separado (112 PJ y 61 goles), deja
+  un control de 70/31 que NO tiene que entrar, cierra una temporada de verdad
+  con `archiveSeason`, y verifica la fila, que no se dupliquen las leyendas,
+  los 2 tags en el plantel, los nombres y las copas en la vitrina y el color de
+  la curva. Restaura `history`/`legends`/`trophies`/`budget` al terminar porque
+  corre en la sesión compartida.
 
 ## Sistemas principales (dónde tocar)
 

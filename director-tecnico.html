@@ -21877,24 +21877,32 @@ function rFinChart(hoverX){
     c.strokeStyle='rgba(239,68,68,.45)'; c.setLineDash([3,3]);
     c.beginPath(); c.moveTo(pad.l,y0); c.lineTo(W-pad.r,y0); c.stroke(); c.setLineDash([]);
   }
+  // El trazo dice el BALANCE: verde si el patrimonio está en azul, rojo si
+  // estás en deuda. El oro es el acento y significa "élite o advertencia":
+  // acá lo que comunica es la plata, así que manda la paleta financiera.
+  const _bal=h[h.length-1].v;
+  const _col=(typeof FINCOL==='function')?FINCOL(_bal):(_bal>=0?'#10b981':'#e84545');
+  const _cola=a=>(typeof FINCOLA==='function')?FINCOLA(_bal,a)
+    :(_bal>=0?'rgba(16,185,129,'+a+')':'rgba(232,69,69,'+a+')');
   // área bajo la curva
   const g=c.createLinearGradient(0,pad.t,0,pad.t+gh);
-  g.addColorStop(0,(typeof GOLDA==='function')?GOLDA(.26):'rgba(245,158,11,.26)');
-  g.addColorStop(1,(typeof GOLDA==='function')?GOLDA(0):'rgba(245,158,11,0)');
+  g.addColorStop(0,_cola(.26));
+  g.addColorStop(1,_cola(0));
   c.beginPath(); c.moveTo(X(0),pad.t+gh);
   h.forEach((p2,i)=>c.lineTo(X(i),Y(p2.v)));
   c.lineTo(X(h.length-1),pad.t+gh); c.closePath();
   c.fillStyle=g; c.fill();
   // la curva
   c.beginPath(); h.forEach((p2,i)=>{ const x=X(i),y=Y(p2.v); i?c.lineTo(x,y):c.moveTo(x,y); });
-  c.strokeStyle=(typeof GOLD==='function')?GOLD():'#f59e0b';
+  c.strokeStyle=_col;
   c.lineWidth=2; c.lineJoin='round'; c.lineCap='round'; c.stroke();
   // puntos + años
   c.textAlign='center'; c.font="500 8px 'Chakra Petch',sans-serif";
   h.forEach((p2,i)=>{
     const x=X(i),y=Y(p2.v);
+    // cada punto va del color de SU año: un ejercicio en rojo se ve
     c.beginPath(); c.arc(x,y,2.6,0,Math.PI*2);
-    c.fillStyle=(typeof GOLD==='function')?GOLD():'#f59e0b'; c.fill();
+    c.fillStyle=(typeof FINCOL==='function')?FINCOL(p2.v):(p2.v>=0?'#10b981':'#e84545'); c.fill();
     if(h.length<=9||i===0||i===h.length-1||i%2===0){
       c.fillStyle='rgba(155,166,184,.7)';
       c.fillText(String(p2.t).slice(2),x,H-5);
@@ -21908,7 +21916,7 @@ function rFinChart(hoverX){
     c.strokeStyle=(typeof GOLDA==='function')?GOLDA(.35):'rgba(245,158,11,.35)';
     c.lineWidth=1; c.beginPath(); c.moveTo(x,pad.t); c.lineTo(x,pad.t+gh); c.stroke();
     c.beginPath(); c.arc(x,y,4.6,0,Math.PI*2);
-    c.fillStyle=(typeof GOLD==='function')?GOLD():'#f59e0b'; c.fill();
+    c.fillStyle=(typeof FINCOL==='function')?FINCOL(h[bi].v):(h[bi].v>=0?'#10b981':'#e84545'); c.fill();
     c.strokeStyle='rgba(11,14,20,.9)'; c.lineWidth=2; c.stroke();
     if(lbl){
       const reg=(G.history||[]).find(z=>z.season===h[bi].t);
@@ -22082,6 +22090,19 @@ function GOLD(){
 function GOLDA(a){
   const rgb=(getComputedStyle(document.documentElement).getPropertyValue('--gold-rgb')||'245,158,11').trim();
   return 'rgba('+rgb+','+a+')';
+}
+// El verde y el rojo NO cambian por club (sólo el acento), pero el canvas
+// tampoco resuelve variables CSS, así que se leen igual que el oro.
+function CSSVAR(n,fb){
+  const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  return v||fb;
+}
+// Verde en azul, rojo en rojo: el color del patrimonio dice si estás bien.
+function FINCOL(v){ return v>=0?CSSVAR('--green','#10b981'):CSSVAR('--red','#e84545'); }
+function FINCOLA(v,a){
+  const hx=FINCOL(v).replace('#','');
+  const n=parseInt(hx.length===3?hx.split('').map(c=>c+c).join(''):hx,16);
+  return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
 }
 function applyTheme(k){
   const t=UI_THEMES[k]||UI_THEMES.oro;
