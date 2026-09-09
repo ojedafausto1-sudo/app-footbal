@@ -1095,6 +1095,75 @@ parejas de clásicos **argentinos**. Colombia tiene 20 clubes en el juego y
 México 18, y ninguno tiene tabla de clásicos. Se podría hacer, pero es un
 motor nuevo por país, no un parámetro.
 
+## Fase 16: jerarquía, préstamos realistas y paneles unificados
+
+### El jugador puede decirte que no
+
+`jugadorTeAtiende(p)` + `jerarquiaBloquea(p)`: una figura (`rat>=83`) no se muda
+a un club con menos de **75 de reputación**, por más plata que pongas. El que
+decide es el JUGADOR, así que el portero está en las **cuatro** vías —
+`openNeg`, `payClause`, `openSwap` y `negLoanOffer`.
+
+⚠️ **La ficha del jugador tiene botones directos de Cláusula y Canje que NO
+pasan por `openNeg`**: sin blindar las cuatro, el filtro se esquivaba entrando
+por la cláusula.
+
+Medido sobre el mercado real (17.000 jugadores): con Boca (rep 78) y el Real
+Madrid (rep 90) **no bloquea a nadie**; con el Girona (rep 64) bloquea los
+**539 cracks (3,2% del mercado)** y le deja 1.135 jugadores de 78+ para
+trabajar. O sea: muerde sólo a quien tiene que morder.
+
+⚠️ Mira `p.rat` REAL, no `ratEst`. Eso significa que un rechazo te revela que el
+tipo es de primer nivel: es una filtración mínima de la niebla de guerra, y es
+la correcta — en la cancha te enterás de que un crack es un crack justamente
+porque te dice que no.
+
+### A una figura no te la prestan: la edad manda sobre el valor
+
+El escalado por rating ya existía (97/80/50/20% de rechazo). Faltaba lo que más
+pesa en un préstamo real: la **edad**. Ahora está en `loanRefusal(p)`, que
+además devuelve los motivos y los muestra en el modal.
+
+⚠️ **Primer intento mal, y el número lo delató.** Dejando el corte por valor
+(`rat>=87||val>=20`) como estaba, un pibe de 22 con 80 de media y 25M de valor
+quedaba "intocable", y medido daba el absurdo de que **el joven se prestaba
+menos que el veterano: 58% de rechazo contra 54%**. El valor alto de un juvenil
+es proyección, no jerarquía — a esos justamente se los cede. El corte por valor
+ahora sólo aplica al que **no** es joven.
+
+Medido después del arreglo, sobre la banda `rat` 76-82:
+
+| | rechazo medio |
+|---|---|
+| joven (≤23) | **15%** |
+| veterano (≥31) | **54%** |
+
+Y la figura (`rat>=87`, o `val>=20` si no es joven) es **rechazo duro**: no se
+abre el modal, va un mensaje del agente ("No ceden a sus figuras a préstamo,
+solo venta directa"). Antes era 97%, o sea que una de cada 33 se colaba.
+
+### Las compras instantáneas YA no existían
+
+`payClause` → `confirmClause` → **`openPlayerTerms`** → `firmaProgramar`, y
+`openSwap` → `confirmSwap` → `openPlayerTerms` → `negQueueClub`. Las dos vías ya
+pasaban por términos personales y por el embudo de firmas, con el comentario en
+el código: *"La cláusula saltea AL CLUB, no al jugador: primero tiene que firmar
+él"*. No hizo falta cambiar nada; la regresión ahora lo **blinda** verificando
+que `G.squad` no crezca al pagar una cláusula.
+
+### `.mpanel`: unificación sin blur anidado
+
+El mismo bloque (fondo translúcido + borde luminoso) estaba escrito a mano con
+estilos inline en **18 lugares**. Ahora es una clase, con `.mpanel-t` y
+`.mpanel-row` para el título y las filas.
+
+⚠️ **NO lleva `backdrop-filter`, y usar `.card` adentro de un modal habría sido
+un error**: `.card` y `.modal` llevan vidrio real los dos, así que anidarlos
+apila blur — exactamente lo que prohíbe la regla medida de este proyecto ("el
+vidrio va en los CONTENEDORES, no en las filas"). Translucidez + borde + sombra
+da el mismo lenguaje visual y es gratis. La regresión falla si a `.mpanel` le
+aparece un `backdrop-filter`.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

@@ -263,6 +263,18 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(7,9,14,.72);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1)}
 .modal{background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.06)}
+/* ═══ PANEL INTERNO DE MODAL ═══
+   El mismo bloque (fondo translúcido + borde luminoso) estaba escrito a mano
+   18 veces con estilos inline. Ahora es una clase.
+   ⚠️ NO lleva backdrop-filter A PROPÓSITO: `.modal` ya es vidrio de verdad, y
+   anidar blur dentro de blur es la regla que documenta CLAUDE.md ("el vidrio va
+   en los CONTENEDORES, no en las filas"). Translucidez + borde + sombra da el
+   mismo lenguaje visual y es gratis. */
+.mpanel{background:rgba(255,255,255,.03);border:1px solid var(--bdr);border-radius:8px;padding:10px;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.mpanel+.mpanel{margin-top:8px}
+.mpanel-t{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.mpanel-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t2)}
+.mpanel-row+.mpanel-row{margin-top:4px}
 .mtitle{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;color:var(--gold);margin-bottom:12px;letter-spacing:.03em}
 .mclose{float:right;background:rgba(255,255,255,.06);border:1px solid var(--bdr);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--t2);font-size:14px;cursor:pointer;margin-top:-3px;transition:all .15s}
 .mclose:hover{background:rgba(232,69,69,.15);border-color:var(--red);color:var(--red)}
@@ -3653,7 +3665,7 @@ function pressConf(){
   if(followUp){
     window._pressConfFollowUp=followUp;
     followUpHTML=`<div id="pcFollowUp" style="display:none;margin-top:10px">
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div class="mpanel" style="border-radius:10px;padding:12px;margin-bottom:10px">
         <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:6px">🎤 ${j.name} (${j.outlet}) repregunta:</div>
         <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${followUp.q}</div>
       </div>
@@ -3674,7 +3686,7 @@ function pressConf(){
       <span style="font-size:10px;color:var(--t3)">${pc.comp||'Liga Profesional'} · Fecha ${G.week||''}</span>
     </div>
     <div id="pcMainQ">
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div class="mpanel" style="border-radius:10px;padding:12px;margin-bottom:12px">
         <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:6px">🎤 ${j.name} (${j.outlet}) pregunta:</div>
         <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${qText}</div>
       </div>
@@ -3840,7 +3852,7 @@ function dtAskFor(i){
   // TE RETRUCA: podés aflojar o imponerte
   showMod(`<button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">😠 ${G.dt.name} no está de acuerdo</div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px;margin:8px 0">
+    <div class="mpanel" style="border-radius:10px;padding:11px;margin:8px 0">
       <div style="font-size:9px;color:var(--gold);text-transform:uppercase;margin-bottom:5px">🎙️ ${G.dt.name} responde:</div>
       <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${x.argue}</div>
     </div>
@@ -4846,11 +4858,41 @@ function _negStepBar(step){
   }).join('')}</div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// JERARQUÍA: NO TODO JUGADOR TE ATIENDE EL TELÉFONO
+// ═══════════════════════════════════════════════════════════════════════
+// Una figura no se muda a un club que no le da nada deportivamente, por más
+// que le pongas la plata. El que decide es el JUGADOR, así que esto bloquea
+// también la cláusula y el canje: si no quiere venir, no viene por ninguna vía.
+// ⚠️ Mira `p.rat` REAL, no `ratEst`: el jugador se conoce a sí mismo. Eso
+// significa que un rechazo te revela que el tipo es de primer nivel — es una
+// filtración mínima de la niebla de guerra y es la correcta: en la cancha te
+// enterás de que un crack es un crack justamente porque te dice que no.
+const JERARQUIA={ratCrack:83, repMin:75};
+// Portero único de las cuatro vías (negociar, cláusula, canje, préstamo): la
+// ficha del jugador tiene botones directos que NO pasan por openNeg, así que
+// sin esto se podía esquivar el filtro entrando por la cláusula.
+function jerarquiaBloquea(p){
+  const j=jugadorTeAtiende(p);
+  if(j.ok)return false;
+  flash('❌ El jugador no está interesado en jugar en un club de nuestro nivel actual','loss');
+  addPhoneMsg('agent',_negAgent(p).name,
+    `📵 Te seré sincero: hablé con <b>${p.name}</b> y no está interesado en ${G.teamName} hoy por hoy. No es la plata — es el proyecto. Levantá el prestigio del club (te faltan unos <b>${j.falta} puntos</b> de reputación) y volvemos a hablar.`,'🤝');
+  return true;
+}
+function jugadorTeAtiende(p){
+  if(!p||!G)return {ok:true};
+  const rep=G.rep||50;
+  if(p.rat>=JERARQUIA.ratCrack && rep<JERARQUIA.repMin)
+    return {ok:false, falta:Math.round(JERARQUIA.repMin-rep)};
+  return {ok:true};
+}
 function openNeg(id){
   if(!G) return;
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado — esperá la próxima ventana','loss');return;}
+  if(jerarquiaBloquea(p))return;
   const agent=_negAgent(p);
   const demand=_negDemand(p);
   const wageExp=_negWageExpect(p);
@@ -4873,17 +4915,17 @@ function openNeg(id){
         <div style="font-size:10px;color:var(--red);margin-top:2px">💥 Cláusula de rescisión: <b>${fv(clauseOf(p))}</b></div>
       </div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:4px">👨‍💼 AGENTE</div>
       <div style="font-size:13px;font-weight:600;color:var(--gold)">${agent.name}</div>
       <div style="font-size:9px;color:var(--t2);margin-top:2px">${styleTxt}</div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
-      <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;text-align:center">
+      <div class="mpanel" style="flex:1;padding:8px;text-align:center">
         <div style="font-size:9px;color:var(--t3)">Demanda estimada</div>
         <div style="font-size:18px;font-weight:700;color:var(--red);font-family:'Rajdhani'">${fv(demand)}</div>
       </div>
-      <div style="flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px;text-align:center">
+      <div class="mpanel" style="flex:1;padding:8px;text-align:center">
         <div style="font-size:9px;color:var(--t3)">Tu presupuesto</div>
         <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Rajdhani'">$${G.budget}M</div>
       </div>
@@ -4944,7 +4986,7 @@ function negStep2(){
       <span style="font-size:12px;color:var(--t3)">M USD</span>
     </div>
     <div class="neg-rx" id="negRx"></div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;margin-top:8px">
+    <div class="mpanel" style="padding:9px;margin-top:8px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:5px">💳 FORMA DE PAGO (el club la evalúa)</div>
       <div style="display:flex;gap:4px">
         <button class="btn ${(nd.plan||1)===1?'bg':'bo'} bs negPlanBtn" data-pl="1" onclick="selNegPlan(1)" style="flex:1;font-size:10px">Contado</button>
@@ -5032,7 +5074,7 @@ function subNegI(id, demand){
       <button class="mclose" onclick="closeMod()">✕</button>
       <div class="mtitle">↔ Contraoferta de ${p.club}</div>
       ${_negStepBar(2)}
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div class="mpanel" style="border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="text-align:center;flex:1">
             <div style="font-size:9px;color:var(--t3)">TU OFERTA</div>
@@ -5115,7 +5157,7 @@ function negStep3(id){
         <div style="font-size:14px;font-weight:700;color:var(--gold);font-family:'Rajdhani'">${fv(nd.agreedFee)}</div>
       </div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">💰 SALARIO SEMANAL</div>
       <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
         <span style="color:var(--t2)">Pretensión: ~${wageExp}k</span>
@@ -5123,20 +5165,20 @@ function negStep3(id){
       </div>
       <input type="range" id="negWage" class="neg-slider" min="${Math.round(wageExp*0.5)}" max="${Math.round(wageExp*2)}" value="${recWage}" oninput="updNegTerms()">
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📅 DURACIÓN DEL CONTRATO</div>
       <div style="display:flex;gap:4px" id="negYearsDiv">
         ${[1,2,3,4,5].map(y=>`<button class="btn ${y===3?'bg':'bo'} bs negYrBtn" data-y="${y}" onclick="selNegYears(${y})" style="flex:1;font-size:11px">${y}a</button>`).join('')}
       </div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL EN EL EQUIPO</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap" id="negRoleDiv">
         ${roles.map((r,i)=>`<button class="btn ${i===roleExpect?'bg':'bo'} bs negRoleBtn" data-r="${i}" onclick="selNegRole(${i})" style="flex:1;font-size:9px;min-width:80px;white-space:nowrap">${r}</button>`).join('')}
       </div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px">Expectativa del jugador: <b style="color:var(--gold)">${roles[roleExpect]}</b></div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
       <div style="display:flex;gap:4px">
         ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}
@@ -5286,7 +5328,7 @@ function negStep4(p,fee,wage,years,role){
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span style="font-weight:600">${years} año${years>1?'s':''}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Rol</span><span style="font-weight:600">${role}</span></div>
       </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin:0 auto;max-width:320px;margin-bottom:10px">
+      <div class="mpanel" style="border-radius:10px;padding:12px;margin:0 auto 10px;max-width:320px">
         <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">🎙️ Conferencia de prensa</div>
         <div style="font-size:11px;color:var(--t2);font-style:italic;line-height:1.5;margin-bottom:6px">${pressQuotes[~~(Math.random()*pressQuotes.length)]}</div>
         <div style="font-size:9px;color:var(--t3)">— Presidente de ${G.teamName||'Boca Juniors'}</div>
@@ -5301,16 +5343,54 @@ function negStep4(p,fee,wage,years,role){
   updateUI();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// A UNA FIGURA NO TE LA PRESTAN: TE LA VENDEN O NADA
+// ═══════════════════════════════════════════════════════════════════════
+// El escalado por rating ya existía (97/80/50/20% de rechazo), pero le faltaba
+// lo que más pesa en un préstamo real: la EDAD. Un pibe de 21 con 80 de media
+// se cede para que sume minutos; el mismo 80 con 31 años es un titular al que
+// nadie regala media temporada. Y arriba de cierto nivel no es "difícil", es
+// que no: el 3% que dejaba pasar el 0.97 metía una estrella cada 33 intentos.
+function loanRefusal(p){
+  const rat=p.rat||60, val=p.val||0, age=p.age||26;
+  const joven = age<=23;
+  // ⚠️ EL VALOR NO PUEDE MANDAR SOBRE LA EDAD. Con `rat>=87||val>=20` un pibe
+  // de 22 con 80 de media y 25M de valor quedaba "intocable", y medido daba el
+  // absurdo de que el joven se prestaba MENOS que el veterano (58% de rechazo
+  // contra 54%). El valor alto de un juvenil es proyección, no jerarquía: a
+  // esos justamente se los cede para que sumen minutos. Por eso el corte por
+  // valor sólo aplica al que ya NO es joven.
+  if(rat>=87 || (val>=20 && !joven)) return {duro:true, prob:1,
+    motivo:'No ceden a sus figuras a préstamo, solo venta directa'};
+  let r = rat>=83 ? 0.80 : rat>=79 ? 0.50 : 0.20;
+  if(!joven && val>=12) r=Math.max(r,0.80);
+  else if(!joven && val>=6) r=Math.max(r,0.50);
+  const notas=[];
+  // La edad es la palanca: al pibe lo prestan para que juegue
+  if(age<=21){ r-=0.30; notas.push('✓ Es muy joven: les sirve que sume minutos'); }
+  else if(age<=23){ r-=0.20; notas.push('✓ Joven con proyección — lo ceden para que juegue'); }
+  else if(age>=31){ r+=0.22; notas.push('❌ Veterano: es titular, no lo sueltan'); }
+  else if(age>=28){ r+=0.10; notas.push('❌ Está en su mejor momento'); }
+  if(rat>=83) notas.push('❌ Es una pieza clave de su equipo');
+  else if(rat<=72) notas.push('✓ No es titular allá: lo dejan salir');
+  // Un pibe de bajo nivel casi siempre sale; una figura joven sigue costando
+  return {duro:false, prob:Math.max(0.05,Math.min(0.95,r)), notas};
+}
 function negLoanOffer(id){
   if(!G) return;
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(jerarquiaBloquea(p))return;
   const agent=_negAgent(p);
-  let rejectChance=0.20;
-  if(p.rat>=87||p.val>=20) rejectChance=0.97;
-  else if(p.rat>=83||p.val>=12) rejectChance=0.80;
-  else if(p.rat>=79||p.val>=6) rejectChance=0.50;
+  const _ref=loanRefusal(p);
+  if(_ref.duro){
+    flash('❌ '+_ref.motivo,'loss');
+    addPhoneMsg('agent',agent.name,
+      `📵 Ni lo intentes: <b>${p.club}</b> no cede a sus figuras a préstamo, solo venta directa. Si querés a <b>${p.name}</b>, poné la plata sobre la mesa.`,'🤝');
+    return;
+  }
+  const rejectChance=_ref.prob;
   const feePct=p.rat>=83?0.12:p.rat>=79?0.08:0.05;
   const cost=Math.round(p.val*feePct*10)/10;
   const buyOption=Math.round(p.val*(0.7+Math.random()*0.4)*10)/10;
@@ -5324,11 +5404,15 @@ function negLoanOffer(id){
         <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${rb(p.rat)}</div>
       </div>
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div class="mpanel" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Cargo por préstamo</span><span style="color:var(--gold);font-weight:700">${fv(cost)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>Duración</span><span id="loanDurLbl">26 semanas (medio año)</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2)"><span>Prob. aprobación</span><span style="color:${rejectChance>0.7?'var(--red)':rejectChance>0.4?'var(--gold)':'var(--green)'}">${Math.round((1-rejectChance)*100)}%</span></div>
+      <div class="mpanel-row"><span>Prob. aprobación</span><span style="color:${rejectChance>0.7?'var(--red)':rejectChance>0.4?'var(--gold)':'var(--green)'};font-weight:700">${Math.round((1-rejectChance)*100)}%</span></div>
     </div>
+    ${(_ref.notas&&_ref.notas.length)?`<div class="mpanel" style="margin-bottom:10px">
+      <div class="mpanel-t">Qué pesa en su decisión</div>
+      ${_ref.notas.map(t=>`<div style="font-size:10px;color:${t[0]==='✓'?'var(--green)':'var(--red)'};margin-top:2px">${t}</div>`).join('')}
+    </div>`:''}
     <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Duración de la cesión:</div>
     <div style="display:flex;gap:4px;margin-bottom:10px">
       <button class="btn bg bs negDurBtn" data-d="26" onclick="selLoanDur(26)" style="flex:1;font-size:10px">🗓️ Medio año</button>
@@ -5367,6 +5451,15 @@ function submitLoanOffer(id,cost,rejectChance,buyOption){
   if(!p) return;
   if(G.budget<cost){flash('❌ Sin presupuesto ($'+cost+'M)','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
+  // Última barrera: la chance que llega por argumento puede venir de un modal
+  // viejo, así que la decisión se vuelve a tomar acá con los datos de ahora.
+  const _ref2=loanRefusal(p);
+  if(_ref2.duro){
+    flash('❌ '+_ref2.motivo,'loss');
+    addPhoneMsg('agent',_negAgent(p).name,`📵 <b>${p.club}</b> no cede a sus figuras a préstamo, solo venta directa.`,'🤝');
+    return;
+  }
+  rejectChance=_ref2.prob;
   // El club ya no contesta en el acto. Primero arreglás con el jugador y recién
   // ahí sale la solicitud; la respuesta llega semanas después, con la chance de
   // que contraoferten pidiendo más cargo.
@@ -15450,7 +15543,7 @@ function ptRender(first){
         <div style="font-size:9px;color:var(--t3)">${o.feeLbl||'Ya acordado con el club'}</div>
         <div style="font-size:14px;font-weight:700;color:var(--gold);font-family:'Rajdhani'">${fv(o.fee)}</div></div>`:''}
     </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+    <div class="mpanel" style="margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px">
         <span style="color:var(--t3)">💰 SUELDO — pide ~${s.wageExp}k${(()=>{const w=(typeof wageLabel==='function')&&wageLabel(p);
           return w?` · <b style="color:${w.c}">${w.t}</b>`:'';})()}</span>
@@ -15458,16 +15551,16 @@ function ptRender(first){
       <input type="range" id="ptW" class="neg-slider" min="${Math.round(s.wageExp*0.5)}" max="${Math.round(s.wageExp*2)}" value="${s.wage}" oninput="ptSetWage(+this.value)">
     </div>
     ${o.loan?'':`
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+    <div class="mpanel" style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📅 AÑOS DE CONTRATO</div>
       <div style="display:flex;gap:4px">${[1,2,3,4,5].map(y=>`<button class="btn ${y===s.years?'bg':'bo'} bs ptYr" data-y="${y}" onclick="ptSetYears(${y})" style="flex:1;font-size:11px">${y}a</button>`).join('')}</div>
     </div>`}
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+    <div class="mpanel" style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL — espera <b style="color:var(--gold)">${PT_ROLES[ptRoleExpect(p)]}</b></div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">${PT_ROLES.map((r,i)=>`<button class="btn ${i===s.role?'bg':'bo'} bs ptRl" data-r="${i}" onclick="ptSetRole(${i})" style="flex:1;font-size:9px;min-width:80px;white-space:nowrap">${r}</button>`).join('')}</div>
     </div>
     ${o.loan?'':`
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:9px">
+    <div class="mpanel" style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
       <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}</div>
     </div>`}
@@ -15561,6 +15654,7 @@ function payClause(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(jerarquiaBloquea(p))return;      // la cláusula saltea al club, no al jugador
   const cl=clauseOf(p);
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
@@ -15694,6 +15788,7 @@ function openSwap(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(jerarquiaBloquea(p))return;
   const opts=G.squad.filter(q=>!q.injured).sort((a,b)=>b.val-a.val).slice(0,25);
   window._swap2=null;
   showMod(`
