@@ -2182,6 +2182,9 @@ function _shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));
 // pretemporada y los amistosos son fechas de verdad, que se juegan o se miran
 // como cualquier partido. La liga empieza en la semana 4.
 const PRE_SEMANAS=3;
+// Las 4 rondas de los playoffs del Apertura/Clausura: Octavos, Cuartos,
+// Semifinal y Final, una por semana. Define el hueco entre los dos torneos.
+const PLAYOFF_RONDAS=4;
 
 // ═══ LOS CLÁSICOS VAN SEPARADOS ═══
 // La AFA sortea las zonas con una condición: los clásicos quedan en zonas
@@ -2369,7 +2372,16 @@ function arBuildTournament(zones,phase,startWeek){
   restA.forEach((h,i)=>{const a=restB[i];if(!a)return;
     fx.push({week:wkInter,comp:'Liga Profesional',phase,zone:'INT',fecha:nR+1,
       home:i%2===0?h:a,away:i%2===0?a:h,played:false,result:null,score:null});});
-  return {fixtures:fx,fechas:nR+1,lastWeek:wkInter,label};
+  // ═══ LAS SEMANAS DE LOS PLAYOFFS SE RESERVAN ACÁ ═══
+  // Son 4 rondas (Octavos → Cuartos → Semifinal → Final), una por semana,
+  // arrancando justo después de la última fecha regular. Antes no se reservaba
+  // nada: `arStartPlayoff` programaba en `G.week+1`, o sea "la semana que viene,
+  // sea cual sea", y para cuando la fase regular terminaba `G.week` ya había
+  // pasado el hueco. Medido: el Apertura terminaba en la semana 19, el hueco
+  // 20-23 quedaba VACÍO y los octavos caían en la 24 — encima del Clausura, que
+  // arranca en la 24 — y los cuartos en la 27.
+  const playoffWeeks=[wkInter+1,wkInter+2,wkInter+3,wkInter+4];
+  return {fixtures:fx,fechas:nR+1,lastWeek:wkInter,playoffWeeks,label};
 }
 
 // Pasa a G la liga generada por el último buildCal (que corre antes de existir G)
@@ -2457,13 +2469,16 @@ function buildCal(teamName, teamId){
   // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
   const zones=arBuildZones(teamName);
   const ap=arBuildTournament(zones,'apertura',1+PRE_SEMANAS);
-  const cl=arBuildTournament(zones,'clausura',ap.lastWeek+5);   // hueco para los playoffs del Apertura
+  // ⚠️ EL HUECO SON 4 SEMANAS, NO 3: los playoffs son 4 rondas (Octavos,
+  // Cuartos, Semifinal, Final) y va una por semana. Con 3 semanas la final
+  // caería sí o sí encima de la primera fecha del Clausura.
+  const cl=arBuildTournament(zones,'clausura',ap.lastWeek+1+PLAYOFF_RONDAS);
   const allFix=[...ap.fixtures,...cl.fixtures];
   // buildCal corre DENTRO del literal que crea G, así que G todavía no existe:
   // se deja en la función y initGame lo levanta después (ver arAttachLeague).
   buildCal._league={zones,fixtures:allFix,
-    phases:{apertura:{start:1,last:ap.lastWeek,fechas:ap.fechas},
-            clausura:{start:cl.lastWeek-cl.fechas+1,last:cl.lastWeek,fechas:cl.fechas}}};
+    phases:{apertura:{start:1,last:ap.lastWeek,fechas:ap.fechas,playoffWeeks:ap.playoffWeeks},
+            clausura:{start:cl.lastWeek-cl.fechas+1,last:cl.lastWeek,fechas:cl.fechas,playoffWeeks:cl.playoffWeeks}}};
   if(typeof G==='object'&&G)arAttachLeague();
   // Mis partidos van al calendario (el resto los juega la liga en paralelo)
   allFix
@@ -8924,7 +8939,9 @@ function rCal(){
   // Con el formato de 2 zonas, la tabla única ya no representa el torneo: acá
   // va la TABLA ANUAL (la que define los descensos), la fecha completa de las
   // dos zonas y los goleadores de toda la liga.
-  const nDown=rows.length>=26?2:1;
+  // Mismo número que usan checkFired y archiveSeason: si no, la franja roja de
+  // la tabla marcaba un descenso distinto del que después se aplicaba.
+  const nDown=(typeof cuposDescenso==='function')?cuposDescenso():(rows.length>=26?2:1);
   const sn2=c=>c.replace('Boca Juniors','Boca').replace(' Sarsfield','').replace('Argentinos Jrs.','Arg.Jrs').replace('Barracas C.','Barracas').replace('Unión Santa Fe','Unión').replace('Central Córdoba','C.Córdoba').replace('Ind. Rivadavia','Ind.Riv').replace('San Martín (SJ)','S.Martín');
   // Última fecha jugada, agrupada por zona
   const playedFix=(G.arFix||[]).filter(f=>f.played);
@@ -9478,6 +9495,17 @@ function arZoneTable(z){
     .map((r,i)=>({pos:i+1,...r}));
 }
 // ═══ PLAYOFFS: los 8 primeros de cada zona, cruzados A1-B8, A2-B7... ═══
+// ═══ EN QUÉ SEMANA VA CADA RONDA DE PLAYOFF ═══
+// Sale del hueco que reservó arBuildTournament, NO de "la semana que viene".
+// El `Math.max` es la única concesión: si el jugador llegó tarde (avanzó días
+// de más antes de que se disparara el playoff), no se puede programar un
+// partido en el pasado — se juega lo antes posible.
+function arPlayoffWeek(phase,idx){
+  const ph=(G.arPhases&&G.arPhases[phase])||null;
+  const ws=ph&&ph.playoffWeeks;
+  const plan=(ws&&ws[idx]!==undefined)?ws[idx]:((G.week||1)+1+idx);
+  return Math.max(plan,(G.week||1)+1);
+}
 function arStartPlayoff(phase){
   if(!G.arZones)return;
   if(G.arPlayoff&&G.arPlayoff.phase===phase)return;
@@ -9498,8 +9526,9 @@ function arStartPlayoff(phase){
   if(meIn){
     const my=bracket.find(t=>t.home===G.teamName||t.away===G.teamName);
     addPhoneMsg('board','Secretaría del Club',`🏆 ¡Clasificamos a los playoffs del Torneo ${label}! En octavos nos toca <b>${my?(my.home===G.teamName?my.away:my.home):'—'}</b>.`,'🏛️');
-    // Se agrega la llave al calendario para que la juegues
-    const wk=G.week+1;
+    // Se agrega la llave al calendario para que la juegues, en la semana
+    // RESERVADA del hueco entre los dos torneos (ver arPlayoffWeek).
+    const wk=arPlayoffWeek(phase,0);
     if(my)G.calendar.push({week:wk,comp:`Liga Profesional - ${label} Octavos`,home:my.home,away:my.away,played:false,result:null,score:null});
     G.calendar.sort((a,b)=>a.week-b.week);
   } else {
@@ -10387,6 +10416,29 @@ function correrEleccion(){
   lg('🗳️',`Perdiste la elección: ${v}% contra ${Math.round(rival)}%`);
   return true;
 }
+// ═══════════════════════════════════════════════════════════════════════
+// CUÁNTOS DESCIENDEN, POR LIGA
+// ═══════════════════════════════════════════════════════════════════════
+// Era `nClubs>=26?2:1`: en la Liga ARG (30 clubes) daban 2, que está bien, pero
+// en LaLiga, la Premier o la Serie A daba **1 solo** cuando en la realidad
+// bajan 3. Terminar 18º de 20 no tenía ninguna consecuencia.
+// El que decide es el FORMATO: en la Liga ARG la tabla anual (que suma el
+// Apertura y el Clausura), en las ligas largas la tabla de las 38 fechas.
+const DESCENSOS={
+  'España':3,'Premier':3,'Italia':3,'Alemania':2,'Francia':2,'Portugal':2,
+  'Holanda':2,'Bélgica':2,'Grecia':2,'Turquía':3,'Rusia':2,
+  'Brasil':4,'Liga ARG':2,'Liga MX':1,'MLS':0,
+  'Colombia':2,'Chile':2,'Uruguay':2,'Perú':2,'Ecuador':2,'Paraguay':2,
+  'Bolivia':2,'Venezuela':2,'Arabia':3,
+};
+function cuposDescenso(){
+  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  const d=DESCENSOS[lg];
+  if(d!==undefined)return d;                      // ojo con `||`: la MLS es 0
+  const _t=(typeof leagueSorted==='function')?leagueSorted():[];
+  const n=_t.length||19;
+  return n>=26?2:1;
+}
 function checkFired(pos){
   const meta=G.boardTarget?G.boardTarget.maxPos:99;
   // La cantidad de clubes salía de G.league.clubs con un ||19 de rescate. En
@@ -10406,8 +10458,8 @@ function checkFired(pos){
   // descenso, y seguir sentado en el sillón. Ahora la asamblea te pide la
   // renuncia igual que en cualquier club de verdad: si quedaste en los
   // puestos que bajan, se terminó.
-  const nDown=nClubs>=26?2:1;
-  const descendio=pos>nClubs-nDown;
+  const nDown=cuposDescenso();
+  const descendio=nDown>0&&pos>nClubs-nDown;
   const fracaso=pos>meta+4&&conf<30;
   if(descendio||fracaso){
     showFiredModal(pos,descendio);
@@ -10584,8 +10636,8 @@ function archiveSeason(){
   // ES la tabla anual. Bajan los 2 últimos y suben 2 de la Primera Nacional.
   const inLeague=new Set(t.map(r=>r.club));
   const cands=[...new Set(G.market.filter(p=>p.lg==='Liga ARG').map(p=>p.club))].filter(c=>!inLeague.has(c)&&c!==G.teamName);
-  const nDown=t.length>=26?2:1;
-  const doomed=[...t].reverse().filter(r=>r.club!==G.teamName).slice(0,nDown);
+  const nDown=(typeof cuposDescenso==='function')?cuposDescenso():(t.length>=26?2:1);
+  const doomed=nDown>0?[...t].reverse().filter(r=>r.club!==G.teamName).slice(0,nDown):[];
   const iAmLast=t.length&&t[t.length-1].club===G.teamName;
   if(doomed.length&&cands.length){
     cands.sort((a,b)=>clubPower(b)-clubPower(a));
@@ -11458,7 +11510,10 @@ function arAdvancePlayoff(m,res){
   const opp=alive.length?alive[~~(Math.random()*alive.length)]:'River Plate';
   P.alive=alive.filter(c=>c!==opp).concat([G.teamName,opp]);
   P.round=next;
-  const wk=G.week+1;
+  // Cada ronda va en SU semana del hueco, una por semana. Con `G.week+1` las
+  // rondas se dispersaban por el calendario (medido: octavos S24, cuartos S27)
+  // porque entre una y otra se jugaban fechas del Clausura.
+  const wk=arPlayoffWeek(P.phase,order.indexOf(next));
   const iHome=Math.random()<0.5;
   G.calendar.push({week:wk,comp:`Liga Profesional - ${label} ${next}`,
     home:iHome?G.teamName:opp,away:iHome?opp:G.teamName,played:false,result:null,score:null});
@@ -11932,7 +11987,24 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Schedule post-match press conference
   window._pendingPressConf={res,gf,ga,oppName:m.home===G.teamName?m.away:m.home,comp:m.comp};
 
-  G.week++;
+  // ═══════════════════════════════════════════════════════════════════════
+  // EL RELOJ LO MANDA EL CALENDARIO, NO LA CANTIDAD DE PARTIDOS
+  // ═══════════════════════════════════════════════════════════════════════
+  // Esto era `G.week++` a secas: se sumaba una semana POR PARTIDO. Como en la
+  // misma semana se juega liga y copa —que es lo normal: 7 veces por temporada
+  // en Boca—, el reloj se adelantaba una semana cada vez.
+  // Medido: al jugar el partido de la SEMANA 17 el reloj ya marcaba 21, y para
+  // cuando terminaba el Apertura (semana 19) marcaba 24. Por eso los playoffs
+  // se salían del hueco reservado (20-23) y caían encima del Clausura, y por
+  // eso las rondas siguientes se dispersaban: cada una se programaba sobre un
+  // reloj que ya venía corrido.
+  // Ahora: si todavía queda algún partido de esta semana o de una anterior, el
+  // reloj sólo se sincroniza; la semana avanza recién cuando la fecha terminó.
+  if(G.calendar&&G.calendar.some(x=>!x.played&&x.week<=(m.week||G.week))){
+    G.week=Math.max(G.week,m.week||G.week);      // misma semana: no corre el reloj
+  } else {
+    G.week=Math.max(G.week,m.week||G.week)+1;    // fecha terminada: semana siguiente
+  }
   // ═══ EL CEDIDO JUEGA (O NO) EN EL CLUB QUE LO PIDIÓ ═══
   // Cuánto juega depende de si es mejor que el plantel que lo recibió: un
   // pibe de 68 prestado a un club de nivel 62 es titular; el mismo pibe en

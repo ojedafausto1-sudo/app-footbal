@@ -1009,6 +1009,92 @@ es exactamente cómo funciona el mercado real.
 ⚠️ El cupo de la Liga ARG subió de 5 a **6** porque el usuario lo pidió. Afloja
 un poco la liga principal respecto de la regla real de 5.
 
+## Fase 15: el reloj mentía — playoffs, calendario y descensos
+
+El síntoma era el solapamiento Apertura/Clausura, pero **el hueco ya existía**:
+el Apertura terminaba en la semana 19, el Clausura arrancaba en la 24 y las
+semanas 20-23 quedaban libres. Los playoffs igual caían encima (octavos S24,
+cuartos S27). La causa estaba dos capas más abajo.
+
+### `G.week` contaba PARTIDOS, no semanas
+
+`simMatch` hacía `G.week++` a secas, una semana por partido. Como en la misma
+semana se juega liga y copa —lo normal: **7 veces por temporada en Boca**—, el
+reloj se adelantaba una semana cada vez. Medido con instrumentación:
+
+| se juega la fecha de… | el reloj marcaba |
+|---|---|
+| semana 17 | **21** |
+| semana 18 | **22** |
+| semana 19 (fin del Apertura) | **24** |
+
+Con el reloj en 24, los playoffs no podían caer en el hueco 20-23 aunque
+estuviera reservado: se programaban sobre un reloj corrido. Y cada ronda
+siguiente usaba `G.week+1`, así que se dispersaban (octavos 24, cuartos 27)
+porque entre una y otra se jugaban fechas del Clausura.
+
+Ahora el reloj lo manda el calendario: si queda algún partido de esta semana o
+anterior, sólo se sincroniza; la semana avanza cuando la fecha terminó.
+
+⚠️ **Esto cambia el balance y hay que saberlo.** Medido sobre una temporada
+completa, mediana de 5 corridas:
+
+| | antes | ahora |
+|---|---|---|
+| partidos | 51 | 53 |
+| **semanas** | **52** | **49** |
+| Δ presupuesto | −12,6M | −15,0M |
+| puntos | 67 | 67 |
+| **física (mediana)** | **100** | **93** |
+
+Son 3 semanas menos de vida de club por temporada. La caída de física es el
+efecto buscado: **jugar liga y copa la misma semana ahora cansa**, en vez de
+regalar una semana de recuperación por cada partido extra.
+
+### Los playoffs se programan en su hueco
+
+`arBuildTournament` devuelve `playoffWeeks` (4 semanas, una por ronda) y queda
+en `G.arPhases[fase].playoffWeeks`. `arPlayoffWeek(fase,idx)` las lee, y
+`arStartPlayoff` / `arAdvancePlayoff` la usan en vez de `G.week+1`. El único
+`Math.max` que queda es contra el pasado: no se puede programar un partido en
+una semana que ya pasó.
+
+⚠️ **El hueco son 4 semanas, no 3**: los playoffs son Octavos, Cuartos,
+Semifinal y Final, una por semana (`PLAYOFF_RONDAS`). Con 3, la final caería sí
+o sí sobre la primera fecha del Clausura. Verificado: las 4 llaves caen dentro
+de 20/21/22/23 y el Clausura arranca limpio en la 24.
+
+### Cuántos descienden depende de la liga
+
+Era `nClubs>=26?2:1`: en la Liga ARG daba 2 (bien), pero en LaLiga, la Premier
+o la Serie A daba **1 solo** cuando en la realidad bajan 3 — terminar 18º de 20
+no tenía ninguna consecuencia. Ahora sale de `DESCENSOS` / `cuposDescenso()`:
+España, Premier, Italia y Turquía 3; Brasil 4; Alemania, Francia y el resto 2;
+Liga MX 1; **MLS 0** (no hay descenso).
+
+⚠️ Ojo con `||` acá también: la MLS es **0**, así que `cuposDescenso` usa
+`d!==undefined`. Y los **tres** lugares que decidían descenso —`checkFired`, la
+franja roja de la tabla y `archiveSeason`— usan ahora la misma función: antes la
+tabla podía pintar de rojo un descenso distinto del que se aplicaba.
+
+### Lo que ya estaba hecho y no hacía falta tocar
+
+- **Las ligas largas ya son round-robin de 38 fechas.** Verificado: España,
+  Premier, Brasil y Colombia arman 380 partidos en 38 fechas, semanas 4-41, sin
+  zonas ni playoffs (`buildCalOtra`). No hizo falta un `euBuildTournament`.
+- **El nombre de la competencia ya es el real** (LaLiga, Premier League,
+  Brasileirão, Liga BetPlay) vía `LIGA_NOMBRE`. Llamarlas "Primera División"
+  sería un retroceso.
+
+### Lo que NO se hizo, y por qué
+
+Pasar **Colombia y México al formato de zonas + Apertura/Clausura** no es
+viable tal como está: `arBuildZones` es específicamente argentino — necesita 30
+clubes para partir en dos zonas de 15 y reparte `AR_CLASICOS`, que son las 10
+parejas de clásicos **argentinos**. Colombia tiene 20 clubes en el juego y
+México 18, y ninguno tiene tabla de clásicos. Se podría hacer, pero es un
+motor nuevo por país, no un parámetro.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
