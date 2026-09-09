@@ -1299,6 +1299,78 @@ cada operación y por cada semana es lo que haría lenta esta función.
 descarta los ids que están en `G.negs`, y `firmaProgramar` ya saca al jugador
 de `G.market` apenas hay acuerdo.
 
+## Fase 19: capitanía y química del vestuario
+
+### La cinta ya existía: es `G.roles.captain`
+
+⚠️ **No se creó `G.captainId`.** El capitán vive en `G.roles.captain` desde que
+existen los Designados, y de ahí lo leen `matchStrengths` (bonus de liderazgo) y
+el dibujo del once. Un segundo campo con el mismo dato son dos fuentes de verdad
+que se desincronizan.
+
+Lo que faltaba era que lo eligiera **el DT**: `dtPicksCaptain()` ordena a los
+once por `capScore` — veteranía (27+ vale 18, 24+ vale 6), años en el club (×6),
+nivel (×0,55), menos 25 si pidió salir. Con DT propio, si designaste a alguien y
+está en cancha, no se lo toca.
+
+**La UI dejaba cambiar al capitán SIEMPRE**, lo que contradice la regla del
+proyecto. Ahora con DT de la IA se ve quién la lleva, su edad, sus temporadas en
+el club y —si hay conflicto— por qué no cayó bien, pero no se toca.
+
+⚠️ Los pateadores de penales, tiros libres, córners y la marca personal **siguen
+abiertos** aunque son decisiones de cancha igual. Es la misma inconsistencia,
+pero cerrarlas es otro pedido y cambia bastante la jugabilidad.
+
+### El plantel inicial figuraba como once fichajes nuevos
+
+Bug preexistente que destapó la química: `seasonsAtClub` sólo se ponía **al
+fichar** (en 0) y subía +1 por temporada, así que el plantel con el que arrancás
+la partida quedaba entero en 0. Rompía **cinco** cosas a la vez:
+
+- la química estructural daba **24 sobre 100** el primer día,
+- "los de la casa" del vestuario (`>=3` temporadas) era un grupo vacío,
+- nadie llegaba a las 2 temporadas que pide **nacionalizar**,
+- el bonus de `casa` en el rendimiento era 0 para todos,
+- y todos tenían la misma chance de irse (`irse` descuenta por antigüedad).
+
+`antiguedadInicial(p)` la reparte por edad —que es lo que la correlaciona en la
+realidad— y es determinista por nombre para que no cambie entre recargas. Con
+eso el capitán de Boca pasa a ser Paredes con **8 temporadas** y la química
+inicial de 24 a **79**.
+
+### La química ahora sale del once, pero no lo reemplaza todo
+
+`updateChemistry` ya movía la química por **repetir** el equipo, y eso está bien:
+la química se construye jugando. Lo que faltaba es de qué está hecho ese once.
+
+`chemEstructural(xi)` suma sociedades por nacionalidad (el primero de cada país
+no suma; los que lo acompañan sí, hasta +20), antigüedad media (×5,5) y resta
+3,4 por cada recién llegado y 2,5 por conflicto de capitanía.
+
+⚠️ **No reemplaza al acumulador: le pone TECHO y PISO** (`obj+12` / `obj−18`).
+Si fuera absoluto, un mercado movido te reventaría la química de un día para el
+otro; y sin techo, repetir once veces un equipo de recién llegados lo
+convertiría en un equipo con historia. Medido:
+
+| once | química |
+|---|---|
+| mismo país + 4 temporadas | **77** |
+| once países distintos + 4 temporadas | 64 |
+| mismo país, mitad recién llegados | 50 |
+| todos recién llegados | **17** |
+
+### Meterte con el once tiene precio
+
+Dos conflictos, los dos en `capitanTrasOnce()`:
+
+- **Cinta a un pibe** (<24) habiendo referentes en cancha (29+, 2+ temporadas,
+  nivel parecido): `capConflicto()` devuelve el castigo, la moral baja 2 por
+  referente y la química se resiente vía `chemEstructural`.
+- **Le exigiste al DT que juegue alguien** (`_forced`, que sale de `dtAskList`)
+  y por eso el capitán quedó en el banco: **`dtRel` −14**, moral −6, mensaje
+  furioso del técnico al celular y noticia de vestuario. Medido: 65 → 51.
+  Se dispara una vez por semana (`G._capQuejaSem`), no una por render.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

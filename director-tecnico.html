@@ -1549,7 +1549,33 @@ function squadFromDB(clubName, fallbackFn, overrides, liga){
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// EL PLANTEL INICIAL NO ACABA DE LLEGAR
+// ═══════════════════════════════════════════════════════════════════════
+// `seasonsAtClub` sólo se ponía al FICHAR (en 0) y subía +1 por temporada, así
+// que el plantel con el que arrancás la partida quedaba entero en 0: once
+// "recién llegados" el primer día. Eso rompía cinco cosas a la vez —la química
+// estructural daba 24 sobre 100, "los de la casa" del vestuario era un grupo
+// vacío, nadie llegaba a las 2 temporadas que pide nacionalizar, el bonus de
+// `casa` en el rendimiento era 0 y todos tenían la misma chance de irse.
+// Se reparte por edad, que es lo que la correlaciona en la realidad: el pibe
+// recién sube, el veterano lleva años. Determinista por jugador para que no
+// cambie entre recargas.
+function antiguedadInicial(p){
+  const e=p.age||24;
+  const h=String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+  const techo=e<=20?1:e<=23?3:e<=27?5:e<=31?7:8;
+  const base=e<=20?0:e<=23?1:e<=27?1:2;
+  return Math.min(Math.max(0,e-17), base+(h%Math.max(1,techo-base+1)));
+}
+function _antiguedadPlantel(sq){
+  (sq||[]).forEach(p=>{ if(p.seasonsAtClub===undefined)p.seasonsAtClub=antiguedadInicial(p); });
+  return sq;
+}
 function buildSquad(teamId){
+  return _antiguedadPlantel(_buildSquad(teamId));
+}
+function _buildSquad(teamId){
   const MAP={
     boca:['Boca Juniors',buildBoca],
     river:['River Plate',buildRiver],
@@ -4255,6 +4281,43 @@ function autoFill(){
     else G.slots[i]=null;
   });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
+  // ═══ LA CINTA Y LA QUÍMICA SE RESUELVEN DESPUÉS DE ARMAR EL ONCE ═══
+  try{ capitanTrasOnce(); }catch(e){}
+  try{ chemDelOnce(); }catch(e){}
+}
+// Quién lleva la cinta, y qué pasa si una orden tuya deja al capitán afuera.
+function capitanTrasOnce(){
+  if(!G||!G.squad)return;
+  const R=ensureRoles();
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  if(!xi.length)return;
+  const anterior=R.captain;
+  const capViejo=anterior?G.squad.find(p=>p.id===anterior):null;
+  // ⚠️ EL PRESIDENTE NO PONE EL EQUIPO. Si le exigiste al DT que juegue alguien
+  // (`_forced`, que sale de dtAskList) y por eso el capitán quedó en el banco,
+  // el técnico se lo toma como lo que es: una intromisión.
+  const capAfuera = capViejo && !xi.some(p=>p.id===anterior)
+                    && !capViejo.injured && !(capViejo.susp>0);
+  const forzados = xi.filter(p=>p._forced>0);
+  if(capAfuera && forzados.length && G._capQuejaSem!==(G.week||1)){
+    G._capQuejaSem=(G.week||1);
+    if(typeof setDtRel==='function')setDtRel(-14);
+    G.morale=Math.max(0,(G.morale||60)-6);
+    addPhoneMsg('dt',(G.dt&&G.dt.name)||'El técnico',
+      `😡 Presidente, me obligó a poner a <b>${forzados[0].name}</b> y para eso tuve que dejar afuera a <b>${capViejo.name}</b>, que es el capitán y el que sostiene este vestuario. Así no se conduce un plantel.`,'🧠');
+    lg('😡',`El DT se quejó: ${capViejo.name} (capitán) quedó afuera por tu orden de poner a ${forzados[0].name}`);
+    if(G.news)G.news.unshift({w:'S'+(G.week||1),ic:'📣',
+      msg:`📣 Ruido en el vestuario: ${capViejo.name} pierde la titularidad y el DT no ocultó su malestar`,type:'misc'});
+  }
+  R.captain=dtPicksCaptain();
+  // La cinta a un pibe habiendo referentes en cancha se paga.
+  const cf=capConflicto();
+  G._capPen=cf.pen||0;
+  if(cf.pen&&R.captain!==anterior){
+    G.morale=Math.max(0,(G.morale||60)-cf.pen*2);
+    lg('🎖️',`${cf.cap.name} (${cf.cap.age}) lleva la cinta con ${cf.pesados.length} referente(s) en cancha: al vestuario no le cayó bien`);
+  }
 }
 // ═══════════════════════════════════════════════════════════════════════
 // MOVIMIENTOS DE PLANTEL: TODO EL QUE ENTRA O SALE QUEDA ANOTADO
@@ -6403,6 +6466,52 @@ function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undef
 // Antes el juego elegía solo al que pateaba cada pelota parada (siempre "el de
 // mejor TIR") y a los córners no subía nadie: se tiraba el centro al vacío.
 // Ahora lo decide el técnico, y la elección se ve en la cancha.
+// ═══════════════════════════════════════════════════════════════════════
+// LA CINTA DE CAPITÁN LA PONE EL DT
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ NO se crea `G.captainId`: el capitán ya vive en `G.roles.captain` desde
+// que existen los Designados, y lo leen `matchStrengths` (bonus de liderazgo)
+// y el dibujo del once. Un segundo campo con el mismo dato son dos fuentes de
+// verdad que se desincronizan — el bug clásico.
+// Prioridad: veteranía (27+), después años en el club, después nivel.
+function capScore(p){
+  const edad=p.age||25, ant=Math.min(6,p.seasonsAtClub||0), rat=p.rat||70;
+  let sc=rat*0.55;
+  sc += (edad>=27?18:edad>=24?6:0);          // el peso del veterano
+  sc += ant*6;                                // el que tiene historia en el club
+  sc += (p.pos==='ARQ'?-4:0);                 // se usa, pero no es lo habitual
+  sc -= (p.wantsOut?25:0);                    // el que pidió salir no lleva la cinta
+  return sc;
+}
+// El DT elige entre los ONCE titulares. Devuelve el id, o null si no hay once.
+function dtPicksCaptain(){
+  if(!G)return null;
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  if(!xi.length)return null;
+  const R=ensureRoles();
+  // Con DT propio manda el presidente: si designó a alguien y está en cancha,
+  // no se lo toca. Con DT de la IA, la cinta es decisión suya y punto.
+  if(dtIsMine()&&R.captain&&xi.some(p=>p.id===R.captain))return R.captain;
+  const elegido=[...xi].sort((a,b)=>capScore(b)-capScore(a))[0];
+  return elegido?elegido.id:null;
+}
+// ── CONFLICTO DE LIDERAZGO ──
+// Si el técnico le da la cinta a un pibe habiendo veteranos pesados en cancha,
+// el vestuario lo siente. Devuelve el castigo (0 si no hay conflicto).
+function capConflicto(){
+  if(!G)return {pen:0};
+  const R=ensureRoles();
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  const cap=xi.find(p=>p.id===R.captain);
+  if(!cap)return {pen:0};
+  if((cap.age||25)>=24)return {pen:0};
+  // ¿había alguien con más peso mirando desde adentro de la cancha?
+  const pesados=xi.filter(p=>p!==cap&&(p.age||25)>=29&&(p.seasonsAtClub||0)>=2&&p.rat>=cap.rat-3);
+  if(!pesados.length)return {pen:0};
+  return {pen:Math.min(3,pesados.length), cap, pesados};
+}
 function ensureRoles(){
   if(!G.roles)G.roles={captain:null,pk:null,fk:null,ck:null,runners:[],mark:null};
   if(!G.roles.runners)G.roles.runners=[];
@@ -6453,10 +6562,33 @@ function rSetPieces(){
         ${opts.map(p=>`<option value="${p.id}"${R[kind]===p.id?' selected':''}>${p.name} (${p.rat})</option>`).join('')}
       </select></div>`;
   };
+  // ═══ LA CINTA: SÓLO LA ELEGÍS SI EL DT ES TUYO ═══
+  // El panel dejaba cambiar al capitán SIEMPRE, y eso contradice la regla del
+  // proyecto: la cancha la decide el técnico. Con un DT de la IA ahora se ve
+  // quién la lleva y por qué, pero no se toca.
+  // (Los pateadores y los que suben al córner siguen abiertos como estaban:
+  //  son decisiones de cancha igual, pero cambiarlas es otro pedido.)
+  const capRow=()=>{
+    const R2=ensureRoles();
+    const cap=xi.find(p=>p.id===R2.captain)||xi.find(p=>p.id===dtPicksCaptain());
+    if(dtIsMine())return sel('captain','Capitán','©');
+    if(!cap)return '';
+    const cf=capConflicto();
+    return `<div class="mpanel" style="margin:2px 0 8px">
+      <div class="mpanel-row">
+        <span style="color:var(--t3);font-size:10px">© CAPITÁN — lo elige ${(G.dt&&G.dt.name)||'el técnico'}</span>
+        <span style="color:var(--gold);font-weight:700;font-family:'Rajdhani',sans-serif;font-size:13px">${cap.name}</span>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:3px">
+        ${cap.age} años · ${(cap.seasonsAtClub||0)} temporada${(cap.seasonsAtClub||0)===1?'':'s'} en el club · media ${cap.rat}
+      </div>
+      ${cf.pen?`<div style="font-size:9px;color:var(--red);margin-top:4px">⚠️ Le dio la cinta a un jugador de ${cf.cap.age} habiendo ${cf.pesados.length} referente(s) en cancha — al vestuario no le cae bien</div>`:''}
+    </div>`;
+  };
   const runners=cornerRunners();
   el.innerHTML=`
     <div class="ctitle">🎖️ Designados</div>
-    ${sel('captain','Capitán','©')}
+    ${capRow()}
     ${sel('pk','Penales','🎯')}
     ${sel('fk','Tiros libres','🟡')}
     ${sel('ck','Córners','⛳')}
@@ -13603,15 +13735,64 @@ function doPreseason(k){
 // ═══ QUÍMICA DEL EQUIPO Y SOCIEDADES ═══
 // Sube cuando repetís el XI; baja si rotás mucho. Las duplas que juegan
 // seguido forman "sociedades" con un plus.
+// ═══════════════════════════════════════════════════════════════════════
+// LA QUÍMICA QUE SALE DEL ONCE
+// ═══════════════════════════════════════════════════════════════════════
+// `updateChemistry` (abajo) mueve la química por REPETIR el equipo, y eso está
+// bien: la química se construye jugando. Lo que faltaba es de qué está hecho
+// ese once — un equipo con nueve caras nuevas y once nacionalidades distintas
+// no puede llegar a 90 por más que lo repitas.
+// Por eso esto no reemplaza al acumulador: le pone un TECHO y un PISO. La
+// química deriva hacia el número estructural en vez de saltar a él, si no un
+// mercado movido te reventaría la química de un día para el otro.
+function chemEstructural(xi){
+  if(!xi||!xi.length)return 45;
+  let base=42;
+  // Sociedades por nacionalidad: los que se entienden en el mismo idioma y
+  // comen juntos. El primero de cada país no suma; suman los que lo acompañan.
+  const nats={};
+  xi.forEach(p=>{ if(p.nat&&p.nat!=='UNK')nats[p.nat]=(nats[p.nat]||0)+1; });
+  let soc=0;
+  Object.keys(nats).forEach(k=>{ if(nats[k]>=2)soc+=Math.min(4,nats[k]-1)*3.2; });
+  base+=Math.min(20,soc);
+  // Antigüedad: los que ya se conocen la cancha de memoria
+  const ant=xi.reduce((a,p)=>a+Math.min(5,p.seasonsAtClub||0),0)/xi.length;
+  base+=ant*5.5;
+  // Fichajes recién llegados: cuantos más, más tarda en acomodarse el equipo
+  const nuevos=xi.filter(p=>(p.seasonsAtClub||0)===0).length;
+  base-=nuevos*3.4;
+  // El capitán pibe con referentes en el banco también resta (ver capConflicto)
+  base-=(G._capPen||0)*2.5;
+  return Math.max(15,Math.min(100,Math.round(base)));
+}
+// Se llama al terminar autoFill: fija el objetivo, no la química en sí.
+function chemDelOnce(){
+  if(!G||!G.squad)return;
+  const xi=Object.values(G.slots||{}).filter(Boolean)
+    .map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  if(!xi.length)return;
+  G._chemObj=chemEstructural(xi);
+  if(G.chem===undefined)G.chem=G._chemObj;
+  // Deriva suave hacia el objetivo: 25% de la brecha por recomposición del 11.
+  G.chem=Math.max(15,Math.min(100,G.chem+(G._chemObj-G.chem)*0.25));
+}
 function updateChemistry(xiPlayers){
   if(G.chem===undefined)G.chem=45;
+  // El techo/piso estructural se recalcula con el once que jugó
+  G._chemObj=chemEstructural(xiPlayers);
   const ids=xiPlayers.map(p=>p.id).sort();
   const prev=G._prevXI||[];
   const same=ids.filter(id=>prev.includes(id)).length;
   const stability=prev.length?same/11:0.5;
   // 8+ repetidos → sube; menos de 6 → baja (rotación fuerte)
   const d=stability>=0.73?2.2:stability>=0.55?0.6:-2.5;
-  G.chem=Math.max(15,Math.min(100,G.chem+d));
+  // ⚠️ El acumulador NO puede pasar el techo estructural: repetir once veces el
+  // mismo equipo de recién llegados no lo convierte en un equipo con historia.
+  // Y tampoco puede hundirse por debajo del piso: un plantel de toda la vida
+  // no pierde la química por rotar tres partidos.
+  const obj=(G._chemObj===undefined?55:G._chemObj);
+  const techo=Math.min(100,obj+12), piso=Math.max(15,obj-18);
+  G.chem=Math.max(piso,Math.min(techo,Math.max(15,Math.min(100,G.chem+d))));
   G._prevXI=ids;
   // Sociedades: cuenta partidos juntos por dupla; a los 6 juntos, +chem
   G.partners=G.partners||{};
