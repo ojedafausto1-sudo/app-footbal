@@ -1529,10 +1529,9 @@ Corriendo el Real Madrid una temporada completa con el catálogo viejo forzado
 (`SPON_REGION['España']=['GLOBAL','LATAM']`) contra el nuevo, mediana de 3:
 **+379M → +421M**. O sea el cambio pesa **+42M, el 11%**.
 
-⚠️ **Los +379M por temporada del Real Madrid ya existían.** Es un desbalance
-preexistente para clubes europeos grandes (TV, borderó, socios), NO algo que
-trajo esta fase. Si se va a tocar, el lugar es el loop financiero, no los
-sponsors.
+⚠️ **Los +379M por temporada del Real Madrid ya existían** y NO los trajo esta
+fase. **Causa encontrada y arreglada en la Fase 23**: era el borderó, que salía
+del valor del plantel en vez de la capacidad del estadio. Ver abajo.
 
 ⚠️ **`winBonus` amplifica el ingreso ×3,5 por victoria.** Los 0,33/sem extra
 del Madrid son 16M teóricos en 49 semanas, pero el delta medido es 42M: la
@@ -1565,6 +1564,82 @@ regresión falla si vuelve a aparecer una `.card` ahí.
 propias en la base, y dejarlas sólo con `GLOBAL` les daba una única opción por
 categoría. Emirates es del Golfo y Spotify/Santander/Heineken operan en Estados
 Unidos, así que se les abre el mismo mercado premium que a Europa.
+
+## Fase 23: estadios reales — y el borderó que salía del plantel
+
+`STADIUMS_DB` (136 entradas) mapea club → `{name, capacity}` con datos reales, y
+`resolverEstadio(name, lg, squad)` lo resuelve en `initGame`. Antes de esto,
+**todos los clubes menos los 5 grandes argentinos** jugaban en "Estadio de
+&lt;primera palabra&gt;" con capacidad sacada del valor del plantel.
+
+### El bug caro no era el nombre: era el ingreso
+
+`G.stadium.income` es la base de la recaudación por partido (el bloque
+`_homeGame` de `applyMatchResult`), y salía de `0.35 + val*0.022` — **lineal en
+el valor del plantel**, que en Europa es 10-20 veces el argentino. Medido:
+
+| | borderó por partido | temporada completa (mediana de 3) |
+|---|---|---|
+| Real Madrid **antes** | **29,7M** | **+282,7M** |
+| Real Madrid **ahora** | 3,5M | **+21,4M** |
+| Man City antes | 30,3M | — |
+| Man City ahora | 2,4M | — |
+| Boca (sin cambios) | 1,8M | −14,1M |
+
+Una cancha de 53.400 no recauda 17 veces una de 54.000 por tener mejores
+jugadores adentro. Ahora `stadIncomeDe(cap) = 0.3 + cap/25000`, anclado a los
+números del pedido (Bernabéu 81.044 → 3,5 · Emirates 60.704 → 2,7).
+
+⚠️ **Boca queda intacto en −14,1M**, que es la línea base documentada en la
+Fase 15 (−15,0M): el balance con el que está tuneado el juego no se movió. Los
+5 grandes argentinos conservan su `income` escrito a mano en el diccionario.
+
+### Los otros dos bugs que tapaba el nombre genérico
+
+- **`name.split(' ')[0]`** daba **"Estadio de Real"** para el Real Madrid *y*
+  la Real Sociedad, y **"Estadio de Man"** para los dos de Manchester.
+- **El tope de 48.000 saturaba**: **60 clubes clavados ahí**, o sea el
+  Villarreal con la misma cancha que el Bernabéu. Es exactamente el mismo bug
+  que ya había tenido la reputación con su tope de 76. El fallback nuevo es
+  exponencial y no satura.
+
+### El fallback sale del NIVEL, no del valor
+
+`stadCapDeOvr(ovr)` toma la media de los 11 mejores y usa los dos anclajes del
+pedido —OVR 65 → 12.000 y OVR 82 → 45.000, o sea ×1,081 por punto— así que se
+extiende sola hacia los dos lados:
+
+| OVR | 58 | 62 | 65 | 70 | 75 | 82 | 88 |
+|---|---|---|---|---|---|---|---|
+| capacidad | 7.000 | 9.500 | **12.000** | 17.500 | 26.000 | **45.000** | 71.500 |
+
+Se resuelve en `initGame` y no en `buildAllTeams` porque necesita `G.squad`, que
+recién existe una vez armado el literal de `G`.
+
+### ⚠️ Las claves son las de la base, no las de memoria
+
+Una clave mal escrita **no dispara nunca** y el club se cae al fallback sin que
+nada avise. Escribiendo el diccionario de memoria se coló `'Vélez'`, que en la
+base es `'Vélez Sarsfield'`. La regresión ahora verifica que **toda** clave de
+`STADIUMS_DB` exista como club en `players-db.js`.
+
+⚠️ **Hay nombres repetidos entre ligas** ('Racing Club' en Argentina y Uruguay,
+'Nacional' en Uruguay y Colombia) — el mismo problema que ya documenta
+`buildAllTeams`. Esas entradas van con prefijo `Liga|Nombre` y `stadiumDe()`
+prueba primero la calificada.
+
+Los estadios **compartidos sí son correctos** y no hay que "arreglarlos": San
+Siro (Inter/Milan), Olimpico (Roma/Lazio), Maracanã (Flamengo/Fluminense),
+Atanasio Girardot (Nacional/Medellín), El Campín (Millonarios/Santa Fe), King
+Abdullah (Al-Ittihad/Al-Ahli) y "Diego Armando Maradona", que es el nombre real
+de la cancha del Napoli **y** de la de Argentinos Juniors.
+
+Cobertura: 11-12 clubes de cada liga top europea, 15/20 en Brasil, 20/30 en la
+Liga ARG. Chile, Uruguay y Colombia quedan flojos (2-7) y ahí manda el fallback.
+
+⚠️ `TEAMS[].stadName/stadCap/stadInc` ya **no los lee nadie** — `initGame`
+resuelve el estadio por `resolverEstadio`. Se mantienen coherentes por si algo
+los vuelve a leer, pero la fuente de verdad es el diccionario.
 
 ## ⚠️ El extractor puede perder clubes en silencio
 

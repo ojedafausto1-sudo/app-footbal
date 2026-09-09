@@ -2145,6 +2145,158 @@ function signSponsor(id){
 // =============================================
 // STADIUM & YOUTH
 // =============================================
+// ═══════════════════════════════════════════════════════════════════════
+// ESTADIOS REALES
+// ═══════════════════════════════════════════════════════════════════════
+// Antes TODOS los clubes menos los 5 grandes argentinos jugaban en
+// "Estadio de <primera palabra>" con una capacidad sacada del valor del
+// plantel. Tres cosas rotas, las tres medidas:
+//   · `name.split(' ')[0]` → el Real Madrid y la Real Sociedad compartían
+//     "Estadio de Real", y Man City con Man Utd "Estadio de Man".
+//   · el tope de 48.000 SATURABA: 60 clubes clavados ahí, o sea el Villarreal
+//     con el mismo estadio que el Bernabéu. (El mismo bug que ya había tenido
+//     la reputación con su tope de 76.)
+//   · el ingreso era LINEAL en el valor del plantel (`0.35+val*0.022`), que en
+//     Europa es 10-20× el argentino: Man City daba **30,3M de borderó por
+//     partido** contra 1,8M de Boca. Ver la nota de abajo.
+//
+// ⚠️ LAS CLAVES SON LOS NOMBRES EXACTOS DE `players-db.js`, sacados de la base,
+// no escritos de memoria: una clave que no coincide no dispara nunca y el club
+// se cae al fallback sin que nada avise.
+// ⚠️ Hay nombres repetidos entre ligas ('Racing Club' en Argentina y Uruguay),
+// así que esas entradas van con prefijo `Liga|Nombre` y `stadiumDe()` prueba
+// primero la calificada. Es el mismo problema que ya documenta `buildAllTeams`.
+// El `income` se deriva de la capacidad (`stadIncomeDe`) salvo donde está
+// escrito: los 5 grandes argentinos conservan el suyo, que es el número con el
+// que está balanceado el juego.
+const STADIUMS_DB = {
+  // ── España ──
+  'Real Madrid':{name:'Santiago Bernabéu',capacity:81044}, 'Barcelona':{name:'Spotify Camp Nou',capacity:99354},
+  'Atlético':{name:'Metropolitano',capacity:70460}, 'Villarreal':{name:'Estadio de la Cerámica',capacity:23500},
+  'Real Sociedad':{name:'Reale Arena',capacity:39500}, 'Real Betis':{name:'Benito Villamarín',capacity:60721},
+  'Athletic Club':{name:'San Mamés',capacity:53289}, 'Celta de Vigo':{name:'Balaídos',capacity:29000},
+  'Sevilla FC':{name:'Ramón Sánchez-Pizjuán',capacity:43883}, 'Valencia':{name:'Mestalla',capacity:49430},
+  'Espanyol':{name:'RCDE Stadium',capacity:40000},
+  // ── Premier ──
+  'Man City':{name:'Etihad Stadium',capacity:53400}, 'Arsenal':{name:'Emirates Stadium',capacity:60704},
+  'Liverpool':{name:'Anfield',capacity:61276}, 'Chelsea':{name:'Stamford Bridge',capacity:40343},
+  'Man Utd':{name:'Old Trafford',capacity:74310}, 'Tottenham':{name:'Tottenham Hotspur Stadium',capacity:62850},
+  'Newcastle':{name:"St James' Park",capacity:52305}, 'Aston Villa':{name:'Villa Park',capacity:42918},
+  'Brighton':{name:'Amex Stadium',capacity:31800}, 'Crystal Palace':{name:'Selhurst Park',capacity:25486},
+  'Brentford':{name:'Gtech Community Stadium',capacity:17250}, 'Bournemouth':{name:'Vitality Stadium',capacity:11307},
+  // ── Italia ──
+  'Inter':{name:'San Siro',capacity:75923}, 'AC Milan':{name:'San Siro',capacity:75923},
+  'Juventus':{name:'Allianz Stadium',capacity:41507}, 'Roma':{name:'Stadio Olimpico',capacity:70634},
+  'Lazio':{name:'Stadio Olimpico',capacity:70634}, 'Napoli':{name:'Diego Armando Maradona',capacity:54726},
+  'Atalanta':{name:'Gewiss Stadium',capacity:24950}, 'Fiorentina':{name:'Artemio Franchi',capacity:43147},
+  'Bologna':{name:"Renato Dall'Ara",capacity:38279}, 'Torino':{name:'Olimpico Grande Torino',capacity:28177},
+  'Como':{name:'Giuseppe Sinigaglia',capacity:13602},
+  // ── Alemania ──
+  'Bayern Munich':{name:'Allianz Arena',capacity:75024}, 'Dortmund':{name:'Signal Iduna Park',capacity:81365},
+  'Leverkusen':{name:'BayArena',capacity:30210}, 'Leipzig':{name:'Red Bull Arena',capacity:47069},
+  'Stuttgart':{name:'MHPArena',capacity:60449}, 'Frankfurt':{name:'Deutsche Bank Park',capacity:58000},
+  'Freiburg':{name:'Europa-Park Stadion',capacity:34700}, 'Hoffenheim':{name:'PreZero Arena',capacity:30150},
+  '1.FC Köln':{name:'RheinEnergieStadion',capacity:50000}, 'Hamburg':{name:'Volksparkstadion',capacity:57000},
+  'Mainz':{name:'Mewa Arena',capacity:33305}, 'Augsburg':{name:'WWK Arena',capacity:30660},
+  // ── Francia ──
+  'PSG':{name:'Parc des Princes',capacity:47929}, 'Marseille':{name:'Orange Vélodrome',capacity:67394},
+  'Lyon':{name:'Groupama Stadium',capacity:59186}, 'Lille':{name:'Stade Pierre-Mauroy',capacity:50186},
+  'Monaco':{name:'Stade Louis II',capacity:18523}, 'Nice':{name:'Allianz Riviera',capacity:35624},
+  'Lens':{name:'Bollaert-Delelis',capacity:38058}, 'Stade Rennais':{name:'Roazhon Park',capacity:29778},
+  'R. Strasbourg':{name:'Stade de la Meinau',capacity:26109}, 'Toulouse':{name:'Stadium de Toulouse',capacity:33150},
+  'Paris FC':{name:'Stade Jean-Bouin',capacity:20000},
+  // ── Brasil ──
+  'Flamengo':{name:'Maracanã',capacity:78838}, 'Fluminense':{name:'Maracanã',capacity:78838},
+  'Palmeiras':{name:'Allianz Parque',capacity:43713}, 'Corinthians':{name:'Neo Química Arena',capacity:49205},
+  'São Paulo':{name:'MorumBIS',capacity:66795}, 'Cruzeiro':{name:'Mineirão',capacity:61846},
+  'Atlético-MG':{name:'Arena MRV',capacity:46000}, 'Vasco da Gama':{name:'São Januário',capacity:21880},
+  'Santos':{name:'Vila Belmiro',capacity:16068}, 'EC Bahia':{name:'Arena Fonte Nova',capacity:47907},
+  'Athletico-PR':{name:'Ligga Arena',capacity:42372}, 'RB Bragantino':{name:'Nabi Abi Chedid',capacity:17128},
+  'Internacional':{name:'Beira-Rio',capacity:50128}, 'Grêmio':{name:'Arena do Grêmio',capacity:55662},
+  'Botafogo':{name:'Nilton Santos',capacity:44661},
+  // ── Liga ARG (los 5 grandes conservan su income tuneado) ──
+  'River Plate':{name:'Más Monumental',capacity:84567,income:2.4},
+  'Boca Juniors':{name:'La Bombonera',capacity:54000,income:1.8},
+  'Liga ARG|Racing Club':{name:'El Cilindro',capacity:55000,income:1.6},
+  'Independiente':{name:'Libertadores de América',capacity:48069,income:1.2},
+  'San Lorenzo':{name:'Pedro Bidegain',capacity:43494,income:1.0},
+  'Estudiantes LP':{name:'Jorge Luis Hirschi',capacity:30018}, 'Rosario Central':{name:'Gigante de Arroyito',capacity:41654},
+  "Newell's":{name:'Marcelo Bielsa',capacity:42000}, 'CA Talleres':{name:'Mario Alberto Kempes',capacity:57000},
+  'Lanús':{name:'La Fortaleza',capacity:47027}, 'Argentinos Jrs.':{name:'Diego Armando Maradona',capacity:26000},
+  'Vélez Sarsfield':{name:'José Amalfitani',capacity:49540}, 'Huracán':{name:'Tomás Ducó',capacity:48314},
+  'Banfield':{name:'Florencio Sola',capacity:34901}, 'Colon':{name:'Brigadier López',capacity:40000},
+  'Gimnasia':{name:'Juan Carmelo Zerillo',capacity:33000}, 'Belgrano':{name:'Julio César Villagra',capacity:30000},
+  'Atl. Tucumán':{name:'Monumental José Fierro',capacity:35200}, 'Godoy Cruz':{name:'Feliciano Gambarte',capacity:20000},
+  'Platense':{name:'Ciudad de Vicente López',capacity:26282}, 'Defensa':{name:'Norberto Tomaghello',capacity:19000},
+  // ── Liga MX ──
+  'América':{name:'Estadio Azteca',capacity:87523}, 'Chivas':{name:'Estadio Akron',capacity:49850},
+  'CD Cruz Azul':{name:'Ciudad de los Deportes',capacity:33042}, 'Monterrey':{name:'Estadio BBVA',capacity:53500},
+  'Tigres UANL':{name:'Estadio Universitario',capacity:41615}, 'UNAM Pumas':{name:'Olímpico Universitario',capacity:72449},
+  'Toluca':{name:'Nemesio Díez',capacity:30000}, 'León':{name:'Nou Camp',capacity:31297},
+  'Pachuca':{name:'Estadio Hidalgo',capacity:30000}, 'Santos Laguna':{name:'Estadio Corona',capacity:30000},
+  'Club Tijuana':{name:'Estadio Caliente',capacity:27333},
+  // ── Portugal / Holanda ──
+  'Benfica':{name:'Estádio da Luz',capacity:64642}, 'Porto':{name:'Estádio do Dragão',capacity:50033},
+  'Sporting':{name:'José Alvalade',capacity:50095}, 'Braga':{name:'Municipal de Braga',capacity:30286},
+  'Ajax':{name:'Johan Cruijff ArenA',capacity:55865}, 'Feyenoord':{name:'De Kuip',capacity:51117},
+  'PSV':{name:'Philips Stadion',capacity:35000}, 'AZ Alkmaar':{name:'AFAS Stadion',capacity:19478},
+  // ── Chile / Colombia / Uruguay ──
+  'Colo-Colo':{name:'Monumental David Arellano',capacity:47347}, 'U. de Chile':{name:'Estadio Nacional',capacity:48665},
+  'U. Católica':{name:'Claro Arena',capacity:20000},
+  'Atl. Nacional':{name:'Atanasio Girardot',capacity:40043}, 'Indep. Medellín':{name:'Atanasio Girardot',capacity:40043},
+  'Millonarios':{name:'El Campín',capacity:36343}, 'Indep. Santa Fe':{name:'El Campín',capacity:36343},
+  'CD América':{name:'Pascual Guerrero',capacity:33130}, 'Junior FC':{name:'Metropolitano R. Meléndez',capacity:46692},
+  'Deportivo Cali':{name:'Estadio Deportivo Cali',capacity:52000},
+  'Peñarol':{name:'Campeón del Siglo',capacity:40005}, 'Uruguay|Nacional':{name:'Gran Parque Central',capacity:34000},
+  // ── Turquía / Arabia / MLS ──
+  'Galatasaray':{name:'Rams Park',capacity:52223}, 'Fenerbahçe':{name:'Şükrü Saracoğlu',capacity:50509},
+  'Besiktas':{name:'Tüpraş Stadyumu',capacity:42590}, 'Trabzonspor':{name:'Papara Park',capacity:40782},
+  'Al-Hilal':{name:'Kingdom Arena',capacity:25000}, 'Al-Nassr':{name:'Al-Awwal Park',capacity:25000},
+  'Al-Ittihad':{name:'King Abdullah Sports City',capacity:62345}, 'Al-Ahli':{name:'King Abdullah Sports City',capacity:62345},
+  'Miami':{name:'Chase Stadium',capacity:21550}, 'LAFC':{name:'BMO Stadium',capacity:22000},
+  'Atlanta':{name:'Mercedes-Benz Stadium',capacity:42500}, 'Seattle':{name:'Lumen Field',capacity:37722},
+};
+// Busca primero la clave calificada por liga (para los nombres repetidos).
+function stadiumDe(name,lg){
+  if(!name) return null;
+  return (lg&&STADIUMS_DB[lg+'|'+name]) || STADIUMS_DB[name] || null;
+}
+// ⚠️ EL BORDERÓ SALE DE LA CANCHA, NO DEL PLANTEL.
+// `G.stadium.income` es la base de la recaudación por partido (ver el bloque
+// `_homeGame` de applyMatchResult). Con `0.35+val*0.022` el Man City cobraba
+// 30,3M por partido —17× Boca— y con ~25 de local eso son ~757M por temporada:
+// ESA era la causa de los +379M por temporada del Real Madrid que la fase de
+// patrocinios había anotado como "desbalance preexistente sin identificar".
+// Una cancha de 53.400 no recauda 17 veces una de 54.000 por tener mejores
+// jugadores adentro. Anclado a los números del pedido: Bernabéu (81.044) → 3,5
+// y Emirates (60.704) → 2,7.
+function stadIncomeDe(cap){
+  return Math.round((0.3+(cap||10000)/25000)*10)/10;
+}
+// Fallback para los ~530 clubes que no están en el diccionario: la capacidad
+// sale del NIVEL del plantel (los 11 mejores), no de un número fijo.
+// Curva exponencial por los dos anclajes del pedido: OVR 65 → 12.000 y
+// OVR 82 → 45.000, o sea ×1,081 por punto de media. Se extiende sola hacia
+// los dos lados (OVR 88 → 71.700, OVR 58 → 6.900) en vez de saturar en un
+// tope, que es lo que rompía la versión anterior.
+const STAD_OVR_BASE=12000, STAD_OVR_ANCLA=65, STAD_OVR_K=Math.pow(45000/12000,1/17);
+function stadCapDeOvr(ovr){
+  const c=STAD_OVR_BASE*Math.pow(STAD_OVR_K,(ovr||60)-STAD_OVR_ANCLA);
+  return Math.max(5000,Math.min(90000,Math.round(c/500)*500));
+}
+function ovrTop11(squad){
+  const r=(squad||[]).map(p=>p.rat||0).sort((a,b)=>b-a).slice(0,11);
+  return r.length? r.reduce((a,x)=>a+x,0)/r.length : 60;
+}
+// Resuelve el estadio de un club: diccionario si está, si no el fallback.
+function resolverEstadio(name,lg,squad){
+  const d=stadiumDe(name,lg);
+  if(d) return {name:d.name, capacity:d.capacity,
+                income:(d.income!==undefined?d.income:stadIncomeDe(d.capacity)), real:true};
+  const cap=stadCapDeOvr(ovrTop11(squad));
+  return {name:'Estadio de '+name, capacity:cap, income:stadIncomeDe(cap), real:false};
+}
+
 const STAD_INIT = {
   name:'La Bombonera', capacity:54000, level:3, income:1.8,
   upgrades:[
@@ -3371,9 +3523,14 @@ function buildAllTeams(liga){
       name, abbr:name.toUpperCase().slice(0,5),
       color:(typeof clubColors==='function'?clubColors(name)[0]:'#2a4a7a'),
       badge:(typeof clubInitials==='function'?clubInitials(name):name.slice(0,2).toUpperCase()),
-      stadName:'Estadio de '+name.split(' ')[0],
-      stadCap:cap,
-      stadInc:Math.round((0.35+val*0.022)*10)/10,
+      // El estadio real si lo conocemos. Acá no hay plantel armado todavía, así
+      // que el fallback usa el valor (que es lo único disponible en este punto);
+      // initGame lo vuelve a resolver con la media real del once.
+      // ⚠️ `name.split(' ')[0]` daba "Estadio de Real" para el Real Madrid Y la
+      // Real Sociedad, y "Estadio de Man" para los dos de Manchester.
+      stadName:(stadiumDe(name,lg)||{}).name || ('Estadio de '+name),
+      stadCap:(stadiumDe(name,lg)||{}).capacity || cap,
+      stadInc:stadIncomeDe((stadiumDe(name,lg)||{}).capacity || cap),
       initBudget:Math.max(2,Math.round(1.5+val*0.28)),
       initRep:rep, initMorale:Math.max(52,Math.min(72,Math.round(50+rep*0.28))),
       // Un DT distinto por club (antes los 25 compartían el mismo técnico,
@@ -3649,9 +3806,13 @@ function initGame(teamId){
   arAttachLeague();          // zonas + fixture de los 30 clubes (buildCal corrió sin G)
   // El DT arranca con SU esquema real, no con un 4-3-3 fijo para todos
   if(G.dt&&G.dt.style&&typeof FORMS==='object'&&FORMS[G.dt.style])G.formation=G.dt.style;
-  G.stadium.name = tc.stadName;
-  G.stadium.capacity = tc.stadCap;
-  G.stadium.income = tc.stadInc;
+  // ═══ EL ESTADIO SALE DEL DICCIONARIO REAL, Y SI NO, DEL NIVEL DEL PLANTEL ═══
+  // Se resuelve acá y no en buildAllTeams porque el fallback necesita G.squad
+  // (la media de los 11 mejores), que recién existe una vez armado el literal.
+  const _est = resolverEstadio(tc.name, tc.liga||'Liga ARG', G.squad);
+  G.stadium.name     = _est.name;
+  G.stadium.capacity = _est.capacity;
+  G.stadium.income   = _est.income;
   G.diff = (window._selectedDiff !== undefined) ? window._selectedDiff : 1;
   G.tactic = {style:'Posesión', mentality:'Equilibrado'};
   G.day=1; G._daysTicked=0;
