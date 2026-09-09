@@ -1164,6 +1164,64 @@ vidrio va en los CONTENEDORES, no en las filas"). Translucidez + borde + sombra
 da el mismo lenguaje visual y es gratis. La regresión falla si a `.mpanel` le
 aparece un `backdrop-filter`.
 
+## Fase 17: al clásico no le compran, y la cláusula deja enemigos
+
+### El clásico es tabú absoluto
+
+`CLASICOS_MUNDO` (47 parejas: Superclásico, Madrid–Barsa, Inter–Milan, Peñarol–
+Nacional, Galatasaray–Fenerbahçe…) + `esClasico(a,b)`, que mira **también**
+`AR_CLASICOS`. Esa tabla NO se toca porque además parte las zonas en
+`arBuildZones`; los clásicos del resto del mundo van en la tabla nueva.
+
+El bloqueo vive en `jerarquiaBloquea`, o sea en las **cuatro** vías (negociar,
+cláusula, canje, préstamo). Medido: bloquea **28 jugadores, el 0,2% del
+mercado** — cuesta nada y se nota mucho.
+
+### El "rival directo" se cobra, no se bloquea
+
+El pedido era bloquear también al rival directo. **No se bloquea a propósito**:
+entre dos grandes de la misma liga los pases existen y son caros (Boca le compró
+a Racing, River a San Lorenzo). Bloquearlos dejaría a los cinco grandes
+argentinos sin poder comprarse entre sí, que es más restrictivo que la realidad.
+Lo que sí pasa es que te lo cobran: `RIVAL_RECARGO=1.45`.
+
+⚠️ **Un umbral ABSOLUTO de nivel no sirve, y el número lo dijo.** Se probó con
+`|nivel−nivel|<=3 && nivel>=70` y medido **no encarecía a nadie**: los niveles
+de una liga están comprimidos (la argentina va de 60 a 75), así que el único que
+calificaba para Boca era River — que ya está bloqueado por clásico. Lo que
+define a un rival directo es la posición **relativa**: `_topLiga()` toma los 6
+de mayor nivel de tu liga y son rivales entre sí. Con eso entran Racing e
+Independiente, y el precio pasa de **×1,19 a ×1,76** del valor de mercado.
+
+`_topLiga` cachea por liga: si no, recalcularía `nivelClub` de 30 clubes en cada
+`_negDemand`.
+
+### Pagar una cláusula deja al club enemistado
+
+`G.angryClubs` + `enojarClub` / `clubHostil`. Robarle un jugador **de tu misma
+liga** por la cláusula te deja el club en contra: piden `HOSTIL_RECARGO=3.0`
+(medido: la demanda pasa de 5 a 13,7 — **2,88×**, la varianza sale del random de
+`_negDemand`) y el agente te avisa antes de que pierdas el tiempo. A un club de
+otra liga no le importa tanto: la marca sólo se aplica si `esLigaLocal(p.lg)`.
+
+Retro-compatible **sin migrar el save**: `clubesEnojados()` lee `G.angryClubs||[]`,
+y en un guardado viejo eso es exactamente "todavía no le rompiste la relación a
+nadie". Verificado borrando el campo del JSON: carga y `_negDemand` no explota.
+
+### La contraoferta hablaba de vender aunque fuera un préstamo
+
+`openNegSell` decía **"💸 Negociar venta"** y "Valor TM" SIEMPRE, aunque la
+oferta entrante fuera un préstamo: regateabas un cargo de cesión con una
+interfaz que te hablaba de vender. Peor: las condiciones que el club ya había
+puesto sobre la mesa (opción de compra, obligación, canje, % de futura venta,
+pago en cuotas) **desaparecían de la vista** justo cuando ibas a decidir.
+
+⚠️ **La LÓGICA ya estaba bien.** `accOffAt` mira `o.type` y cede en vez de
+vender —el jugador va a `G.loaned`, vuelve en 26 semanas, la obligación se gana
+jugando—. Lo único roto era lo que veías. `ofertaCtx(o)` centraliza los rótulos
+(título, campo, verbo, referencia) y el modal ahora lista las condiciones
+vigentes aclarando que sólo estás regateando el cargo.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

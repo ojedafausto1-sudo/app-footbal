@@ -2204,6 +2204,40 @@ const PLAYOFF_RONDAS=4;
 // Antes el sorteo era al azar puro y el 48% de las parejas caía junta: cuando
 // eso pasaba, el interzonal te daba Boca–Sarmiento en vez del Superclásico.
 // Son 10 parejas sobre los 30 clubes; los 10 que sobran se reparten 5 y 5.
+// ═══════════════════════════════════════════════════════════════════════
+// A TU CLÁSICO NO LE VENDEN. NUNCA.
+// ═══════════════════════════════════════════════════════════════════════
+// `AR_CLASICOS` se usa además para partir las zonas (ver arBuildZones), así que
+// no se toca: los clásicos de las otras ligas van acá y `esClasico()` mira las
+// dos tablas. Con el juego ya dirigible en 24 ligas, un Real Madrid que le
+// compra al Barcelona sin despeinarse rompe la ambientación igual que un Boca
+// comprándole a River.
+const CLASICOS_MUNDO=[
+  ['Real Madrid','Barcelona'],['Real Madrid','Atlético'],['Sevilla FC','Real Betis'],
+  ['Athletic Club','Real Sociedad'],['Man Utd','Liverpool'],['Man Utd','Man City'],
+  ['Arsenal','Tottenham'],['Liverpool','Everton'],['Inter','AC Milan'],
+  ['Roma','Lazio'],['Juventus','Inter'],['Napoli','Roma'],
+  ['Dortmund','FC Schalke 04'],['Bayern Munich','Dortmund'],
+  ['Marseille','PSG'],['Lyon','Saint-Étienne'],
+  ['Benfica','Sporting'],['Benfica','Porto'],['Porto','Sporting'],
+  ['Ajax','Feyenoord'],['Feyenoord','PSV'],
+  ['Flamengo','Fluminense'],['Corinthians','Palmeiras'],['São Paulo','Corinthians'],
+  ['Grêmio','Internacional'],['Atlético-MG','Cruzeiro'],['Santos','Corinthians'],
+  ['Peñarol','Nacional'],['Colo-Colo','U. de Chile'],['Colo-Colo','U. Católica'],
+  ['Millonarios','Indep. Santa Fe'],['Atl. Nacional','Indep. Medellín'],
+  ['Olimpia','Cerro Porteño'],['Alianza Lima','Universitario'],
+  ['LDU Quito','Barcelona SC'],['Emelec','Barcelona SC'],['CS Emelec','Barcelona SC'],
+  ['América','Chivas'],['Galatasaray','Fenerbahçe'],['Besiktas','Galatasaray'],
+  ['Olympiacos','Panathinaikos'],['AEK Athens','Olympiacos'],
+  ['Al-Hilal','Al-Nassr'],['Al-Ahli','Al-Ittihad'],
+  ['CSKA Moscow','Spartak Moscow'],['Zenit S-Pb','Spartak Moscow'],
+  ['Club Brugge','RSC Anderlecht'],
+];
+function esClasico(a,b){
+  if(!a||!b||a===b)return false;
+  const par=(t)=>t.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a));
+  return par(AR_CLASICOS)||par(CLASICOS_MUNDO);
+}
 const AR_CLASICOS=[
   ['Boca Juniors','River Plate'],           // Superclásico
   ['Racing Club','Independiente'],          // Avellaneda
@@ -4784,13 +4818,66 @@ function _negAgent(p){
   const seed=(p.id||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0);
   return{name:AGENT_NAMES[seed%AGENT_NAMES.length],style:AGENT_STYLES[seed%AGENT_STYLES.length]};
 }
+// ═══════════════════════════════════════════════════════════════════════
+// PAGARLE LA CLÁUSULA A UN VECINO SE PAGA DESPUÉS
+// ═══════════════════════════════════════════════════════════════════════
+// Sacarle un jugador a un club de TU liga por la cláusula es una falta de
+// respeto que en el fútbol se cobra: ese club no te vuelve a vender barato.
+// Retro-compatible sin migrar: un save viejo no tiene `angryClubs` y `||[]` es
+// exactamente "todavía no le rompiste la relación a nadie".
+const HOSTIL_RECARGO=3.0;              // piden el triple
+// ═══ EL RIVAL DIRECTO TE LO COBRA, PERO TE ATIENDE ═══
+// El pedido era bloquear también al "rival directo" (dos grandes peleando el
+// título). No se bloquea a propósito: el clásico SÍ es tabú absoluto, pero
+// entre grandes de la misma liga los pases existen y son caros — Boca le
+// compró a Racing, River a San Lorenzo. Bloquearlos dejaría a los cinco
+// grandes argentinos sin poder comprarse entre sí, que es más restrictivo que
+// la realidad. Lo que sí pasa es que te lo cobran.
+const RIVAL_RECARGO=1.45;
+const RIVAL_TOP=6;                     // "los grandes" = los 6 de mayor nivel
+// ⚠️ NO sirve un umbral ABSOLUTO de nivel. Se probó con `|nivel-nivel|<=3 y
+// >=70` y medido no encarecía a NADIE: los niveles de una liga están
+// comprimidos (la argentina va de 60 a 75), así que el único que calificaba
+// para Boca era River — que ya está bloqueado por clásico. Lo que define a un
+// rival directo es la POSICIÓN relativa: los dos entre los grandes de la liga.
+function _topLiga(){
+  const lg=ligaMia();
+  if(_topLiga._lg===lg&&_topLiga._v)return _topLiga._v;   // se calcula una vez
+  let cl=[];
+  try{ cl=(typeof clubesDeLiga==='function'?clubesDeLiga(lg):[])||[]; }catch(e){}
+  const v=cl.map(c=>({c,n:(typeof nivelClub==='function')?nivelClub(c):0}))
+            .sort((a,b)=>b.n-a.n).slice(0,RIVAL_TOP).map(x=>x.c);
+  _topLiga._lg=lg;_topLiga._v=v;
+  return v;
+}
+function esRivalDirecto(club,lg){
+  if(!G||!club||club===G.teamName)return false;
+  if(lg&&lg!==ligaMia())return false;            // sólo dentro de tu liga
+  const top=_topLiga();
+  return top.indexOf(club)>=0 && top.indexOf(G.teamName)>=0;
+}
+function clubesEnojados(){ return (G&&G.angryClubs)||[]; }
+function clubHostil(club){ return !!club && clubesEnojados().indexOf(club)>=0; }
+function enojarClub(club,motivo){
+  if(!G||!club||club===G.teamName)return;
+  if(!G.angryClubs)G.angryClubs=[];
+  if(G.angryClubs.indexOf(club)>=0)return;
+  G.angryClubs.push(club);
+  lg('😠',`${club} quedó enemistado con el club: ${motivo}`);
+  addPhoneMsg('board','Secretaría Deportiva',
+    `😠 <b>${club}</b> quedó furioso con nosotros (${motivo}). Su dirigencia avisó que <b>no nos va a vender un jugador más</b> a precio de mercado. Esperá pedidos desmedidos de acá en adelante.`,'🏛️');
+}
 function _negDemand(p){
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
   const prestige=topClubs.some(c=>p.club.includes(c))?1.18:1.0;
   // El Director Deportivo consigue mejores precios (clubes piden menos)
   const sd=(G&&G.staffLevels&&G.staffLevels.sportdir)||0;
   const sdDisc=sd>=2?0.86:sd>=1?0.93:1.0;
-  return Math.round(p.val*(1.1+Math.random()*.2)*prestige*sdDisc*10)/10;
+  // Si les robaste uno por la cláusula, se cobran la bronca en el precio.
+  const hostil=clubHostil(p.club)?HOSTIL_RECARGO:1;
+  // Y a un rival directo de tu liga no le hacés precio de amigo.
+  const rival=esRivalDirecto(p.club,p.lg)?RIVAL_RECARGO:1;
+  return Math.round(p.val*(1.1+Math.random()*.2)*prestige*sdDisc*hostil*rival*10)/10;
 }
 // ═══════════════════════════════════════════════════════════════════════
 // LO QUE PIDE CADA JUGADOR
@@ -4873,6 +4960,23 @@ const JERARQUIA={ratCrack:83, repMin:75};
 // ficha del jugador tiene botones directos que NO pasan por openNeg, así que
 // sin esto se podía esquivar el filtro entrando por la cláusula.
 function jerarquiaBloquea(p){
+  // 1) El clásico no negocia. Ni por plata, ni por cláusula, ni por canje.
+  if(G&&esClasico(G.teamName,p.club)){
+    flash('❌ Imposible. No le van a vender a su clásico rival bajo ninguna circunstancia','loss');
+    addPhoneMsg('agent',_negAgent(p).name,
+      `📵 Ni lo sueñes. <b>${p.club}</b> no le vende a <b>${G.teamName}</b> ni loco: son el clásico. Me cortaron el teléfono apenas dije de dónde llamaba.`,'🤝');
+    return true;
+  }
+  // 2) Rival directo: te atiende, pero te lo va a cobrar.
+  if(esRivalDirecto(p.club,p.lg)&&!clubHostil(p.club)){
+    addPhoneMsg('agent',_negAgent(p).name,
+      `⚔️ Ojo: <b>${p.club}</b> pelea el campeonato con ustedes. Te lo van a vender, pero no te van a hacer precio — reforzar a un rival directo se paga.`,'🤝');
+  }
+  // 3) Si les pagaste una cláusula, siguen atendiendo pero con la bronca puesta.
+  if(clubHostil(p.club)){
+    addPhoneMsg('agent',_negAgent(p).name,
+      `😠 Te aviso antes de que pierdas el tiempo: en <b>${p.club}</b> todavía están calientes por lo de la cláusula. Van a pedir una barbaridad por <b>${p.name}</b>.`,'🤝');
+  }
   const j=jugadorTeAtiende(p);
   if(j.ok)return false;
   flash('❌ El jugador no está interesado en jugar en un club de nuestro nivel actual','loss');
@@ -5742,20 +5846,57 @@ function rOffs(){
   }).join('');
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LA CONTRAOFERTA TIENE QUE HABLAR DEL MISMO NEGOCIO QUE LA OFERTA
+// ═══════════════════════════════════════════════════════════════════════
+// Esta pantalla decía "💸 Negociar venta" y "Valor TM" SIEMPRE, aunque la
+// oferta entrante fuera un préstamo: estabas regateando un cargo de cesión con
+// una interfaz que te hablaba de vender, y las condiciones que el club había
+// puesto sobre la mesa (opción de compra, obligación, canje, % de futura venta,
+// pago en cuotas) desaparecían de la vista justo cuando ibas a decidir.
+// ⚠️ La LÓGICA de aceptar ya estaba bien: `accOffAt` mira `o.type` y cede en vez
+// de vender. Lo que estaba roto era lo que veías.
+function ofertaCtx(o){
+  const esLoan=o.type==='préstamo';
+  return {
+    esLoan,
+    ico:  esLoan?'📤':'💸',
+    titulo: esLoan?'Negociar cesión':'Negociar venta',
+    campo: esLoan?'Cargo de préstamo':'Precio de venta',
+    verbo: esLoan?'ceder':'vender',
+    ref:   esLoan?('Valor TM: '+fv(o.player.val)+' · cargo actual')
+                 :('Valor TM: '+fv(o.player.val)),
+  };
+}
 function openNegSell(i){
   const o = G.offers[i];
   if(!o) return;
   const rec = Math.round(o.amount*1.08*10)/10;
-  const maxR = Math.round(o.player.val*2.2*10)/10;
+  const C = ofertaCtx(o);
+  // Las condiciones que ya pactó el club siguen a la vista mientras regateás
+  const cond=[
+    o.buyOption     ? `💰 Opción de compra: <b>${fv(o.buyOption)}</b>` : '',
+    o.buyObligation ? `📋 Obligación de compra: <b>${fv(o.buyObligation)}</b> si juega ${o.obligApps||18} partidos` : '',
+    o.swapIn        ? `🔄 Te ceden a <b>${o.swapIn.name}</b> (${o.swapIn.pos} · ${o.swapIn.rat})` : '',
+    o.sellOn        ? `📈 Te queda el <b>${o.sellOn}%</b> de una futura venta` : '',
+    o.plan          ? `💳 Pagan en <b>${o.plan}</b> cuotas` : '',
+  ].filter(Boolean);
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">💸 Negociar venta: ${o.player.name}</div>
+    <div class="mtitle">${C.ico} ${C.titulo}: ${o.player.name}</div>
     <div style="text-align:center;margin-bottom:8px">
-      <div style="font-size:10px;color:var(--t3)">Oferta de ${o.from} · Valor TM: ${fv(o.player.val)}</div>
+      <div style="font-size:10px;color:var(--t3)">Oferta de ${o.from} · ${C.ref}</div>
       <div style="font-size:24px;font-weight:700;color:var(--gold);font-family:'Rajdhani'">${fv(o.amount)}</div>
+      <div style="font-size:9px;color:${C.esLoan?'var(--ora)':'var(--t3)'};font-weight:${C.esLoan?'700':'400'}">${C.esLoan?'📤 ES UNA CESIÓN — el jugador vuelve, no lo vendés':'💰 Venta definitiva'}</div>
     </div>
+    ${cond.length?`<div class="mpanel" style="margin-bottom:9px">
+      <div class="mpanel-t">Condiciones de esta oferta</div>
+      ${cond.map(c=>`<div style="font-size:10px;color:var(--t2);margin-top:3px">${c}</div>`).join('')}
+      <div style="font-size:9px;color:var(--t3);margin-top:5px">Se mantienen si acordás: sólo estás regateando ${C.esLoan?'el cargo':'el precio'}.</div>
+    </div>`:''}
     <div class="note">Pedí más, pero si exagerás ${o.from} se retira.</div>
-    <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
+    <div style="font-size:10px;color:var(--t3);margin:8px 0 3px">${C.campo}:</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px">
       <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
       <input type="number" id="negSellInp" step="0.1" min="${o.amount}" value="${rec}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Rajdhani';font-size:24px;font-weight:700;text-align:center;outline:none"
@@ -5765,7 +5906,7 @@ function openNegSell(i){
     <div class="neg-rx" id="negSellRx"></div>
     <div style="font-size:9px;color:var(--t3);margin-top:4px;text-align:center">Máx. recomendado: ${fv(Math.round(o.amount*1.15*10)/10)}</div>
     <div style="display:flex;gap:6px;margin-top:12px">
-      <button class="btn bg" onclick="subNegSellI(${i})">Enviar pedido</button>
+      <button class="btn bg" onclick="subNegSellI(${i})">${C.esLoan?'📤 Pedir ese cargo':'💸 Enviar pedido'}</button>
       <button class="btn bo bs" onclick="closeMod()">Cancelar</button>
     </div>
   `);
@@ -5796,14 +5937,16 @@ function subNegSellI(i){
   if(isNaN(ask)||ask<o.amount){flash('Pedí al menos la oferta original','draw');return;}
   const ratio=ask/o.amount;
   const rnd=Math.random();
+  const C=ofertaCtx(o);
   if(ratio<=1.03||(ratio<=1.10&&rnd>.3)){accOffAt(i,ask);}
   else if(ratio<=1.20&&rnd>.45){
     o.amount=Math.round(ask*.94*10)/10;
-    closeMod();rOffs();flash('↔ '+o.from+' contraofertó: '+fv(o.amount),'draw');
+    closeMod();rOffs();
+    flash('↔ '+o.from+' contraofertó '+(C.esLoan?'el cargo':'')+': '+fv(o.amount),'draw');
   } else {
     G.offers.splice(i,1);closeMod();rOffs();
     flash('❌ '+o.from+' se retiró','loss');
-    lg('❌',o.from+' se retiró de la negociación');
+    lg('❌',o.from+' se bajó de la '+(C.esLoan?'cesión':'venta')+' de '+o.player.name);
   }
 }
 function updNegSell(){}
@@ -15691,6 +15834,9 @@ function confirmClause(id){
       lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)}) — ${t.wage}k/sem, ${t.years}a, ${t.roleLabel}`);
       addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
       addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
+      // Robarle a un vecino tiene consecuencias; a uno de otra liga, no tanto.
+      if(esLigaLocal(p.lg)||p.lg===ligaMia())
+        enojarClub(p.club,'les pagamos la cláusula de '+p.name);
       updateUI();
       flash('💥 '+p.name+' — cláusula pagada y contrato firmado','win');
     }
