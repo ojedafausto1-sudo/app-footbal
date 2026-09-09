@@ -1641,6 +1641,83 @@ Liga ARG. Chile, Uruguay y Colombia quedan flojos (2-7) y ahí manda el fallback
 resuelve el estadio por `resolverEstadio`. Se mantienen coherentes por si algo
 los vuelve a leer, pero la fuente de verdad es el diccionario.
 
+## Fase 24: los patrocinios se negocian, no se compran en una góndola
+
+La pestaña era un supermercado: veías las 40 marcas y firmabas la más cara que
+te permitiera la reputación. Ahora las marcas **te buscan**: `weeklySponsors()`
+corre en el bloque semanal y, si tenés una categoría libre y les servís por
+reputación, aparece una oferta en `G.sponsorOffers` con **tres** números —
+`upfront` (prima a la firma, entra a la caja al instante), `weekly` y `bonus`
+por salir campeón. Llega un mensaje del Gerente de Marketing al celular.
+
+Retro-compatible sin migrar: `ofertasSponsor()` lee `G.sponsorOffers||[]`, y
+`G.sponsors` **no se toca** — los contratos que ya tenías se siguen cobrando.
+El contrato que firma `spnFirmar` entra con la MISMA forma de siempre
+(`income`/`winBonus`/`obj`), así que el balance semanal, la vitrina y los saves
+viejos no se enteran de nada.
+
+⚠️ El estado del modal vive en **`_SPN`, fuera de `G`**, igual que `_PT` y
+`_DIL_FX`: es de la pantalla, no de la partida. Verificado: 0 funciones en `G`.
+
+### Sin góndola, ¿el club se muere de hambre? Medido: no
+
+Es el riesgo real del cambio —el mismo de la Fase 22, filtrar sin rellenar— así
+que se midió una temporada entera:
+
+| | categorías cubiertas | primas | por semana |
+|---|---|---|---|
+| firmando todo lo que llega | 9 de 10 | 4,7M | 0,44M |
+| **negociando al límite** | 9 de 10 | **6,7M** | **0,65M** |
+
+Contra los 0,66M/semana que daba la góndola eligiendo lo mejor de cada
+categoría. O sea: **negociar bien te devuelve exactamente lo que perdiste al
+sacar la góndola**, y aceptar sin regatear cuesta un 33% del semanal. Ese es el
+juego.
+
+### ⚠️ El techo saturaba, y el número lo delató (tercera vez en este proyecto)
+
+Lo que la marca banca sale del contrato escalado por **cuánto la superás en
+reputación**: si estás justo en el mínimo que pide, no tenés nada para apretar.
+El primer coeficiente (0,025 por punto, tope 1,35) **saturaba**: contra una
+marca de `reqRep` 48, un club de rep 70 ya estaba 22 puntos arriba y quedaba
+capado — medido, **+25% con rep 60 y +35% desde rep 70 para arriba**, o sea que
+la reputación dejaba de discriminar justo en el rango donde se juega el juego.
+
+Es el mismo bug que ya habían tenido la **reputación** (tope 76) y la
+**capacidad del estadio** (tope 48.000). Con 0,012 y tope 1,45 se usa la escala
+entera:
+
+| marca | rep 55 | rep 65 | rep 78 | rep 90 |
+|---|---|---|---|---|
+| chica (`reqRep` 48) | +8% | +20% | +36% | +45% |
+| media (65) | 0% | 0% | +16% | +30% |
+| premium (84) | 0% | 0% | 0% | +7% |
+
+Contra una marca premium a la que **apenas** calificás no tenés margen, que es
+exactamente lo que se buscaba.
+
+### Pasarse tiene precio, y hay un aviso
+
+`spnEnviar()` compara el pedido contra `spnTecho(o)`. Si entra, firman en el
+acto. Si no, **primero avisan** ("bajá el pedido o cerramos la carpeta") y al
+segundo abuso **se levantan de la mesa y la oferta desaparece** — el mismo
+patrón de los dos intentos que ya usa `clausulaResolver`. Los sliders llegan
+hasta ×2,2 a propósito: si no te dejaran pasarte, no habría riesgo. El gerente
+te da una pista del margen ("ve margen" / "estamos al límite" / "ojo que se
+levantan") **sin revelar el número**.
+
+Las ofertas **vencen a las 6 semanas** (`SPN_VENCE`) y el buzón topea en 4.
+
+### ⚠️ Un check de la regresión verificaba "llegó un mensaje" por el LARGO del array
+
+`addPhoneMsg` **topea en 80**: a partir de ahí cada `unshift` va seguido de un
+`pop`, así que `G.phoneMsgs.length` **deja de crecer**. El check de mentoreo
+comprobaba la herencia con `phoneMsgs.length > msgs0` y empezó a dar falso
+negativo apenas otro check llenó el buzón antes — lo destapó justamente el de
+ofertas de patrocinio, que manda ~50 mensajes. Ahora compara el **id del
+mensaje más nuevo**, que sí cambia siempre. Si escribís un check que verifica
+una notificación, no uses el largo.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

@@ -2044,6 +2044,212 @@ const STAFF_ROLES = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════
+// OFERTAS DE PATROCINIO — se negocian, no se compran en una góndola
+// ═══════════════════════════════════════════════════════════════════════
+// Antes la pestaña era un supermercado: veías las 40 marcas y firmabas la más
+// cara que te permitiera la reputación. Ahora las marcas TE buscan.
+//
+// ⚠️ Objetos planos en `G.sponsorOffers`, nada de funciones (ver la regla de
+// `G`). El estado del modal vive en `_SPN`, FUERA de `G`, como `_PT` y
+// `_DIL_FX`: es de la pantalla, no de la partida.
+// ⚠️ Retro-compatible sin migrar: `ofertasSponsor()` lee `G.sponsorOffers||[]`,
+// que en un save viejo es "todavía no llegó ninguna", y `G.sponsors` no se
+// toca: los contratos que ya tenías siguen cobrándose igual.
+const SPN_BUZON_MAX=4;        // ofertas simultáneas sobre la mesa
+const SPN_VENCE=6;            // semanas que espera una marca antes de irse
+const SPN_PROB=0.30;          // chance por semana de que aparezca una oferta
+const SPN_INTENTOS=2;         // pasado el segundo abuso, se levantan y se van
+let _SPN=null;                // estado del modal (fuera de G, no se serializa)
+
+function ofertasSponsor(){ return (G&&G.sponsorOffers)||[]; }
+// La prima por firmar: proporcional a lo que vale el contrato entero.
+function spnUpfront(s){ return Math.round(s.income*s.weeks*0.35*10)/10; }
+// El bonus por título que ya usaba signSponsor.
+function spnBonus(s){ return Math.round(s.income*30*10)/10; }
+// ⚠️ EL TECHO ES LO QUE HACE QUE NEGOCIAR SIGNIFIQUE ALGO.
+// Lo que la marca banca sale del valor del contrato ESCALADO POR CUÁNTO LA
+// SUPERÁS EN REPUTACIÓN: si estás justo en el mínimo que pide, no tenés nada
+// para apretar; cuanto más grande sos respecto de lo que ella busca, más te
+// deja sacarle.
+// ⚠️ EL PRIMER COEFICIENTE (0.025 con tope 1.35) SATURABA, y el número lo
+// delató: contra una marca de reqRep 48, un club de rep 70 ya estaba 22 puntos
+// arriba y quedaba capado — medido, +25% con rep 60 y **+35% desde rep 70 para
+// arriba**, o sea que la reputación dejaba de discriminar justo en el rango
+// donde se juega el juego. Es el mismo bug de saturación que ya habían tenido
+// la reputación (tope 76) y la capacidad del estadio (tope 48.000). Con 0.012
+// y tope 1.45 se usa la escala entera.
+function spnTecho(o){
+  const base=o.baseUpfront + o.baseWeekly*o.weeks;
+  const margen=Math.max(1, Math.min(1.45, 1+((G.rep||50)-o.reqRep)*0.012));
+  return base*margen;
+}
+function spnPedido(o){ return o.upfront + o.weekly*o.weeks; }
+
+// ── generador semanal ──────────────────────────────────────────────────
+function weeklySponsors(){
+  if(!G) return;
+  G.sponsorOffers = ofertasSponsor().slice();
+  // vencen solas: una marca no espera para siempre
+  const antes=G.sponsorOffers.length;
+  G.sponsorOffers=G.sponsorOffers.filter(o=>(G.week-o.desde)<SPN_VENCE);
+  if(G.sponsorOffers.length<antes && typeof rSponsors==='function') rSponsors();
+  if(G.sponsorOffers.length>=SPN_BUZON_MAX) return;
+  if(Math.random()>SPN_PROB) return;
+  // Sólo categorías LIBRES, sólo marcas de tu región (Fase 22) y sólo las que
+  // te miran: la reputación sigue siendo la puerta de entrada.
+  const ocupadas=new Set((G.sponsors||[]).map(s=>s.cat));
+  const enMesa=new Set(ofertasSponsor().map(o=>o.cat));
+  const cand=SPONSORS.filter(s=>sponsorEnRegion(s) && (G.rep||50)>=s.reqRep
+    && !ocupadas.has(s.cat) && !enMesa.has(s.cat));
+  if(!cand.length) return;
+  const s=cand[~~(Math.random()*cand.length)];
+  const o={
+    oid:'so'+Date.now()+~~(Math.random()*999),
+    id:s.id, cat:s.cat, name:s.name, icon:s.icon, region:s.region, dyn:s.dyn,
+    weeks:s.weeks, reqRep:s.reqRep,
+    baseWeekly:s.income, baseUpfront:spnUpfront(s), baseBonus:spnBonus(s),
+    weekly:s.income, upfront:spnUpfront(s), bonus:spnBonus(s),
+    intentos:0, desde:G.week||1
+  };
+  G.sponsorOffers.push(o);
+  addPhoneMsg('board','Gerencia de Marketing',
+    `📣 Presidente, <b>${sponName(o)}</b> quiere ponerle la marca a ${o.cat.toLowerCase()}. `+
+    `Ponen <b style="color:var(--gold)">${fv(o.upfront)}</b> a la firma y `+
+    `<b style="color:var(--green)">${fv(o.weekly)}/semana</b> por ${o.weeks} semanas. `+
+    `Podés aceptar o mandarme a pedirles más.`,'📣',{gotoTab:'pat'});
+  flash('📣 Oferta de patrocinio: '+sponName(o),'win');
+  lg('📣',`Oferta de ${sponName(o)} (${o.cat}): ${fv(o.upfront)} a la firma + ${fv(o.weekly)}/sem`);
+  if(typeof rSponsors==='function') rSponsors();
+}
+
+// ── el modal de negociación ────────────────────────────────────────────
+function spnAbrir(oid){
+  const o=ofertasSponsor().find(x=>x.oid===oid); if(!o) return;
+  _SPN={oid, up:o.upfront, wk:o.weekly, msg:''};
+  spnRender();
+}
+function spnSet(campo,v){
+  if(!_SPN) return;
+  _SPN[campo]=parseFloat(v);
+  _SPN.msg='';
+  spnRender();
+}
+function spnRender(){
+  const s=_SPN; if(!s) return;
+  const o=ofertasSponsor().find(x=>x.oid===s.oid); if(!o){ closeMod(); return; }
+  // Los topes del slider son generosos a propósito: te dejan pedir de más y
+  // romper la negociación. Si el slider no te dejara pasarte, no habría riesgo.
+  const upMax=Math.round(o.baseUpfront*2.2*10)/10, wkMax=Math.round(o.baseWeekly*2.2*100)/100;
+  const pedido=s.up + s.wk*o.weeks, base=o.baseUpfront+o.baseWeekly*o.weeks;
+  const sube=Math.round((pedido/base-1)*100);
+  // Pista SIN revelar el techo: el gerente te dice si ve margen o te estás pasando.
+  const techo=spnTecho(o);
+  const pista = pedido<=techo*0.82 ? {t:'El gerente ve margen para pedir más.',c:'var(--green)'}
+              : pedido<=techo      ? {t:'Estamos al límite de lo que pueden bancar.',c:'var(--gold)'}
+              : {t:'⚠️ Ojo que se levantan de la mesa.',c:'var(--red)'};
+  showMod(`
+    <div class="mclose" onclick="closeMod()">✕</div>
+    <div class="mtitle">${o.icon} ${sponName(o)}</div>
+    <div class="mpanel">
+      <div class="mpanel-t">${o.cat} · ${o.weeks} semanas</div>
+      <div class="mpanel-row"><span>Oferta original</span>
+        <span>${fv(o.baseUpfront)} + ${fv(o.baseWeekly)}/sem</span></div>
+      <div class="mpanel-row"><span>Premio por salir campeón</span>
+        <span style="color:var(--gold)">${fv(o.bonus)}</span></div>
+      ${o.intentos?`<div class="mpanel-row"><span style="color:var(--red)">Ya los apretaste</span>
+        <span style="color:var(--red)">${o.intentos} de ${SPN_INTENTOS}</span></div>`:''}
+    </div>
+    <div class="mpanel">
+      <div class="mpanel-t">💰 A la firma</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="range" min="0" max="${upMax}" step="0.1" value="${s.up}"
+          oninput="spnSet('up',this.value)" style="flex:1">
+        <span class="sv" style="min-width:64px;text-align:right;color:var(--gold)">${fv(s.up)}</span>
+      </div>
+      <div class="mpanel-t" style="margin-top:10px">📅 Por semana</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="range" min="0" max="${wkMax}" step="0.01" value="${s.wk}"
+          oninput="spnSet('wk',this.value)" style="flex:1">
+        <span class="sv" style="min-width:64px;text-align:right;color:var(--green)">${fv(s.wk)}</span>
+      </div>
+      <div class="mpanel-row" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.07);padding-top:7px">
+        <span>Total del contrato</span>
+        <span class="sv">${fv(pedido)} <span style="color:${sube>0?'var(--gold)':'var(--t3)'};font-size:10px">${sube>0?'+':''}${sube}%</span></span>
+      </div>
+      <div style="font-size:10px;color:${pista.c};margin-top:6px">${pista.t}</div>
+    </div>
+    ${s.msg?`<div class="mpanel" style="border-color:rgba(232,69,69,.35)">
+      <div style="font-size:11px">${s.msg}</div></div>`:''}
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn bo bs" style="flex:1" onclick="spnRechazar('${o.oid}')">Descartar</button>
+      <button class="btn bo bs" style="flex:1.4" onclick="spnEnviar()">Contraofertar</button>
+      <button class="btn bg bs" style="flex:1.4" onclick="spnFirmar('${o.oid}')">Firmar así</button>
+    </div>`);
+}
+// ── la IA de la marca ──────────────────────────────────────────────────
+function spnEnviar(){
+  const s=_SPN; if(!s) return;
+  const i=ofertasSponsor().findIndex(x=>x.oid===s.oid); if(i<0){ closeMod(); return; }
+  const o=G.sponsorOffers[i];
+  const pedido=s.up + s.wk*o.weeks;
+  if(pedido<=spnTecho(o)){                      // entra en su presupuesto
+    o.upfront=Math.round(s.up*10)/10;
+    o.weekly=Math.round(s.wk*100)/100;
+    o.bonus=Math.round(o.baseBonus*(o.weekly/o.baseWeekly)*10)/10;
+    spnFirmar(o.oid);
+    return;
+  }
+  o.intentos++;
+  if(o.intentos>=SPN_INTENTOS){                 // se levantan de la mesa
+    G.sponsorOffers.splice(i,1);
+    closeMod();
+    addPhoneMsg('board','Gerencia de Marketing',
+      `😡 Se levantaron de la mesa. <b>${sponName(o)}</b> dice que le faltamos el respeto con lo que pedimos y retira la oferta. `+
+      `Nos quedamos sin patrocinio en ${o.cat.toLowerCase()}.`,'😡');
+    flash('❌ '+sponName(o)+' retiró la oferta','loss');
+    lg('❌',`${sponName(o)} se retiró de la negociación`);
+    rSponsors();
+    return;
+  }
+  s.msg=`😠 <b>${sponName(o)}</b>: "Eso está muy por encima de lo que tenemos aprobado. `+
+        `Bajá el pedido o cerramos la carpeta." <span style="color:var(--t3)">(último aviso)</span>`;
+  spnRender();
+}
+function spnFirmar(oid){
+  const i=ofertasSponsor().findIndex(x=>x.oid===oid); if(i<0) return;
+  const o=G.sponsorOffers[i];
+  if(!G.sponsors) G.sponsors=[];
+  if(G.sponsors.some(x=>x.cat===o.cat)){ flash('❌ Ya tenés un contrato en '+o.cat,'loss'); return; }
+  // El contrato entra con la MISMA forma que los de antes (income/winBonus/obj),
+  // así que el balance semanal, la vitrina y los saves viejos no se enteran.
+  const winBonus=Math.round(o.weekly*3.5*100)/100;
+  G.sponsors.push({id:o.id,cat:o.cat,name:o.name,icon:o.icon,region:o.region,dyn:o.dyn,
+    income:o.weekly, weeks:o.weeks, reqRep:o.reqRep,
+    weeksLeft:o.weeks, weeksTotal:o.weeks, winBonus, upfront:o.upfront,
+    obj:{id:'champ',desc:'Salir campeón de la Liga',bonus:o.bonus}});
+  G.sponsorOffers.splice(i,1);
+  if(o.upfront>0){
+    G.budget=Math.round((G.budget+o.upfront)*10)/10;
+    if(typeof finAnota==='function') finAnota('otros_in',o.upfront,'Firma de '+sponName(o));
+  }
+  closeMod();
+  flash('✅ ¡'+sponName(o)+' firma! +'+fv(o.upfront)+' a la caja','win');
+  lg('✍️',`Patrocinio: ${sponName(o)} — ${fv(o.upfront)} a la firma + ${fv(o.weekly)}/sem`);
+  addPhoneMsg('board','Gerencia de Marketing',
+    `🤝 Firmado con <b>${sponName(o)}</b>. Entraron <b style="color:var(--gold)">${fv(o.upfront)}</b> a la caja `+
+    `y nos quedan <b style="color:var(--green)">${fv(o.weekly)}/semana</b> por ${o.weeks} semanas.`,'🤝');
+  rSponsors();
+  const bt=document.getElementById('bTop'); if(bt) bt.textContent='$'+G.budget+'M';
+}
+function spnRechazar(oid){
+  const i=ofertasSponsor().findIndex(x=>x.oid===oid); if(i<0) return;
+  const o=G.sponsorOffers[i];
+  G.sponsorOffers.splice(i,1);
+  closeMod(); flash('Descartaste la oferta de '+sponName(o),'');
+  rSponsors();
+}
+
 function rSponsors(){
   const el=document.getElementById('sponsorsList');
   if(!el||!G) return;
@@ -2055,12 +2261,12 @@ function rSponsors(){
   const active=G.sponsors;
   const activeIds=new Set(active.map(s=>s.id));
   const activeCats=new Set(active.map(s=>s.cat));
-  // Lo que se OFRECE sí mira dónde dirigís.
-  const delMercado=SPONSORS.filter(s=>sponsorEnRegion(s));
-  const available=delMercado.filter(s=>!activeIds.has(s.id)&&G.rep>=s.reqRep&&!activeCats.has(s.cat));
-  const locked=delMercado.filter(s=>!activeIds.has(s.id)&&(G.rep<s.reqRep||activeCats.has(s.cat)));
+  // Ya no hay góndola: lo único que se puede firmar es lo que te ofrecieron.
+  const ofertas=ofertasSponsor();
   const regs=sponRegiones();
   const mercadoLbl=regs.indexOf('EU')>=0?'🇪🇺 Mercado europeo':'🌎 Mercado latinoamericano';
+  const libres=[...new Set(SPONSORS.filter(s=>sponsorEnRegion(s)).map(s=>s.cat))]
+    .filter(c=>!activeCats.has(c)&&!ofertas.some(o=>o.cat===c));
 
   const incomeWeek=active.reduce((a,s)=>a+s.income,0);
   el.innerHTML=`
@@ -2084,35 +2290,28 @@ function rSponsors(){
     `).join('')}`:
     '<div class="note">Sin contratos activos.</div>'}
 
-    ${available.length?`
-    <div class="ctitle" style="margin-top:10px">🤝 Disponibles para firmar
+    <div class="ctitle" style="margin-top:10px">📬 Ofertas sobre la mesa
       <span style="font-size:9px;color:var(--t3);font-weight:400;letter-spacing:.04em">· ${mercadoLbl}</span></div>
-    ${available.map(s=>`
-      <div class="mpanel" style="padding:9px;margin-bottom:5px">
+    ${ofertas.length? ofertas.map(o=>{
+      const quedan=SPN_VENCE-(G.week-o.desde);
+      return `
+      <div class="mpanel" style="padding:9px;margin-bottom:5px;cursor:pointer" onclick="spnAbrir('${o.oid}')">
         <div style="display:flex;align-items:center;gap:9px">
-          <div style="font-size:22px">${s.icon}</div>
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(s)}
-              ${s.region==='GLOBAL'?'<span style="font-size:8px;color:var(--t3);font-weight:400">🌐</span>':''}</div>
-            <div style="font-size:10px;color:var(--t3)">${s.cat} · ${s.weeks} semanas · Rep ${s.reqRep}+</div>
+          <div style="font-size:22px">${o.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(o)}
+              ${o.region==='GLOBAL'?'<span style="font-size:8px;color:var(--t3);font-weight:400">🌐</span>':''}</div>
+            <div style="font-size:10px;color:var(--t3)">${o.cat} · ${o.weeks} semanas ·
+              <span style="color:${quedan<=2?'var(--red)':'var(--t3)'}">vence en ${quedan} sem</span></div>
           </div>
           <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:12px;font-weight:700;color:var(--gold);font-family:'Rajdhani',sans-serif">+$${s.income}M/sem</div>
-            <button class="btn bg bs" style="margin-top:3px" onclick="signSponsor('${s.id}')">Firmar</button>
+            <div style="font-size:12px;font-weight:700;color:var(--gold);font-family:'Rajdhani',sans-serif">${fv(o.upfront)}</div>
+            <div style="font-size:10px;color:var(--green)">+${fv(o.weekly)}/sem</div>
           </div>
         </div>
-      </div>
-    `).join('')}`:''}
-
-    ${locked.length?`
-    <div class="ctitle" style="margin-top:10px;color:var(--t3)">🔒 Bloqueados</div>
-    ${locked.slice(0,4).map(s=>`
-      <div style="display:flex;align-items:center;gap:8px;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,.05);margin-bottom:3px;opacity:.5">
-        <div style="font-size:18px">${s.icon}</div>
-        <div style="flex:1;font-size:11px">${sponName(s)} <span style="color:var(--t3)">(${activeCats.has(s.cat)?'categoría ocupada':'Rep. '+s.reqRep+' req'})</span></div>
-        <div style="font-size:10px;color:var(--t3)">+$${s.income}M/sem</div>
-      </div>
-    `).join('')}`:''}
+        <div style="font-size:9px;color:var(--t3);margin-top:5px">Tocá para negociar →</div>
+      </div>`;}).join('')
+    : `<div class="note" style="margin:0">No hay ofertas por ahora. Las marcas aparecen solas con el correr de las semanas${libres.length?` — quedan ${libres.length} categoría${libres.length===1?'':'s'} libre${libres.length===1?'':'s'}`:', pero ya tenés todas las categorías ocupadas'}.</div>`}
   `;
 }
 
@@ -13116,6 +13315,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyColgados();
   weeklyLoans();
   weeklyObras();     // avanza las obras del estadio y la academia
+  weeklySponsors();  // las marcas te buscan: ofertas nuevas y las que vencen
   weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
   preseasonFit();    // ancla la física elegida en la gira a la fecha 1 del torneo
   weeklySeleccion();
