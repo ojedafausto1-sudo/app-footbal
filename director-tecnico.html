@@ -7716,7 +7716,9 @@ function rStad(){
     <div class="card" style="margin-bottom:8px">
       ${stadSvg}
       <div class="ctitle" style="margin-top:8px">${st.name}</div>
-      <div class="sr"><span class="sl">Capacidad</span><span class="sv" style="color:var(--gold)">${st.capacity.toLocaleString()}</span></div>
+      <div class="sr"><span class="sl">Capacidad</span><span class="sv" style="color:var(--gold)">${hayObraCapacidad()
+        ? capacidadEfectiva().toLocaleString()+' <span style="color:var(--red);font-size:9px">(de '+st.capacity.toLocaleString()+', obra en curso)</span>'
+        : st.capacity.toLocaleString()}</span></div>
       <div class="sr"><span class="sl">Nivel</span><span class="sv">${'★'.repeat(st.level)}${'☆'.repeat(5-st.level)}</span></div>
       <div class="sr"><span class="sl">Mejoras activas</span><span class="sv">${built}/${st.upgrades.length}</span></div>
       <div class="sr"><span class="sl">Ingreso/partido</span><span class="sv" style="color:var(--green)">$${st.income.toFixed(1)}M</span></div>
@@ -7730,7 +7732,7 @@ function rStad(){
       }).join('')}
     </div>
   `;
-  e2.innerHTML = `<div class="ctitle">🔧 Construir mejoras</div>`+
+  e2.innerHTML = obrasHTML('stadium')+`<div class="ctitle">🔧 Construir mejoras</div>`+
     st.upgrades.map(u=>`
       <button class="upg-btn" onclick="${u.built?'':'openBuildStad(\''+u.id+'\')'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -7763,21 +7765,133 @@ function openBuildStad(id){
   `);
 }
 
-function confirmBuildStad(id){
-  if(!G) return;
-  const u = G.stadium.upgrades.find(x=>x.id===id);
-  if(!u) return;
-  G.budget = Math.round((G.budget-u.cost)*10)/10;
-  u.built = true;
+// ═══════════════════════════════════════════════════════════════════════
+// LAS OBRAS TARDAN, Y MIENTRAS TANTO MOLESTAN
+// ═══════════════════════════════════════════════════════════════════════
+// `G.activeConstructions` son objetos planos {id,tipo,name,sem,total,eff} — sin
+// funciones (regla de `G`). Retro-compatible: `obras()` lee `||[]`, que en un
+// save viejo es "no hay nada en construcción", y las mejoras ya construidas
+// siguen con su `built:true` de siempre.
+const OBRA_PENAL_CAP=0.15;         // 15% de tribuna inhabilitada mientras se amplía
+function obras(){ return (G&&G.activeConstructions)||[]; }
+// Cuánto tarda cada obra: la escala sale del EFECTO, no de una lista a mano,
+// así una mejora nueva ya entra con un plazo razonable sin tocar nada.
+function obraSemanas(u){
+  if(!u||!u.eff)return 4;
+  if(u.eff.startsWith('cap+')){
+    const n=parseInt(u.eff.split('+')[1])||8000;
+    return Math.max(10,Math.min(30,Math.round(n/1000*1.1)));   // +8.000 ≈ 9→10, +25.000 ≈ 28
+  }
+  if(u.eff==='train')   return 12;   // predios y centros de alto rendimiento
+  if(u.eff==='medical') return 8;
+  if(u.eff.startsWith('inc+')){
+    const v=parseFloat(u.eff.split('+')[1])||0.3;
+    return Math.max(3,Math.round(3+v*8));       // pantallas 5, techo retráctil 11
+  }
+  if(u.eff.startsWith('rep+')) return 5;
+  return 6;
+}
+// ═══ CAPACIDAD EFECTIVA ═══
+// ⚠️ NO se guarda un snapshot de la capacidad para restaurarlo después. Hay
+// CUATRO ampliaciones (exp1..exp4) y podés tener dos en curso a la vez: al
+// terminar la primera, restaurar su snapshot pisaría lo que sumó la segunda.
+// `G.stadium.capacity` guarda siempre la capacidad REAL y el descuento se
+// calcula al leer, así que no hay estado que desincronizar.
+function capNominal(){ return (G&&G.stadium&&G.stadium.capacity)||50000; }
+function hayObraCapacidad(){ return obras().some(o=>o.eff&&o.eff.indexOf('cap+')===0); }
+function capacidadEfectiva(){
+  const c=capNominal();
+  return hayObraCapacidad()?Math.round(c*(1-OBRA_PENAL_CAP)):c;
+}
+// Aplica los efectos de una mejora terminada. Lo usan el fin de obra y nada más.
+function aplicarMejora(u,tipo){
+  if(!u)return;
+  u.built=true;
+  if(tipo==='youth'){
+    G.youth.level=Math.min(5,1+G.youth.upgrades.filter(x=>x.built).length);
+    G.youth.players.forEach(p=>{ p.pot=Math.min(99,p.pot+3); p.progress=Math.min(100,p.progress+10); });
+    return;
+  }
   if(u.eff.startsWith('cap+')) G.stadium.capacity += parseInt(u.eff.split('+')[1]);
   if(u.eff.startsWith('inc+')) G.stadium.income = Math.round((G.stadium.income+parseFloat(u.eff.split('+')[1]))*10)/10;
   if(u.eff.startsWith('rep+')) repSuma(parseInt(u.eff.split('+')[1]));
   if(u.eff==='train') G.youth.level = Math.min(5,G.youth.level+1);
   if(u.eff==='medical') G.medicalCenter = true;
   G.stadium.level = Math.min(5,1+G.stadium.upgrades.filter(x=>x.built).length);
-  lg('🏟️','Construido: '+u.name);
+}
+// ═══ OBRAS EN CURSO ═══
+// Sigue el estándar de vidrio: el CONTENEDOR (`.card`) ya es vidrio real, así
+// que cada obra va en un `.mpanel` (translucidez + borde luminoso, sin
+// backdrop-filter) para no anidar blur.
+function obrasHTML(tipo){
+  const list=obras().filter(o=>o.tipo===tipo);
+  if(!list.length)return '';
+  return `<div class="ctitle">🚧 Obras en curso</div>`+list.map(o=>{
+    const hechas=Math.max(0,(o.total||1)-(o.sem||0));
+    const pct=Math.max(0,Math.min(100,Math.round(hechas/(o.total||1)*100)));
+    const esCap=(o.eff||'').indexOf('cap+')===0;
+    return `<div class="mpanel" style="margin-bottom:7px">
+      <div class="mpanel-row">
+        <span style="font-weight:700;font-size:12px">${o.name}</span>
+        <span style="color:var(--gold);font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums;font-size:11px">
+          ${o.sem} sem restante${o.sem===1?'':'s'}</span>
+      </div>
+      <div style="height:8px;border-radius:5px;background:rgba(255,255,255,.06);
+                  border:1px solid var(--bdr);overflow:hidden;margin-top:6px">
+        <div style="height:100%;width:${pct}%;border-radius:4px;
+                    background:linear-gradient(90deg,rgba(var(--gold-rgb),.55),var(--gold));
+                    box-shadow:0 0 8px rgba(var(--gold-rgb),.35);transition:width .3s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span style="font-size:9px;color:var(--t3)">${hechas} de ${o.total} semanas · ${pct}%</span>
+        ${esCap?`<span style="font-size:9px;color:var(--red)">⚠️ tribuna cerrada: −${Math.round(OBRA_PENAL_CAP*100)}% de capacidad</span>`:''}
+      </div>
+    </div>`;
+  }).join('')+`<div style="height:8px"></div>`;
+}
+function obraIniciar(u,tipo){
+  if(!G)return;
+  if(!G.activeConstructions)G.activeConstructions=[];
+  const sem=obraSemanas(u);
+  G.activeConstructions.push({id:u.id,tipo,name:u.name,sem,total:sem,eff:u.eff||'',desde:G.week||1});
+  const esCap=(u.eff||'').indexOf('cap+')===0;
+  lg('🚧',`Empezó la obra: ${u.name} (${sem} semanas)`);
+  addPhoneMsg('board','Estudio de Arquitectura',
+    `🚧 Presidente, arrancamos con <b>${u.name}</b>. El plazo estimado es de <b>${sem} semanas</b>.`
+    +(esCap?` Le aviso que mientras dure vamos a tener que <b>inhabilitar una tribuna</b>: la capacidad baja un ${Math.round(OBRA_PENAL_CAP*100)}% hasta que terminemos.`:''),'🏗️');
+  flash('🚧 '+u.name+' — obra iniciada ('+sem+' semanas)','draw');
+}
+// El avance corre una vez por semana (ver el bloque semanal).
+function weeklyObras(){
+  if(!G||!obras().length)return;
+  const quedan=[];
+  G.activeConstructions.forEach(o=>{
+    o.sem--;
+    if(o.sem>0){quedan.push(o);return;}
+    const arr=o.tipo==='youth'?(G.youth&&G.youth.upgrades):(G.stadium&&G.stadium.upgrades);
+    const u=(arr||[]).find(x=>x.id===o.id);
+    if(u)aplicarMejora(u,o.tipo);
+    lg('🏗️',`Obra terminada: ${o.name}`);
+    addPhoneMsg('board','Estudio de Arquitectura',
+      `✅ Presidente, <b>${o.name}</b> quedó terminada y habilitada. `
+      +((o.eff||'').indexOf('cap+')===0?`La tribuna vuelve a estar en servicio y la capacidad queda en <b>${capNominal().toLocaleString()}</b>.`:'Ya está operativa.'),'🏗️');
+    flash('🏗️ '+o.name+' — obra terminada','win');
+    if(G.news)G.news.unshift({w:'S'+(G.week||1),ic:'🏗️',
+      msg:`🏗️ ${G.teamName} inauguró ${o.name}`,type:'misc'});
+  });
+  G.activeConstructions=quedan;
+}
+function confirmBuildStad(id){
+  if(!G) return;
+  const u = G.stadium.upgrades.find(x=>x.id===id);
+  if(!u||u.built) return;
+  if(obras().some(o=>o.id===id)){flash('⏳ Esa obra ya está en marcha','draw');return;}
+  if(G.budget<u.cost){flash('❌ Sin presupuesto','loss');return;}
+  G.budget = Math.round((G.budget-u.cost)*10)/10;
+  // ⚠️ Ya no se aplica al instante: la plata sale ahora, el beneficio llega
+  // cuando la obra termina (ver weeklyObras).
+  obraIniciar(u,'stadium');
   closeMod(); updateUI();
-  flash('✅ '+u.name+' construido!','win');
 }
 
 // =============================================
@@ -7813,7 +7927,7 @@ function rJuv(){
         </div>
       </div>
     `).join('');
-  e3.innerHTML = `<div class="ctitle">🔧 Mejorar academia</div>` +
+  e3.innerHTML = obrasHTML('youth')+`<div class="ctitle">🔧 Mejorar academia</div>` +
     y.upgrades.map(u=>`
       <button class="upg-btn" onclick="${u.built?'':'buildYouthUpg(\''+u.id+'\')'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -7831,13 +7945,11 @@ function buildYouthUpg(id){
   if(!G) return;
   const u = G.youth.upgrades.find(x=>x.id===id);
   if(!u||u.built) return;
+  if(obras().some(o=>o.id===id)){flash('⏳ Esa obra ya está en marcha','draw');return;}
   if(G.budget<u.cost){ flash('❌ Sin presupuesto','loss'); return; }
   G.budget = Math.round((G.budget-u.cost)*10)/10;
-  u.built = true;
-  G.youth.level = Math.min(5,1+G.youth.upgrades.filter(x=>x.built).length);
-  G.youth.players.forEach(p=>{ p.pot=Math.min(99,p.pot+3); p.progress=Math.min(100,p.progress+10); });
-  lg('🌱','Academia mejorada: '+u.name);
-  updateUI(); flash('✅ '+u.name,'win');
+  obraIniciar(u,'youth');
+  updateUI();
 }
 
 function promOne(id){
@@ -12760,6 +12872,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyYouth();
   weeklyColgados();
   weeklyLoans();
+  weeklyObras();     // avanza las obras del estadio y la academia
   weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
   preseasonFit();    // ancla la física elegida en la gira a la fecha 1 del torneo
   weeklySeleccion();
@@ -13545,7 +13658,8 @@ function initPads(){
 // updateFans, así no hay un salto absurdo (arrancaba en cap*0,35 —18.900
 // socios para Boca— y en una temporada se iba a 219.000).
 function sociosBase(){
-  const cap=(G&&G.stadium&&G.stadium.capacity)||50000;
+  // Con una ampliación en curso hay una tribuna inhabilitada: entra menos gente.
+  const cap=(typeof capacidadEfectiva==='function')?capacidadEfectiva():((G&&G.stadium&&G.stadium.capacity)||50000);
   const rep=(G&&G.rep!==undefined)?G.rep:50;
   return Math.round(cap*(0.9+rep/100*3.6)*0.95);
 }
@@ -13602,7 +13716,7 @@ function updateFans(res,derby,gf){
   // puede ser varias veces la capacidad —como en cualquier club grande de
   // verdad, que tiene cuatro o cinco socios por butaca—. El humor de la
   // gente acelera o frena, pero el que manda es lo que ganaste.
-  const cap=G.stadium?G.stadium.capacity:50000;
+  const cap=(typeof capacidadEfectiva==='function')?capacidadEfectiva():(G.stadium?G.stadium.capacity:50000);
   const rep=(G.rep===undefined?50:G.rep);
   const target=Math.round(cap*(0.9+rep/100*3.6)*(0.72+G.fanMood/100*0.42));
   G.socios=Math.round(G.socios+(target-G.socios)*0.08);

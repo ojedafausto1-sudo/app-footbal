@@ -1419,6 +1419,59 @@ checks que corren antes venden, ceden y fuerzan cupos, así que puede no quedar
 un veterano y un pibe de la misma línea. Si no los hay, los fabrica — lo que se
 prueba es la regla, no la suerte de esa corrida.
 
+## Fase 21: las obras tardan (y mientras tanto molestan)
+
+Construir dejó de ser instantáneo. `confirmBuildStad` y `buildYouthUpg` cobran
+la plata **ya** pero encolan la obra en `G.activeConstructions` (objetos planos
+`{id,tipo,name,sem,total,eff,desde}`, sin funciones). `weeklyObras()` corre en el
+bloque semanal, descuenta una semana a cada una y al llegar a cero marca
+`built:true`, aplica los efectos vía `aplicarMejora()`, saca la obra de la lista
+y avisa con flash, mensaje del arquitecto y noticia.
+
+Retro-compatible sin migrar: `obras()` lee `G.activeConstructions||[]`, que en un
+save viejo es "no hay nada en construcción", y las mejoras ya construidas
+conservan su `built:true`.
+
+### El plazo sale del efecto, no de una lista a mano
+
+`obraSemanas(u)` lo deriva de `u.eff`, así que una mejora nueva ya entra con un
+plazo razonable sin tocar nada:
+
+| obra | plazo |
+|---|---|
+| Pantallas HD (`inc+0.3`) | 5 semanas |
+| Clínica médica (`medical`) | 8 |
+| +8.000 butacas (`cap+8000`) | 10 |
+| Techo retráctil (`inc+1.0`) | 11 |
+| Centro de entrenamiento (`train`) | 12 |
+| +25.000 butacas (`cap+25000`) | **28** |
+
+### ⚠️ La capacidad NO se guarda y se restaura: se calcula al leer
+
+El pedido era guardar la capacidad original y restaurarla sumada a la nueva. **No
+se hizo así, y por una razón concreta**: hay CUATRO ampliaciones (`exp1`..`exp4`)
+y podés tener dos en curso a la vez. Al terminar la primera, restaurar su
+snapshot **pisaría lo que ya sumó la segunda**.
+
+`G.stadium.capacity` guarda siempre la capacidad REAL y `capacidadEfectiva()`
+descuenta el 15% mientras haya una ampliación en curso. No hay estado que
+restaurar, así que no hay nada que se pueda desincronizar. Sólo hay que
+acordarse de leerla por el accesor: la usan la asistencia y el borderó (los dos
+únicos lugares donde importa) y la ficha del estadio, que muestra "45.900 (de
+54.000, obra en curso)".
+
+Verificado justamente en ese caso: con `exp2` y `exp3` en curso a la vez, al
+terminar la primera la capacidad sube **sólo** los 12.000 de la que terminó y la
+penalización **sigue puesta** por la que queda.
+
+### UI
+
+`obrasHTML(tipo)` se inyecta arriba de las mejoras disponibles en las dos vistas
+(`rStad` y `rJuv`), con barra de progreso que se llena semana a semana. Sigue el
+estándar de vidrio: el contenedor (`.card`) ya es vidrio real, así que cada obra
+va en un `.mpanel` — translucidez + borde luminoso, **sin `backdrop-filter`**,
+para no anidar blur.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
