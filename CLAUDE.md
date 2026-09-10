@@ -1923,6 +1923,111 @@ antes de llamar a `initGame`. La regresión lo blinda ensuciando la global a
 propósito y verificando que Boca vuelva a la Liga ARG sin rivales ingleses en
 el calendario.
 
+## Fase 28: masa societaria — el cobro que ya existía, con nombre
+
+### ⚠️ El pedido, tal cual, cobraba las cuotas DOS VECES
+
+"Cada 4 semanas sumá a `G.budget` el resultado de `(G.members * G.memberFee)`"
+habría **duplicado un ingreso que ya estaba**: el balance mensual cobra las
+cuotas desde siempre, escondidas adentro del rubro *"TV y socios"* con un
+divisor mágico —`socios/42.000`— que nadie podía leer como una cuota. Y la
+restricción del pedido ("que el cobro no se pise con los sponsors") apuntaba al
+lugar equivocado: los sponsors cobran aparte y no chocan con nada; **el choque
+real era con el socio**.
+
+Tampoco se creó `G.members`: los socios ya viven en `G.socios` desde que existe
+`sociosBase()`, y un segundo campo con el mismo dato son dos fuentes de verdad
+que se desincronizan (la misma lección que `G.roles.captain` en la Fase 19).
+
+Lo que se hizo es al revés: se le puso **nombre** al número que ya se cobraba.
+`ingresoSocios()` = `socios × cuotaSocio() × humor`, que es **la misma plata**:
+
+```
+viejo:  socios*(0,28 + humor*0,0028)/42.000  = socios*(6,667e-6 + 6,667e-8*humor)
+nuevo:  socios*10,3*(0,65 + humor*0,0065)/1e6 = socios*(6,695e-6 + 6,695e-8*humor)
+```
+
+Barrido de 8 tamaños de club × 21 niveles de humor: **peor desvío 0,83%**.
+
+⚠️ **Tres decimales, no dos.** Con `Math.round(...*100)/100`, un club de 15.000
+socios con la gente podrida daba 0,11 contra 0,105 — **4,8% de desvío por
+redondeo justo donde menos plata hay**. El balance mensual redondea a un decimal
+igual, así que la precisión extra no agrega ruido.
+
+El rubro `tv` quedó como **derechos de TV solos** y las cuotas van a un rubro
+nuevo, `socios`, así que la pestaña de Finanzas ahora muestra las dos cosas por
+separado. `G.finLast.tv` sigue siendo la suma (lo lee la tarjeta de
+Estadísticas, que tiene un solo renglón).
+
+### Los socios reaccionan, y eso sí es nuevo
+
+| evento | efecto | dónde engancha |
+|---|---|---|
+| salir campeón | **+15%** | `sociosTitulos()` |
+| fichar una figura (`rat>=82`) | +5% | `firmasTick` |
+| 3 derrotas al hilo | −5% | `updateFans` |
+| vender al capitán | −5% | `sacarDelPlantel` |
+
+- **Un solo portero para los títulos.** Hay tres lugares que empujan a
+  `G.trophies` (torneo, copa internacional, copa corta) y las ligas largas ni
+  siquiera pasan por ahí: el campeonato queda en `G.history[].champion`.
+  `sociosTitulos()` es un watchdog sobre el TOTAL, así que no hay que tocar cada
+  lugar donde se grita campeón y no se escapa ninguno. Con `G._socTitulos ===
+  undefined` (save viejo) **se ancla sin disparar**: si no, cargar una partida
+  con seis títulos en la vitrina regalaba seis empujones de golpe.
+- **No existía ningún contador de racha de resultados.** Los `streak` del
+  archivo son locales del armado del fixture (tiradas de local/visitante) y el
+  `racha` del borderó es un multiplicador, no una cuenta. `G._socDerrotas` es
+  propio: dispara a las 3, 6 y 9, y se limpia con cualquier resultado que no sea
+  derrota.
+- **Vender al capitán es distinto de perderlo.** El evento pide `tipo==='sale'`
+  **y** `det.monto>0`: una rescisión, un retiro o el fin de un préstamo no son
+  rifar al referente. Verificado en la regresión con los dos casos.
+
+⚠️ **Es un EMPUJÓN, no un escalón.** `updateFans` acerca los socios de a 8% por
+partido a un objetivo que sale de la reputación, así que el +15% del título se
+sostiene sólo si el título además te subió la rep. Es lo correcto: la gente se
+asocia con la ilusión y se borra si el club vuelve a ser el mismo.
+
+### Lo que cuesta, medido con ablación
+
+Temporada completa de Boca, 3 corridas por escenario, con los cuatro `pct` en 0
+contra los valores reales:
+
+| | socios al cierre | cuotas de la temporada |
+|---|---|---|
+| eventos apagados | 230-242k (**mediana 241k**) | 35,3M con 1 título |
+| eventos encendidos | 262-264k (**mediana 262k**) | 38,0M con 1 título |
+
+**+8,7% de masa societaria** y, a igual cantidad de títulos, **+7,7% de cuotas**
+(≈ +2,8M por temporada). El Δ presupuesto de la temporada no se puede leer
+directo de esta tabla: está dominado por cuántos títulos salieron en cada
+corrida (las corridas "apagado" sacaron 3/1/2 y las "encendido" 1/1/2), que es
+justamente lo que mueve la rep y la TV. Si algún día hay que apretar la
+economía, el lugar es `SOC_EVENTOS.titulo.pct`.
+
+### ⚠️ Un check de la regresión no puede sacar jugadores del plantel
+
+El check nuevo probaba "vender al capitán" con `G.squad[0]`, y eso **rompió el
+de mentoreo**, que corre después: el mentoreo elige mentor con un `find` sobre
+`G.squad`, así que con dos jugadores menos caía en otro —a veces lesionado— y
+la herencia no arrancaba nunca. Aislado daba **12 de 12**; dentro de la
+regresión, falso negativo intermitente.
+
+La regresión corre en **una sola sesión compartida**: lo que un check toca, lo
+tiene que devolver. Ahora los capitanes de prueba son clones descartables
+(`regCap1`/`regCap2`), se borran al final y el check verifica que el plantel
+quede del mismo largo. Es el mismo tipo de trampa que el `phoneMsgs.length` de
+la Fase 24: el check falla por el vecino, no por lo que prueba.
+
+### Y de paso, el cuarto `'Liga ARG'` escrito a mano
+
+`firmasTick` metía a **todos** los refuerzos con `p.lg='Liga ARG'` fijo: un
+fichaje del Real Madrid quedaba anotado como jugador de la liga argentina. Es la
+**cuarta** vez que aparece el mismo patrón (después del `'ARG'` de nacionalizar,
+el naming de la Bombonera y el `'ARG'`/`'Liga ARG'` de `promOne`). Ahora sale de
+`ligaMia()`.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`

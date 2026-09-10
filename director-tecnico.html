@@ -930,6 +930,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div class="ctitle">🏆 Vitrina del Club</div>
             <div id="presVitrina"></div>
           </div>
+          <!-- ═══ MASA SOCIETARIA: socios, cuota e ingreso proyectado ═══ -->
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">👥 Masa Societaria</div>
+            <div id="presSocios"></div>
+          </div>
           <!-- ═══ EVOLUCIÓN DEL PATRIMONIO (canvas nativo) ═══ -->
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">📈 Patrimonio del club</div>
@@ -4012,6 +4017,12 @@ function initGame(teamId){
   G.stadium.name     = _est.name;
   G.stadium.capacity = _est.capacity;
   G.stadium.income   = _est.income;
+  // ═══ MASA SOCIETARIA ═══
+  // La cuota es lo único nuevo que se guarda: los socios ya existen y salen
+  // de sociosBase(), que necesita el estadio resuelto justo arriba.
+  G.socios    = sociosBase();
+  G.memberFee = SOCIO_CUOTA_BASE;
+  G._socTitulos = 0;
   G.diff = (window._selectedDiff !== undefined) ? window._selectedDiff : 1;
   G.tactic = {style:'Posesión', mentality:'Equilibrado'};
   G.day=1; G._daysTicked=0;
@@ -4811,6 +4822,12 @@ function taparHueco(k){
 // Saca a un jugador del plantel: anota el movimiento y tapa el hueco que deja
 function sacarDelPlantel(p,tipo,det){
   if(!G||!p)return null;
+  // Vender al capitán es una decisión de presidente y la gente la cobra.
+  // Sólo cuenta la VENTA (hay plata de por medio): una rescisión, un retiro o
+  // el fin de un préstamo no son lo mismo que rifar al referente.
+  if(tipo==='sale' && det && (det.monto||0)>0 && G.roles && G.roles.captain===p.id){
+    try{ sociosEvento('capitan',p.name); }catch(e){}
+  }
   const k=Object.keys(G.slots||{}).find(kk=>G.slots[kk]===p.id);
   G.squad=(G.squad||[]).filter(x=>x.id!==p.id);
   G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
@@ -12354,7 +12371,8 @@ function reconvPenal(p){
 // panel de Finanzas muestra de verdad en qué se gasta y qué entra.
 const FIN_RUBROS={
   borderó:{e:'🎟️',t:'Borderó (entradas)',in:true},
-  tv:{e:'📺',t:'TV y socios',in:true},
+  tv:{e:'📺',t:'Derechos de TV',in:true},
+  socios:{e:'👥',t:'Cuotas de socios',in:true},
   sponsors:{e:'🤝',t:'Sponsors',in:true},
   ventas:{e:'💸',t:'Ventas de jugadores',in:true},
   premios:{e:'🏆',t:'Premios y bonos',in:true},
@@ -12445,6 +12463,10 @@ function rRetirados(){
 function nextSeason(){
   const finalPos=myLeaguePos()||10;
   archiveSeason();
+  // El campeonato de las ligas largas queda en G.history[].champion (no en
+  // G.trophies): si no se mira acá, el empujón de socios llegaría recién con
+  // el primer partido del año que viene.
+  try{ sociosTitulos(); }catch(e){}
   endSeasonMarket();
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   // Las elecciones van DESPUÉS del checkFired: si terminaste en zona de
@@ -13595,12 +13617,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(G.week%4===0){
     const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
     const wages=Math.round(wk*4/1000*10)/10;                    // M/mes
-    // TV + socios: escala con la masa societaria y el humor, pero sin regalar plata
-    // El divisor pasó de 10.000 a 42.000 cuando la masa societaria dejó de
-    // estar topeada por la capacidad del estadio: si no, un club de 180.000
-    // socios cobraba 10M por mes de cuotas y la plata dejaba de importar.
-    const socInc=(G.socios||20000)/42000*(0.28+(G.fanMood||55)/100*0.28);
-    const tv=Math.round((1.15+(G.rep||50)*0.017+socInc)*10)/10;
+    // ═══ CUOTAS DE SOCIOS: el mismo cobro de siempre, ahora con nombre ═══
+    // ⚠️ Acá se cobra la masa societaria, y en NINGÚN otro lado. Estaba
+    // escondido adentro del rubro "TV y socios" con un divisor mágico
+    // (socios/42.000); ahora sale de `ingresoSocios()` = socios × cuota ×
+    // humor, que es la misma plata (1,004×) pero legible. Si alguna vez se
+    // agrega otro cobro de cuotas, se duplica el ingreso y se rompe la
+    // calibración del neto anual.
+    const socInc=ingresoSocios();
+    const tv=Math.round((1.15+(G.rep||50)*0.017)*10)/10;   // derechos de TV solos
     // Gastos operativos del club: cuerpo técnico, inferiores, estadio, logística.
     // Sin esto el presupuesto sólo subía y la plata dejaba de ser un problema.
     const staffLv=Object.values(G.staffLevels||{}).reduce((a,v)=>a+(v||0),0);
@@ -13619,13 +13644,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // régimen: las obras grandes se pagan vendiendo bien, no esperando.
     const _estructura=Math.max(0,((G.rep||50)-50)/100*1.1)+(G.socios||20000)/100000*0.38;
     const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035+_estructura-_wfx.opsCut)*10)/10);
-    G.budget=Math.round((G.budget-wages+tv-ops)*10)/10;
+    G.budget=Math.round((G.budget-wages+tv+socInc-ops)*10)/10;
     finAnota('sueldos',wages,'Sueldos del plantel');
-    finAnota('tv',tv,'TV y socios');
+    finAnota('tv',tv,'Derechos de TV');
+    finAnota('socios',socInc,`Cuotas de ${sociosActivos().toLocaleString('es')} socios`);
     finAnota('operativo',ops,'Gastos operativos');
-    const neto=Math.round((tv-wages-ops)*10)/10;
-    G.finLast={wages,tv,neto,wk,ops};
-    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · TV y socios <b style="color:var(--green)">+${fv(tv)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
+    const neto=Math.round((tv+socInc-wages-ops)*10)/10;
+    // `tv` de finLast queda como el ingreso institucional completo: lo lee la
+    // tarjeta de Finanzas de Estadísticas, que muestra un solo renglón.
+    G.finLast={wages,tv:Math.round((tv+socInc)*10)/10,socios:socInc,neto,wk,ops};
+    lg('👥',`Cuotas de ${sociosActivos().toLocaleString('es')} socios: +${fv(socInc)}`);
+    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
   }
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${m.score} ${m.away} (${m.comp})`);
@@ -14269,6 +14298,83 @@ function sociosBase(){
   const rep=(G&&G.rep!==undefined)?G.rep:50;
   return Math.round(cap*(0.9+rep/100*3.6)*0.95);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// MASA SOCIETARIA: la cuota que ya se cobraba, ahora con nombre y número
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ EL COBRO NO SE DUPLICA. El balance mensual YA cobraba las cuotas desde
+// siempre, escondidas adentro del rubro "TV y socios" con un divisor mágico
+// (`socios/42000`). Sumar acá un cobro nuevo de `socios*cuota` habría cobrado
+// DOS VECES lo mismo y roto la calibración de todo el juego (el neto anual
+// está tuneado cerca de +5M en régimen; ver el bloque de _estructura).
+// Lo que se hizo es al revés: se le puso nombre al número que ya existía.
+// `ingresoSocios()` es la MISMA plata —calibrada a 1,004× de la fórmula
+// vieja, o sea 0,4% de diferencia— pero ahora sale de dos datos que el
+// presidente ve y entiende: cuántos socios tenés y cuánto paga cada uno.
+//   viejo:  socios*(0,28 + humor*0,0028)/42.000  = socios*(6,667e-6 + 6,667e-8*humor)
+//   nuevo:  socios*10,3*(0,65 + humor*0,0065)/1e6 = socios*(6,695e-6 + 6,695e-8*humor)
+// El humor sigue pesando igual: con la gente eufórica pagan al día, con la
+// gente podrida se dan de baja o no pagan la cuota.
+const SOCIO_CUOTA_BASE=10.3;    // dólares por socio por mes
+const SOC_ESTRELLA=82;          // media desde la que un fichaje es "una figura"
+function cuotaSocio(){ return (G&&G.memberFee!==undefined)?G.memberFee:SOCIO_CUOTA_BASE; }
+function sociosActivos(){
+  if(!G)return 0;
+  if(G.socios===undefined)G.socios=sociosBase();
+  return G.socios;
+}
+// Lo que entra por cuotas en un mes, en millones.
+function ingresoSocios(){
+  const mood=(G&&G.fanMood===undefined)?55:((G&&G.fanMood)||0);
+  // ⚠️ Tres decimales, no dos: con dos, un club chico y la gente podrida
+  // (15.000 socios, humor 5) daba 0,11 contra los 0,105 de la fórmula vieja
+  // — un 4,8% de desvío por redondeo justo donde menos plata hay. El balance
+  // mensual redondea a un decimal igual, así que esto no agrega ruido.
+  return Math.round(sociosActivos()*cuotaSocio()*(0.65+mood/100*0.65)/1e6*1000)/1000;
+}
+// ═══ FLUCTUACIÓN: la masa societaria reacciona a lo que pasa en el club ═══
+// ⚠️ El efecto es un EMPUJÓN, no un escalón permanente: updateFans acerca los
+// socios de a 8% por partido a su objetivo de reputación, así que un +15% por
+// salir campeón se sostiene sólo si el título además te subió la reputación.
+// Eso es lo correcto: la gente se asocia con la ilusión y se borra si el club
+// vuelve a ser el mismo.
+const SOC_EVENTOS={
+  titulo:  {pct: 0.15, e:'🏆', t:'El título disparó las altas de socios'},
+  estrella:{pct: 0.05, e:'🌟', t:'La llegada de la figura entusiasmó a la gente'},
+  racha:   {pct:-0.05, e:'💔', t:'Tres derrotas al hilo: bajas en la masa societaria'},
+  capitan: {pct:-0.05, e:'🅲', t:'La venta del capitán cayó pésimo en la gente'},
+};
+function sociosEvento(tipo,det){
+  if(!G)return 0;
+  const e=SOC_EVENTOS[tipo]; if(!e)return 0;
+  const antes=sociosActivos();
+  G.socios=Math.max(1000,Math.round(antes*(1+e.pct)));
+  const d=G.socios-antes;
+  if(!d)return 0;
+  const sg=d>0?'+':'';
+  const txt=e.t+(det?` (${det})`:'');
+  lg(e.e,`${txt}: ${sg}${d.toLocaleString('es')} socios (${G.socios.toLocaleString('es')})`);
+  addPhoneMsg('board','Tesorería',
+    `${e.e} ${txt}. La masa societaria pasa de <b>${antes.toLocaleString('es')}</b> a <b style="color:${d>0?'var(--green)':'var(--red)'}">${G.socios.toLocaleString('es')}</b> socios (${sg}${d.toLocaleString('es')}). Proyección de cuotas: <b>${fv(ingresoSocios())}</b> por mes.`,'🏛️');
+  return d;
+}
+// Un solo portero para TODOS los títulos: las copas y los torneos empujan
+// G.trophies (tres call sites distintos) y el campeonato de las ligas largas
+// queda en G.history[].champion. Con un watchdog sobre el total no hay que
+// tocar cada lugar donde se grita campeón, y no se puede escapar ninguno.
+function _titulosTotales(){
+  return (((G&&G.trophies)||[]).length) + (((G&&G.history)||[]).filter(h=>h&&h.champion).length);
+}
+function sociosTitulos(){
+  if(!G)return;
+  const n=_titulosTotales();
+  // Save viejo (o partida recién creada): se ancla en lo que ya hay y no
+  // dispara retroactivamente por seis títulos ganados el año pasado.
+  if(G._socTitulos===undefined){G._socTitulos=n;return;}
+  if(n>G._socTitulos){
+    const d=n-G._socTitulos; G._socTitulos=n;
+    for(let i=0;i<d;i++) sociosEvento('titulo');
+  } else if(n<G._socTitulos) G._socTitulos=n;
+}
 function fanMoodLabel(v){
   return v>=80?{t:'Eufórica',e:'🤩',c:'var(--green)'}:v>=60?{t:'Contenta',e:'😀',c:'var(--green)'}:
     v>=40?{t:'Expectante',e:'😐',c:'var(--gold)'}:v>=22?{t:'Molesta',e:'😠',c:'var(--ora)'}:
@@ -14326,6 +14432,17 @@ function updateFans(res,derby,gf){
   const rep=(G.rep===undefined?50:G.rep);
   const target=Math.round(cap*(0.9+rep/100*3.6)*(0.72+G.fanMood/100*0.42));
   G.socios=Math.round(G.socios+(target-G.socios)*0.08);
+  // ═══ TRES DERROTAS AL HILO ESPANTAN SOCIOS ═══
+  // No existía ningún contador de racha de resultados en el juego: los
+  // `streak` que hay son locales del armado del fixture (local/visitante) y
+  // `racha` en el borderó es un multiplicador, no una cuenta. Este es propio.
+  // Se dispara a las 3, y de nuevo a las 6 y a las 9 si el pozo sigue.
+  if(res==='L'){
+    G._socDerrotas=(G._socDerrotas||0)+1;
+    if(G._socDerrotas%3===0) sociosEvento('racha',G._socDerrotas+' derrotas seguidas');
+  } else G._socDerrotas=0;
+  // Los títulos: un solo portero para los cuatro caminos que los otorgan.
+  try{ sociosTitulos(); }catch(e){}
   // La recaudación de socios NO se cobra acá: ya entra en el balance mensual
   // (TV + socios). Antes se sumaba ~2M por partido además del borderaux, y el
   // presupuesto se inflaba solo con jugar.
@@ -22579,10 +22696,42 @@ function finChartBind(){
   cv.addEventListener('mouseleave',()=>rFinChart());
   cv.addEventListener('touchend',()=>rFinChart());
 }
+// ═══ TARJETA DE MASA SOCIETARIA ═══
+// El contenedor (.card) ya es vidrio de verdad, así que las filas van en
+// .mpanel: translucidez + borde luminoso, sin backdrop-filter, para no
+// apilar blur (regla medida del proyecto).
+function rSocios(){
+  const el=document.getElementById('presSocios'); if(!el||!G)return;
+  const soc=sociosActivos(), fee=cuotaSocio(), inc=ingresoSocios();
+  const mood=(G.fanMood===undefined?55:G.fanMood);
+  const base=(typeof sociosBase==='function')?sociosBase():soc;
+  const dif=base?Math.round((soc/base-1)*100):0;
+  const col=dif>=8?'var(--green)':dif<=-8?'var(--red)':'var(--t2)';
+  const mc=mood>=60?'var(--green)':mood>=35?'var(--gold)':'var(--red)';
+  el.innerHTML=`
+    <div style="display:flex;gap:6px;text-align:center;margin-bottom:8px">
+      <div class="mpanel" style="flex:1;padding:8px 4px">
+        <div class="sv-n" style="font-family:'Chakra Petch';font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">${soc.toLocaleString('es')}</div>
+        <div style="font-size:9px;color:var(--t3)">SOCIOS ACTIVOS</div>
+      </div>
+      <div class="mpanel" style="flex:1;padding:8px 4px">
+        <div class="sv-n" style="font-family:'Chakra Petch';font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">$${fee.toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--t3)">CUOTA MENSUAL</div>
+      </div>
+      <div class="mpanel" style="flex:1;padding:8px 4px">
+        <div class="sv-n" style="font-family:'Chakra Petch';font-size:19px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums">${fv(inc)}</div>
+        <div style="font-size:9px;color:var(--t3)">POR MES</div>
+      </div>
+    </div>
+    <div class="sr"><span class="sl">Contra la base del club</span><span class="sv" style="color:${col}">${dif>=0?'+':''}${dif}%</span></div>
+    <div class="sr"><span class="sl">Cobranza (humor de la gente)</span><span class="sv" style="color:${mc}">${Math.round(65+mood*0.65)}% de la cuota</span></div>
+    <div class="sr"><span class="sl">Proyección por temporada</span><span class="sv">${fv(Math.round(inc*12*10)/10)}</span></div>
+    <div style="font-size:9px;color:var(--t3);margin-top:6px">Se cobra en el balance de cada mes, adentro del rubro <b>Cuotas de socios</b>. Un título suma 15% de altas, una figura 5%; tres derrotas al hilo o vender al capitán se llevan 5%.</div>`;
+}
 function rPresTab(){
   if(!G) return;
   // Memoria de la carrera: vitrina + curva del patrimonio
-  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); }catch(e){}
+  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); }catch(e){}
   const conf=G.boardConf||50;
   const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Critica';
@@ -23552,7 +23701,11 @@ function firmasTick(){
       G.installments=G.installments||[];
       f.cuotas.forEach(c=>G.installments.push(c));
     }
-    p.club=G.teamName;p.lg='Liga ARG';p.wage=f.wage;p.contract=G.season+f.years;
+    // ⚠️ `p.lg` salía 'Liga ARG' fijo: cuarto valor argentino escrito a mano en
+    // un camino que corre en las 24 ligas (después del 'ARG' de nacionalizar,
+    // el naming de la Bombonera y el de promOne). Un refuerzo del Real Madrid
+    // quedaba fichado "en la Liga ARG".
+    p.club=G.teamName;p.lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';p.wage=f.wage;p.contract=G.season+f.years;
     p.pressuring=0;p.forceSale=false;p.freeAgent=false;
     G.squad.push(p);(G.bench=G.bench||[]).push(p);
     const _fee=f.fee||f.price;
@@ -23562,6 +23715,8 @@ function firmasTick(){
     lg('✍️',`${p.name} firmó ${modo} · ${f.wage}k/sem hasta ${p.contract}`);
     addPhoneMsg('player',p.name,`✍️ ¡Listo presidente! Pasé la revisión y firmé ${modo}. Vamos a dar pelea.`,'✍️');
     flash(`✍️ ${p.name} firmó ${_fee>0?'('+fv(_fee)+')':''}`,'win');
+    // Fichar una figura mueve la masa societaria en el acto
+    if((p.rat||0)>=SOC_ESTRELLA) try{ sociosEvento('estrella',p.name); }catch(e){}
   });
   G.firmas=quedan;
 }
