@@ -11547,7 +11547,145 @@ const DILEMAS=[
            return `Se terminó el predio. La cantera va a dar otra cosa.`; }},
       ]})
   },
+  // ═══════════════════════════════════════════════════════════════════════
+  // DILEMAS INSTITUCIONALES: los que no tienen que ver con un jugador
+  // ═══════════════════════════════════════════════════════════════════════
+  // Los seis de arriba giran alrededor de alguien del plantel. Estos cuatro
+  // son del CLUB: la cancha, el micro, la caja, el vestuario entero. Van al
+  // mismo pool porque el motor ya resuelve todo (una vez por temporada cada
+  // uno, nunca dos abiertos a la vez, fx fuera de G).
+  {
+    id:'campo',
+    cuando:()=>(G.week||1)>=6,
+    arma:()=>({
+      de:'Jefe de Mantenimiento', ic:'🌱',
+      txt:`🌱 Presidente, el campo de juego está destruido. Entre la lluvia y los recitales quedó un barrial: hay pozos en las dos áreas. El cuerpo médico avisa que así se lesiona alguien seguro. Replantar sale <b style="color:var(--gold)">${fv(0.5)}</b> y son dos semanas de trabajo.`,
+      ops:[
+        {t:'🌱 Replantar el campo',
+         d:`Salen ${fv(0.5)}. Cancha nueva: menos lesiones por ${DIL_CAMPO_SEM} semanas.`,
+         fx:()=>{ G.budget=Math.round((G.budget-0.5)*10)/10;
+           finAnota&&finAnota('obras',0.5,'Replantado del campo de juego');
+           campoEstado(0.80,'Campo replantado');
+           G.fanMood=Math.min(100,(G.fanMood||55)+3);
+           G.boardConf=Math.max(0,(G.boardConf||50)-2);
+           return `Se replantó el campo (${fv(0.5)}). Por ${DIL_CAMPO_SEM} semanas se juega en una alfombra.`; }},
+        {t:'⚽ Se juega igual',
+         d:`No sale nada. Las lesiones suben un 35% por ${DIL_CAMPO_SEM} semanas.`,
+         fx:()=>{ campoEstado(1.35,'Campo destruido');
+           G.fanMood=Math.max(0,(G.fanMood||55)-4);
+           return `Se juega en el barrial. El cuerpo médico se lava las manos: ${DIL_CAMPO_SEM} semanas de riesgo.`; }},
+      ]})
+  },
+  {
+    id:'fiesta',
+    cuando:()=>(G.squad||[]).length>=14,
+    arma:()=>{ const n=_dilFiesteros(); const nombres=n.map(p=>'<b>'+p.name+'</b>').join(', '); return {
+      de:'Jefe de Seguridad', ic:'🍾',
+      txt:`🍾 Presidente, esto es grave. ${nombres} estuvieron de fiesta hasta las seis de la mañana <b>dos días antes del clásico</b>. Hay videos en el celular de medio mundo y un periodista ya me llamó preguntando. Todavía no salió.`,
+      ops:[
+        {t:'⚖️ Multarlos y que se sepa',
+         d:`Entran ${fv(0.2)} de multas. La moral de los ${n.length} se va al piso.`,
+         fx:()=>{ G.budget=Math.round((G.budget+0.2)*10)/10;
+           finAnota&&finAnota('otros_in',0.2,'Multas por indisciplina');
+           n.forEach(p=>{ p.morale=Math.max(5,(p.morale===undefined?70:p.morale)-45); });
+           autSuma(12); G.boardConf=Math.min(100,(G.boardConf||50)+8);
+           setDtRel&&setDtRel(7); repSuma&&repSuma(1);
+           return `Multaste a los ${n.length} y saliste a decirlo. El vestuario quedó helado, pero nadie va a dudar de quién manda.`; }},
+        {t:'🤫 Taparlo antes de que salga',
+         d:'La moral queda intacta. Si se filtra, lo pagás con la prensa.',
+         fx:()=>{ repSuma&&repSuma(-4); autSuma(-8);
+           G.boardConf=Math.max(0,(G.boardConf||50)-6);
+           n.forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+4); });
+           return `Lo tapaste. El plantel llega entero al clásico, pero la historia se filtró igual y tu nombre quedó pegado.`; }},
+      ]};}
+  },
+  {
+    id:'micro',
+    cuando:()=>(G.week||1)>=5,
+    arma:()=>({
+      de:'Gerencia de Logística', ic:'🚌',
+      txt:`🚌 Presidente, se rompió el micro del plantel y el próximo partido es afuera, a 700 kilómetros. Tenemos dos opciones y hay que decidir hoy: un chárter con asientos cama por <b style="color:var(--gold)">${fv(0.1)}</b>, o el micro viejo de la empresa de siempre, que tarda once horas.`,
+      ops:[
+        {t:'✈️ Chárter VIP',
+         d:`Salen ${fv(0.1)}. Química +10: el viaje los junta.`,
+         fx:()=>{ G.budget=Math.round((G.budget-0.1)*10)/10;
+           finAnota&&finAnota('otros_out',0.1,'Chárter del plantel');
+           G.chem=Math.min(100,(G.chem===undefined?45:G.chem)+10);
+           G.squad.forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+3); });
+           return `Viajan en chárter. Once horas menos de micro y un plantel más unido (química ${G.chem}).`; }},
+        {t:'🚐 El micro barato',
+         d:'No sale nada. Llegan fundidos: física al 80% en el próximo partido.',
+         fx:()=>{ G.dilFitProx=80;
+           G.squad.forEach(p=>{ p.morale=Math.max(10,(p.morale===undefined?70:p.morale)-5); });
+           setDtRel&&setDtRel(-5);
+           return `Once horas de micro. Llegan al próximo partido al 80% de física y el técnico puso el grito en el cielo.`; }},
+      ]})
+  },
+  {
+    id:'sueldos',
+    cuando:()=>(G.squad||[]).length>=14,
+    arma:()=>{ const mes=Math.round((G.squad||[]).reduce((a,p)=>a+(p.wage||0),0)*4/1000*10)/10; return {
+      de:'Tesorería', ic:'💸',
+      txt:`💸 Presidente, el plantel tiene <b>dos meses de sueldo atrasados</b> y el capitán vino a preguntar. Ponerse al día son <b style="color:var(--gold)">${fv(mes)}</b> hoy mismo. Si no, hay que ir a hablarles y pedirles que aguanten.`,
+      ops:[
+        {t:'💰 Pagar todo hoy',
+         d:`Salen ${fv(mes)}. El vestuario te lo devuelve.`,
+         fx:()=>{ G.budget=Math.round((G.budget-mes)*10)/10;
+           finAnota&&finAnota('sueldos',mes,'Sueldos atrasados al día');
+           G.squad.forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?70:p.morale)+14); });
+           autSuma(6); setDtRel&&setDtRel(6);
+           G.boardConf=Math.min(100,(G.boardConf||50)+4);
+           return `Se pagó todo (${fv(mes)}). El plantel entero levantó la moral.`; }},
+        {t:'🤝 Pedirles que aguanten',
+         d:'No sale un peso. El vestuario entero se resiente.',
+         fx:()=>{ G.squad.forEach(p=>{ p.morale=Math.max(6,(p.morale===undefined?70:p.morale)-16); });
+           autSuma(-10); setDtRel&&setDtRel(-9);
+           G.boardConf=Math.max(0,(G.boardConf||50)-7);
+           G.vestuario=Math.max(0,(G.vestuario===undefined?60:G.vestuario)-10);
+           return `Les pediste que aguanten. Dijeron que sí, pero el vestuario quedó picado.`; }},
+      ]};}
+  },
 ];
+// ═══ ESTADO DEL CAMPO DE JUEGO (lo deja el dilema 'campo') ═══
+// Objeto plano en G, sin funciones, y con vencimiento por semana: un save
+// viejo no lo tiene y `campoFactor()` devuelve 1, que es "cancha normal".
+const DIL_CAMPO_SEM=8;
+function campoEstado(mult,nombre){
+  if(!G)return;
+  G.campoEstado={mult, hasta:(G.week||1)+DIL_CAMPO_SEM, nombre:nombre||''};
+}
+// Multiplica la probabilidad de lesión del bloque semanal. Se vence solo.
+function campoFactor(){
+  if(!G||!G.campoEstado)return 1;
+  if((G.week||1)>G.campoEstado.hasta){ G.campoEstado=null; return 1; }
+  return G.campoEstado.mult||1;
+}
+// Los que se fueron de fiesta: 3-4 del plantel, con peso hacia los titulares
+// (son los que hacen ruido en la tapa del diario).
+function _dilFiesteros(){
+  const sq=(G.squad||[]).filter(p=>!p.injured);
+  if(sq.length<4)return sq.slice(0,3);
+  const orden=sq.slice().sort((a,b)=>(b.rat||0)-(a.rat||0)).slice(0,14);
+  const elegidos=[];
+  while(elegidos.length<3+(Math.random()<0.5?1:0)&&elegidos.length<orden.length){
+    const p=orden[~~(Math.random()*orden.length)];
+    if(elegidos.indexOf(p)<0)elegidos.push(p);
+  }
+  return elegidos;
+}
+// ⚠️ "Física al 80% en el próximo partido" NO se puede aplicar al resolver el
+// dilema: entre la decisión y el partido corren los días, y la recuperación
+// diaria (+1,6/día) se come el castigo antes de que se juegue — es el mismo
+// error que ya estaba documentado con `fitIni` de la pretemporada. Se guarda
+// como objetivo y se ancla cuando el partido arranca, una sola vez.
+function dilFitTick(){
+  if(!G||G.dilFitProx===undefined)return;
+  const t=G.dilFitProx; G.dilFitProx=undefined;
+  G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(p.fit,t); });
+  addPhoneMsg('board','Preparador físico',
+    `🩺 Llegamos al partido al <b>${t}%</b>. El viaje los dejó fundidos, presidente.`,'🩺');
+  lg('🩺',`El plantel llega al partido al ${t}% por el viaje`);
+}
 // Un dilema cada tanto, nunca dos seguidos ni el mismo dos veces por temporada
 // ═══════════════════════════════════════════════════════════════════════
 // INDISCIPLINA: EL LÍO QUE LLEGA UNA VEZ POR MES
@@ -11649,6 +11787,74 @@ function weeklyDilema(){
   _DIL_FX[id]=armado.ops.map(o=>o.fx);
   addPhoneMsg('board',armado.de,armado.txt,armado.ic,{dilema:id});
   lg('⚖️','Hay que tomar una decisión: mirá el celular');
+  // Un dilema del pool FRENA el club hasta que decidas. La indisciplina
+  // mensual no (ver dilemaBloqueante).
+  const nuevo=G.dilemas[G.dilemas.length-1];
+  nuevo.bloquea=true; nuevo.de=armado.de; nuevo.ic=armado.ic;
+  dilemaModal(id);
+}
+// ═══════════════════════════════════════════════════════════════════════
+// EL DILEMA FRENA EL CLUB HASTA QUE DECIDAS
+// ═══════════════════════════════════════════════════════════════════════
+// Antes el dilema llegaba al celular y listo: medido, con uno abierto se podía
+// pasar el día, jugar el partido y seguir la temporada entera sin contestar.
+// Ahora las cuatro puertas por las que avanza el tiempo consultan a
+// `dilemaBloqueante()`.
+//
+// ⚠️ Bloquea sólo lo que lleva `bloquea:true`, o sea el POOL de DILEMAS
+// (~5 por temporada, medido). La indisciplina mensual —7 a 9 por temporada—
+// sigue viviendo en el celular a propósito: frenar el juego nueve veces al año
+// por la misma macana convertiría el sistema en un peaje. Un dilema de un save
+// viejo tampoco tiene la marca, así que no traba una partida en curso: se
+// sigue contestando desde el teléfono.
+function dilemaBloqueante(){
+  if(!G)return null;
+  return (G.dilemas||[]).find(d=>d && d.resuelto===null && d.bloquea) || null;
+}
+// ⚠️ El portero NO rebota y se va: vuelve a abrir el modal. Si sólo dijera
+// "no podés", una partida recargada con el modal cerrado quedaría trabada sin
+// forma de llegar a la decisión.
+function dilemaFrena(){
+  const d=dilemaBloqueante();
+  if(!d)return false;
+  flash('🚨 Hay una decisión sin tomar','loss');
+  dilemaModal(d.id);
+  return true;
+}
+// El modal no se puede cerrar: no hay ✕, el clic en el fondo no cierra y
+// `closeMod()` lo respeta. La única salida es elegir.
+// ⚠️ Si el candado fuera un flag propio, el juego se TRABA — medido. El dilema
+// salta dentro del bloque semanal, o sea DURANTE la resolución del partido, y
+// el resumen del partido abre su modal un instante después y lo pisa. Con un
+// flag, `closeMod` seguía viendo "hay un dilema" y se negaba a cerrar un
+// resumen que no tiene botones para contestar: pantalla trabada sin salida.
+// Por eso el candado se deriva de lo que HAY EN PANTALLA: sólo se niega a
+// cerrar si lo que se está mirando es el dilema de verdad.
+function dilemaEnPantalla(){
+  const ov=document.getElementById('modOv'), el=document.getElementById('modBody');
+  return !!(ov&&el&&ov.style.display==='flex'&&/dilemaResolver\(/.test(el.innerHTML));
+}
+function dilemaModal(id){
+  const d=(G.dilemas||[]).find(x=>x.id===id);
+  if(!d||d.resuelto!==null)return;
+  showMod(`
+    <div class="mtitle" style="color:var(--red)">🚨 URGENTE: Dilema Institucional</div>
+    <div class="mpanel" style="margin-bottom:10px">
+      <div class="mpanel-t">${d.ic||'⚖️'} ${d.de||'Comisión Directiva'}</div>
+      <div style="font-size:12px;line-height:1.55;color:var(--t2)">${d.txt}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${d.ops.map(o=>`
+        <button class="btn bo" style="width:100%;text-align:left;padding:13px 14px;height:auto;white-space:normal;line-height:1.35"
+                onclick="dilemaResolver('${d.id}',${o.i})">
+          <div style="font-family:'Rajdhani';font-size:15px;font-weight:800">${o.t}</div>
+          <div style="font-size:10.5px;color:var(--t3);font-weight:500;margin-top:3px">${o.d}</div>
+        </button>`).join('')}
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:10px;text-align:center">
+      El club no se mueve hasta que decidas.
+    </div>
+  `);
 }
 // Las acciones de cada dilema abierto, fuera de G para que el guardado no se
 // rompa intentando serializar funciones. Si recargás la partida con un dilema
@@ -11690,6 +11896,20 @@ function dilemaResolver(id,i){
   addPhoneMsg('board','Secretaría del Club','⚖️ '+msg,'🏛️');
   lg('⚖️',msg);
   flash('⚖️ '+d.ops[i].t,'draw');
+  // Queda en el historial de noticias: la decisión es parte de la gestión y
+  // tiene que poder releerse después. Antes sólo iba al celular y al log.
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+(G.week||1), ic:'⚖️', type:'misc',
+    msg:`<b>${d.ops[i].t}</b> — ${msg}`});
+  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
+  // Se libera el modal recién acá: es la única salida del bloqueo.
+  if(!dilemaBloqueante()){
+    try{ document.getElementById('modOv').style.display='none'; }catch(e){}
+  } else {
+    // Nunca debería haber dos, pero si los hubiera se encadenan en vez de
+    // soltar el club a medias.
+    dilemaModal(dilemaBloqueante().id);
+  }
   if(typeof renderPhone==='function')renderPhone();
   updateUI();
 }
@@ -13545,6 +13765,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Jugadores fundidos se lesionan más (y son los que más chance tienen de caer)
   const tired=G.squad.filter(p=>fitOf(p)<60&&!p.injured);
   if(tired.length>=3) injChance*=1.5;
+  injChance*=campoFactor();     // el dilema del campo de juego, mientras dure
   if(Math.random()<injChance){
     const ip=(tired.length&&Math.random()<0.6)?tired[~~(Math.random()*tired.length)]:G.squad[~~(Math.random()*G.squad.length)];
     const doctorLv = G.staffLevels.doctor||0;
@@ -13688,6 +13909,9 @@ function openContinuousSim(){
 }
 function runContinuousSim(n){
   if(!G)return;
+  // Sin este portero el bucle llamaría a simMatch bloqueado y avanzaría las
+  // semanas igual con su `G.week++` de fallback.
+  if(dilemaFrena())return;
   closeMod();
   n=Math.max(1,Math.min(200,~~n||1));
   const start={w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week};
@@ -13698,6 +13922,11 @@ function runContinuousSim(n){
     if(!m)break;
     const home=m.home,away=m.away,comp=m.comp;
     simMatch(true);                       // sin modales: acumula y sigue
+    // ⚠️ El dilema puede saltar EN MEDIO de la seguidilla (cae en el bloque
+    // semanal del partido que acaba de jugarse). Sin este corte, el próximo
+    // simMatch vuelve bloqueado, `m.played` queda en false y el `G.week++` de
+    // abajo quema una semana por iteración sin jugar un solo partido.
+    if(dilemaBloqueante())break;
     if(!m.played){G.week++;continue;}
     if(m.week>G.week)G.week=m.week;
     rows.push({comp,home,away,score:m.score,res:m.result});
@@ -13741,6 +13970,8 @@ function runContinuousSim(n){
 
 function simMatch(auto){
   if(!G) return;
+  if(dilemaFrena())return;                     // hay una decisión sin tomar
+  dilFitTick();                                // el viaje en micro se cobra acá
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
   // ═══ LOS AMISTOSOS DE PRETEMPORADA SON FECHAS, PERO NO REPARTEN PUNTOS ═══
@@ -14961,6 +15192,8 @@ function doTeamTalk(id,good){
 }
 
 function playMatch(){
+  if(dilemaFrena())return;                     // hay una decisión sin tomar
+  dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
   if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
     flash('📅 Todavía no es el día del partido — hacé correr los días','draw');
@@ -18340,6 +18573,8 @@ function fmMove(body,dx,dy,dt,acc){
 }
 
 function startFullMatch(watch){
+  if(dilemaFrena())return;                     // hay una decisión sin tomar
+  dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
   if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
     flash('📅 Todavía no es el día del partido — hacé correr los días','draw');
@@ -22514,8 +22749,16 @@ function showMod(html){
   document.getElementById('modOv').style.display='flex';
 }
 function closeMod(e){
+  const pend=(typeof dilemaBloqueante==='function')?dilemaBloqueante():null;
+  // El dilema en pantalla no se cierra por ningún camino: ni el clic en el
+  // fondo, ni un closeMod() suelto de otra parte del código.
+  if(pend && dilemaEnPantalla()) return;
   if(!e||e.target===document.getElementById('modOv'))
     document.getElementById('modOv').style.display='none';
+  // Cerraste otra cosa (el resumen del partido, por ejemplo) y quedaba una
+  // decisión pendiente: aparece acá. Así el resumen se lee entero y la
+  // decisión igual es inevitable.
+  if(pend && !dilemaEnPantalla()) dilemaModal(pend.id);
 }
 function flash(msg, type='win'){
   const el = document.createElement('div');
@@ -23443,6 +23686,7 @@ function avanzarHastaPartido(){
 }
 function advanceDay(silencioso){
   if(!G)return;
+  if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(curDay()>=7){
     if(!silencioso) flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
     return;

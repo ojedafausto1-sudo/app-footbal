@@ -2028,6 +2028,131 @@ fichaje del Real Madrid quedaba anotado como jugador de la liga argentina. Es la
 el naming de la Bombonera y el `'ARG'`/`'Liga ARG'` de `promOne`). Ahora sale de
 `ligaMia()`.
 
+## Fase 29: los dilemas ahora FRENAN el club
+
+El motor de dilemas ya existía (`DILEMAS`, `weeklyDilema`, `dilemaResolver`) y
+la parte que faltaba no era el banco de escenarios sino la **interrupción**.
+Medido antes de tocar nada, con un dilema abierto:
+
+| | antes |
+|---|---|
+| pasar el día | ✅ pasaba |
+| simular el partido | ✅ jugaba |
+| abrir el plantel | ✅ |
+| modal en pantalla | ❌ nunca aparecía |
+| quedaba en `G.news` | ❌ no |
+
+O sea: llegaba al celular y se podía jugar la temporada entera sin contestar.
+
+### Las cinco puertas del tiempo
+
+`dilemaBloqueante()` + `dilemaFrena()` cierran **`advanceDay`, `playMatch`,
+`startFullMatch`, `simMatch` y `runContinuousSim`**. Medido en 4 temporadas
+completas: **4,3 dilemas del pool por temporada y 4,3 frenos** — frenó el 100%
+de las veces.
+
+⚠️ **`runContinuousSim` necesita su propio portero.** Bloquear `simMatch` no
+alcanza: el bucle de la simulación continua ve `m.played` en `false` y hace su
+`G.week++` de fallback, así que habría seguido corriendo las semanas sin jugar.
+
+⚠️ **El portero no rebota: vuelve a abrir el modal.** Si sólo dijera "no
+podés", una partida recargada con el modal cerrado quedaba trabada sin forma de
+llegar a la decisión.
+
+### ⚠️ El candado NO puede ser un flag propio — el juego se trabó, medido
+
+Primer intento con un `_DIL_LOCK` booleano y salió un soft-lock de verdad: el
+dilema salta **dentro del bloque semanal**, o sea DURANTE la resolución del
+partido, y el resumen del partido abre su modal un instante después y lo pisa.
+Con el flag puesto, `closeMod` seguía viendo "hay un dilema" y **se negaba a
+cerrar un resumen que no tiene botones para contestar**. Reproducido:
+`PANTALLA_TRABADA: true`, sin salida.
+
+El candado ahora se **deriva del DOM**: `dilemaEnPantalla()` mira si lo que se
+está viendo tiene los botones `dilemaResolver(`. `closeMod` se niega sólo en
+ese caso, y **al cerrar cualquier otra cosa vuelve a asomar el dilema**. Con
+eso el resumen del partido se lee entero y la decisión igual es inevitable.
+Verificado: se pisa el modal → se cierra el resumen → aparece el dilema con sus
+botones.
+
+Es la misma lección de `G.roles.captain` y `G.members`: **un estado derivable no
+se duplica en una variable**, porque las dos se desincronizan.
+
+### Bloquea el POOL, no la indisciplina mensual
+
+Sólo frena lo que lleva `bloquea:true`, que lo pone `weeklyDilema`. La
+indisciplina mensual (`weeklyIndisciplina`, **7,0 por temporada medidas**) sigue
+viviendo en el celular a propósito: frenar el juego nueve veces al año por la
+misma macana sería un peaje, no una decisión. Un dilema de un **save viejo**
+tampoco tiene la marca, así que no traba una partida en curso — se sigue
+contestando desde el teléfono.
+
+### Los 4 escenarios institucionales
+
+Los seis viejos giran alrededor de un jugador; estos cuatro son del CLUB. Van al
+mismo pool (el motor ya resuelve una vez por temporada cada uno, nunca dos
+abiertos, `fx` fuera de `G`). Medido: **41% de los dilemas que salen son de los
+nuevos** (7 de 17 en 4 temporadas), que es lo que corresponde a 4 de 10.
+
+| dilema | A | B |
+|---|---|---|
+| 🌱 campo destruido | replantar 0,5M → lesiones **×0,80** | jugar así → lesiones **×1,35** |
+| 🍾 fiesta antes del clásico | multar **+0,2M**, moral de los 3-4 al piso, autoridad **+12** | taparlo → moral intacta, **−4 de reputación** |
+| 🚌 micro roto | chárter 0,1M → **química +10** | micro barato → **física al 80%** en el próximo partido |
+| 💸 sueldos atrasados | pagar (~3,5M) → moral del plantel a **84** | pedir que aguanten → moral a **54** |
+
+- **El estado del campo vence solo.** `G.campoEstado` es un objeto plano
+  `{mult,hasta,nombre}` con vencimiento por semana, y `campoFactor()` multiplica
+  el `injChance` del bloque semanal. Verificado: 1 → 1,35 → sigue 1,35 en la
+  semana del borde → 1 y se limpia solo. Un save viejo no lo tiene y da 1.
+- ⚠️ **La física del micro NO se puede aplicar al decidir.** Entre la decisión y
+  el partido corren los días y la recuperación diaria (+1,6/día) se come el
+  castigo — es exactamente el error de `fitIni` que ya está documentado en la
+  pretemporada. Se guarda en `G.dilFitProx` y lo ancla `dilFitTick()` cuando
+  arranca el partido, una sola vez. Medido: **100 al decidir → 100 tras 4 días
+  → 80 en la cancha**, y llamarlo de nuevo no repite el castigo.
+- Los fiesteros salen de `_dilFiesteros()`: 3-4 con peso hacia los titulares,
+  que son los que hacen ruido en la tapa del diario.
+
+### La decisión queda en el historial
+
+`dilemaResolver` ahora escribe en **`G.news`** (`type:'misc'`) además del
+celular y el log: la decisión es parte de la gestión y tiene que poder releerse.
+⚠️ Ojo que `G.news` topea en `AI_NEWS_MAX` (50) y los rumores de transferencias
+lo llenan rápido, así que las decisiones viejas se caen de la lista.
+
+### ⚠️ Frenar el club rompe TODO bucle que simule una temporada
+
+Es la consecuencia menos obvia del cambio y apareció en tres lugares:
+
+- **En el juego**, `runContinuousSim` tenía el bug de verdad: el portero de la
+  entrada no alcanza porque el dilema puede saltar **en medio** de la seguidilla
+  (cae en el bloque semanal del partido recién jugado). A partir de ahí cada
+  `simMatch` volvía bloqueado, `m.played` quedaba en `false` y el `G.week++` de
+  fallback **quemaba una semana por iteración sin jugar un solo partido**. Ahora
+  el bucle corta con `if(dilemaBloqueante())break;`.
+- **En la regresión**, cuatro bucles de temporada se colgaron, y **dos pasaron
+  en verde igual**: "temporada completa" contaba *iteraciones*, así que informó
+  **900 partidos** en vez de 55 y se dio por bueno; los playoffs bajaron de 4
+  llaves a 2 y su assert seguía dando `true`. Es el mismo pase vacío que ya
+  había tenido el check de memoria con los `every` sobre arrays vacíos.
+
+Ahora hay un `dilResolver()` compartido arriba de la regresión por el que pasan
+los cuatro bucles, y el de temporada completa **exige 40+ partidos jugados de
+verdad** en vez de contar vueltas.
+
+### Lo que NO se tocó, y por qué
+
+- **La probabilidad sigue en 8,5% por semana**, no 10%. El pedido decía "ej.
+  10%": la diferencia son 0,75 dilemas por temporada, ruido contra los 4,3
+  medidos. Cambiarla no se puede verificar con temporadas sueltas.
+- **No se creó `triggerDilemma()`**: `weeklyDilema()` ya es esa función y está
+  cableada en el bloque semanal con el pool, el "uno por temporada" y el "nunca
+  dos abiertos" ya resueltos.
+- **`G.morale` no existe y no se creó.** La moral es **por jugador**
+  (`p.morale`); un promedio global sería una segunda fuente de verdad. Los
+  dilemas que "bajan la moral" recorren el plantel.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
