@@ -8399,7 +8399,13 @@ function promOne(id){
   const yp = G.youth.players.find(x=>x.id===id);
   if(!yp) return;
   if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
-  const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors','Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
+  // ⚠️ NO va 'ARG'/'Liga ARG' fijos. Medido con el Real Madrid: el canterano
+  // subía con nat ARG y lg 'Liga ARG', o sea que **le comía una plaza de
+  // extracomunitario** — el cupo pasaba de 4 a 5 con un tope de 3. Un pibe de
+  // la cantera es local por definición. Mismo bug que el 'ARG' de nacionalizar
+  // y el naming de la Bombonera.
+  const _nat=(typeof natLocalPrincipal==='function')?natLocalPrincipal():'ARG';
+  const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,_nat,G.teamName||'Boca Juniors',ligaMia(),yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
   G.squad.push(np); G.bench.push(np);
   movAnota('entra',np,{motivo:'subió de la cantera'});
   G.youth.players = G.youth.players.filter(x=>x.id!==id);
@@ -8411,16 +8417,172 @@ function promOne(id){
       lg('✅','Exigencia presidencial cumplida: '+d.desc);
     }
   });
-  // Generate replacement
-  const fn=['Thiago','Mateo','Luca','Agustín','Franco','Valentín'];
-  const ln=['González','López','Fernández','Rodríguez','Martínez','García'];
-  G.youth.players.push({id:'y'+Date.now(),name:fn[~~(Math.random()*fn.length)]+' '+ln[~~(Math.random()*ln.length)],
+  // Generate replacement — el nombre sale de la liga, no de una lista argentina
+  G.youth.players.push({id:'y'+Date.now(),name:_youthName(ligaMia()),
     pos:yp.pos,age:16+~~(Math.random()*3),rat:52+~~(Math.random()*14),pot:70+~~(Math.random()*20),
     progress:~~(Math.random()*25),val:Math.round((0.2+Math.random()*.6)*10)/10});
   lg('🌱',`${yp.name} promovido al plantel!`);
   updateUI(); flash('✅ '+yp.name+' sube al plantel!','win');
 }
 function promBest(){ if(!G) return; const b=G.youth.players.sort((a,b)=>b.pot-a.pot)[0]; if(b)promOne(b.id); else flash('Sin juveniles','draw'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// PRUEBAS DE INFERIORES — la camada anual
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ LOS NOMBRES SALEN DE LA BASE, NO DE UNA LISTA A MANO.
+// La cantera del Real Madrid producía "Thiago González" y "Santiago Romero"
+// porque `promOne` tenía 6 nombres y 6 apellidos argentinos escritos a mano.
+// Acá el pool se arma con los jugadores REALES de la liga que dirigís, que es
+// el mismo principio que ya usan el wizard de inicio y `clubRank`: todo sale de
+// los datos. Cacheado por liga porque recorre los 17.000 de `PLAYERS_DB`.
+let _ynCache={};
+function _youthNames(lg){
+  const L=lg||ligaMia();
+  if(_ynCache[L]) return _ynCache[L];
+  const locales=(typeof natsLocales==='function')?natsLocales():['ARG'];
+  const fn=[], ln=[];
+  (window.PLAYERS_DB||[]).forEach(r=>{
+    if(locales.indexOf(r[4])<0) return;
+    const parts=String(r[1]||'').split(' ').filter(x=>x.length>2);
+    if(parts.length>=2){ fn.push(parts[0]); ln.push(parts[parts.length-1]); }
+  });
+  // Pool chico (liga con pocos locales en la base) → se cae a lo de siempre.
+  const out = fn.length>=25
+    ? {fn:[...new Set(fn)], ln:[...new Set(ln)]}
+    : {fn:['Thiago','Mateo','Luca','Agustín','Franco','Valentín'],
+       ln:['González','López','Fernández','Rodríguez','Martínez','García']};
+  _ynCache[L]=out; return out;
+}
+function _youthName(lg){
+  const n=_youthNames(lg);
+  return n.fn[~~(Math.random()*n.fn.length)]+' '+n.ln[~~(Math.random()*n.ln.length)];
+}
+// El techo de potencial lo pone la academia: nivel 1 → 66, nivel 5 → 90.
+function youthPotTecho(){
+  const lv=Math.max(1,Math.min(5,(G&&G.youth&&G.youth.level)||1));
+  return 60+lv*6;
+}
+function intakePendiente(){ return (G&&G.youthIntake)||[]; }
+// ⚠️ EL RANGO NO SE CENTRA EN EL POTENCIAL REAL.
+// Es la misma lección que la niebla de guerra del mercado: si el rango es
+// `pot±m`, el punto medio ES el número que estás tratando de adivinar y la
+// decisión deja de ser una apuesta. El ojeador tiene su propia estimación,
+// corrida hasta ±m y ESTABLE por jugador (guardada en el objeto, no
+// recalculada en cada render).
+function intakeRango(j){
+  const m=j.err||6, e=j.potEst||j.pot;
+  return [Math.max(40,Math.round(e-m)), Math.min(99,Math.round(e+m))];
+}
+function generateYouthIntake(){
+  if(!G) return [];
+  const techo=youthPotTecho();
+  const n=3+~~(Math.random()*3);                 // 3 a 5
+  const POS=['ARQ','DFC','DFC','DFD','DFI','MCD','MC','MC','MCO','MI','MD','EI','ED','DC','DC'];
+  const lg=ligaMia(), nat=(typeof natLocalPrincipal==='function')?natLocalPrincipal():'ARG';
+  const out=[];
+  for(let i=0;i<n;i++){
+    const pot=Math.max(58,Math.min(99,techo-8+~~(Math.random()*17)));
+    const err=4+~~(Math.random()*5);
+    // la estimación del ojeador se corre hacia cualquier lado, no al centro
+    const potEst=Math.max(45,Math.min(99,pot+(Math.random()<0.5?-1:1)*~~(Math.random()*(err+1))));
+    out.push({
+      id:'yi'+Date.now()+'_'+i,
+      name:_youthName(lg), age:15+~~(Math.random()*2), pos:POS[~~(Math.random()*POS.length)],
+      rat:45+~~(Math.random()*11),                // 45-55, como pide el pedido
+      pot, potEst, err, nat, lg,
+      val:Math.round((0.1+Math.random()*0.4)*10)/10
+    });
+  }
+  return out;
+}
+function youthIntakeAbrir(){
+  if(!G) return;
+  if(!intakePendiente().length){ G.youthIntake=generateYouthIntake(); }
+  rIntake();
+}
+function rIntake(){
+  const js=intakePendiente();
+  if(!js.length){ closeMod(); return; }
+  const cupo=G.squad.length>=35;
+  showMod(`
+    <div class="mclose" onclick="youthIntakeCerrar()">✕</div>
+    <div class="mtitle">⚽ Pruebas de Inferiores</div>
+    <div class="note" style="margin-top:0">Academia nivel <b>${(G.youth&&G.youth.level)||1}</b> ·
+      el ojeador ESTIMA el techo de cada pibe, no lo sabe. Los que descartes no vuelven.</div>
+    ${js.map(j=>{
+      const [lo,hi]=intakeRango(j);
+      return `
+      <div class="mpanel">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+               background:linear-gradient(150deg,rgba(var(--gold-rgb),.26),rgba(var(--gold-rgb),.07));
+               border:1px solid rgba(var(--gold-rgb),.45);font-family:'Chakra Petch',sans-serif;
+               font-size:12px;font-weight:700;color:var(--gold)">${j.rat}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${j.name}</div>
+            <div style="font-size:10px;color:var(--t3)">${j.pos} · ${j.age} años · ${j.nat}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">Potencial</div>
+            <div class="sv" style="color:var(--gold);font-size:13px">${lo}–${hi}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn bo bs" style="flex:1" onclick="intakeDescartar('${j.id}')">Descartar</button>
+          <button class="btn bg bs" style="flex:1.5" ${cupo?'disabled':''}
+            onclick="intakeFirmar('${j.id}')">${cupo?'Plantel lleno':'Ofrecer contrato'}</button>
+        </div>
+      </div>`;}).join('')}
+    <button class="btn bo bs" style="width:100%;margin-top:10px" onclick="youthIntakeCerrar()">Cerrar las pruebas</button>`);
+}
+function intakeFirmar(id){
+  if(!G) return;
+  const i=intakePendiente().findIndex(x=>x.id===id); if(i<0) return;
+  const j=G.youthIntake[i];
+  if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
+  // Sueldo de juvenil: mínimo. P() lo toma como argumento, no lo inventa.
+  const wage=Math.max(3,~~(j.rat*0.22));
+  const np=P(~~(Math.random()*90)+1, j.name, j.pos, j.age, j.nat,
+             G.teamName||'Boca Juniors', j.lg, j.val, j.rat, wage, j.pot);
+  np.pot=j.pot; np.seasonsAtClub=0; np.canterano=true;
+  G.squad.push(np); if(G.bench)G.bench.push(np);
+  movAnota('entra',np,{motivo:'firmó en las pruebas de inferiores'});
+  G.youthIntake.splice(i,1);
+  lg('🌱',`${j.name} (${j.pos}, ${j.age}) firmó su primer contrato`);
+  flash('✅ '+j.name+' firmó con el club','win');
+  rIntake(); updateUI();
+}
+function intakeDescartar(id){
+  if(!G) return;
+  const i=intakePendiente().findIndex(x=>x.id===id); if(i<0) return;
+  const j=G.youthIntake[i];
+  G.youthIntake.splice(i,1);
+  lg('👋',`${j.name} no quedó en las pruebas`);
+  rIntake();
+}
+function youthIntakeCerrar(){
+  if(G&&intakePendiente().length){
+    const n=G.youthIntake.length;
+    lg('👋',`${n} chico${n===1?'':'s'} quedaron libres al cerrar las pruebas`);
+    G.youthIntake=[];
+  }
+  closeMod();
+}
+// ⚠️ UNA VEZ POR TEMPORADA, y la marca es la TEMPORADA, no un booleano: con un
+// booleano las pruebas pasaban una sola vez en toda la carrera.
+const INTAKE_SEMANA=30;
+function weeklyIntake(){
+  if(!G) return;
+  if((G.week|0)!==INTAKE_SEMANA) return;
+  if(G._intakeSeason===G.season) return;
+  G._intakeSeason=G.season;
+  G.youthIntake=generateYouthIntake();
+  addPhoneMsg('board','Coordinador de Inferiores',
+    `⚽ Presidente, terminamos las pruebas: <b>${G.youthIntake.length} chicos</b> de la zona nos gustaron. `+
+    `Hay que decidir a quién le damos contrato — los que no firmen se van a otro lado.`,'⚽',{gotoTab:'juv'});
+  flash('⚽ Pruebas de Inferiores: '+G.youthIntake.length+' chicos','win');
+  setTimeout(()=>{ try{ if(intakePendiente().length) rIntake(); }catch(e){} },400);
+}
 
 // =============================================
 // STAFF
@@ -13316,6 +13478,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyLoans();
   weeklyObras();     // avanza las obras del estadio y la academia
   weeklySponsors();  // las marcas te buscan: ofertas nuevas y las que vencen
+  weeklyIntake();    // semana 30: las pruebas de inferiores, una vez por temporada
   weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
   preseasonFit();    // ancla la física elegida en la gira a la fecha 1 del torneo
   weeklySeleccion();
@@ -22611,6 +22774,17 @@ function openThemePicker(){
 function startGame(teamId){
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
+  // ⚠️ LA GLOBAL DE LIGA HAY QUE FIJARLA ACÁ TAMBIÉN.
+  // El wizard la setea en su paso 3 (`setLigaSel`), pero entrar directo por
+  // `startGame('boca')` no la tocaba: quedaba la de la partida anterior.
+  // Medido: elegir Man City por el wizard y después arrancar Boca daba
+  // **Boca Juniors jugando la Premier contra Coventry**, con la nacionalidad
+  // local en ING. Es el espejo del bug ya documentado de "dirigir afuera"
+  // (que cubría Real Madrid después de Boca, pero no la vuelta).
+  try{
+    const _t=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId||'boca']:null;
+    if(_t) _LIGA_ELEGIDA=_t.liga||'Liga ARG';
+  }catch(e){}
   initGame(teamId||'boca');
   let th=null;try{th=localStorage.getItem('dt_theme');}catch(e){}
   applyTheme(th||CLUB_THEME[teamId]||'oro');

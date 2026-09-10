@@ -1850,6 +1850,79 @@ constantes de geometría salió mal cinco veces documentadas.
 | marcador | **`f.sc`** (array `[my, opp]`) |
 | estadísticas | **`f.stat`** (no `f.stats`), con `shots/sot/pass/corner/foul/off` |
 
+## Fase 27: pruebas de inferiores (la camada anual)
+
+`weeklyIntake()` corre en el bloque semanal y en la **semana 30**
+(`INTAKE_SEMANA`) genera una camada de 3-5 pibes en `G.youthIntake` — objetos
+planos, 0 funciones en `G`, sobreviven al guardado. Llega un mensaje del
+Coordinador de Inferiores y se abre el modal (`rIntake`), donde cada chico se
+firma o se descarta. Los que no firman **no vuelven**.
+
+⚠️ **La marca de "ya pasó" es la TEMPORADA (`G._intakeSeason`), no un
+booleano**: con un booleano las pruebas habrían pasado una sola vez en toda la
+carrera. Verificado: dispara, la segunda llamada de la misma temporada no
+re-genera, y la temporada siguiente sí.
+
+| | |
+|---|---|
+| camada | 3-5 jugadores |
+| edad | 15-16 |
+| media | 45-55 |
+| techo de potencial | `60 + nivel*6` → **66 / 72 / 78 / 84 / 90** por nivel de academia |
+
+### ⚠️ El rango de potencial NO se centra en el real
+
+Es la misma lección que la niebla de guerra del mercado: si el rango fuera
+`pot±m`, el punto medio **es** el número que estás tratando de adivinar y la
+decisión deja de ser una apuesta. El ojeador tiene su propia estimación
+(`potEst`), corrida hasta ±`err` y **estable por jugador** (guardada en el
+objeto, no recalculada en cada render). Medido sobre ~700 pibes: el real cae
+dentro del rango el **100%** de las veces y el punto medio lo clava sólo el
+**14%**.
+
+### ⚠️ Los nombres salen de la BASE, no de una lista a mano
+
+La cantera del Real Madrid producía "Thiago González" y "Santiago Romero"
+porque `promOne` tenía 6 nombres y 6 apellidos argentinos escritos a mano.
+`_youthNames(lg)` arma el pool con los jugadores **reales** de la liga que
+dirigís (filtrando por `natsLocales()`), cacheado por liga porque recorre los
+17.000 de `PLAYERS_DB`. Medido:
+
+| liga | camada |
+|---|---|
+| Liga ARG | Valentín Barrios · Mateo Fenoglio |
+| España | Àlex Bigas · Xavi Tárrega |
+| Italia | Nicola Adorante · Giorgio Trombini |
+| Premier | Jake Brewster · Dylan Swanson |
+
+Si una liga tiene menos de 25 locales en la base, cae a la lista argentina.
+
+### ⚠️ El canterano del Real Madrid ocupaba cupo de extracomunitario
+
+`promOne` metía al juvenil con **`'ARG'` y `'Liga ARG'` fijos**. Medido: en el
+Real Madrid el pibe subía con `nat:ARG`, `lg:'Liga ARG'` y **`pIsForeign` daba
+true** — el cupo pasaba de **4 a 5 con un tope de 3**. Un canterano es local por
+definición. Ahora sale de `natLocalPrincipal()` y `ligaMia()`, igual que
+nacionalizar. Es el mismo bug que el `'ARG'` fijo de la Fase 14 y el naming de
+la Bombonera de la Fase 22: **tercera vez que aparece un valor argentino
+escrito a mano en un camino que corre en las 24 ligas.**
+
+## ⚠️ Arrancar una partida NO puede heredar la liga de la anterior
+
+Espejo del bug de "dirigir afuera" que ya estaba documentado — aquel cubría
+Real Madrid **después** de Boca, pero no la vuelta.
+
+El wizard fija `_LIGA_ELEGIDA` en su paso 3 (`setLigaSel`), pero entrar directo
+por `startGame('boca')` **no la tocaba**: quedaba la de la partida anterior.
+Medido: elegir Man City por el wizard y después arrancar Boca daba **Boca
+Juniors jugando la Premier, con la primera fecha contra Coventry** y la
+nacionalidad local en `ING`.
+
+Arreglado en `startGame`, que ahora fija la global desde `TEAMS[teamId].liga`
+antes de llamar a `initGame`. La regresión lo blinda ensuciando la global a
+propósito y verificando que Boca vuelva a la Liga ARG sin rivales ingleses en
+el calendario.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
