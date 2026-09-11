@@ -2270,6 +2270,87 @@ resultadista**: no se cuelga del travesaño. Además `_mode==='hold'` sí tiene
 efecto medible, porque entra en `fmTeamPass` (`longChance*0.3` y `fwdW=0.06`) —
 o sea que actúa por la palanca que funciona, la de decisión.
 
+## Fase 31: las DOS FORMACIONES por fase — implementadas, medidas y REVERTIDAS
+
+Tres fases seguidas dejaron escrito que "la única salida estructural" para que el
+bloque responda era **cambiar la base del dibujo (`p.hy`), o sea dos formaciones
+por equipo que se intercambian al perder/recuperar la pelota**. Se hizo. **No
+funciona tampoco**, y ahora sabemos por qué.
+
+### Qué se construyó
+
+Cada jugador pasó a tener tres pares de coordenadas en vez de uno:
+`hx0/hy0` (el dibujo, intocable salvo el espejo del entretiempo), `hxA/hyA`
+(atacando) y `hxD/hyD` (defendiendo). `p.hx/p.hy` —que es lo que leen `homeX` y
+`homeY`— pasó a ser la forma VIGENTE. `fmShapeApply()` deriva las dos formas del
+perfil del DT ya ajustado por el marcador, y `fmShapeTick()` las intercambia
+según `f.possSide` con histéresis de 26 ticks.
+
+El bloque se **comprime**, no se traslada: atacando los de atrás suben ×1,15 y
+los de arriba ×0,40; defendiendo al revés (×0,45 / ×1,40). Trasladarlo entero
+pondría a los once en fila.
+
+### El mecanismo anda EXACTO — eso está verificado sin estadística
+
+Sonda determinista sobre 15.472 ticks (`scratchpad/fase0.js`):
+
+| | |
+|---|---|
+| `hx0` del volante | 925 |
+| `hxA` (atacando) | **1.229** — hacia el arco rival |
+| `hxD` (defendiendo) | **763** — hacia el propio |
+| la fase sigue a la posesión | **99,8%** de los ticks |
+
+O sea: la base se mueve, en la dirección correcta, y el cambio de fase engancha
+bien. Nada de esto es dudoso.
+
+### Y sin embargo el resultado emergente sale al revés
+
+Ablación, métrica agregada sobre todos los ticks, condicionada a la posesión:
+
+| | ancho atacando − defendiendo | bloque atacando − defendiendo |
+|---|---|---|
+| apagado | −54 | −3,3 |
+| **encendido (sube + ensancha)** | **−195** | **−10,9** |
+| sólo estrecha al defender | −13 | −2,0 |
+
+Encendido es **claramente peor** (el equipo termina más angosto y más atrás
+atacando, que es justo lo que se quería corregir). La variante conservadora
+queda **dentro del ruido del propio baseline**: las tres corridas de "apagado"
+dieron Δ ancho **−37, −8 y −54**, así que una mejora de 41px no se puede
+distinguir de nada.
+
+**REVERTIDO ENTERO.** Es el **séptimo** intento fallido, y el más caro, porque
+falsifica la salida que las Fases 25, 29 y 30 habían dejado anotada como "la
+buena".
+
+### Las dos cosas que sí se aprendieron
+
+1. **La base del dibujo también es un objetivo blando.** Se creía que `p.hy` era
+   distinto de `baseShift` porque es la ENTRADA de la cascada en vez de una
+   corrección al final. No lo es: los overrides que empujan a todos hacia la
+   pelota dominan la posición final **sin importar dónde esté la base**. Mover la
+   base sólo cambia de dónde salen antes de ser arrastrados.
+2. **El dibujo YA usa todo el ancho de cancha** (`toMyXY` mapea `s.x` 0-100 a
+   `y` 0-1600), así que "abrirse atacando" es **geométricamente imposible**: el
+   clamp de banda se lo come y sólo el estrechar tiene efecto. Por eso la
+   asimetría del resultado. Para que el ancho pueda crecer habría que dibujar la
+   formación base más angosta, y eso recalibra todo lo demás que cuelga de ella.
+
+### Qué queda abierto (y qué NO intentar de nuevo)
+
+La conclusión de la Fase 30 se refuerza en vez de romperse: **en este motor sólo
+funcionan las palancas que cambian una DECISIÓN** (qué pase elige, adónde va la
+pelota). Ninguna palanca posicional ha funcionado nunca acá — ni la constante, ni
+el tope duro, ni la base del dibujo.
+
+Si alguna vez se retoma, lo único que queda sin probar es **tocar los overrides
+mismos**: que la cascada de `fmAI` que manda a todos hacia la pelota mire la
+fase antes de disparar (por ejemplo, que defendiendo sólo los 3 más cercanos
+persigan y el resto ignore la pelota). Eso no es un parámetro ni una base: es
+cambiar quién decide moverse, que es la única categoría que en este motor da
+resultados. Y ojo que ahí se toca la marca y el offside.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
