@@ -4310,6 +4310,184 @@ function pressConfAnswer(moraleDelta,confDelta,fansDelta,dtRelDelta){
   updateUI();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// CONFERENCIA POR HITO: la que SÍ te frena el club
+// ═══════════════════════════════════════════════════════════════════════
+// La conferencia post-partido de arriba ya existía y es buena, pero medido
+// sobre 3 temporadas se ofrece **165 veces de 165 partidos** y es un botón
+// opcional al pie del resumen: se puede jugar la carrera entera sin abrir una
+// sola. O sea que es color, no gestión.
+//
+// Ésta es la otra mitad: salta sólo cuando pasó ALGO —un fichaje bomba, una
+// goleada en contra, un título— y ahí sí te para el juego, igual que un
+// dilema. Las dos conviven a propósito: hacer bloqueantes las 53 del año
+// sería un peaje, que es exactamente el error que ya está documentado con la
+// indisciplina mensual.
+//
+// Frecuencia medida con Boca, 3 temporadas:
+//   · goleada en contra (3+):  1 · 0 · 0   → 0,33 por temporada
+//   · títulos:                 0 · 2 · 3   → 1,7 por temporada
+//   · fichaje bomba:           lo decidís vos
+// O sea ~2-4 conferencias bloqueantes al año, el mismo orden que los 4,3
+// dilemas. Si en vez de "goleada EN CONTRA" se tomara cualquier diferencia de
+// 3, serían 13-17 por temporada (las goleadas A FAVOR) y volvía a ser peaje.
+const PRENSA_COOLDOWN=3;   // semanas mínimas entre conferencias por hito
+const PRENSA_BOMBA=10;     // $M que convierten a un fichaje en "bombazo"
+const PRENSA_GOLEADA=3;    // diferencia de goles en contra
+
+// ⚠️ El banco vive FUERA de `G`: tiene funciones (la pregunta se arma con los
+// datos del hito) y `JSON.stringify` las descarta en silencio. En `G` queda
+// sólo `{hito, dato, week}`, que son tres primitivas. Misma regla que
+// `_DIL_FX` y `BOARD_OBJ`.
+const PRENSA_HITOS={
+  bomba:{
+    ic:'💰', prio:2,
+    q:d=>`"Pagaron ${fv(d.monto)} por ${d.nombre}. ¿No es una cifra desmedida para el momento del club?"`,
+    opts:[
+      {txt:'"Es una inversión. Este club tiene que pelear arriba y para eso hay que poner."',
+       aprob:4, morale:6, chem:0, dtRel:4, decl:'la compra es una inversión y el club va a pelear arriba'},
+      {txt:'"Lo pidió el cuerpo técnico y nosotros acompañamos. La decisión deportiva es del DT."',
+       aprob:-2, morale:2, chem:5, dtRel:12, decl:'el fichaje lo pidió el cuerpo técnico'},
+      {txt:'"Las cuentas están sanas. No voy a hipotecar el club por un jugador."',
+       aprob:2, morale:-6, chem:-4, dtRel:-6, decl:'no va a hipotecar al club por un jugador'},
+    ]},
+  goleada:{
+    ic:'💀', prio:1,
+    q:d=>`"Goleada ${d.gf}-${d.ga} ante ${d.rival}. ¿Qué opina del rendimiento del equipo?"`,
+    opts:[
+      {txt:`"Bancamos al técnico. Acá no se salva nadie solo y el cuerpo técnico tiene mi respaldo."`,
+       aprob:-5, morale:4, chem:10, dtRel:14, decl:'respalda al cuerpo técnico'},
+      {txt:'"Faltó actitud. Hubo jugadores que no estuvieron a la altura de la camiseta."',
+       aprob:10, morale:-20, chem:-8, dtRel:-10, decl:'faltó actitud y hubo jugadores que no estuvieron a la altura'},
+      {txt:'"Me hago cargo yo. El plantel lo armé yo y la responsabilidad es mía."',
+       aprob:-2, morale:10, chem:4, dtRel:6, decl:'se hace cargo personalmente del mal momento'},
+    ]},
+  titulo:{
+    ic:'🏆', prio:3,
+    q:d=>`"¡Campeones! ${d.nombre}. ¿Qué significa este título para su gestión?"`,
+    opts:[
+      {txt:'"Es de los jugadores y del técnico. Yo solo puse las condiciones para que pasara."',
+       aprob:4, morale:12, chem:10, dtRel:12, decl:'el título es de los jugadores y del cuerpo técnico'},
+      {txt:'"Es la confirmación del proyecto que empezamos desde la dirigencia."',
+       aprob:8, morale:2, chem:-2, dtRel:-10, decl:'el título confirma el proyecto de la dirigencia'},
+      {txt:'"Se lo dedico a la gente, que bancó cuando no ganábamos nada."',
+       aprob:12, morale:6, chem:4, dtRel:2, decl:'le dedica el título a los hinchas'},
+    ]},
+};
+
+// ⚠️ NO existe `G.approval` y no se creó (Fase 33): la aprobación es DERIVADA
+// de `boardConf` y `fanMood`, y un tercer campo se desincroniza. Para moverla
+// `d` puntos hay que mover las dos patas `d`, porque el promedio de (+d,+d)
+// es exactamente +d. Verificado en la regresión con el número en la mano.
+function aprobMover(d){
+  if(!G||!d)return;
+  if(G.boardConf===undefined)G.boardConf=50;
+  if(G.fanMood===undefined)G.fanMood=55;
+  G.boardConf=Math.max(5,Math.min(100,G.boardConf+d));
+  G.fanMood  =Math.max(0,Math.min(100,G.fanMood+d));
+}
+
+// Retro-compatible sin migrar: un save viejo no tiene ninguno de los dos
+// campos, y eso es exactamente "no hay conferencia pendiente y nunca hubo una".
+function prensaPend(){ return (G&&G.confPend)||null; }
+function prensaHito(hito,dato){
+  if(!G||!PRENSA_HITOS[hito])return false;
+  if(juegoTerminado&&juegoTerminado())return false;
+  const sem=G.week||1;
+  // El cooldown mira la ÚLTIMA conferencia contestada, no la última encolada:
+  // si mirara la encolada, un hito descartado por cooldown igual reiniciaría
+  // el reloj y podías no ver una conferencia nunca más.
+  if(G._confUltima!==undefined && sem-G._confUltima < PRENSA_COOLDOWN) return false;
+  const ya=prensaPend();
+  // Nunca se apilan dos. Si ya hay una esperando, gana la más importante:
+  // sin esto, una goleada de la fecha siguiente te borraba la del título.
+  if(ya){
+    if((PRENSA_HITOS[hito].prio||0) <= (PRENSA_HITOS[ya.hito]||{prio:0}).prio) return false;
+  }
+  G.confPend={hito, dato:dato||{}, week:sem};
+  return true;
+}
+function prensaEnPantalla(){
+  const ov=document.getElementById('modOv'), el=document.getElementById('modBody');
+  return !!(ov&&el&&ov.style.display==='flex'&&/prensaResolver\(/.test(el.innerHTML));
+}
+// Mismo portero que el dilema: no rebota, vuelve a abrir el modal. Si sólo
+// dijera "no podés", una partida recargada con el modal cerrado quedaba
+// trabada sin forma de llegar a la respuesta.
+function prensaFrena(){
+  if(!prensaPend())return false;
+  flash('🎙️ Te están esperando en la sala de prensa','loss');
+  prensaModal();
+  return true;
+}
+function prensaModal(){
+  const c=prensaPend(); if(!c)return;
+  const H=PRENSA_HITOS[c.hito];
+  if(!H){ G.confPend=null; return; }   // save de una versión con otro banco
+  const per=['Martín Arévalo','Diego Díaz','Gustavo López','Luciana Rubinska','Juan Pablo Varsky'];
+  const j=per[(c.week||1)%per.length];
+  showMod(`
+    <div class="mtitle">🎙️ Rueda de Prensa</div>
+    <div style="text-align:center;margin-bottom:10px">
+      <span style="font-size:10px;color:var(--t3)">${H.ic} ${G.teamName||''} · Semana ${c.week||G.week||''}</span>
+    </div>
+    <div class="mpanel" style="border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">🎤 ${j} pregunta:</div>
+      <div style="font-size:12px;color:var(--t2);font-style:italic;line-height:1.5">${H.q(c.dato||{})}</div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:8px">No podés irte sin contestar. Elegí:</div>
+    ${H.opts.map((o,i)=>`
+      <div onclick="prensaResolver(${i})" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;font-size:11px;color:var(--t2);line-height:1.4" onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(var(--gold-rgb),.06)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.03)'">
+        ${o.txt}
+        <div style="font-size:9px;color:var(--t3);margin-top:4px">${prensaEffLabel(o)}</div>
+      </div>`).join('')}
+  `);
+}
+// Las consecuencias se ven ANTES de contestar, como en toda decisión del juego
+function prensaEffLabel(o){
+  const p=[], f=(n,l)=>{ if(n) p.push(`${l} ${n>0?'+':''}${n}`); };
+  f(o.aprob,'Aprobación'); f(o.morale,'Moral'); f(o.chem,'Química'); f(o.dtRel,'DT');
+  return p.length?p.join(' · '):'Sin efectos';
+}
+function prensaResolver(i){
+  const c=prensaPend(); if(!c)return;
+  const H=PRENSA_HITOS[c.hito]; const o=H&&H.opts[i]; if(!o)return;
+  G.confPend=null;
+  G._confUltima=G.week||1;
+  aprobMover(o.aprob||0);
+  if(o.morale) G.morale=Math.max(0,Math.min(100,(G.morale===undefined?70:G.morale)+o.morale));
+  if(o.chem)   G.chem  =Math.max(0,Math.min(100,(G.chem===undefined?45:G.chem)+o.chem));
+  if(o.dtRel && typeof setDtRel==='function') setDtRel(o.dtRel);
+  // ⚠️ Una moral de plantel que baja 20 tiene que llegar a los JUGADORES: la
+  // que mueve el rendimiento semanal y el badSpell es `p.morale`, no el
+  // medidor del club. Ver la nota de `G.morale` vs `p.morale` en la Fase 34.
+  if(o.morale && G.squad) G.squad.forEach(p=>{
+    p.morale=Math.max(0,Math.min(100,(p.morale===undefined?60:p.morale)+Math.round(o.morale*0.5)));
+  });
+  const decl=`El Presidente declaró que ${o.decl}.`;
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+(G.week||1),ic:'🎙️',type:'misc',msg:decl});
+  lg('🎙️',decl);
+  flash('🎙️ '+prensaEffLabel(o),(o.aprob||0)+(o.morale||0)>=0?'win':'loss');
+  closeMod();
+  updateUI();
+}
+// Watchdog de títulos: hay TRES lugares que empujan a `G.trophies` y las ligas
+// largas ni pasan por ahí (quedan en `G.history[].champion`). Mirar el TOTAL
+// es lo mismo que hace `sociosTitulos()` y no se escapa ninguno.
+// Con `G._confTitulos===undefined` (save viejo) se ancla SIN disparar: si no,
+// cargar una partida con seis copas en la vitrina abría seis conferencias.
+function prensaTitulos(){
+  if(!G)return;
+  const n=(typeof _titulosTotales==='function')?_titulosTotales():0;
+  if(G._confTitulos===undefined){ G._confTitulos=n; return; }
+  if(n>G._confTitulos){
+    const ult=((G.trophies||[])[(G.trophies||[]).length-1])||{};
+    G._confTitulos=n;
+    prensaHito('titulo',{nombre:ult.name||ult.n||'el campeonato'});
+  } else if(n<G._confTitulos) G._confTitulos=n;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // HABLAR CON EL DT: le exigís cosas y él acepta o te retruca
 // ⚠️ ESTA es dtAskList(): PRESIDENTE → DT (los pedidos que vos le hacés).
@@ -12983,6 +13161,7 @@ function nextSeason(){
   // G.trophies): si no se mira acá, el empujón de socios llegaría recién con
   // el primer partido del año que viene.
   try{ sociosTitulos(); }catch(e){}
+  try{ prensaTitulos(); }catch(e){}
   endSeasonMarket();
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   // Las elecciones van DESPUÉS del checkFired: si terminaste en zona de
@@ -13898,7 +14077,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   else{G.boardConf=Math.max(5,G.boardConf-4);}
 
   // Schedule post-match press conference
-  window._pendingPressConf={res,gf,ga,oppName:m.home===G.teamName?m.away:m.home,comp:m.comp};
+  const _rival=m.home===G.teamName?m.away:m.home;
+  window._pendingPressConf={res,gf,ga,oppName:_rival,comp:m.comp};
+  // …y si fue goleada EN CONTRA, la conferencia deja de ser optativa.
+  // Medido: 1 · 0 · 0 en tres temporadas. A favor serían 13-17 por año.
+  if(ga>=gf+PRENSA_GOLEADA) try{ prensaHito('goleada',{gf,ga,rival:_rival}); }catch(e){}
 
   // ═══════════════════════════════════════════════════════════════════════
   // EL RELOJ LO MANDA EL CALENDARIO, NO LA CANTIDAD DE PARTIDOS
@@ -14225,6 +14408,7 @@ function runContinuousSim(n){
   // semanas igual con su `G.week++` de fallback.
   if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;
+  if(prensaFrena())return;                     // te esperan en la sala de prensa
   closeMod();
   n=Math.max(1,Math.min(200,~~n||1));
   const start={w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week};
@@ -14240,6 +14424,12 @@ function runContinuousSim(n){
     // simMatch vuelve bloqueado, `m.played` queda en false y el `G.week++` de
     // abajo quema una semana por iteración sin jugar un solo partido.
     if(dilemaBloqueante())break;
+    // ⚠️ Mismo motivo que el dilema, y es un bug de verdad, no una guarda de
+    // más: la conferencia salta EN MEDIO de la seguidilla (una goleada en la
+    // fecha 3). A partir de ahí cada simMatch vuelve bloqueado, `m.played`
+    // queda en false y el `G.week++` de fallback quema una semana por vuelta
+    // sin jugar un solo partido.
+    if(prensaPend())break;
     if(!m.played){G.week++;continue;}
     if(m.week>G.week)G.week=m.week;
     rows.push({comp,home,away,score:m.score,res:m.result});
@@ -14285,6 +14475,7 @@ function simMatch(auto){
   if(!G) return;
   if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
+  if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
   const m = G.calendar.find(x=>!x.played);
   if(!m){ showSeasonSummary(); return; }
@@ -14988,6 +15179,7 @@ function updateFans(res,derby,gf){
   } else G._socDerrotas=0;
   // Los títulos: un solo portero para los cuatro caminos que los otorgan.
   try{ sociosTitulos(); }catch(e){}
+  try{ prensaTitulos(); }catch(e){}
   // La recaudación de socios NO se cobra acá: ya entra en el balance mensual
   // (TV + socios). Antes se sumaba ~2M por partido además del borderaux, y el
   // presupuesto se inflaba solo con jugar.
@@ -15508,6 +15700,7 @@ function doTeamTalk(id,good){
 function playMatch(){
   if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
+  if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
   if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
@@ -18911,6 +19104,7 @@ function fmMove(body,dx,dy,dt,acc){
 function startFullMatch(watch){
   if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
+  if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
   if(typeof esDiaDePartido==='function' && !esDiaDePartido()){
@@ -23136,12 +23330,20 @@ function closeMod(e){
   // El dilema en pantalla no se cierra por ningún camino: ni el clic en el
   // fondo, ni un closeMod() suelto de otra parte del código.
   if(pend && dilemaEnPantalla()) return;
+  // La conferencia por hito juega con las mismas reglas: tampoco se cierra
+  // mientras sea lo que estás mirando.
+  const conf=(typeof prensaPend==='function')?prensaPend():null;
+  if(conf && typeof prensaEnPantalla==='function' && prensaEnPantalla()) return;
   if(!e||e.target===document.getElementById('modOv'))
     document.getElementById('modOv').style.display='none';
   // Cerraste otra cosa (el resumen del partido, por ejemplo) y quedaba una
   // decisión pendiente: aparece acá. Así el resumen se lee entero y la
   // decisión igual es inevitable.
   if(pend && !dilemaEnPantalla()) dilemaModal(pend.id);
+  // El dilema tiene prioridad; si no hay, asoma la conferencia. El título se
+  // gana dentro del cierre de temporada y el resumen abre su modal un instante
+  // después: sin esto la conferencia quedaba pisada y el juego, frenado.
+  else if(conf && !prensaEnPantalla()) prensaModal();
 }
 function flash(msg, type='win'){
   const el = document.createElement('div');
@@ -24095,6 +24297,7 @@ function advanceDay(silencioso){
   if(!G)return;
   if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
+  if(prensaFrena())return;                     // te esperan en la sala de prensa
   if(curDay()>=7){
     if(!silencioso) flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
     return;
@@ -24369,6 +24572,10 @@ function firmasTick(){
     flash(`✍️ ${p.name} firmó ${_fee>0?'('+fv(_fee)+')':''}`,'win');
     // Fichar una figura mueve la masa societaria en el acto
     if((p.rat||0)>=SOC_ESTRELLA) try{ sociosEvento('estrella',p.name); }catch(e){}
+    // Un bombazo te lleva a la sala de prensa. Va acá, en el embudo donde la
+    // firma se CIERRA de verdad, y no en el acuerdo: entre una cosa y la otra
+    // la firma todavía se puede caer por plantel lleno o por falta de plata.
+    if(_fee>PRENSA_BOMBA) try{ prensaHito('bomba',{nombre:p.name,monto:_fee}); }catch(e){}
   });
   G.firmas=quedan;
 }

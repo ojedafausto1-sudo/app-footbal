@@ -2661,6 +2661,131 @@ Apareció al lado, en el relleno de libres cuando el plantel queda corto:
 anotado en la liga argentina. Es la **quinta** vez (después de nacionalizar, el
 naming de la Bombonera, `promOne` y `firmasTick`). Ahora sale de `ligaMia()`.
 
+## Fase 35: la conferencia de prensa que SÍ te frena el club
+
+### ⚠️ El sistema de conferencias ya existía entero — y era ignorable
+
+`pressConf()` ya tenía banco de preguntas por resultado (con variantes de
+goleada, copa y Libertadores), repreguntas de presidente (el DT, los refuerzos,
+la hinchada, la CD), 12 periodistas reales, modal glassmorphism titulado
+"🎙️ Conferencia de prensa", 3 opciones con `{morale, conf, fans, dtRel}` y los
+efectos a la vista antes de contestar. No hacía falta escribir nada de eso.
+
+Lo que estaba roto era **cuándo aparece**. Medido sobre 3 temporadas:
+
+| | |
+|---|---|
+| conferencias ofrecidas | **165 de 165 partidos** |
+| conferencias obligatorias | **0** |
+
+Es un botón optativo al pie del resumen del partido: se puede jugar la carrera
+entera sin abrir una sola. O sea, color, no gestión. Y `G.pressConfDone` estaba
+en el literal de `G` **sin que lo leyera ni lo escribiera nadie** — campo muerto.
+
+### Las dos conviven a propósito: 53 bloqueantes al año sería un peaje
+
+La conferencia post-partido queda **como está**, optativa. La nueva
+(`prensaHito`) salta sólo cuando pasó algo y ahí sí frena el club. Hacer
+bloqueantes las 53 del año es exactamente el error que ya está documentado con
+la indisciplina mensual: *"frenar el juego nueve veces al año por la misma
+macana sería un peaje, no una decisión"*.
+
+Frecuencia medida con Boca, 3 temporadas:
+
+| hito | por temporada |
+|---|---|
+| goleada en contra (3+) | 1 · 0 · 0 → **0,33** |
+| títulos | 0 · 2 · 3 → **1,7** |
+| fichaje bomba (>10M) | lo decidís vos |
+| **total medido, contestando** | **2 · 2 · 1** |
+
+El mismo orden que los 4,3 dilemas que ya bloquean.
+
+⚠️ **"Diferencia de 3 goles" tiene que ser EN CONTRA, y el número lo dice.**
+Medido, las goleadas **a favor** son **13, 17 y 14 por temporada**. Con
+cualquier diferencia de 3 la conferencia saltaba ~15 veces al año y volvía a
+ser peaje.
+
+### ⚠️ No existe `G.approval`: para moverla hay que mover las dos patas
+
+El pedido decía "aplicá los modificadores a `G.approval`". No existe y no se
+creó (Fase 33): la aprobación es **derivada** de `boardConf` y `fanMood`.
+`aprobMover(d)` mueve las dos `d` puntos, porque el promedio de (+d,+d) es
+exactamente +d. Verificado: −5 → −5, +8 → +8, y contra el piso de un medidor
+(7/2, −5) mueve lo que puede, −2.
+
+⚠️ **Ojo al medir esto**: `prensaResolver` termina en `updateUI()`, que evalúa
+los objetivos de la Junta y puede sumar `boardConf`. Medido paso a paso, un
+−5 limpio quedó en −4 **por `updateUI`, no por la cuenta**. Si verificás el
+delta exacto, medí `aprobMover` aislado.
+
+### El banco vive fuera de `G`, y en `G` quedan tres primitivas
+
+`PRENSA_HITOS` tiene funciones (la pregunta se arma con los datos del hito) y
+`JSON.stringify` las descarta en silencio. En `G` va sólo
+`{hito, dato, week}` más `G._confUltima` y `G._confTitulos`. Misma regla que
+`_DIL_FX` y `BOARD_OBJ`. Verificado: **0 funciones en `G`**.
+
+Retro-compatible sin migrar: un save viejo no tiene ninguno de los tres campos,
+y eso es exactamente "no hay conferencia pendiente y nunca hubo una".
+
+### Detalles que salieron de aplicar las lecciones ya documentadas
+
+- **El título sale de un watchdog sobre el TOTAL** (`prensaTitulos`), no de
+  parchear los tres lugares que empujan a `G.trophies` —las ligas largas ni
+  pasan por ahí, quedan en `G.history[].champion`—. Es el mismo mecanismo que
+  `sociosTitulos()`. Con `G._confTitulos===undefined` **ancla sin disparar**:
+  si no, cargar una partida con seis copas en la vitrina abría seis
+  conferencias.
+- **El bombazo se engancha en `firmasTick`**, donde la firma se cierra de
+  verdad, no en el acuerdo: entre una cosa y la otra la firma todavía se cae
+  por plantel lleno o por falta de plata.
+- **El cooldown mira la última conferencia CONTESTADA**, no la última
+  encolada. Si mirara la encolada, un hito descartado por cooldown igual
+  reiniciaba el reloj.
+- **Nunca se apilan dos**: si ya hay una esperando gana la de mayor prioridad
+  (título > bomba > goleada). Sin eso, una goleada de la fecha siguiente te
+  borraba la conferencia del título.
+- **El candado se deriva del DOM** (`prensaEnPantalla`), igual que el del
+  dilema. Verificado el caso que en la Fase 29 trabó la pantalla: el resumen de
+  temporada **pisa** el modal y al cerrarlo la conferencia **vuelve**.
+- **`runContinuousSim` necesita su propio corte.** Es el mismo bug real de la
+  Fase 29: la conferencia salta EN MEDIO de la seguidilla, y de ahí en adelante
+  cada `simMatch` vuelve bloqueado mientras el `G.week++` de fallback quema una
+  semana por vuelta sin jugar.
+- **Una moral que baja 20 tiene que llegar a los jugadores**: `G.morale` es el
+  medidor del club y `p.morale` es lo que mueve el rendimiento semanal. El
+  resolver toca las dos (los jugadores, a la mitad).
+
+### ⚠️ Frenar el club volvió a romper la regresión — y destapó dos checks podridos
+
+Tercera vez que pasa lo mismo (Fase 29 lo documentó para los dilemas): el
+`dilResolver()` compartido ahora tiene que contestar **también** las
+conferencias, o los cuatro bucles de temporada se cuelgan.
+
+Y al cambiar el estado compartido, dos checks que venían en verde se cayeron.
+**Ninguno de los dos era culpa de la prensa** — los dos estaban mal escritos
+desde antes y pasaban por suerte:
+
+- **`personalidades` era FLAKY**: verde una corrida y rojo la siguiente sobre
+  el mismo código. El salt de personalidad es aleatorio por carrera, así que
+  cuáles de los 30 son Conflictivo cambia en cada corrida; si a otro con
+  rat>75 le tocaba serlo, se quejaba él y "una por temporada" daba rojo. Ahora
+  el check fija las 30 personalidades a mano: prueba la regla, no la suerte.
+- **`mentoreo` tenía un bug latente de 4 fases de antigüedad.** Le inyectaba
+  al mentor una virtud élite **después** de clonarle los atributos al pupilo, y
+  siempre como `PAS`. **Un arquero no tiene la clave `PAS`** (sus atributos son
+  ATA/REF/POS/SAQ/VEL/FIS), así que con un mentor arquero sin virtud élite
+  propia el pupilo heredaba una clave inexistente: `P.attrs[V.k]` daba
+  `undefined` y la herencia no podía completarse nunca. Pasaba o fallaba según
+  qué mentor devolvía el `find`. Ahora la virtud se fuerza **antes** de clonar
+  y sobre un atributo que el mentor realmente tiene.
+
+⚠️ **La lección, por cuarta vez: el check de mentoreo falla por el vecino.**
+Antes de tocar el producto porque un check se puso rojo, **verificá el
+mecanismo aislado**. Acá la herencia daba 87/87 en una sesión limpia con el
+código nuevo puesto: el producto estaba bien y el instrumento estaba roto.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
