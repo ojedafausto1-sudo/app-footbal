@@ -2153,6 +2153,123 @@ verdad** en vez de contar vueltas.
   (`p.morale`); un promedio global sería una segunda fuente de verdad. Los
   dilemas que "bajan la moral" recorren el plantel.
 
+## Fase 30: `DT_ARCHETYPES` — y la regla general de qué se puede tocar en el 11v11
+
+Se pidieron cuatro palancas para que los arquetipos muevan el 11v11
+(`lineaDefensiva`, `presionAgresividad`, `riesgoPase`, `amplitud`). **Las
+cuatro ya existían** en el motor como `prof.line`, `prof.press`, `prof.direct` y
+`prof.width`/`prof.flank`. Lo que faltaba era saber **cuáles funcionan**, y eso
+se midió con un arnés nuevo.
+
+### El arnés: hook DENTRO del motor, no `setInterval` desde afuera
+
+La lección del cooldown de faltas (que se contradijo 7× sobre el mismo código)
+era explícita: *"muestrear con un hook dentro del motor"*. `scratchpad/arq1.js`
+envuelve **`fmTick`** —que es el loop real— y **`fmTeamPass`**, así que cada
+muestra es un tick determinista y no depende de cuándo cayó un temporizador.
+56.800 ticks por escenario, 170.000 en total.
+
+⚠️ **`startFullMatch(true)` no alcanza para arrancar un partido de prueba: hay
+que poner `G.day=7` antes.** Si no, sale por la guarda de "sólo se juega el día
+del partido" y `FM` queda con `phase:null` — se pierde una corrida entera
+mirando ceros. La receta de arriba en este archivo es de antes de esa guarda.
+
+### Sólo 1 de las 4 palancas separa, y el patrón es nítido
+
+| palanca | qué es en el motor | resultado medido |
+|---|---|---|
+| **`riesgoPase`** (`prof.direct`) | **una DECISIÓN**: qué pase elige | ✅ **funciona y es monótona** |
+| `presionAgresividad` (`prof.press`) | umbral de radio de persecución | ❌ no monótona |
+| `lineaDefensiva` (`prof.line`) | objetivo blando de posición | ❌ no monótona |
+| `amplitud` (`prof.width`/`flank`) | objetivo blando + peso chico en el score | ❌ no monótona |
+
+**`riesgoPase`, sobre 4 arquetipos:**
+
+| `direct` | pases hacia adelante | pelotazos | fuerza del pase | pases totales |
+|---|---|---|---|---|
+| 0,10 posicional | **51%** | **1,0%** | 4,61 | 1.136 |
+| 0,45 gegenpress | 58% | 3,9% | 3,81 | 663 |
+| 0,62 bloquebajo | 64% | 3,0% | 3,55 | 861 |
+| 0,88 directo | **74%** | **9,5%** | 5,57 | 494 |
+
+Monótona en las dos columnas que importan y con un rango de **9,5×** en
+pelotazos. Ésta es la palanca de verdad.
+
+**`presionAgresividad`, aislada** (las otras nueve claves CLAVADAS — si se
+cambia el arquetipo entero no se sabe cuál de las diez movió el número) y
+**condicionada a que la pelota la tenga el rival** (sin condicionar se mide
+posesión, no presión: posicional daba 1.136 pases contra 663):
+
+| `press` | dist. del más cercano | jugadores a <300px | a <150px |
+|---|---|---|---|
+| 0,92 | 175 | 2,69 | 1,12 |
+| 0,50 | 174 | **3,00** | 1,14 |
+| 0,25 | 184 | 2,60 | 0,82 |
+
+**Con 0,50 se presiona MÁS que con 0,92.** El `radio=(430+press*380)` existe,
+pero lo tapa que sólo persiguen los 2-3 primeros del ranking (`myRank`) y que la
+densidad natural de la formación cerca de la pelota manda sobre el umbral.
+
+**`lineaDefensiva` y `amplitud`** re-confirman lo que ya estaba documentado:
+gegenpress (`line` 0,80) juega **más atrás** (30,5% de cancha) que bloque bajo
+(`line` 0,18, 33,4%), y el equipo más ancho es directo (974px) con `width` 0,55,
+por encima de posicional (889px) con 0,78.
+
+### ⚠️ Sexto intento fallido de comprar comportamiento con una constante
+
+`flankBias` topeaba en ±25 contra un `Math.random()*40` del mismo score, así que
+la hipótesis era buena: subirlo debería destapar la amplitud. Se probó
+**60 → 170** y salió **peor**:
+
+| `flank` | apertura con 60 | apertura con 170 |
+|---|---|---|
+| 0,92 | 34,1% | 35,5% |
+| 0,55 | 39,9% | **26,6%** |
+| 0,30 | 35,0% | **37,2%** |
+
+Con 170 el de `flank` 0,30 quedó **más ancho** que el de 0,92, y el caso del
+medio saltó **13 puntos entre corridas** — más ruido que cualquier efecto
+buscado. **REVERTIDO**, queda en 60 con el número anotado en el código.
+
+### La regla que sale de todo esto
+
+**En este motor funcionan las palancas que cambian una DECISIÓN (qué pase
+elige), no las que cambian un OBJETIVO DE POSICIÓN (dónde se para).** Es la
+explicación de los seis intentos fallidos: el bloque, la amplitud por fase, el
+tope duro de `homeY`, el cono del desvío, el cooldown de faltas y ahora
+`flankBias`. Antes de tocar el 11v11, preguntate si lo que estás moviendo es una
+decisión o un objetivo blando.
+
+### Lo que sí se entregó
+
+- **`DT_ARCHETYPES`**, la cara del arquetipo que mira el motor, con los cuatro
+  nombres del pedido. ⚠️ **Es DERIVADA de `ARQ[k].prof`** vía `_arqEngine()`, no
+  una segunda tabla: escribir los mismos números dos veces en unidades distintas
+  es exactamente el bug que ya apareció en `G.members`/`G.socios`,
+  `G.captainId`/`G.roles.captain` y `_DIL_LOCK`/DOM. Para retocar un arquetipo el
+  lugar es `ARQ`, y la tabla del motor se recalcula sola (verificado en la
+  regresión: cambiar `direct` a 0,11 mueve `riesgoPase` a 0,11).
+- **`locolindo`, el 15º arquetipo** 🤪 — línea 0,93 y amplitud 1,278, los dos más
+  altos de los quince, con cinismo 0,06 y la disciplina más baja (0,28). Es el
+  contrario exacto del resultadista.
+
+### El caso Resultadista/Copero YA estaba, y anda
+
+`fmAdjustProfile` (línea 18964) lo resuelve desde antes: ganando y pasado el
+minuto 62, `hold=min(1,late)*(0.35+cyn*0.65)` baja `line` y `press` **escalado
+por el cinismo**. Verificado:
+
+| Resultadista (`cyn` 0,94) | línea | presión | modo |
+|---|---|---|---|
+| empatando, min 40 | 0,320 | 0,380 | normal |
+| **ganando, min 80** | **0,078** | **0,169** | **hold** |
+| perdiendo, min 80 | 0,559 | 0,581 | allout |
+
+Y el Loco lindo, que no tiene cinismo, **cae 0,098 contra los 0,242 del
+resultadista**: no se cuelga del travesaño. Además `_mode==='hold'` sí tiene
+efecto medible, porque entra en `fmTeamPass` (`longChance*0.3` y `fwdW=0.06`) —
+o sea que actúa por la palanca que funciona, la de decisión.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
