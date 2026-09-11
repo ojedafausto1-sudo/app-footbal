@@ -921,6 +921,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="stitle">🏛️ Presidente</div>
       <div class="tc2">
         <div>
+          <!-- ═══ APROBACIÓN PRESIDENCIAL: el termómetro de tu cargo ═══ -->
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">🗳️ Aprobación Presidencial</div>
+            <div id="presAprob"></div>
+          </div>
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">📊 Confianza de la Junta Directiva</div>
             <div id="presConfDetail"></div>
@@ -4023,6 +4028,9 @@ function initGame(teamId){
   G.socios    = sociosBase();
   G.memberFee = SOCIO_CUOTA_BASE;
   G._socTitulos = 0;
+  // Aprobación: no se guarda (se deriva de boardConf+fanMood). Lo único que
+  // vive en G es el contador de semanas en crisis y el estado de destitución.
+  G._aprobCrisis = 0; G._fired = false; G.paused = false;
   G.diff = (window._selectedDiff !== undefined) ? window._selectedDiff : 1;
   G.tactic = {style:'Posesión', mentality:'Equilibrado'};
   G.day=1; G._daysTicked=0;
@@ -4827,6 +4835,22 @@ function sacarDelPlantel(p,tipo,det){
   // el fin de un préstamo no son lo mismo que rifar al referente.
   if(tipo==='sale' && det && (det.monto||0)>0 && G.roles && G.roles.captain===p.id){
     try{ sociosEvento('capitan',p.name); }catch(e){}
+  }
+  // ═══ RIFAR UN ÍDOLO SE PAGA EN APROBACIÓN ═══
+  // Ni la leyenda ni el capitán tenían castigo propio al VENDERSE: el −4 por
+  // crack que ya existía es para los que se van con el pase en la mano (fin de
+  // contrato), que es otro camino. Baja ~15 puntos de aprobación, que es lo que
+  // vale en la calle vender al que la gente canta.
+  if(tipo==='sale' && det && (det.monto||0)>0){
+    const _esCap=!!(G.roles&&G.roles.captain===p.id);
+    const _esLey=((G.legends||[]).some(l=>l&&l.id===p.id));
+    if(_esCap||_esLey){
+      G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-18);
+      G.boardConf=Math.max(0,(G.boardConf||50)-12);
+      const _q=_esLey?'una LEYENDA del club':'al capitán';
+      try{ addPhoneMsg('board','Prensa',`📣 Vendiste ${_q}: <b>${p.name}</b>. La hinchada está furiosa y la comisión tuvo que salir a explicarlo.`,'📣'); }catch(e){}
+      try{ lg('📣','Vender a '+p.name+' costó 15 puntos de aprobación'); }catch(e){}
+    }
   }
   const k=Object.keys(G.slots||{}).find(kk=>G.slots[kk]===p.id);
   G.squad=(G.squad||[]).filter(x=>x.id!==p.id);
@@ -11278,8 +11302,19 @@ function acceptCareerOffer(club){
     // Club sin plantel jugable propio: reusar estructura pero cambiar identidad
     G.teamName=club;G.careerOffers=[];
     G.career=career;
+    // ⚠️ Mandato nuevo, medidores nuevos. La rama de arriba los rearma con
+    // initGame (boardConf 50); ésta conserva G, así que si venías de una
+    // destitución seguías con la CD en 5 y la hinchada en 0: la aprobación
+    // arrancaba en 2 y te echaban otra vez a la semana siguiente.
+    G.boardConf=50; G.fanMood=55;
     flash('Asumiste en '+club,'win');
   }
+  // ⚠️ El modal de "fin del ciclo" deja `G._fired=true` y ofrece seguir la
+  // carrera en otro club. La rama de arriba rearma G con initGame y lo borra,
+  // pero la de abajo CONSERVA G: sin esto, asumías en el club nuevo y el juego
+  // quedaba frenado para siempre por el portero de la destitución.
+  G._fired=false; G.paused=false; G._aprobCrisis=0; G._destMotivo=null;
+  try{ const _d=document.getElementById('destOv'); if(_d)_d.remove(); }catch(e){}
   addPhoneMsg('board','Nueva etapa',`🎉 Bienvenido a ${club}, presidente. Un nuevo desafío arranca. Su prestigio lo precede.`,'🏛️');
   closeMod();updateUI();
 }
@@ -12050,6 +12085,115 @@ function cuposDescenso(){
   const _t=(typeof leagueSorted==='function')?leagueSorted():[];
   const n=_t.length||19;
   return n>=26?2:1;
+}
+// ═══════════════════════════════════════════════════════════════════════
+// APROBACIÓN PRESIDENCIAL — y el despido a mitad de temporada
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ NO se creó `G.approval`. La aprobación ya existe repartida en dos
+// medidores que el juego mueve desde siempre, y el PISO de la elección ya es
+// literalmente `(boardConf+fanMood)/2 < 45`. Un tercer campo con el mismo dato
+// es el bug que ya apareció tres veces en este proyecto (`G.members` contra
+// `G.socios`, `G.captainId` contra `G.roles.captain`, `_DIL_LOCK` contra el
+// DOM): las copias se desincronizan y nadie se entera. Así que la aprobación
+// se DERIVA, con la misma mezcla que ya usa la elección.
+//
+// Rango medido sobre el modelo aislado (scratchpad/apr1.js):
+//   10 derrotas seguidas → 2,5   (cruza 25 a las 6, y 15 a las 8)
+//   16 victorias seguidas → 100  (los dos medidores saturan arriba)
+function aprobacion(){
+  if(!G)return 50;
+  const cd=(G.boardConf===undefined?50:G.boardConf);
+  const hi=(G.fanMood===undefined?55:G.fanMood);
+  return Math.max(0,Math.min(100,Math.round((cd+hi)/2)));
+}
+function aprobColor(v){ return v>50?'var(--green)':v>25?'var(--gold)':'var(--red)'; }
+function aprobLabel(v){
+  return v>75?'Respaldo total':v>50?'Gestión aprobada':v>25?'En la cuerda floja':'Crisis institucional';
+}
+// ═══ EL JUEGO SE TERMINA: una sola puerta para los dos finales ═══
+// `G._fired` ya lo ponían `showFiredModal` (descenso / objetivo) y el final de
+// la elección, pero **nadie lo leía**: te echaban y el club seguía andando.
+// Ahora frena de verdad, y el despido a mitad de temporada usa el mismo flag.
+function juegoTerminado(){ return !!(G && (G._fired || G.paused)); }
+function finFrena(){
+  if(!juegoTerminado())return false;
+  try{ showDestituido(G._destMotivo||'fin'); }catch(e){}
+  return true;
+}
+const APROB_CRISIS=15;    // por debajo de esto empieza a correr el reloj
+const APROB_SEMANAS=4;    // semanas seguidas en crisis antes de la destitución
+const APROB_PISO=5;       // acá te echan en el acto (medido: 10 derrotas al hilo)
+// Corre en el bloque semanal. Es lo único que puede destituirte a mitad de año:
+// `checkFired` sólo mira al CERRAR la temporada.
+function weeklyAprobacion(){
+  if(!G||juegoTerminado())return;
+  const a=aprobacion();
+  if(a<=APROB_PISO){ destituir('piso',a); return; }
+  if(a<APROB_CRISIS){
+    G._aprobCrisis=(G._aprobCrisis||0)+1;
+    if(G._aprobCrisis>=APROB_SEMANAS){ destituir('sostenida',a); return; }
+    // Dos avisos antes: la destitución no puede caer de sorpresa
+    if(G._aprobCrisis===1)
+      addPhoneMsg('board','Comisión Directiva',`🚨 Presidente, la aprobación está en <b style="color:var(--red)">${a}%</b>. La comisión se reúne en carácter de urgencia. Si esto no mejora en <b>${APROB_SEMANAS-1} semanas</b>, le vamos a pedir la renuncia.`,'🏛️');
+    else if(G._aprobCrisis===APROB_SEMANAS-1)
+      addPhoneMsg('board','Comisión Directiva',`🚨 <b>ÚLTIMO AVISO.</b> Aprobación <b style="color:var(--red)">${a}%</b> por ${G._aprobCrisis} semanas seguidas. La próxima reunión define su continuidad.`,'🏛️');
+  } else if(G._aprobCrisis){
+    if(G._aprobCrisis>=2)
+      addPhoneMsg('board','Comisión Directiva',`😮‍💨 La aprobación volvió a <b>${a}%</b>. Se levanta la reunión de urgencia, presidente. Por ahora.`,'🏛️');
+    G._aprobCrisis=0;
+  }
+}
+function destituir(motivo,a){
+  G._fired=true; G.paused=true; G._destMotivo=motivo; G._destAprob=a;
+  try{ lg('🚨','DESTITUIDO — aprobación '+a+'%'); }catch(e){}
+  showDestituido(motivo);
+}
+// Modal a pantalla completa que NO se cierra: el único botón vuelve al menú.
+function showDestituido(motivo){
+  let ov=document.getElementById('destOv');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='destOv';
+    document.body.appendChild(ov);
+  }
+  const a=(G&&G._destAprob!==undefined)?G._destAprob:aprobacion();
+  const sub = motivo==='sostenida'
+    ? `La aprobación se mantuvo por debajo del <b>${APROB_CRISIS}%</b> durante <b>${APROB_SEMANAS} semanas seguidas</b>.`
+    : motivo==='piso'
+    ? `La aprobación se desplomó hasta el <b>${a}%</b>.`
+    : `La asamblea de socios resolvió el fin de tu ciclo.`;
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;'
+    +'justify-content:center;padding:22px;background:rgba(4,8,16,.88);'
+    +'backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1)';
+  ov.innerHTML=`
+    <div style="max-width:420px;width:100%;text-align:center;padding:26px 22px;border-radius:16px;
+                background:linear-gradient(160deg,var(--card-2),var(--card));
+                border:1px solid rgba(232,69,69,.35);box-shadow:var(--sh-deep)">
+      <div style="font-size:54px;line-height:1;margin-bottom:10px">🚨</div>
+      <div style="font-family:'Rajdhani';font-size:30px;font-weight:900;letter-spacing:1px;color:var(--red)">DESTITUIDO</div>
+      <div style="font-size:12.5px;color:var(--t2);line-height:1.6;margin-top:12px">
+        La Comisión Directiva ha decidido pedir tu renuncia debido a los malos
+        resultados y la crisis institucional.
+      </div>
+      <div class="mpanel" style="margin:14px 0 4px">
+        <div style="font-size:11px;color:var(--t3);line-height:1.5">${sub}</div>
+        <div class="mpanel-row" style="margin-top:8px">
+          <span>Aprobación final</span>
+          <span class="sv-n" style="color:var(--red);font-family:'Chakra Petch';font-weight:800">${a}%</span>
+        </div>
+        <div class="mpanel-row"><span>Temporadas al mando</span>
+          <span class="sv-n">${Math.max(1,(G.season||2026)-((G.seasonIni)||2026)+1)}</span></div>
+        <div class="mpanel-row"><span>Títulos</span>
+          <span class="sv-n">${((G.trophies||[]).length)}</span></div>
+      </div>
+      <button class="btn bR" style="width:100%;margin-top:14px;padding:13px"
+              onclick="volverAlMenu()">🚪 Volver al Menú Principal</button>
+    </div>`;
+}
+function volverAlMenu(){
+  // El save queda como está a propósito: la partida terminó, no se pisa nada
+  // por las dudas de que el usuario quiera mirarla. Recargar devuelve al menú.
+  try{ location.reload(); }catch(e){}
 }
 function checkFired(pos){
   const meta=G.boardTarget?G.boardTarget.maxPos:99;
@@ -13721,6 +13865,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyObras();     // avanza las obras del estadio y la academia
   weeklySponsors();  // las marcas te buscan: ofertas nuevas y las que vencen
   weeklyIntake();    // semana 30: las pruebas de inferiores, una vez por temporada
+  weeklyAprobacion();// la CD puede echarte a mitad de temporada, no sólo al cierre
   weeklyEmbargo();   // va DESPUÉS de cobrar las cuotas: la cuota puede meterte en rojo
   preseasonFit();    // ancla la física elegida en la gira a la fecha 1 del torneo
   weeklySeleccion();
@@ -13874,6 +14019,20 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // `tv` de finLast queda como el ingreso institucional completo: lo lee la
     // tarjeta de Finanzas de Estadísticas, que muestra un solo renglón.
     G.finLast={wages,tv:Math.round((tv+socInc)*10)/10,socios:socInc,neto,wk,ops};
+    // ═══ LA JUNTA MIRA LA CAJA, NO SÓLO LA TABLA ═══
+    // Medido: el presupuesto en rojo NO tocaba la confianza de la CD — sólo el
+    // embargo (−5M durante 4 semanas), que es otra cosa y mucho más tarde. Se
+    // podía terminar el mes en −3M sin que la comisión dijera nada.
+    // ⚠️ El umbral de "caja sana" NO es un número fijo: sale de la masa
+    // salarial, así que escala con el club. Un fijo de 30M sería sano para Boca
+    // y ridículo para un club chico — el mismo bug del 'ARG' escrito a mano.
+    const _mesSueldos=Math.max(0.5,wages);
+    if(G.budget<0){
+      G.boardConf=Math.max(0,(G.boardConf||50)-10);
+      addPhoneMsg('board','Comisión Directiva',`📉 Cerramos el mes en <b style="color:var(--red)">${fv(G.budget)}</b>. La comisión no está conforme con el manejo de la caja.`,'🏛️');
+    } else if(G.budget>_mesSueldos*6){
+      G.boardConf=Math.min(100,(G.boardConf||50)+5);
+    }
     lg('👥',`Cuotas de ${sociosActivos().toLocaleString('es')} socios: +${fv(socInc)}`);
     addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
   }
@@ -13911,6 +14070,7 @@ function runContinuousSim(n){
   if(!G)return;
   // Sin este portero el bucle llamaría a simMatch bloqueado y avanzaría las
   // semanas igual con su `G.week++` de fallback.
+  if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;
   closeMod();
   n=Math.max(1,Math.min(200,~~n||1));
@@ -13970,6 +14130,7 @@ function runContinuousSim(n){
 
 function simMatch(auto){
   if(!G) return;
+  if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   dilFitTick();                                // el viaje en micro se cobra acá
   const m = G.calendar.find(x=>!x.played);
@@ -15192,6 +15353,7 @@ function doTeamTalk(id,good){
 }
 
 function playMatch(){
+  if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
@@ -18573,6 +18735,7 @@ function fmMove(body,dx,dy,dt,acc){
 }
 
 function startFullMatch(watch){
+  if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   dilFitTick();                                // el viaje en micro se cobra acá
   // Sólo se juega el día del partido: si llegaste acá por otro camino, avisá.
@@ -23017,10 +23180,34 @@ function rSocios(){
     <div class="sr"><span class="sl">Proyección por temporada</span><span class="sv">${fv(Math.round(inc*12*10)/10)}</span></div>
     <div style="font-size:9px;color:var(--t3);margin-top:6px">Se cobra en el balance de cada mes, adentro del rubro <b>Cuotas de socios</b>. Un título suma 15% de altas, una figura 5%; tres derrotas al hilo o vender al capitán se llevan 5%.</div>`;
 }
+// La barra de aprobación. El contenedor (.card) ya es vidrio real, así que las
+// filas van en .mpanel: sin backdrop-filter, para no anidar blur.
+function rAprob(){
+  const el=document.getElementById('presAprob'); if(!el||!G)return;
+  const a=aprobacion(), c=aprobColor(a);
+  const cd=Math.round(G.boardConf===undefined?50:G.boardConf);
+  const hi=Math.round(G.fanMood===undefined?55:G.fanMood);
+  const crisis=G._aprobCrisis||0;
+  el.innerHTML=`
+    <div style="text-align:center;padding:6px 0 2px">
+      <div style="font-family:'Rajdhani';font-size:42px;font-weight:900;color:${c};line-height:1">
+        ${a}<span style="font-size:15px;color:var(--t3)">%</span></div>
+      <div style="font-size:12px;font-weight:700;color:${c};margin-top:1px">${aprobLabel(a)}</div>
+    </div>
+    <div class="prog" style="height:9px;margin-top:8px"><div class="pf" style="width:${a}%;background:${c}"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:8.5px;color:var(--t3);margin-top:3px">
+      <span>0</span><span>25</span><span>50</span><span>100</span></div>
+    <div class="mpanel" style="margin-top:10px">
+      <div class="mpanel-row"><span>Comisión Directiva</span><span class="sv-n">${cd}</span></div>
+      <div class="mpanel-row"><span>Hinchada</span><span class="sv-n">${hi}</span></div>
+    </div>
+    ${crisis?`<div class="note R" style="margin-top:8px">🚨 <b>${crisis} de ${APROB_SEMANAS} semanas</b> en crisis. Si llega a ${APROB_SEMANAS}, la comisión te pide la renuncia.</div>`:''}
+    <div style="font-size:9px;color:var(--t3);margin-top:7px">Sale de la comisión y de la hinchada, que es lo mismo que se vota en la elección. Ganar suma, perder resta, y vender a un ídolo o cerrar el mes en rojo pega fuerte.</div>`;
+}
 function rPresTab(){
   if(!G) return;
   // Memoria de la carrera: vitrina + curva del patrimonio
-  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); }catch(e){}
+  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); rAprob(); }catch(e){}
   const conf=G.boardConf||50;
   const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Critica';
@@ -23732,6 +23919,7 @@ function avanzarHastaPartido(){
 }
 function advanceDay(silencioso){
   if(!G)return;
+  if(finFrena())return;                        // te echaron: el club no se mueve
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(curDay()>=7){
     if(!silencioso) flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');

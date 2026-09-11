@@ -2427,6 +2427,116 @@ Y lo que **sí** funciona y ya está entregado sigue siendo lo mismo: las palanc
 de **decisión** (`prof.direct` en el pase: 51% → 74% de pases hacia adelante y
 1,0% → 9,5% de pelotazos, monótono y medido).
 
+## Fase 33: aprobación presidencial y destitución
+
+### ⚠️ NO se creó `G.approval` — la aprobación ya existía, derivada
+
+El pedido era inicializar `G.approval=75` y moverlo a mano en cada evento. Eso
+habría sido la **quinta** vez que este proyecto se hace el mismo daño: un campo
+nuevo con un dato que ya vive en otro lado y que se desincroniza (`G.members` vs
+`G.socios`, `G.captainId` vs `G.roles.captain`, `_DIL_LOCK` vs el DOM,
+`DT_ARCHETYPES` vs `ARQ`).
+
+La aprobación **ya se mueve sola en cada partido**: `boardConf` sube 3 por
+victoria y baja 4 por derrota, `fanMood` lo mismo vía `updateFans`, y el piso de
+la elección ya era literalmente `(boardConf+fanMood)/2 < 45`. O sea: el número
+existía, la fórmula existía y el juego ya la usaba para decidir si te quedabas.
+Lo único que faltaba era **mostrarla y darle consecuencias**.
+
+```js
+function aprobacion(){
+  const cd=(G.boardConf===undefined?50:G.boardConf);
+  const hi=(G.fanMood===undefined?55:G.fanMood);
+  return Math.max(0,Math.min(100,Math.round((cd+hi)/2)));
+}
+```
+
+Con eso, los seis eventos del pedido (ganar +2, perder −3, clásico +5, balance
+mensual ±, venta de figura) **cuatro ya estaban aplicados** por los medidores de
+siempre. Se agregaron los **dos que faltaban de verdad**:
+
+- **Balance mensual**: en rojo `boardConf −10`, con caja arriba de `wages*6`
+  `+5`. Antes el presupuesto no tocaba la confianza de la CD en ningún lado.
+- **Vender a una leyenda o al capitán**: `fanMood −18` y `boardConf −12`, que
+  dan exactamente los **−15 de aprobación** que pedía el pedido. Va en
+  `sacarDelPlantel` (el embudo único), y exige `tipo==='sale'` **y**
+  `det.monto>0`: rescindir, retirarse o volver de un préstamo no es rifar al
+  referente. Medido: capitán −15, leyenda −15, rescisión 0.
+
+⚠️ **Retro-compatible sin migrar**: no hay campo que agregar al save. Un
+guardado viejo ya trae `boardConf` y `fanMood`, así que la aprobación funciona
+en una partida en curso desde el primer render.
+
+### Medido antes de elegir los umbrales
+
+| escenario | aprobación |
+|---|---|
+| temporada normal de Boca | nunca baja de 43,5 y **se clava en 100** |
+| 10 derrotas al hilo (modelo aislado) | 50 → **2,5** (cruza 25 en la 6ª, 15 en la 8ª) |
+| 16 victorias al hilo | satura en 100 |
+| desde 9, diez victorias | vuelve a 54 |
+
+O sea: con el juego andando bien **el game over no dispara nunca**, y hace falta
+un desastre sostenido de 8-10 partidos para cruzar el umbral. Eso es lo que se
+quería. Los umbrales quedaron en `APROB_CRISIS=15` durante `APROB_SEMANAS=4`, y
+un piso duro en `APROB_PISO=5` que destituye en el acto.
+
+⚠️ **El piso tiene que ser 5, no 0.** `boardConf` está clampeado con
+`Math.max(5,...)` en el golpe por derrota, así que la aprobación **no puede
+llegar a 0** ni con 60 derrotas seguidas (medido: se planta en 2,5). Un game
+over atado a 0 no se habría disparado jamás.
+
+### El freno del tiempo reusa el patrón de los dilemas
+
+`juegoTerminado()` + `finFrena()` se cuelgan de las **mismas cinco puertas** que
+ya tenían los dilemas de la Fase 29 — `advanceDay`, `playMatch`,
+`startFullMatch`, `simMatch` y `runContinuousSim` — con `if(finFrena())return;`
+**antes** de `if(dilemaFrena())return;`: si te destituyeron, no importa que
+quede un dilema sin contestar.
+
+El modal es un overlay **propio** (`#destOv`, `z-index:99999`), no el `#modOv`
+del juego: así `closeMod()` no lo toca y no hay forma de seguir jugando por
+atrás. Verificado que sobrevive a un `closeMod()` suelto.
+
+### ⚠️ El bug que casi brickea un save: "seguir la carrera en otro club"
+
+`checkFired` ya ponía `G._fired=true` al final de una temporada mala **y no lo
+leía nadie** — la destitución existía sólo como texto. Al engancharle el portero
+del tiempo, apareció el camino que el modal viejo de fin de ciclo ya ofrecía:
+**"📨 Ver ofertas de otros clubes"**, que cierra el modal y te deja asumir en
+otro club con `G._fired` **todavía puesto**.
+
+`acceptCareerOffer` tiene dos ramas. La de un club **con plantel jugable** llama
+a `initGame` y rearma `G` entero, así que se limpiaba sola. La de un club **sin
+plantel propio** conserva `G`: ahí el juego quedaba **frenado para siempre**, sin
+modal en pantalla y sin manera de destrabarlo. Parcheadas las dos, más el reset
+en `initGame`.
+
+Y un segundo agujero en la misma rama: conservar `G` también conserva los
+medidores. Venías de una destitución con la CD en 5 y la hinchada en 0, asumías
+en el club nuevo con **aprobación 2** y te echaban a la semana siguiente. Un
+mandato nuevo arranca con medidores nuevos (`boardConf 50`, `fanMood 55`),
+igual que hace `initGame` en la otra rama.
+
+La regresión blinda el camino entero: destituye, acepta una oferta de un club
+que no está en `TEAMS`, y verifica que el día avance y que la semana siguiente
+no vuelva a destituir.
+
+### La barra
+
+`rAprob()` dibuja `#presAprob` dentro de la tarjeta de la pestaña Presidente:
+número grande, barra de progreso y rótulo por tramo (`Respaldo total` /
+`Gestión aprobada` / `En la cuerda floja` / `Crisis institucional`), más el
+contador de semanas en crisis cuando lo hay. Colores por `aprobColor()`: verde
+arriba de 50, oro arriba de 25, rojo de ahí para abajo.
+
+Sigue el estándar de vidrio: la `.card` lleva `backdrop-filter` real y las filas
+de adentro van en `.mpanel` sin blur. La regresión falla si aparece uno.
+
+Antes de destituir hay **dos avisos al celular** (la primera semana en crisis y
+la anteúltima), y si repuntás el contador se limpia con un mensaje de que la CD
+levanta la reunión.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
