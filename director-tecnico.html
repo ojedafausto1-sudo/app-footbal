@@ -1583,6 +1583,58 @@ function _antiguedadPlantel(sq){
   (sq||[]).forEach(p=>{ if(p.seasonsAtClub===undefined)p.seasonsAtClub=antiguedadInicial(p); });
   return sq;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERSONALIDADES OCULTAS
+// ═══════════════════════════════════════════════════════════════════════
+// El jugador tiene una cabeza además de una media. No se ve en ningún lado:
+// se descubre negociando (el mercenario pide 40% más y no te da segunda
+// chance), renovando (el leal te acepta una rebaja) o dejándolo en el banco
+// (el conflictivo te rompe el vestuario).
+//
+// ⚠️ NO se guarda un campo `personality` en cada jugador, y no es pereza:
+// `G.market` tiene 17.000 fichas y el save ya pesa 3,2 MB. Un string por
+// jugador son ~400 KB de guardado para un dato que se puede DERIVAR. Es la
+// misma regla que ya salvó a `G.socios`, `G.roles.captain` y `DT_ARCHETYPES`:
+// un estado derivable no se duplica.
+//
+// La derivación es determinista por nombre —igual que `antiguedadInicial` y
+// que el `ratEst` de la niebla de guerra— porque si se sorteara al leer,
+// recargar la partida hasta que te toque un Leal sería una estrategia.
+// El `salt` por carrera hace que el mismo jugador NO sea siempre lo mismo en
+// todas tus partidas: medido, cambia el 58,9% de las personalidades (el
+// máximo teórico con estos pesos es 58,5%).
+//
+// Medido sobre los 17.108 nombres de la base: 59,8% Normal · 15,1%
+// Mercenario · 14,9% Leal · 10,1% Conflictivo. Es el mismo hash que ya usa
+// `antiguedadInicial`; no hizo falta uno con avalancha (se probó, da igual).
+const PERSONALIDADES=[
+  ['Normal',      60],
+  ['Mercenario',  15],   // pide 40% más y no negocia dos veces
+  ['Leal',        15],   // te banca una rebaja del 20% al renovar
+  ['Conflictivo', 10],   // si es bueno y no juega, rompe el vestuario
+];
+const PERS_MERC_WAGE=1.40;   // cuánto más pide el mercenario
+const PERS_LEAL_REBAJA=0.80; // hasta dónde le podés bajar el sueldo al leal
+function _persSalt(){
+  if(!G)return 0;
+  // Save viejo: se ancla en la primera lectura y no se mueve más. No migra
+  // nada — es exactamente lo que hace `sociosTitulos()` con `G._socTitulos`.
+  if(G._persSalt===undefined) G._persSalt=(~~(Math.random()*0x7fffffff))>>>0;
+  return G._persSalt;
+}
+function persDe(p){
+  if(!p)return 'Normal';
+  if(p.personality) return p.personality;   // si alguien lo fijó a mano, manda
+  const h=String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+  const v=((h^_persSalt())>>>0)%100;
+  let a=0;
+  for(const [n,pc] of PERSONALIDADES){ a+=pc; if(v<a) return n; }
+  return 'Normal';
+}
+function esMercenario(p){ return persDe(p)==='Mercenario'; }
+function esLeal(p){ return persDe(p)==='Leal'; }
+function esConflictivo(p){ return persDe(p)==='Conflictivo'; }
 function buildSquad(teamId){
   return _antiguedadPlantel(_buildSquad(teamId));
 }
@@ -5477,6 +5529,12 @@ function _negWageExpect(p){
   // 5) Y si ya está en un grande, no baja los brazos
   if(/Real Madrid|Barcelona|Man\. City|Liverpool|Bayern|PSG|Chelsea|Inter|Juventus|Al-Hilal|Al-Nassr/.test(p.club||''))
     base*=1.12;
+  // 6) Su cabeza: el mercenario va por la plata y lo dice con el número.
+  // Va ACÁ y no en negStep3 a propósito: `_negWageExpect` es el embudo que
+  // leen las cuatro vías de fichaje (negociar, cláusula, canje, préstamo) vía
+  // `openPlayerTerms`. Metiéndolo en el modal, entrar por la cláusula
+  // esquivaba el recargo — que es el mismo agujero de la Fase 16.
+  if(esMercenario(p)) base*=PERS_MERC_WAGE;
   return Math.max(4,Math.round(base));
 }
 
@@ -5934,6 +5992,32 @@ function submitNegTerms(id){
     negStep4(p,nd.agreedFee,wage,years,roles[role]);
   } else {
     const hint=repGap>=15?`Con todo respeto, ${G.teamName} todavía no es un club a mi altura. Necesito un proyecto más grande.`:wageRatio<0.7?'El salario es una falta de respeto. No voy a regalar mi talento.':wageRatio<0.85?'Necesito un salario acorde a mi nivel. Estoy ganando más donde estoy.':roleDiff>=2?'No vine a calentar el banco. Si no soy titular, no me interesa.':years<=1?'¿Un año? Necesito estabilidad, no un contrato de prueba.':'Las condiciones no me convencen. Esperaba una oferta más ambiciosa.';
+    // ⚠️ EL MERCENARIO NO DA SEGUNDA CHANCE. Sin esto el rechazo era gratis:
+    // el modal ofrece "↔ Mejorar oferta" y podías tantear el número hasta dar
+    // con el que acepta. Con el mercenario el tanteo se termina — o le pagás
+    // lo que pide de entrada, o lo perdés. Por eso pide 40% más: el recargo
+    // solo no cuesta nada si podés regatear.
+    if(esMercenario(p)){
+      window._negData=null;
+      addPhoneMsg('player',p.name,`💸 ${hint} Y no hay contraoferta: arreglo con quien ponga la plata.`,'🤑');
+      addPhoneMsg('agent',nd.agent.name,`🚪 Se levantó de la mesa. Le avisé que era a todo o nada — ya está hablando con otro club.`,'🤝');
+      lg('💸',`${p.name} cortó la negociación en el acto (no acepta contraofertas)`);
+      flash('💸 '+p.name+' se levantó de la mesa — no acepta contraofertas','loss');
+      showMod(`
+        <button class="mclose" onclick="closeMod()">✕</button>
+        <div class="mtitle">🚪 ${p.name} se levantó de la mesa</div>
+        ${_negStepBar(3)}
+        <div style="text-align:center;margin:16px 0">
+          <div style="font-size:40px;margin-bottom:8px">🤑</div>
+          <div style="font-size:13px;color:var(--t2);margin-bottom:6px">"${hint}"</div>
+          <div style="font-size:10px;color:var(--red)">No hubo contraoferta. La negociación está cerrada.</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:12px">
+          <button class="btn bo" onclick="closeMod()">Entendido</button>
+        </div>
+      `);
+      return;
+    }
     addPhoneMsg('player',p.name,`❌ ${hint}`,'😤');
     flash('❌ '+p.name+' rechazó los términos — '+hint,'loss');
     showMod(`
@@ -11740,6 +11824,71 @@ const INDISCIPLINAS=[
   {t:'lo filmaron manejando alcoholizado',ic:'🚗',g:1.4},
   {t:'discutió con un hincha en la puerta del predio',ic:'😤',g:0.8},
 ];
+// ═══════════════════════════════════════════════════════════════════════
+// EL CONFLICTIVO QUE NO JUEGA ROMPE EL VESTUARIO
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ El umbral del pedido —"rat>75 y menos del 30% de los partidos"— MEDIDO
+// sobre una temporada completa de Boca da **0 jugadores**: de los 13 que
+// pasan de 75, el que menos jugó llegó al **35%**, y el resto va de 49% a
+// 90%. El motor rota y tapa lesiones, así que nadie baja de un tercio en el
+// acumulado. Tal cual venía, el evento no se disparaba NUNCA.
+//
+// Y el acumulado de temporada además no sirve como señal: medido sobre un
+// jugador al que se lo dejó afuera a propósito, su porcentaje fue 50 → 63 →
+// 63 → 69 → 73 → 71. Después del segundo mes ya casi no se mueve, o sea que
+// dejar de poner a alguien HOY no se nota en el número hasta dentro de medio
+// año — justo al revés de cómo funciona un vestuario.
+//
+// Por eso la medida es una VENTANA MÓVIL: cuántos de los partidos del último
+// mes jugó. Ahí el 30% del pedido sí significa algo (de 4 partidos, jugó 1 o
+// ninguno) y reacciona en el mes, que es cuando el tipo se calienta.
+const CONF_RAT=75;        // "rating alto" del pedido
+const CONF_PCT=0.30;      // el 30% del pedido, pero sobre la ventana
+const CONF_MIN_PJ=3;      // sin 3 partidos en el mes no hay de qué quejarse
+const CONF_MORAL=15;      // lo que baja la moral del equipo, tal cual se pidió
+const CONF_MORAL_IND=6;   // y lo que baja la de cada jugador
+function weeklyConflictivos(){
+  if(!G||!G.squad||!G.squad.length)return;
+  if((G.week||1)%4!==0)return;                   // cierre mensual
+  const pj=(G.wins||0)+(G.draws||0)+(G.losses||0);
+  // Al pasar de temporada los contadores vuelven a 0: sin esta guarda, la
+  // ventana daba negativa y el evento se disparaba solo en la semana 4.
+  if(G._persPJ0===undefined||G._persPJ0>pj) G._persPJ0=pj;
+  const vent=pj-G._persPJ0;
+  const cerrar=()=>{ G._persPJ0=pj; G.squad.forEach(q=>{q._persApps0=q.apps||0;}); };
+  if(vent<CONF_MIN_PJ){ if(vent<0)cerrar(); return; }
+  const roto=G.squad.find(p=>{
+    if(!esConflictivo(p))return false;
+    if((p.rat||0)<=CONF_RAT)return false;
+    if(p.injured)return false;                    // el que no juega por lesión no se queja
+    if(p._persQueja===G.season)return false;      // una por temporada y por jugador
+    if(p._persApps0===undefined||p._persApps0>(p.apps||0)) p._persApps0=p.apps||0;
+    return ((p.apps||0)-p._persApps0) < vent*CONF_PCT;
+  });
+  cerrar();
+  if(!roto)return;
+  roto._persQueja=G.season;
+  // La moral del EQUIPO, que es la que pidió el usuario y la que mueve la
+  // fuerza en matchStrengths…
+  G.morale=Math.max(0,(G.morale===undefined?70:G.morale)-CONF_MORAL);
+  // …y la de cada jugador, que es otra cosa y es la que alimenta el
+  // rendimiento semanal y el badSpell. El que arma el quilombo no se baja la
+  // moral a sí mismo: está convencido de que tiene razón.
+  G.squad.forEach(q=>{
+    if(q.id===roto.id)return;
+    q.morale=Math.max(0,(q.morale===undefined?60:q.morale)-CONF_MORAL_IND);
+  });
+  setDtRel&&setDtRel(-4);
+  addPhoneMsg('dt',(G.dt&&G.dt.name)||'El DT',
+    `😠 Presidente, <b>${roto.name}</b> me está rompiendo el vestuario porque no es titular. `+
+    `Habla en los entrenamientos, arrastra a los pibes y el grupo está partido. `+
+    `O lo pone a jugar, o lo saca del club, pero así no seguimos.`,'🧨');
+  lg('🧨',`${roto.name} rompe el vestuario: moral del plantel −${CONF_MORAL}`);
+  flash('🧨 '+roto.name+' rompió el vestuario — moral −'+CONF_MORAL,'loss');
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+(G.week||1),ic:'🧨',type:'misc',
+    msg:`Interna en ${G.teamName}: ${roto.name} explotó por su suplencia y el vestuario quedó partido.`});
+}
 function weeklyIndisciplina(){
   if(!G||!G.squad||!G.squad.length)return;
   if((G.week||1)<3)return;
@@ -12458,7 +12607,10 @@ function fichaLibres(faltan, cuantos){
     const p=libres.splice(typeof pIsForeign==='function'&&foreignCount(G.squad)>=cupoExt()?0:~~(Math.random()*Math.min(12,libres.length)),1)[0];
     if(!p)break;
     G.market=G.market.filter(x=>x.id!==p.id);
-    p.club=G.teamName; p.lg='Liga ARG'; p.freeAgent=false;
+    // QUINTA vez que aparece un 'Liga ARG' fijo en un camino que corre en las
+    // 24 ligas (después de nacionalizar, el naming, promOne y firmasTick): un
+    // libre que entraba al Real Madrid quedaba anotado en la liga argentina.
+    p.club=G.teamName; p.lg=ligaMia(); p.freeAgent=false;
     p.contract=(G.season||2026)+1+~~(Math.random()*2);
     p.seasonsAtClub=0; p.dtRel=58; p.morale=68; p.goals=0; p.apps=0; p.assists=0;
     G.squad.push(p); (G.bench=G.bench||[]).push(p);
@@ -13857,6 +14009,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     finAnota('cuerpo',staffSal/1000,'Sueldos del cuerpo técnico'); }
   weeklyTicket();
   weeklyIndisciplina();
+  weeklyConflictivos(); // cierre mensual: el crack conflictivo que no juega
   weeklyDilema();
   eleccionAviso();
   weeklyYouth();
@@ -17473,11 +17626,15 @@ function ptSubmit(){
   }
   s.tries++;
   const why=ptWhyNo(p,t);
-  addPhoneMsg('player',p.name,`❌ ${why}`,'😤');
-  if(s.tries>=3){
+  // El mercenario tampoco regatea acá: esta es la puerta de la cláusula, el
+  // canje, el libre y el préstamo. Blindar sólo `submitNegTerms` habría dejado
+  // el tanteo abierto entrando por la ficha del jugador (Fase 16).
+  const _tope=esMercenario(p)?1:3;
+  addPhoneMsg('player',p.name,`❌ ${why}`,esMercenario(p)?'🤑':'😤');
+  if(s.tries>=_tope){
     _PT=null; closeMod();
-    lg('❌',`${p.name} cortó la negociación de contrato`);
-    flash('❌ '+p.name+' se cansó y cortó la negociación','loss');
+    lg(esMercenario(p)?'💸':'❌',`${p.name} cortó la negociación de contrato`);
+    flash('❌ '+p.name+(esMercenario(p)?' se levantó de la mesa — no acepta contraofertas':' se cansó y cortó la negociación'),'loss');
     return;
   }
   showMod(`
@@ -17913,11 +18070,17 @@ function confirmRescind(id,cost){
   closeMod();updateUI();
   flash('🗑️ '+p.name+' — contrato rescindido','draw');
 }
+// El piso de aceptación de una renovación: normalmente 0.85 de la pretensión,
+// pero el LEAL firma hasta 20% abajo sin ponerse denso — es lo que lo hace
+// valer la pena aunque no se vea en ninguna ficha.
+function renovPiso(p){ return esLeal(p)?PERS_LEAL_REBAJA:0.85; }
 function openContract(id){
   const p=G.squad.find(x=>x.id===id); if(!p) return;
-  const expected=Math.max(5,Math.round(p.rat*0.55));
+  // El mercenario también aprieta al renovar: acá la pretensión no sale de
+  // `_negWageExpect` (es otra cuenta), así que el recargo hay que aplicarlo.
+  const expected=Math.max(5,Math.round(p.rat*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
   const recWage=Math.round(expected*1.05);
-  window._cYears=3;
+  window._cYears=3; window._cPid=id;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">📝 Negociar contrato: ${p.name}</div>
@@ -17955,10 +18118,14 @@ function updContract(expected){
   const w=document.getElementById('cWage'), rx=document.getElementById('cRx'), wl=document.getElementById('cWageL'); if(!w||!rx) return;
   const wage=+w.value; if(wl) wl.textContent=wage+'k';
   const years=window._cYears||3, ratio=wage/expected;
+  // El preview tiene que decir la VERDAD sobre el piso real: si mostrara
+  // "rechazará" y el leal firmara igual, se leería como un bug del juego.
+  const _p=(G&&G.squad||[]).find(x=>x.id===window._cPid);
+  const piso=_p?renovPiso(_p):0.85;
   let t,c,b;
   if(ratio>=1.0){t='✅ Aceptará con gusto';c='var(--green)';b='rgba(26,170,107,.1)';}
-  else if(ratio>=0.85){t='🟢 Probablemente acepte';c='var(--green)';b='rgba(26,170,107,.07)';}
-  else if(ratio>=0.7){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(var(--gold-rgb),.08)';}
+  else if(ratio>=piso){t='🟢 Probablemente acepte';c='var(--green)';b='rgba(26,170,107,.07)';}
+  else if(ratio>=piso-0.15){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(var(--gold-rgb),.08)';}
   else {t='🔴 Rechazará — salario muy bajo';c='var(--red)';b='rgba(232,69,69,.1)';}
   const cost=Math.round(wage*years*4/1000*10)/10;
   rx.innerHTML=t+`<div style="font-size:10px;color:var(--t3);margin-top:3px">Costo de firma: ${fv(cost)} · ${years} año(s) · hasta ${G.season+years}</div>`;
@@ -17969,8 +18136,15 @@ function submitContract(id,expected){
   const wage=+document.getElementById('cWage').value, years=window._cYears||3;
   const ratio=wage/expected, cost=Math.round(wage*years*4/1000*10)/10;
   if(G.budget<cost){ flash('❌ Sin presupuesto para la firma ('+fv(cost)+')','loss'); return; }
-  const accept = ratio>=0.85 || (ratio>=0.7&&Math.random()>0.5);
+  const piso=renovPiso(p);
+  const accept = ratio>=piso || (ratio>=piso-0.15&&Math.random()>0.5);
   if(!accept){ flash('❌ '+p.name+' rechazó — ofrecé más salario o menos años','loss'); lg('📝',`${p.name} rechazó la renovación`); return; }
+  // El leal que firma por menos de lo que pedía lo dice: es la única pista que
+  // vas a tener de su personalidad, y llega DESPUÉS de haberla aprovechado.
+  if(esLeal(p)&&ratio<0.98){
+    addPhoneMsg('player',p.name,`🤝 Firmo igual, presidente. Sé que el club no está para grandes sueldos y yo acá estoy bien. No me voy a pelear por unos pesos.`,'💚');
+    lg('💚',`${p.name} aceptó renovar por debajo de su pretensión (${Math.round(ratio*100)}%)`);
+  }
   G.budget=Math.round((G.budget-cost)*10)/10;
   if(cost>0)finAnota('otros_out',cost,'Prima de renovación de '+p.name);
   p.wage=wage; p.contract=G.season+years; p.morale=Math.min(100,p.morale+8);

@@ -2149,9 +2149,13 @@ verdad** en vez de contar vueltas.
 - **No se creó `triggerDilemma()`**: `weeklyDilema()` ya es esa función y está
   cableada en el bloque semanal con el pool, el "uno por temporada" y el "nunca
   dos abiertos" ya resueltos.
-- **`G.morale` no existe y no se creó.** La moral es **por jugador**
-  (`p.morale`); un promedio global sería una segunda fuente de verdad. Los
-  dilemas que "bajan la moral" recorren el plantel.
+- **`G.morale` SÍ existe** — esta nota decía lo contrario y estaba mal (ver
+  Fase 34). Es el medidor del CLUB: está en el literal de `G`, lo dibuja la
+  barra de la UI y entra en `matchStrengths`. Lo que sí es cierto es que
+  **`G.morale` y `p.morale` son cosas distintas**, y que la moral que mueve el
+  rendimiento semanal y el `badSpell` es la de cada jugador. Por eso los
+  dilemas que "bajan la moral" recorren el plantel en vez de tocar sólo el
+  medidor.
 
 ## Fase 30: `DT_ARCHETYPES` — y la regla general de qué se puede tocar en el 11v11
 
@@ -2536,6 +2540,126 @@ de adentro van en `.mpanel` sin blur. La regresión falla si aparece uno.
 Antes de destituir hay **dos avisos al celular** (la primera semana en crisis y
 la anteúltima), y si repuntás el contador se limpia con un mensaje de que la CD
 levanta la reunión.
+
+## Fase 34: personalidades ocultas
+
+Cada jugador tiene una cabeza además de una media: **Normal 60% · Mercenario
+15% · Leal 15% · Conflictivo 10%**. No se ve en ningún lado — se descubre
+negociando, renovando o dejando a alguien en el banco.
+
+### ⚠️ NO hay un campo `p.personality` guardado, y no es pereza: son 395 KB
+
+El pedido decía "asignale a cada jugador una propiedad `p.personality`".
+`G.market` tiene **17.000 fichas** y el save ya pesa 3,2 MB. Medido guardando
+el campo en todas: **3.147 KB → 3.542 KB, +395 KB** para un dato que se puede
+derivar del nombre. Es la misma regla que ya salvó a `G.socios`,
+`G.roles.captain`, `DT_ARCHETYPES` y `G.approval`: **un estado derivable no se
+duplica**.
+
+`persDe(p)` es el único portero. Honra `p.personality` si alguien lo fijó a
+mano, y si no lo deriva del hash del nombre — **el mismo hash que ya usa
+`antiguedadInicial`** (se probó uno con avalancha y da igual).
+
+Medido sobre los 17.108 nombres reales de la base: **59,8 / 15,1 / 14,9 /
+10,1**. En el mercado vivo de una partida, 59,8 / 15,1 / 15,1 / 10,0.
+
+⚠️ **Es determinista a propósito.** Si se sorteara al leer, **recargar la
+partida hasta que te toque un Leal sería una estrategia**. El `salt` por
+carrera (`G._persSalt`, que se ancla en la primera lectura como
+`G._socTitulos`) hace que el mismo jugador no sea siempre lo mismo en todas
+tus partidas: medido, cambia el **58,9%** de las personalidades, contra un
+máximo teórico de 58,5% con estos pesos. Verificado que sobrevive a guardar y
+cargar sin re-sortear, y que un save viejo sin el campo ancla solo.
+
+### El recargo del mercenario va en el EMBUDO, no en el modal
+
+El pedido decía "modificá `negStep3`". Puesto ahí, **entrar por la cláusula lo
+esquivaba** — es el mismo agujero de las cuatro vías de la Fase 16. Va en
+`_negWageExpect`, que es lo que leen negociar, cláusula, canje y préstamo vía
+`openPlayerTerms`. Medido: **×1,40 exacto**.
+
+La renovación (`openContract`) es la excepción: **no usa `_negWageExpect`**,
+tiene su propia cuenta (`rat*0.55`), así que el recargo hay que aplicarlo
+aparte. Está.
+
+### La ruptura instantánea es lo que le da precio al 40%
+
+Sin eso el rechazo era gratis: el modal ofrece "↔ Mejorar oferta" y podías
+tantear el número hasta dar con el que acepta. Con el mercenario **se termina
+el tanteo** — `window._negData=null`, sin botón de mejorar, y lo mismo en
+`ptSubmit` (tope de intentos 1 en vez de 3), que es la puerta de la cláusula,
+el canje, el libre y el préstamo. Verificado que el **Normal conserva** su
+segunda chance: es la asimetría lo que se prueba, no que el mercenario corte.
+
+### El Leal: el preview tiene que decir la verdad
+
+`renovPiso(p)` devuelve **0,80 para el leal y 0,85 para el resto**, y lo leen
+**los dos** lugares: `submitContract` (la decisión) y `updContract` (el
+semáforo). Si el semáforo dijera "🔴 rechazará" y el leal firmara igual, se
+leería como un bug del juego, no como una personalidad.
+
+### ⚠️ El umbral del Conflictivo, tal cual se pidió, NO disparaba NUNCA
+
+El pedido era `rat>75` y **menos del 30% de los partidos**. Medido sobre una
+temporada completa de Boca (49-51 partidos): de los **13 jugadores que pasan
+de 75, el que menos jugó llegó al 35%**, y el resto va de 49% a 90%.
+**Cero candidatos.** El motor rota y tapa lesiones, así que en el acumulado
+nadie baja de un tercio.
+
+| rat>75, % de partidos jugados | 35 · 49 · 51 · 53 · 65 · 71 · 71 · 73 · 73 · 78 · 84 · 90 · 90 |
+|---|---|
+| bajo 30% | **0** |
+| bajo 50% | 2 |
+
+Y el acumulado de temporada tampoco sirve como señal aunque se bajara el
+número. Medido sobre un jugador al que se dejó afuera a propósito, su
+porcentaje fue **50 → 63 → 63 → 69 → 73 → 71**: después del segundo mes ya casi
+no se mueve, o sea que dejar de ponerlo HOY no se nota en el número hasta
+dentro de medio año — al revés de cómo funciona un vestuario.
+
+**Por eso la medida es una VENTANA MÓVIL**: cuántos de los partidos del último
+mes jugó. Ahí el 30% del pedido sí significa algo (de 4 partidos, jugó 1 o
+ninguno) y reacciona en el mes. El checkpoint son dos números planos
+(`G._persPJ0`, `p._persApps0`), con guarda para el salto de temporada: los
+contadores vuelven a 0 y sin la guarda la ventana daba negativa y el evento se
+disparaba solo en la semana 4.
+
+Medido en 3 temporadas: **2 explosiones** (~0,7 por temporada). Raro como para
+que sea un evento, no tan raro como para no descubrirlo nunca.
+
+### `G.morale` SÍ existe — la nota de la Fase 29 estaba equivocada
+
+Decía "`G.morale` no existe y no se creó". **Existe**: está en el literal de
+`G`, la dibuja la barra de la UI, la lee `boardConf` y **entra en
+`matchStrengths`** (`0.70+(G.morale−70)/100*0.5`). Lo que es cierto es que
+**`G.morale` y `p.morale` son dos cosas distintas**: una es el medidor del
+club, la otra es de cada jugador y alimenta el rendimiento semanal y el
+`badSpell`. El evento toca las dos: **−15 al equipo** (lo que se pidió) y **−6
+a cada jugador**, menos al que armó el quilombo, que está convencido de que
+tiene razón.
+
+Lo que cuesta, medido en el modelo aislado (la varianza de una temporada se
+come un efecto de este tamaño): la fuerza del equipo cae **−1,65%** y la moral
+tarda **13 semanas** en volver.
+
+Se dispara **una vez por temporada y por jugador** (`p._persQueja=G.season`,
+no un booleano — con un booleano pasaba una sola vez en toda la carrera, la
+misma trampa que `G._intakeSeason`), y **el lesionado no se queja**: el que no
+juega porque está roto no tiene de qué.
+
+### Invisible en la UI, que era el requisito
+
+La regresión recorre las 7 pestañas **y la ficha del jugador** buscando
+"Mercenario", "Conflictivo" y "personalidad": **0 fugas**. Lo único que te
+delata a un jugador es lo que hace — el número que pide, que se levante de la
+mesa, que firme una rebaja o que te rompa el vestuario.
+
+### Y el quinto `'Liga ARG'` escrito a mano
+
+Apareció al lado, en el relleno de libres cuando el plantel queda corto:
+`p.lg='Liga ARG'` fijo, así que un libre que entraba al Real Madrid quedaba
+anotado en la liga argentina. Es la **quinta** vez (después de nacionalizar, el
+naming de la Bombonera, `promOne` y `firmasTick`). Ahora sale de `ligaMia()`.
 
 ## ⚠️ El extractor puede perder clubes en silencio
 
