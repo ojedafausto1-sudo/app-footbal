@@ -2351,6 +2351,82 @@ persigan y el resto ignore la pelota). Eso no es un parámetro ni una base: es
 cambiar quién decide moverse, que es la única categoría que en este motor da
 resultados. Y ojo que ahí se toca la marca y el offside.
 
+## Fase 32: se tocaron los OVERRIDES — y acá se cierra el tema para siempre
+
+Era lo último que quedaba sin probar: que la cascada de `fmAI` **mire la fase
+antes de mandar a todos hacia la pelota**. Se hizo, y de paso apareció la causa
+raíz de los siete fracasos anteriores.
+
+### La causa raíz, que estaba a la vista en dos líneas
+
+```js
+let bCen = b.x + dirF*(...)                              // el bloque se ancla a la PELOTA
+let homeY = mid + spread + (b.y-mid)*(theyHave?0.22:0.10);  // los ONCE se corren hacia la pelota
+```
+
+**La formación no es la referencia de nada — la pelota lo es.** `p.hx` entra sólo
+como `depth01` (el rango dentro del bloque) y `p.hy` sólo como `spread`. Por eso
+daba igual dónde estuviera la base del dibujo (Fase 31), dónde estuviera el tope
+(Fase 25) o cuánto valiera la constante (Fases 13, 24, 30): **el jugador ignora
+su posición y se va atrás de la pelota**, siempre.
+
+### Qué se probó
+
+`FM_FASE={lat,lon}`, con `_libre=(myRank-2)/4` (0 para los tres más cercanos, 1
+del séptimo en adelante):
+
+- **`lat`** corta el arrastre lateral `(b.y-mid)*0.22` para el que está lejos.
+- **`lon`** ancla su profundidad al dibujo (`p.hx`) en vez de a la pelota.
+
+Es un cambio de **decisión** —quién se mueve—, no de posición, que es la única
+categoría que en este motor había dado resultados.
+
+### Resultado, con pases y remates adentro
+
+| | Δ ancho | Δ bloque | pases/90 | remates/90 |
+|---|---|---|---|---|
+| apagado | −188 | −8,9 | 255 | 10,4 |
+| lat 0,6 | −191 | −6,0 | 313 | 8,3 |
+| **lat 1,0** | **−401** | **−14,8** | **163** | **4,4** |
+| sólo lon | −302 | −12,9 | — | — |
+
+`lat 1.0` **parte los remates al medio** (10,4 → 4,4) y empeora las dos métricas
+buscadas. `lat 0.6` no se distingue del apagado y cuesta 20% de remates. `lon` es
+el mismo desastre que las dos formaciones. **REVERTIDO.**
+
+### ⚠️ Lo importante no es el fracaso: es que la MÉTRICA no sirve
+
+El mismo escenario "apagado", con **código idéntico**, dio:
+
+| corrida | Δ ancho | Δ bloque |
+|---|---|---|
+| A | −65 | −1,0 |
+| B | −188 | −8,9 |
+
+**123px y 7,9 puntos de diferencia sobre el mismo código.** Eso es más grande
+que el efecto de cualquiera de los ocho mecanismos probados. O sea: **la
+diferencia de amplitud/bloque entre atacar y defender NO SE PUEDE MEDIR en este
+motor con corridas de este tamaño**, y sin medirla no se puede decidir nada.
+
+Retroactivamente eso explica los ocho "fracasos": algunos capaz no fracasaron,
+pero son **inverificables**, y en este proyecto inverificable = no se shippea.
+
+### 🛑 EL TEMA ESTÁ CERRADO. No lo intentes nueve.
+
+Probado y revertido, con números, en este orden: constantes de `baseShift` ·
+empuje asimétrico · tope duro de `homeY` · cono del desvío · cooldown de faltas ·
+`flankBias` · dos formaciones por fase · overrides conscientes de la fase.
+
+**Si alguien lo retoma, lo PRIMERO no es tocar el motor: es construir un arnés
+que pueda medir esto.** Mientras el baseline se mueva ±120px entre corridas
+idénticas, cualquier resultado —bueno o malo— es una moneda. Un arnés que
+serviría: fijar la semilla del `Math.random` del motor y correr el mismo partido
+con y sin el cambio, comparando tick a tick en vez de por promedios.
+
+Y lo que **sí** funciona y ya está entregado sigue siendo lo mismo: las palancas
+de **decisión** (`prof.direct` en el pase: 51% → 74% de pases hacia adelante y
+1,0% → 9,5% de pelotazos, monótono y medido).
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
