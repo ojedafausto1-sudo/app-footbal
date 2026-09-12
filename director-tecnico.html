@@ -299,6 +299,16 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
   box-shadow:var(--sh-deep);transition:border-color .18s,box-shadow .18s}
 .mksearch::placeholder{color:var(--t3)}
 .mksearch:focus{outline:none;border-color:rgba(var(--gold-rgb),.45);box-shadow:var(--sh-lift)}
+/* Switch (toggle). Va dentro de un .mpanel, que a su vez vive en una .card
+   con vidrio real: por eso NO lleva backdrop-filter — apilar blur es lo que
+   prohíbe la regla medida del proyecto. */
+.sw{width:42px;height:24px;border-radius:12px;background:rgba(255,255,255,.07);
+  border:1px solid var(--bdr);cursor:pointer;flex-shrink:0;position:relative;
+  transition:background .18s,border-color .18s}
+.sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  background:var(--t3);transition:transform .18s,background .18s}
+.sw.on{background:rgba(16,185,129,.22);border-color:var(--green)}
+.sw.on i{transform:translateX(18px);background:var(--green)}
 /* El chip de "Libres" es un filtro más de la fila, no una tarjeta: sin blur */
 .fchip{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 12px;
   border-radius:8px;cursor:pointer;font-size:11.5px;font-weight:700;
@@ -950,6 +960,11 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <div id="presConfDetail"></div>
           </div>
           <!-- ═══ VITRINA DEL CLUB: lo que dejó tu gestión ═══ -->
+          <!-- ═══ JUNTA DIRECTIVA: los ídolos que volvieron de traje ═══ -->
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">🏛️ Comisión Directiva</div>
+            <div id="presJunta"></div>
+          </div>
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">🏆 Vitrina del Club</div>
             <div id="presVitrina"></div>
@@ -12060,6 +12075,56 @@ const CONF_PCT=0.30;      // el 30% del pedido, pero sobre la ventana
 const CONF_MIN_PJ=3;      // sin 3 partidos en el mes no hay de qué quejarse
 const CONF_MORAL=15;      // lo que baja la moral del equipo, tal cual se pidió
 const CONF_MORAL_IND=6;   // y lo que baja la de cada jugador
+// ═══════════════════════════════════════════════════════════════════════
+// DELEGAR LAS RENOVACIONES EN EL DIRECTOR DEPORTIVO
+// ═══════════════════════════════════════════════════════════════════════
+// Con el toggle puesto, el Director Deportivo cierra solo los contratos que
+// se vencen. No es gratis: **negocia peor que vos si es malo**. El sueldo que
+// acuerda y la chance de convencerlo salen de su nivel, así que un ídolo con
+// cabeza de dirigente te ahorra plata y uno flojo te la hace pagar.
+//
+// ⚠️ Se apoya en `renovPiso(p)` y en la misma cuenta de pretensión que usa
+// `openContract`, no en una fórmula nueva: si el manual y el automático
+// usaran números distintos, delegar cambiaría el precio de las cosas y eso se
+// leería como un bug.
+const DELEG_SEMANAS=4;   // revisa una vez por mes, no todas las semanas
+function delegaRenov(){ return !!(G&&G.delegaRenov&&dirDeportivo()); }
+function weeklyJunta(){
+  if(!G||!G.squad) return;
+  if((G.week||1)%DELEG_SEMANAS!==0) return;
+  const dir=dirDeportivo();
+  if(!G.delegaRenov||!dir) return;
+  // Sólo los que se vencen a fin de esta temporada
+  const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season&&!p._delegNo);
+  if(!porVencer.length) return;
+  const n=Math.max(40,Math.min(90,dir.nivel||55));
+  let cerr=0, gastado=0, fallo=0;
+  porVencer.slice(0,3).forEach(p=>{
+    // Cuánto pide, con el recargo del mercenario que ya aplica openContract
+    const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+    // Un director bueno cierra cerca del piso; uno malo paga de más
+    const ratio=Math.max(renovPiso(p), 1.22-(n-40)/50*0.34);
+    const wage=Math.round(exp*ratio);
+    const years=n>=70?3:2;
+    const cost=Math.round(wage*years*4/1000*10)/10;
+    // Convencerlo también depende del nivel del que negocia
+    if(Math.random()>0.42+(n-40)/50*0.45){ p._delegNo=true; fallo++; return; }
+    if(G.budget<cost){ return; }
+    G.budget=Math.round((G.budget-cost)*10)/10;
+    if(cost>0&&typeof finAnota==='function') finAnota('otros_out',cost,'Renovación de '+p.name+' (Junta)');
+    p.wage=wage; p.contract=G.season+years;
+    p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+6);
+    cerr++; gastado+=cost;
+  });
+  if(cerr){
+    lg('🏛️',`${dir.name} renovó ${cerr} contrato(s) por ${fv(Math.round(gastado*10)/10)}`);
+    addPhoneMsg('board',dir.name,
+      `🖊️ Presidente, cerré <b>${cerr} renovación${cerr>1?'es':''}</b> sin molestarlo: ${fv(Math.round(gastado*10)/10)} en total.${fallo?` A ${fallo} no lo pude convencer, ese lo va a tener que ver usted.`:''}`,'🏛️');
+  } else if(fallo){
+    addPhoneMsg('board',dir.name,
+      `😕 Presidente, no llegamos a un acuerdo con ${fallo} jugador${fallo>1?'es':''}. Va a tener que sentarse usted.`,'🏛️');
+  }
+}
 function weeklyConflictivos(){
   if(!G||!G.squad||!G.squad.length)return;
   if((G.week||1)%4!==0)return;                   // cierre mensual
@@ -12680,6 +12745,53 @@ function legendStats(p){
   }
   return {apps:p.apps||0,goals:p.goals||0,assists:p.assists||0};
 }
+// ═══════════════════════════════════════════════════════════════════════
+// LA JUNTA DIRECTIVA: los ídolos vuelven al club de traje
+// ═══════════════════════════════════════════════════════════════════════
+// `G.board` son objetos PLANOS `{id,name,pos,role,nivel,desde}` — nada de
+// funciones (ver la regla de `G`). Retro-compatible sin migrar: `junta()` lee
+// `G.board||[]`, que en un save viejo es exactamente "todavía no armaste
+// ninguna Junta".
+const JUNTA_MAX=4;
+const JUNTA_ESPERA=2;   // temporadas fuera del club antes de volver de traje
+function junta(){ return (G&&G.board)||[]; }
+function dirDeportivo(){ return junta().find(m=>m&&m.role==='Director Deportivo')||null; }
+function juntaSumar(p,role,nivel){
+  if(!G) return null;
+  G.board=G.board||[];
+  if(G.board.some(m=>m&&m.id===p.id)) return null;
+  if(G.board.length>=JUNTA_MAX) return null;
+  const m={id:p.id, name:p.name, pos:p.pos||'', role:role||'Vocal',
+           nivel:Math.round(nivel||55), desde:G.season};
+  G.board.push(m);
+  addPhoneMsg('board','Comisión Directiva',
+    `🏛️ <b>${p.name}</b> vuelve al club, pero del otro lado del mostrador: se suma a la Comisión Directiva como <b>${m.role}</b>. Nivel de gestión <b>${m.nivel}</b>.`,'🏛️');
+  lg('🏛️',`${p.name} se suma a la Junta como ${m.role} (nivel ${m.nivel})`);
+  if(!G.news)G.news=[];
+  G.news.unshift({w:'S'+(G.week||1),ic:'🏛️',type:'misc',
+    msg:`${p.name}, ídolo de ${G.teamName}, vuelve al club como ${m.role}.`});
+  return m;
+}
+// ⚠️ ESTE es el que hace que la Junta EXISTA. Medido: por retiro entrarían
+// 0 leyendas en 6 temporadas, así que sin esto la pantalla quedaba vacía toda
+// la carrera. La leyenda que se fue del club deja de tener ficha (verificado:
+// desaparece de `G.squad` y de `G.market`), pero su entrada en `G.legends`
+// sobrevive con `activo:false` — y de ahí sale el dirigente, dos temporadas
+// después de irse, que es cuando en la realidad el ídolo vuelve de traje.
+function juntaTick(){
+  if(!G||!G.legends) return;
+  if(junta().length>=JUNTA_MAX) return;
+  const cand=G.legends.filter(l=>l&&!l.activo&&!junta().some(m=>m.id===l.id)
+    && (G.season-(l.salio||l.desde||G.season))>=JUNTA_ESPERA);
+  if(!cand.length) return;
+  // El de más peso en la historia del club es el que llega primero
+  cand.sort((a,b)=>((b.apps||0)+(b.goals||0)*3)-((a.apps||0)+(a.goals||0)*3));
+  const l=cand[0];
+  const nivel=Math.max(40,Math.min(90,Math.round(
+    (l.rat||70)*0.55 + Math.min(20,(l.apps||0)/12) + Math.min(8,(l.goals||0)/6))));
+  const role=dirDeportivo()?'Vocal':'Director Deportivo';
+  juntaSumar({id:l.id,name:l.name,pos:l.pos},role,nivel);
+}
 function esLeyenda(p){
   if(!p)return false;
   const t=legendStats(p);
@@ -12707,7 +12819,15 @@ function registrarLeyendas(){
       _pubRumor(`👑 <b>${p.name}</b> alcanzó la marca que lo mete en la historia grande de ${G.teamName}.`,'misc');
   });
   // Los que ya no están en el plantel quedan como leyendas retiradas
-  G.legends.forEach(l=>{ l.activo=(G.squad||[]).some(q=>q.id===l.id); });
+  G.legends.forEach(l=>{
+    const act=(G.squad||[]).some(q=>q.id===l.id);
+    // Se anota la temporada en que dejó de estar: la Junta la necesita para
+    // saber cuánto hace que se fue, y un save viejo no la trae (`juntaTick`
+    // cae a `l.desde`, que sí está desde siempre).
+    if(l.activo!==false && !act && l.salio===undefined) l.salio=G.season;
+    if(act) l.salio=undefined;
+    l.activo=act;
+  });
 }
 function archiveSeason(){
   ensureLeague();
@@ -12931,6 +13051,86 @@ function motivoRetiro(p){
     ? 'a los '+p.age+' ya no da para más'
     : 'sintió que el nivel no le alcanzaba';
 }
+// ═══════════════════════════════════════════════════════════════════════
+// DE JUGADOR A STAFF: el que cuelga los botines no desaparece del mundo
+// ═══════════════════════════════════════════════════════════════════════
+// El que se retira se hace técnico, y el ÍDOLO vuelve al club de traje.
+//
+// ⚠️ MEDIDO ANTES DE ESCRIBIR NADA, y el número cambia el diseño: con Boca,
+// en 6 temporadas se retiran **3 jugadores** (0 · 0 · 3 · 0 · 0 · 0) y
+// **ninguno es leyenda**. `seRetira` pide 41 años, o 35+ con media <60, y una
+// leyenda tiene 75-85 de media: la vende o la deja libre mucho antes de que
+// decaiga tanto. Peor: una leyenda vendida **desaparece entera** (no queda ni
+// en `G.squad` ni en `G.market`, verificado) y **0 de los 17.080 del mercado**
+// cumplen `seRetira` nunca, porque el mercado no envejece hacia el retiro.
+//
+// O sea: atar la Junta a "la leyenda se retira" la dejaba VACÍA PARA SIEMPRE,
+// y con ella el toggle de delegar y toda la automatización. Lo único que
+// sobrevive a la salida del jugador es el registro `G.legends` (con
+// `activo:false`), así que la Junta se alimenta de ahí — ver `juntaTick`.
+//
+// ⚠️ Y NO se tocó `seRetira`. Las tres constantes (35 / 60 / 41) son perillas
+// de balance del plantel; moverlas para que este sistema dispare más seguido
+// sería cambiar la dificultad del juego entero para llenar una pantalla.
+
+// El arquetipo sale de en qué era bueno. ⚠️ El pedido decía "si DEF es su
+// stat más alta / si PAS es la más alta", pero **el arquero no tiene ni DEF
+// ni PAS**: sus atributos son ATA/REF/POS/SAQ/VEL/FIS (ver ATTR_PROFILES).
+// Con la regla literal, un arquero que se retira no caía en ninguna rama.
+// Por eso se mapea el mejor atributo que el jugador REALMENTE tiene, y el
+// arquero entra por su puesto.
+const STAFF_ARQ={
+  DEF:['bloquebajo','resultadista'],   // los dos del pedido
+  PAS:['posicional','toque'],          // los dos del pedido
+  TIR:['ofensivo','vertical'],
+  REG:['bandas','toque'],
+  VEL:['contragolpe','vertical'],
+  FIS:['fisico','gegenpress'],
+};
+function _staffArquetipo(p){
+  if(!p) return 'equilibrado';
+  if(p.pos==='ARQ') return 'bloquebajo';        // el arquero ve el partido de atrás
+  const a=(typeof ensureAttrs==='function')?ensureAttrs(p):(p.attrs||{});
+  const cand=Object.entries(a).filter(([k])=>STAFF_ARQ[k]);
+  if(!cand.length) return 'equilibrado';
+  const mejor=cand.sort((x,y)=>y[1]-x[1])[0][0];
+  const par=STAFF_ARQ[mejor];
+  // Determinista por nombre: el mismo tipo no cambia de arquetipo al recargar
+  const h=String(p.name||'').split('').reduce((s,c)=>((s*31+c.charCodeAt(0))>>>0),7);
+  return par[h%par.length];
+}
+// El nivel del dirigente/técnico sale de la carrera, no de la nada
+function _staffNivel(p,t){
+  const ap=(t&&t.apps)||p.apps||0, gl=(t&&t.goals)||p.goals||0;
+  return Math.max(40,Math.min(90,Math.round(
+    (p.rat||65)*0.55 + Math.min(20,ap/12) + Math.min(8,gl/6) + (p.seasonsAtClub||0)*1.1)));
+}
+// Se suma al pool de técnicos LIBRES, así lo podés contratar de verdad
+function _staffNuevoDT(p,t){
+  if(typeof ensureDtPool==='function') ensureDtPool();
+  if(!G.dtPool) return null;
+  if(G.dtPool.some(d=>d.name===p.name)) return null;   // ya hay uno con ese nombre
+  const k=_staffArquetipo(p), nivel=_staffNivel(p,t);
+  const base=(typeof ARQ!=='undefined'&&ARQ[k])||{n:'Equilibrado',prof:{}};
+  const d={name:p.name, age:(p.age||36)+1, nat:p.nat||'ARG', rat:Math.round(nivel*0.72+18),
+           style:base.n, str:'Ex jugador · '+base.n, trait:'motivador',
+           arq:k, club:null, league:null, until:0, exJugador:true};
+  G.dtPool.push(d);
+  return d;
+}
+function _retiroAStaff(p,t){
+  if(!G) return;
+  const esLey=(G.legends||[]).some(l=>l&&l.id===p.id);
+  // ⚠️ El pedido decía `G.legends.includes(id)`, y eso **da false siempre**:
+  // `G.legends` es un array de OBJETOS `{id,name,pos,num,rat,activo}`, no de
+  // ids. Medido sobre 6 temporadas: 0 aciertos con `includes`. El resto del
+  // archivo ya usa `.some(l=>l.id===p.id)`; se usa el mismo.
+  if(esLey){ juntaSumar(p,'Director Deportivo',_staffNivel(p,t)); return; }
+  const d=_staffNuevoDT(p,t);
+  if(d) addPhoneMsg('board','Secretaría del Club',
+    `🎓 <b>${p.name}</b> se sacó el buzo de jugador y se puso el de técnico: sacó el carnet con perfil <b>${d.style}</b>. Está libre — si algún día lo querés en el banco, está en la lista.`,'📋');
+}
+
 function retiros(){
   if(!G||!G.squad) return;
   const cuelgan=G.squad.filter(seRetira);
@@ -12944,6 +13144,7 @@ function retiros(){
       apps:t.apps,goals:t.goals,assists:t.assists,seasons:temporadas,idolo,num:p.num});
     if(G.retirados.length>40) G.retirados=G.retirados.slice(-40);
     lg('🎓',`${p.name} se retira a los ${p.age} (${t.apps} PJ, ${t.goals} goles)`);
+    try{ _retiroAStaff(p,t); }catch(e){}   // el que cuelga pasa a técnico o a la Junta
     if(idolo){
       // Al ídolo se le retira el número y se le hace el partido despedida
       (G.numsRetirados=G.numsRetirados||[]).push({num:p.num,name:p.name,season:G.season});
@@ -13197,6 +13398,7 @@ function nextSeason(){
   // el primer partido del año que viene.
   try{ sociosTitulos(); }catch(e){}
   try{ prensaTitulos(); }catch(e){}
+  try{ juntaTick(); }catch(e){}   // el ídolo que se fue vuelve de traje
   endSeasonMarket();
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   // Las elecciones van DESPUÉS del checkFired: si terminaste en zona de
@@ -14228,6 +14430,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyTicket();
   weeklyIndisciplina();
   weeklyConflictivos(); // cierre mensual: el crack conflictivo que no juega
+  weeklyJunta();        // el Director Deportivo renueva solo, si delegaste
   weeklyDilema();
   eleccionAviso();
   weeklyYouth();
@@ -15215,6 +15418,7 @@ function updateFans(res,derby,gf){
   // Los títulos: un solo portero para los cuatro caminos que los otorgan.
   try{ sociosTitulos(); }catch(e){}
   try{ prensaTitulos(); }catch(e){}
+  try{ juntaTick(); }catch(e){}   // el ídolo que se fue vuelve de traje
   // La recaudación de socios NO se cobra acá: ya entra en el balance mensual
   // (TV + socios). Antes se sumaba ~2M por partido además del borderaux, y el
   // presupuesto se inflaba solo con jugar.
@@ -23615,10 +23819,53 @@ function rAprob(){
     ${crisis?`<div class="note R" style="margin-top:8px">🚨 <b>${crisis} de ${APROB_SEMANAS} semanas</b> en crisis. Si llega a ${APROB_SEMANAS}, la comisión te pide la renuncia.</div>`:''}
     <div style="font-size:9px;color:var(--t3);margin-top:7px">Sale de la comisión y de la hinchada, que es lo mismo que se vota en la elección. Ganar suma, perder resta, y vender a un ídolo o cerrar el mes en rojo pega fuerte.</div>`;
 }
+// La Junta: quién la integra, qué nivel de gestión tiene y el toggle para
+// delegarle las renovaciones. El contenedor (.card) ya es vidrio real, así que
+// cada dirigente va en un `.mpanel` — sin backdrop-filter, para no anidar blur.
+function rJunta(){
+  const el=document.getElementById('presJunta'); if(!el||!G) return;
+  const J=junta(), dir=dirDeportivo();
+  if(!J.length){
+    const cand=(G.legends||[]).filter(l=>l&&!l.activo).length;
+    el.innerHTML=`<div style="padding:10px 2px;font-size:11px;color:var(--t2)">
+      Todavía no hay ex jugadores en la Comisión.
+      <div style="font-size:10px;color:var(--t3);margin-top:5px">Los ídolos vuelven al club como dirigentes <b>dos temporadas después</b> de dejar el plantel, y el que se retira jugando acá entra directo. Hoy hay <b style="color:var(--gold)">${cand}</b> leyenda(s) fuera del club esperando.</div></div>`;
+    return;
+  }
+  const barra=n=>{const c=n>=70?'var(--green)':n>=55?'var(--gold)':'var(--red)';
+    return `<div class="prog" style="height:5px;margin-top:4px"><div class="pf" style="width:${n}%;background:${c}"></div></div>`;};
+  el.innerHTML=J.map(m=>`
+    <div class="mpanel" style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <div><div style="font-weight:700;font-size:12px;font-family:'Rajdhani'">${m.name}</div>
+          <div style="font-size:9px;color:var(--t3)">${m.role}${m.pos?' · ex '+m.pos:''} · desde ${m.desde}</div></div>
+        <div style="text-align:right"><div style="font-size:9px;color:var(--t3)">GESTIÓN</div>
+          <div class="sv-n" style="font-size:17px;color:${m.nivel>=70?'var(--green)':m.nivel>=55?'var(--gold)':'var(--red)'}">${m.nivel}</div></div>
+      </div>${barra(m.nivel)}
+    </div>`).join('')
+  + (dir?`
+    <div class="mpanel" style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:11.5px;font-weight:700">🖊️ Delegar Renovaciones</div>
+          <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${dir.name} cierra solo los contratos que se vencen. Negocia según su nivel (<b>${dir.nivel}</b>): ${dir.nivel>=70?'aprieta bien y te ahorra plata':dir.nivel>=55?'cierra razonable':'paga de más y a veces no convence a nadie'}.</div>
+        </div>
+        <div class="sw${G.delegaRenov?' on':''}" onclick="toggleDelegar()" title="Delegar renovaciones"><i></i></div>
+      </div>
+    </div>`
+  :`<div style="font-size:10px;color:var(--t3);margin-top:6px">Sin Director Deportivo no se puede delegar: el primer ídolo que llega toma ese cargo.</div>`);
+}
+function toggleDelegar(){
+  if(!G) return;
+  if(!dirDeportivo()){ flash('No tenés Director Deportivo','loss'); return; }
+  G.delegaRenov=!G.delegaRenov;
+  flash(G.delegaRenov?'🖊️ Renovaciones delegadas en '+dirDeportivo().name:'🖊️ Volvés a manejar las renovaciones vos',G.delegaRenov?'win':'draw');
+  rJunta();
+}
 function rPresTab(){
   if(!G) return;
   // Memoria de la carrera: vitrina + curva del patrimonio
-  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); rAprob(); }catch(e){}
+  try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); rAprob(); rJunta(); }catch(e){}
   const conf=G.boardConf||50;
   const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Critica';

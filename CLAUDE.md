@@ -2878,6 +2878,121 @@ vacía sin decir por qué se lee como un bug.
 El estado del chip (`_mkLibres`) vive **fuera de `G`**, como `_PT`, `_SPN` y
 `_DIL_FX`: es de la pantalla, no de la partida.
 
+## Fase 37: de jugador a staff — el retiro que casi no existe
+
+### ⚠️ Medido primero, y el número cambió el diseño entero
+
+El pedido ataba la Junta Directiva a "cuando una leyenda se retira". Medido
+con Boca antes de escribir una línea:
+
+| | |
+|---|---|
+| retiros en 6 temporadas | **3** (0 · 0 · 3 · 0 · 0 · 0) |
+| de esos, leyendas | **0** |
+| leyendas acumuladas al final | 16 |
+
+`seRetira` pide **41 años, o 35+ con media <60**, y una leyenda tiene 75-85:
+la vendés o se te va libre mucho antes de decaer tanto. Y hay dos cosas peores,
+las dos verificadas:
+
+- **Una leyenda vendida desaparece entera**: no queda en `G.squad` **ni en
+  `G.market`**. El objeto jugador se borra; lo único que sobrevive es su
+  entrada en `G.legends` con `activo:false`.
+- **0 de los 17.080 jugadores del mercado** cumplen `seRetira` jamás — el
+  mercado no envejece hacia el retiro.
+
+O sea: no existe **ningún** camino por el que una leyenda llegue a retirarse.
+Tal cual se pidió, `G.board` quedaba **vacío toda la carrera**, y con él el
+toggle de delegar y toda la automatización de los objetivos 2 y 3.
+
+⚠️ **NO se tocó `seRetira`.** Las tres constantes (35 / 60 / 41) son perillas
+de balance del plantel; moverlas para que esta pantalla dispare más seguido
+sería cambiar la dificultad del juego entero para llenar una tarjeta.
+
+**La solución sale del registro que sí sobrevive.** `juntaTick()` mira
+`G.legends` y trae de vuelta al ídolo **dos temporadas después de que dejó el
+club** (`JUNTA_ESPERA`), que además es lo que pasa en la realidad: el que se
+fue vuelve de traje. `registrarLeyendas` ahora estampa `l.salio` cuando
+`activo` cae; un save viejo no lo trae y cae a `l.desde`.
+
+### ⚠️ El arquero no tiene DEF ni PAS
+
+Segunda vez que aparece esta trampa (la primera fue el check de mentoreo).
+El pedido decía "si `DEF` es su stat más alta → Bloque Bajo; si `PAS` → 
+Posicional", pero `ATTR_PROFILES.ARQ` es **`{ATA,REF,POS,SAQ,VEL,FIS}`**: un
+arquero que se retira **no caía en ninguna rama**.
+
+`_staffArquetipo(p)` mapea el mejor atributo **de los que el jugador realmente
+tiene**, cubre las seis claves de campo y manda al arquero por su puesto:
+
+| mejor atributo | arquetipo |
+|---|---|
+| DEF | `bloquebajo` / `resultadista` ← los del pedido |
+| PAS | `posicional` / `toque` ← los del pedido |
+| TIR | `ofensivo` / `vertical` |
+| REG | `bandas` / `toque` |
+| VEL | `contragolpe` / `vertical` |
+| FIS | `fisico` / `gegenpress` |
+| (ARQ) | `bloquebajo` |
+
+Los cuatro nombres del pedido existían tal cual en `ARQ` (`bloquebajo`,
+`resultadista`, `posicional`, `toque`). La elección dentro del par es
+**determinista por nombre**, para que el mismo tipo no cambie de arquetipo al
+recargar. Verificado que los cuatro casos devuelven una clave que existe en
+`ARQ`, incluido el arquero.
+
+El ex jugador entra a `G.dtPool` como **técnico LIBRE**, así que lo podés
+contratar de verdad; no se duplica si ya hay uno con ese nombre.
+
+### ⚠️ `G.legends.includes(id)` da SIEMPRE false
+
+El pedido lo usaba literal. `G.legends` es un array de **objetos**
+`{id,name,pos,num,rat,activo}`, no de ids: medido sobre 6 temporadas, **0
+aciertos**. El resto del archivo ya usaba `.some(l=>l.id===p.id)` y es lo que
+se usa acá.
+
+### La Junta
+
+`G.board` son objetos planos `{id,name,pos,role,nivel,desde}` — 0 funciones en
+`G`, verificado. Retro-compatible sin migrar: `junta()` lee `G.board||[]`, que
+en un save viejo es "todavía no armaste ninguna Junta". Tope `JUNTA_MAX=4`, y
+el primero que llega toma el cargo de **Director Deportivo**.
+
+El `nivel` de gestión sale de la carrera del tipo (media × 0,55 + partidos +
+goles + temporadas en el club), no de un número suelto.
+
+### Delegar renovaciones: el nivel del director se nota
+
+Con el toggle puesto, `weeklyJunta()` cierra hasta 3 contratos por mes. No es
+gratis, y la medición lo confirma — 25 corridas por nivel:
+
+| nivel del Director | contratos cerrados | sueldo mediano |
+|---|---|---|
+| 90 | **81-92%** | **37k** |
+| 65 | 67% | 44k |
+| 40 | **43-55%** | **51k** |
+
+Monótono en las dos columnas: el bueno cierra más y paga menos. Un director
+flojo te sale caro y encima te deja jugadores sin renovar.
+
+⚠️ **Se apoya en `renovPiso(p)` y en la misma cuenta de pretensión que usa
+`openContract`** (con el recargo del mercenario incluido), no en una fórmula
+nueva. Si el manual y el automático usaran números distintos, delegar
+cambiaría el precio de las cosas y se leería como un bug.
+
+Corre **una vez por mes** (`DELEG_SEMANAS=4`), no todas las semanas, y no hace
+nada sin Director Deportivo ni con el toggle apagado — las tres cosas
+verificadas.
+
+### UI
+
+Tarjeta **🏛️ Comisión Directiva** en la pestaña Presidente (`#presJunta` →
+`rJunta()`), con cada dirigente en un `.mpanel` y su barra de gestión. El
+switch (`.sw`) es nuevo y **no lleva `backdrop-filter`**: vive dentro de un
+`.mpanel` que vive dentro de una `.card` con vidrio real, así que ponerle blur
+sería anidarlo. Con la Junta vacía la tarjeta explica cuándo llegan los
+dirigentes y cuántas leyendas hay esperando afuera, en vez de quedarse muda.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
