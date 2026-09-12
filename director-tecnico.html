@@ -289,6 +289,24 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .sb{width:100%;background:var(--d3);border:1px solid var(--bdr);border-radius:6px;padding:8px 12px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;transition:border-color .18s}
 .sb:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(var(--gold-rgb),.08)}
 .frow{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+/* Buscador del Mercado: vidrio REAL. Se puede porque los filtros del mercado
+   NO viven adentro de una .card (verificado: #tab-mkt es un .tc pelado), así
+   que acá el backdrop-filter no apila blur sobre otro vidrio. */
+.mksearch{width:100%;background:linear-gradient(160deg,var(--card-2),var(--card));
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;color:var(--tx);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;margin-bottom:8px;
+  box-shadow:var(--sh-deep);transition:border-color .18s,box-shadow .18s}
+.mksearch::placeholder{color:var(--t3)}
+.mksearch:focus{outline:none;border-color:rgba(var(--gold-rgb),.45);box-shadow:var(--sh-lift)}
+/* El chip de "Libres" es un filtro más de la fila, no una tarjeta: sin blur */
+.fchip{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 12px;
+  border-radius:8px;cursor:pointer;font-size:11.5px;font-weight:700;
+  font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.04em;
+  background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2);
+  transition:all .15s;white-space:nowrap}
+.fchip:hover{border-color:rgba(var(--gold-rgb),.35);color:var(--tx)}
+.fchip.on{background:rgba(16,185,129,.16);border-color:var(--green);color:var(--green)}
 .fs{background:var(--d3);border:1px solid var(--bdr);border-radius:5px;padding:4px 8px;color:var(--tx);font-size:11px;cursor:pointer;transition:border-color .15s}
 .fs:focus{outline:none;border-color:var(--gold)}
 /* BADGES */
@@ -814,8 +832,9 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <button class="tab" onclick="openScouting()">🔭 Ojeadores</button>
       </div>
       <div id="mk-buy" class="tc on">
-        <input class="sb" type="text" id="mkQ" placeholder="🔍 Buscar nombre, club o liga..." oninput="renderMkt()">
+        <input class="mksearch" type="text" id="mkQ" placeholder="🔍 Buscar por nombre, club o liga — las tildes no importan (tevez, gutierrez, muñoz)" oninput="renderMkt()">
         <div class="frow">
+          <button class="fchip" id="mkFree" onclick="mkToggleLibres(this)" title="Sólo jugadores sin club: llegan sin pagar ficha">🆓 Libres</button>
           <select class="fs" id="mkPos" onchange="renderMkt()"><option value="">Todas posiciones</option><option>ARQ</option><option>DFC</option><option>DFD</option><option>DFI</option><option>MCD</option><option>MC</option><option>MCO</option><option>MI</option><option>MD</option><option>EI</option><option>ED</option><option>DC</option></select>
           <select class="fs" id="mkLg" onchange="fillTeamFilter();renderMkt()"><option value="">Todas ligas</option></select>
           <select class="fs" id="mkTeam" onchange="renderMkt()"><option value="">Todos los equipos</option></select>
@@ -6465,12 +6484,24 @@ function getWindowStatus(){
   return `🔒 Mercado cerrado — próxima ventana en ${next} sem`;
 }
 
+// Estado del filtro de libres: es de la PANTALLA, no de la partida, así que
+// vive fuera de `G` igual que `_PT`, `_SPN` y `_DIL_FX`.
+let _mkLibres=false;
+function mkToggleLibres(btn){
+  _mkLibres=!_mkLibres;
+  if(btn) btn.classList.toggle('on',_mkLibres);
+  renderMkt();
+}
 function renderMkt(){
   const el = document.getElementById('mkList');
   if(!el||!G) return;
   const qEl = document.getElementById('mkQ');
   if(!qEl) return; // not visible yet
-  const q = qEl.value.toLowerCase();
+  // ⚠️ Se normaliza con `_tsNorm`, que YA existe y es el mismo que usa el
+  // buscador de clubes del arranque. Escribir el .normalize('NFD') de nuevo
+  // acá serían dos normalizadores que se desincronizan — la misma regla que
+  // ya rige para todo lo derivable en este proyecto.
+  const q = _tsNorm(qEl.value);
   const pos = (document.getElementById('mkPos')||{value:''}).value;
   const lg2 = (document.getElementById('mkLg')||{value:''}).value;
   const team = (document.getElementById('mkTeam')||{value:''}).value;
@@ -6482,7 +6513,10 @@ function renderMkt(){
   const sort = (document.getElementById('mkSort')||{value:'rat'}).value;
 
   let pl = G.market.filter(p => {
-    if(q && !p.name.toLowerCase().includes(q) && !p.club.toLowerCase().includes(q) && !p.lg.toLowerCase().includes(q)) return false;
+    // Medido sobre las 17.075 fichas: 4.687 nombres (27,4%) llevan tilde, así
+    // que sin normalizar "rodriguez" encontraba 6 de 109 y "tevez" ninguno.
+    if(q && !_tsNorm(p.name).includes(q) && !_tsNorm(p.club).includes(q) && !_tsNorm(p.lg).includes(q)) return false;
+    if(_mkLibres && !esLibre(p)) return false;
     if(pos && p.pos!==pos) return false;
     if(lg2 && p.lg!==lg2) return false;
     if(team && p.club!==team) return false;
@@ -6512,6 +6546,7 @@ function renderMkt(){
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
   ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe ($0.1M) o mandá un ojeador a la liga.</div>`:''}
+  ${_mkLibres&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">🆓 <b style="color:var(--green)">No hay agentes libres todavía.</b><br><span style="font-size:10px;color:var(--t3)">Los jugadores quedan libres cuando se les vence el contrato, y eso pasa <b>al cerrar la temporada</b>. Medido: la primera temporada arranca con 0 y después del cierre aparecen ~950. Mientras tanto, al que le quedan 6 meses o menos podés hacerle un <b>precontrato</b> y que llegue gratis.</span></div>`:''}
   ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
@@ -24054,7 +24089,27 @@ function askingPrice(p){
   const rv=(typeof fxRivalidad==='function')?fxRivalidad(p.club).precio:1;
   return Math.max(0.05,Math.round(p.val*contractDiscount(p)*1.08*rv*100)/100);
 }
-function isFreeAgent(p){ return contractMonths(p)<=0||p.freeAgent; }
+// ⚠️ `isFreeAgent` mezcla DOS cosas distintas y por eso miente. Medido en la
+// semana 49 de la primera temporada: dice que hay **5.262 libres**, y los
+// 5.262 SIGUEN EN SU CLUB — ninguno tiene la marca `freeAgent` ni `club:'Libre'`.
+// La causa es `contractMonths`: a un contrato que vence ESTA temporada le
+// quedan 0 meses en la semana 49, pero el tipo todavía juega en su club hasta
+// que `expireContracts` lo libera en el salto de temporada (ahí sí quedan 948
+// libres de verdad, con la marca puesta).
+//
+// Lo que rompía: la fila del mercado le ponía "🆓 LIBRE" a Imanol González
+// jugando en Gimnasia (M), y la pantalla de negociación decía "sin ficha" y
+// "no hay club con el que negociar" — o sea que **517 jugadores de 75+ con
+// contrato vigente se fichaban salteando al club**. La plata era poca (con el
+// contrato en 0 meses `askingPrice` ya está aplastado en 0,05M), pero el club
+// dueño del pase no participaba.
+//
+// Se separan las dos preguntas en vez de arreglar una sola:
+//   · `esLibre(p)`      — no tiene club: llega sin ficha y sin negociar.
+//   · `contratoVencido` — se le termina el vínculo; eso ya lo cubre el
+//     precontrato (`months<=6`) y el descuento por contrato corto.
+function esLibre(p){ return !!(p && (p.freeAgent===true || p.club==='Libre')); }
+function isFreeAgent(p){ return esLibre(p); }
 
 // ═══ PASO 1: arreglar con el jugador (términos personales) ═══
 function negStartPlayer(pid){

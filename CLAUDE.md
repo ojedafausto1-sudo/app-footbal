@@ -2786,6 +2786,98 @@ Antes de tocar el producto porque un check se puso rojo, **verificá el
 mecanismo aislado**. Acá la herencia daba 87/87 en una sesión limpia con el
 código nuevo puesto: el producto estaba bien y el instrumento estaba roto.
 
+## Fase 36: el buscador del Mercado, y el cartel "🆓 LIBRE" que mentía
+
+### El buscador ya existía; lo que faltaba era la normalización
+
+`#mkQ` está desde antes y además busca **nombre, club y liga**, no sólo el
+nombre. Lo que no hacía era normalizar los acentos, y el número dice cuánto
+costaba: de las **17.075 fichas, 4.687 nombres (27,4%) llevan tilde**.
+
+| se busca | antes | ahora |
+|---|---|---|
+| `rodriguez` | 6 | **109** |
+| `martinez` | 7 | **81** |
+| `hernandez` | 0 | 33 |
+| `gutierrez` | 0 | 26 |
+| `munoz` | 0 | 24 |
+| `tevez` | **0** | 5 |
+
+Sobre esos ocho apellidos solos había **303 jugadores inalcanzables**.
+
+⚠️ **Se reusa `_tsNorm`**, que ya existía para el buscador de clubes del
+wizard, en vez de escribir el `.normalize('NFD')` de nuevo en `renderMkt`. Dos
+normalizadores es la misma clase de bug que ya apareció cinco veces en este
+proyecto: se desincronizan.
+
+El input pasó a vidrio real (`.mksearch`). ⚠️ **Acá el `backdrop-filter` SÍ va**
+—y no contradice la regla del proyecto— porque los filtros del Mercado **no
+viven adentro de una `.card`**: `#tab-mkt` es un `.tc` pelado, así que no hay
+vidrio sobre vidrio. Verificado en la regresión con `closest('.card')`. El chip
+del filtro, en cambio, es una fila: translucidez y borde, sin blur.
+
+### ⚠️ El filtro de libres destapó que `isFreeAgent` mentía
+
+El pedido nombraba `p.teamId` nulo o `'FREE'`. **Ese campo no existe**: medido,
+`p.teamId` está en **0 de 17.075** fichas (`teamId` en este juego es el id del
+CLUB que dirigís — `boca`, `river`—, no un campo del jugador). Los libres se
+marcan con `p.freeAgent` y `p.club==='Libre'`.
+
+Pero al ir a usar el predicado que ya había, apareció el problema de verdad:
+
+```js
+function isFreeAgent(p){ return contractMonths(p)<=0 || p.freeAgent; }
+```
+
+`contractMonths` devuelve 0 cuando el contrato **vence esta temporada y la
+temporada se está terminando** — pero el tipo sigue jugando en su club hasta
+que `expireContracts` lo libera en el salto de temporada. Medido en la semana
+49 de la primera temporada:
+
+| | |
+|---|---|
+| `isFreeAgent` dice que hay | **5.262 libres** |
+| de esos, con la marca `freeAgent` | **0** |
+| de esos, con `club:'Libre'` | **0** |
+| **siguen en su club** | **5.262** |
+
+O sea: el mercado le ponía **"🆓 LIBRE"** a Imanol González **jugando en
+Gimnasia (M)**, y la pantalla de negociación decía **"sin ficha"** y **"no hay
+club con el que negociar"**. Entre ellos había **517 jugadores de 75+**.
+
+⚠️ **La plata que se regalaba era poca y conviene no exagerarlo**: con el
+contrato en 0 meses `askingPrice` ya está aplastado en **0,05M**, así que la
+diferencia era 0,05M por cabeza. Lo que sí pasaba es que **el club dueño del
+pase no participaba**: te llevabas a un jugador con contrato vigente sin que
+nadie negociara ni pudiera negarse.
+
+Arreglado separando las dos preguntas en vez de retocar una sola:
+
+- **`esLibre(p)`** = `p.freeAgent===true || p.club==='Libre'` — no tiene club,
+  llega sin ficha. Es lo que usan el filtro, el cartel de la fila y la
+  negociación.
+- **El contrato que se vence** ya estaba cubierto por otros dos mecanismos que
+  no se tocaron: el **precontrato** (`months<=6`) y el descuento por contrato
+  corto.
+
+### El ciclo de vida de los libres, medido
+
+| momento | libres de verdad |
+|---|---|
+| temporada 1, semana 1 | **0** |
+| temporada 1, semana 49 | 0 (los 5.262 eran el falso positivo) |
+| tras cerrar la temporada 1 | **948** |
+| tras cerrar la temporada 2 | 1.219 |
+
+De los 948, **126 pasan de 70 de media**: el filtro sirve, pero **recién a
+partir del primer cierre de temporada**. Por eso el filtro con la lista vacía
+no se queda mudo — explica que los libres aparecen al cerrar la temporada y que
+mientras tanto el camino es el precontrato. Un filtro que devuelve una lista
+vacía sin decir por qué se lee como un bug.
+
+El estado del chip (`_mkLibres`) vive **fuera de `G`**, como `_PT`, `_SPN` y
+`_DIL_FX`: es de la pantalla, no de la partida.
+
 ## ⚠️ El extractor puede perder clubes en silencio
 
 Un club cuyo `/clubs/{id}/players` falla se salteaba con un `✗ Sin datos`
