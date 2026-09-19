@@ -3429,6 +3429,41 @@ que es lo único que permite distinguirlos.
 frenó antes de llegar al sitio. Lo único que se probó contra Transfermarkt de
 verdad es que el proxy rechaza la fuente.
 
+### Fase 42: `?api=ping` — porque no había forma de saber si el Worker estaba actualizado
+
+El usuario desplegó su Worker, abrió la URL en el navegador y vio
+`{"error":"Missing API key"}`. Esa respuesta **no dice nada**: la devuelven
+IGUAL la versión vieja y la nueva, porque sin parámetros `api` cae en
+`flashscore` y ahí sí hace falta key. Verificado corriendo el archivo real del
+Worker en un server local:
+
+| | URL pelada | `?api=ping` |
+|---|---|---|
+| Worker **nuevo** | `{"error":"Missing API key"}` | `{ok, version:'2026.09-hist', historicos:true, cacheKV}` |
+| Worker **viejo** | `{"error":"Missing API key"}` | `{"error":"Missing API key"}` |
+
+O sea: **la pregunta "¿tomó el deploy?" no tenía respuesta**, y eso ya costó dos
+vueltas completas. `?api=ping` la contesta y no pide key a propósito — tiene que
+poder abrirse desde la barra del navegador.
+
+Devuelve también **`cacheKV`**, que importa: un Worker recién creado desde el
+dashboard no trae el binding KV, así que anda pero re-baja cada temporada entera
+en vez de servirla del caché.
+
+El extractor tiene el botón **🔌 ¿Mi Worker está actualizado?**, verificado
+contra el código REAL del Worker (no una imitación) en los tres casos:
+
+| Worker | lo que dice |
+|---|---|
+| nuevo | ✅ ACTUALIZADO — versión, fuentes, y si le falta el KV |
+| viejo | ✗ WORKER VIEJO + los pasos exactos para actualizarlo |
+| inalcanzable | ✗ NO RESPONDE + revisá la URL y el deploy |
+
+⚠️ **Los mensajes ya no asumen que el Worker se llama `sportdb-cache`.** El del
+usuario es `round-flower-f1cc` (el nombre que pone Cloudflare solo), así que
+mandarlo a buscar "sportdb-cache" en el dashboard lo habría hecho buscar algo
+que no existe.
+
 ### 🔶 El check `dilemas` es FLAKY — está sin arreglar, no sin ver
 
 Medido sobre el MISMO código, cinco corridas: **verde 4, rojo 1**. En la roja

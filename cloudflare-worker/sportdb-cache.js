@@ -22,10 +22,19 @@
 // api=tmapi → proxy a transfermarkt-api.fly.dev (API LIBRE, sin key,
 // no gasta créditos de SportDB). Sirve para completar nacionalidades.
 //
+// ⚠️ ¿Actualizaste este archivo y querés saber si el deploy tomó?
+// Abrí  {worker}/?api=ping  en el navegador. Si dice version y historicos:true,
+// está actualizado. La URL pelada devuelve "Missing API key" en TODAS las
+// versiones, así que no sirve para verificar nada.
+//
 // api=tmcoach&path=/verein/131 → baja la página del club en
 // transfermarkt.com y extrae el DT del HTML. Gratis, sin key.
 // Devuelve {coach:{name,id}} o {coach:null}.
 // ═══════════════════════════════════════════════════════════════
+
+// Se sube cada vez que cambia algo que el extractor necesita saber.
+// `?api=ping` la devuelve: es la forma de verificar que el deploy tomó.
+const WORKER_VERSION = '2026.09-hist';
 
 const DEFAULT_TTL = 60 * 60 * 24 * 30; // 30 días — los valores TM cambian pocas veces por temporada
 
@@ -48,6 +57,22 @@ export default {
     const ttl = Math.max(300, parseInt(u.searchParams.get('ttl') || DEFAULT_TTL, 10));
     const fresh = u.searchParams.get('fresh') === '1';
 
+    // ═══ ¿ESTE WORKER ESTÁ ACTUALIZADO? ═══
+    // Entrar a la URL pelada devuelve {"error":"Missing API key"} en TODAS las
+    // versiones, vieja y nueva, así que no sirve para saber si el deploy tomó.
+    // `?api=ping` contesta la versión y qué fuentes soporta: es lo único que
+    // distingue un Worker actualizado de uno que quedó con el código de antes.
+    // No pide key a propósito — tiene que poder abrirse desde el navegador.
+    if (api === 'ping') {
+      return json({
+        ok: true,
+        worker: 'sportdb-cache',
+        version: WORKER_VERSION,
+        apis: ['transfermarkt', 'flashscore', 'tmapi', 'tmcoach', 'tmkader', 'tmclubs'],
+        historicos: true,
+        cacheKV: !!env.CACHE,
+      });
+    }
     if (!key && api !== 'tmapi' && api !== 'tmcoach' && api !== 'tmkader' && api !== 'tmclubs') {
       return json({ error: 'Missing API key' }, 400);
     }

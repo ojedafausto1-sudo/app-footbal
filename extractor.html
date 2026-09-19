@@ -84,6 +84,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   </div>
   <button onclick="extraerHistorico()">🕰️ Extraer temporadas</button>
   <button class="secondary" onclick="diagHistorico()">🩺 Diagnosticar una temporada</button>
+  <button class="secondary" onclick="probarWorker()">🔌 ¿Mi Worker está actualizado?</button>
 </div>
 
 <div class="panel">
@@ -1609,6 +1610,44 @@ async function histPlantel(clubId, year) {
   return r;
 }
 
+// ═══ ¿EL WORKER TIENE EL CÓDIGO NUEVO? ═══
+// ⚠️ Entrar a la URL pelada del Worker devuelve {"error":"Missing API key"} en
+// TODAS las versiones, vieja y nueva, así que mirando eso NO se puede saber si
+// el deploy tomó — y eso ya costó una vuelta entera. `?api=ping` es lo único
+// que los distingue: la versión nueva contesta su versión y qué fuentes tiene.
+async function probarWorker() {
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log('\n🔌 Probando el Worker…');
+  if (!cfW) {
+    log('   ✗ El campo "Worker de Cloudflare" está vacío.');
+    log('   → Pegá ahí la URL de tu Worker (https://NOMBRE.TUCUENTA.workers.dev) y probá de nuevo.');
+    log('   Los planteles históricos SÓLO salen por el Worker: Netlify no los tiene.');
+    return;
+  }
+  log(`   ${cfW}`);
+  const r = await rawGet('ping', '/', { max: 400 });
+  if (r.status === 0) {
+    log('   ✗ NO RESPONDE. ' + r.body);
+    log('   → Revisá que la URL esté bien escrita y que el Worker esté desplegado.');
+    return;
+  }
+  let j = null; try { j = JSON.parse(r.body); } catch (e) {}
+  if (j && j.ok && j.historicos) {
+    log(`   ✅ ACTUALIZADO — versión ${j.version}`);
+    log(`   Fuentes: ${(j.apis || []).join(', ')}`);
+    log(j.cacheKV
+      ? '   Caché KV conectado: re-bajar una temporada sale gratis.'
+      : '   ⚠️ SIN caché KV. Anda igual, pero cada temporada se vuelve a bajar entera.\n      Cloudflare → tu Worker → Settings → Bindings → KV Namespace, variable CACHE.');
+    log('   → Ya podés extraer. Probá primero UNA temporada (Desde y Hasta iguales).');
+    return;
+  }
+  log(`   ✗ WORKER VIEJO (status ${r.status}): ${String(r.body).slice(0, 200)}`);
+  log('   → No tiene los planteles históricos. Actualizalo:');
+  log('     Cloudflare → Workers & Pages → tu Worker → Edit code → borrar TODO');
+  log('     → pegar cloudflare-worker/sportdb-cache.js del repo → Deploy.');
+  log('   Después volvé a apretar este botón: tiene que decir ACTUALIZADO.');
+}
+
 async function extraerHistorico() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const d = parseInt(document.getElementById('histDesde').value, 10);
@@ -1641,7 +1680,7 @@ async function extraerHistorico() {
       log(cfW0
         ? (noLlega
             ? `   → No responde ${cfW0}\n     Revisá que la URL esté bien escrita y que el Worker esté desplegado.`
-            : '   → Tu Worker es una versión vieja. Actualizalo con cloudflare-worker/sportdb-cache.js del repo\n     (Cloudflare → Workers → sportdb-cache → Edit code → pegar todo → Deploy) y volvé a probar.')
+            : '   → Tu Worker es una versión vieja. Actualizalo con cloudflare-worker/sportdb-cache.js\n     (Cloudflare → Workers & Pages → tu Worker → Edit code → pegar todo → Deploy)\n     y confirmalo con el botón 🔌 ¿Mi Worker está actualizado?')
         : '   → Los planteles históricos SÓLO salen por el Worker de Cloudflare (Netlify no los tiene).\n     Pegá la URL de tu Worker en el campo "Worker de Cloudflare" de arriba y volvé a probar.');
       setProgress(0);
       return;
