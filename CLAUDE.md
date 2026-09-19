@@ -3486,23 +3486,28 @@ de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
 edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
 alrededor, y son cinco cosas distintas.
 
-Después llegaron cinco más (2016-2020) y **ya son DIEZ temporadas en la
-carpeta**, de 2016 a 2025. Las cinco nuevas vinieron limpias de valores y de
+Después llegaron diez más (2011-2020) y **ya son QUINCE temporadas en la
+carpeta**, de 2011 a 2025. Todas vinieron limpias de valores y de
 nacionalidades: lo único que traían era el mismo problema de los nombres,
 porque el usuario las bajó con el extractor de antes.
 
 | temporada | jugadores | clubes (Primera + Nacional) |
 |---|---|---|
+| 2011 | 1.516 | 20 + 20 |
+| 2012 | 1.493 | 19 + 20 |
+| 2013 | 1.955 | 16 + 22 |
+| 2014 | 2.283 | **30** + 22 |
+| 2015 | 1.896 | **30** + 22 |
 | 2016 | 2.261 | **30** + 23 |
 | 2017 | 2.104 | 28 + 25 |
 | 2018 | 2.109 | 26 + 25 |
-| 2019 | 2.683 | 25 + 32 |
-| 2020 | 2.773 | 27 + 35 |
-| 2021 | 2.542 | 29 + 36 |
+| 2019 | 2.683 | 24 + 32 |
+| 2020 | 2.773 | 26 + 35 |
+| 2021 | 2.542 | 28 + 37 |
 | 2022 | 2.541 | 28 + 37 |
 | 2023 | 3.277 | 28 + 38 |
 | 2024 | 2.609 | 28 + 36 |
-| 2025 | 1.821 | 28 + 35 |
+| 2025 | 1.821 | 27 + 36 |
 
 ### ⚠️ El nombre del club salía del SLUG de la URL
 
@@ -3616,6 +3621,11 @@ categorías, 0 valores disparados, 0 nat/pos UNK, 0 `nat2` inventado, mundo
 cerrado en 2 ligas, la Nacional jugable con plantel real y **Boca enganchando el
 `TEAMS` curado**. Si una extracción futura vuelve a traer slugs, se pone rojo.
 
+⚠️ **Y el check nuevo daba por sentado que River siempre está en Primera.**
+Se puso rojo con 2011 — donde River está en la B, que es justamente lo que
+prueba que la categoría sale del año y no de hoy. Ahora exige **Boca** en
+Primera (nunca descendió) y de River sólo que ESTÉ en alguna de las dos.
+
 ⚠️ Y el check viejo tuvo que aprender a convivir con los archivos de verdad:
 `sinArchivos` y `limpio` comprobaban `!hayHistoricos()`, que era cierto sólo
 mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
@@ -3630,13 +3640,16 @@ mide, y lo restaura.
 - ⚠️ **Belgrano sale en las DOS competiciones en 2019, 2020 y 2021**, con dos
   slugs distintos (`Club Atlético Belgrano` y `ca belgrano`). Verificado que es
   el mismo club y no dos: los planteles coinciden **36/36, 55/55 y 31/31
-  nombres**. Gana Primera, que es la regla ya escrita, y de ahí salen las 39 y
-  56 filas repetidas de esos años.
+  nombres**. De ahí salen las 39 y 56 filas repetidas de esos años — y quién
+  gana el empate lo decidió recién el dato de 2011-2013 (ver abajo).
 - **2016 tiene 30 clubes de Primera, así que SÍ juega con zonas** (`_zonasOK`)
   — Apertura + Clausura + playoffs, el formato argentino completo, con
   `AR_CLASICOS` filtrado a los clubes que ese año existen. Medido: Boca 2016
   con Tévez, Bentancur, Cardona y Rossi gana el Apertura y sale 2º en la anual.
-  Es el único año de los diez que llega a 30.
+  2014 y 2015 también llegan a 30 y juegan igual; de los quince años son los
+  únicos tres. Medido además: Boca 2011 (Orión, Ustari, un Paredes de 18) juega
+  38 fechas contra los 19 del año y River 2013 (Barovero, Driussi) 30 fechas
+  contra los 15, los dos sin un jugador inventado y en su cancha real.
 - ⚠️ **Los rivales de copa NO son del año.** La Libertadores y la Copa
   Argentina salen de listas escritas a mano (`INT_POW`, `caPool`), así que Boca
   2016 se cruza con Always Ready y LDU Quito de la lista de hoy. El TORNEO
@@ -3648,6 +3661,55 @@ mide, y lo restaura.
   lo descarta y pone uno plausible. Verificado que los años se agrupan donde
   corresponde — el archivo 2018 tiene el pico en 2018/2019 y el de 2023 en
   2023/2024. Queda un ~1% con contratos largos de verdad, que es dato real.
+
+### ⚠️ En 2011-2013 la lista de Primera que devuelve TM es la de HOY
+
+Es el hallazgo caro de los años viejos, y no se ve mirando: los clubes de
+Primera de 2011 y 2012 son **exactamente los 28 de 2025**, y los 26 de 2013
+son un subconjunto de esos. Los PLANTELES sí son del año —salen de
+`/verein/{id}/saison/{año}`, que es otra página—, pero la división no.
+
+La prueba es un conteo, no una impresión: cuánto comparte la Primera de cada
+año con la de 2025.
+
+| año | 2011 | 2012 | 2013 | 2014 | 2016 | 2019 | 2022 | 2023 |
+|---|---|---|---|---|---|---|---|---|
+| clubes en común con 2025 | **28/28** | **28/28** | **26/26** | 20/30 | 21/30 | 21/25 | 26/28 | 28/28 |
+
+De 2014 en adelante la serie crece de a poco hasta 2025, que es lo que hace la
+historia de verdad. En 2011-2013 está pegada al techo: es la lista de hoy.
+
+⚠️ **Ojo al medir esto**: comparar los nombres YA canónicos con
+`histClubNombre` los rompe (`'Atl. Tucumán'` vuelve como `'Atl Tucuman'`) y la
+primera medición dio 14/28 — el bug estaba en el instrumento. Normalizá los dos
+lados con `histNorm` antes de comparar.
+
+**La lista del ASCENSO sí es del año** (la de 2011 trae River, Quilmes,
+Chacarita, Merlo, Desamparados), así que de ahí sale la regla: **cuando un club
+aparece en las dos competiciones, gana la SEGUNDA**. Verificada en los 14 casos
+que existen —los 8 de 2011, los 9 de 2012, los 10 de 2013, Belgrano 2019-2021
+y Godoy Cruz 2025— y en todos es lo históricamente correcto:
+
+| | con "gana Primera" | con "gana la segunda" |
+|---|---|---|
+| River 2011 | Primera | **B** ✓ (descendió en junio de 2011) |
+| Independiente 2013 | Primera | **B** ✓ (descendió ese año) |
+| Belgrano 2019-2021 | Primera | **B** ✓ |
+| Primera 2011 | 28 clubes | **20**, que es el tamaño real de ese torneo |
+
+⚠️ **NO se parchearon los archivos: la regla vive en el extractor**, donde el
+club que ya vino en la otra competición no se vuelve a bajar (el plantel es el
+mismo) y sólo se le **cambia la etiqueta**. Los quince archivos se
+re-generaron con ella, así que una extracción nueva da exactamente lo mismo.
+
+⚠️ **Sigue sin ser el torneo de ese año, y conviene no venderlo como tal.**
+Con la corrección, la Primera 2011 tiene los 20 que corresponden, pero adentro
+hay **Riestra, Barracas Central, Central Córdoba y Platense** —que ese año
+estaban en el ascenso— y faltan Olimpo, All Boys, Arsenal, Colón y Rafaela. El
+arreglo de verdad es bajar 2011-2013 con el ID de competición VIEJO de TM (la
+Primera División anterior a la Superliga), si es que existe uno aparte; el
+campo del extractor ya está para eso. De 2014 en adelante la lista es del año
+y no hace falta nada.
 
 🔶 **`la fatiga no separa` es FLAKY**, como `dilemas`. El umbral es
 `roto > sano*1.35` sobre 4.000 tiradas de Poisson y se cae por centésimas

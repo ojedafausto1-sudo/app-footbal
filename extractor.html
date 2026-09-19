@@ -1709,11 +1709,23 @@ async function extraerHistorico() {
       log(`  ${liga} ${y}: ${clubs.length} clubes`);
       for (let i = 0; i < clubs.length; i++) {
         const cl = clubs[i];
-        // ⚠️ Un club puede salir en las DOS competiciones del año (medido en
-        // 2025: Godoy Cruz, 34 filas repetidas). Si se baja dos veces, el
-        // plantel queda duplicado y el club aparece en las dos categorías.
-        // Gana la PRIMERA, que es Primera.
-        if (yaBajado[cl.id]) { log(`    ↩︎ ${cl.name} ya vino en la otra competición`); continue; }
+        // ⚠️ Un club puede salir en las DOS competiciones del año, y gana la
+        // SEGUNDA. No es capricho: la página de Primera devuelve la lista de
+        // HOY para los años viejos (medido: la de 2011 y 2012 es IDÉNTICA a la
+        // de 2025), mientras que la del ascenso sí es del año. Con "gana
+        // Primera", River jugaba la A en 2011 —ese año estaba en la B— e
+        // Independiente la A en 2013, cuando descendió. Verificado en los 14
+        // casos que hay: los 8 de 2011, los 9 de 2012, los 10 de 2013,
+        // Belgrano 2019-2021 y Godoy Cruz 2025, todos correctos con esta regla.
+        // El plantel NO se vuelve a bajar (es el mismo, verificado 36/36,
+        // 55/55 y 31/31 nombres): sólo se le cambia la etiqueta.
+        if (yaBajado[cl.id]) {
+          const nom0 = histClubNombre(cl.name);
+          let n = 0;
+          filas.forEach(f => { if (f[5] === nom0 && f[6] !== liga) { f[6] = liga; n++; } });
+          log(`    ↩︎ ${nom0} ya vino en la otra competición → queda en ${liga} (${n} filas)`);
+          continue;
+        }
         yaBajado[cl.id] = 1;
         const r = await histPlantel(cl.id, y);
         const ps = (r && r.players) || [];
@@ -1820,6 +1832,12 @@ const HIST_CLUB_NOM = {
   'gimnasia y tiro salta':'Gimnasia y Tiro',
   'aa estudiantes de rio cuarto':'Estudiantes RC','ca estudiantes buenos aires':'Estudiantes',
   'ca talleres remedios de escalada':'Talleres (RE)',
+  // los del ascenso de 2011-2015, que no vuelven a aparecer después
+  'csd merlo':'Dep. Merlo','sportivo desamparados':'Sp. Desamparados',
+  'sportivo belgrano san francisco':'Sp. Belgrano (SF)',
+  'club atletico villa san carlos':'Villa San Carlos',
+  'cd guarani antonio franco':'Guaraní A. Franco','ca union mar del plata':'Unión (MdP)',
+  'club atletico juventud unida universitario':'Juventud Unida (SL)',
   // los que aparecen recién al bajar 2016-2020 (el log los nombró uno por uno)
   'club olimpo':'Olimpo','club mutual crucero del norte':'Crucero del Norte',
   'atletico parana':'Atl. Paraná','ca boca unidos':'Boca Unidos',
