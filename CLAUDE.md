@@ -3288,6 +3288,112 @@ proxy no lo soporta" con un Worker que sí lo soporta, y nunca mostraba el HTML.
 Arreglado, y el `&debug=1` va como parámetro suelto: adentro de `path` se lo
 comía el `encodeURIComponent`.
 
+### Fase 40: el simulacro de extracción 2025, y los 4 bugs que destapó
+
+No se puede pedirle nada a transfermarkt.com desde donde se programa esto
+(el proxy devuelve **403 en el CONNECT** para `transfermarkt.com`, `.es`,
+`transfermarkt-api.fly.dev` y `api.sportdb.dev`; el README del proxy dice que
+un 403 así es política y que se reporte en vez de buscarle la vuelta). Pero
+**todo lo que pasa después del fetch sí se puede probar**, y ahí estaba lo roto.
+
+`scratchpad/hist2025.js` fabrica el HTML tal como lo sirve TM (20 clubes × 25
+jugadores), lo pasa por el parser REAL del Worker (`parseKader`/`parseClubes`)
+y por las funciones REALES del extractor (`histFila`, `mapPos`, `mapNat`,
+`parseContractYear`), y escribe `players-hist-2025.js` **exactamente** como lo
+escribiría `histDescargar`. Después `hist2025b.js` levanta el juego con ese
+archivo en la carpeta, sin inyectar nada.
+
+La conversión salió limpia de una: 500 filas, 500 parseadas, **0 posiciones
+UNK, 0 nacionalidades UNK, 0 `nat2` basura, 0 edades fuera de rango, 0 valores
+en cero**, pies `der/izq/amb`, contratos 2026-2028. Lo que estaba roto era el
+JUEGO, no el extractor:
+
+| bug | síntoma medido |
+|---|---|
+| **`AR_CLUBS` es la Primera de 2026** | `clubesDeLiga('Liga ARG')` devolvía **13 de los 20** clubes del archivo: todo club que hoy no está en Primera se borraba en silencio |
+| **la liga se armaba igual con 30** | `arBuildZones` rellenaba con los 10 que faltaban de la lista de hoy → 17 rivales que ese año no existían, con plantel inventado |
+| **`TEAMS` no se limpia** | el selector mostraba **36 clubes argentinos**, mezclando 2025 y 2026 |
+| **`_tsLigasCache`** | el wizard seguía ofreciendo las **25 ligas** de 2026 aunque `ligasJugables()` ya decía sólo `Liga ARG` |
+
+⚠️ **El primero es el patrón de "clubes que desaparecen sin que nadie se
+entere"**, el mismo que ya costó 12 equipos en la extracción. En 2015 jugaban
+Olimpo, Nueva Chicago, Crucero del Norte y Arsenal: filtrar ese año contra la
+lista de hoy los tira a todos.
+
+Arreglado con **una sola fuente de verdad**: `clubesDeCategoria(lg)` —que la
+Liga ARG resuelve por `clubesPrimera()` y el resto por el corte por valor— y la
+usan `buildAllTeams` **y** el paso 3 del wizard, que la tenían escrita cada uno
+por su lado. `clubesPrimera()` deriva la lista **de la base cargada** cuando
+`esHistorica()`, que a su vez es derivado (`PLAYERS_DB !== _PDB_ACTUAL`), no un
+flag nuevo.
+
+⚠️ **Las zonas exigen 30 clubes de verdad** (`_zonasOK` en `buildCal`). Con 20
+va al formato común, todos contra todos ida y vuelta — reproducir el formato
+REAL de cada año sería un motor por temporada, que es la misma razón por la que
+Colombia y México no tienen zonas. Y el rótulo de la tabla sale ahora de
+`juegaZonas()` (¿hay `G.arPhases`?) en vez de `esLigaARG()`: si no, le explicaba
+el Apertura/Clausura a un año que no lo juega.
+
+⚠️ Los cachés a tirar en `aplicarTemporada` pasaron de cinco a **siete** más el
+purgado de `TEAMS` (sólo los `generado:true`; los 5 curados se quedan).
+
+Medido después, con el archivo de 2025 en la carpeta y sin inyectar nada:
+selector con **20 botones y 0 clubes de 2026** · Boca 2025 con plantel de 2025,
+**38 fechas contra los 19 rivales del año**, sin zonas · temporada completa de
+39 partidos, 11º de 20 · guardado y carga con las dos globales ensuciadas ·
+salto de temporada sin rivales de otro mundo · volver a 2026 deja 17.108 filas
+y 25 ligas.
+
+### ⚠️ Y el check de la regresión que escribí en la Fase 38 no probaba nada
+
+`const rivales=[...new Set(G.calendar.map(m=>m.opp))]` — **el campo no se llama
+`opp`**: las fechas de `G.calendar` tienen `home`/`away`. Ese array daba `[]`
+siempre, así que el assert de "sin rivales de Primera" pasaba en verde sin
+ejercitar nada. Es el **quinto** pase vacío documentado en este proyecto
+(después del check de memoria con `every` sobre arrays vacíos, la temporada que
+contaba iteraciones, los playoffs con 2 llaves y el `phoneMsgs.length`).
+
+El check histórico también era demasiado amable: usaba 30 clubes sacados de la
+base actual, o sea que **ninguno de los cuatro bugs de arriba lo habría puesto
+en rojo**. Ahora fabrica un 2015 de **20 clubes con dos que hoy no existen en
+Primera** (`Olimpo BB`, `Nueva Chicago`) y verifica las cuatro cosas por
+separado: que no se borre ningún club del año, que `TEAMS` no arrastre ninguno
+de 2026, que se juegue contra los del año y que no haya zonas.
+
+### ⚠️ Los 5 argentinos curados sobreviven al purgado de `TEAMS`, y está bien
+
+El check nuevo lo agarró: tras cambiar de temporada, `TEAMS` seguía teniendo un
+club argentino que el 2015 de prueba no traía. Son los **5 curados a mano**
+(Boca, River, Racing, Independiente, San Lorenzo), que NO llevan
+`generado:true` y por eso no se borran — guardan colores, escudo y el borderó
+escrito a mano que `buildAllTeams` no puede reproducir (Fase 23). Borrarlos
+para que el check diera verde habría perdido esos datos para toda la sesión.
+
+Lo que importa no es que la bolsa quede limpia sino que **no se pueda LLEGAR a
+un club de otro año**, y eso ya estaba cerrado: el paso 3 del wizard filtra por
+`clubesDeCategoria` y `buildCal` nunca lee `TEAMS` para armar la liga. El check
+ahora afirma las dos cosas por separado, y juntas son más fuertes que el assert
+que tenía: el **selector muestra exactamente** los clubes del año, y si algo de
+otro año quedó en `TEAMS` sólo puede ser uno de los curados (un `generado`
+colado sigue dando rojo).
+
+⚠️ **`players-hist-2025.js` NO está en el repo y no tiene que estarlo**: son
+datos sintéticos para probar el pipeline. El archivo de verdad lo genera el
+usuario con el extractor y lo deja en su carpeta.
+
+### 🔶 El check `dilemas` es FLAKY — está sin arreglar, no sin ver
+
+Medido sobre el MISMO código, cinco corridas: **verde 4, rojo 1**. En la roja
+cayeron tres sub-flags a la vez (`destraba`, `saveViejo`, `indisciplina`).
+Es el mismo patrón que ya tuvo `personalidades`, que se arregló fijando a mano
+lo que el motor sortea; acá el pool de dilemas también es aleatorio por corrida.
+
+**No se tocó el producto por esto**: antes de mover nada hay que verificar el
+mecanismo aislado, que es la lección que este archivo ya repite cuatro veces
+("el check falla por el vecino"). Queda anotado para pinchar el sorteo como se
+hizo con `personalidades` — pero si lo ves rojo, **corré la regresión de
+nuevo antes de creerle**.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

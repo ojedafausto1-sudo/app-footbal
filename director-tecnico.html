@@ -2952,6 +2952,15 @@ function objetivoCopa(){ return hayCopaCont()?('clasificar a la '+copaCont()+' (
 // resto del mundo juega todos contra todos. La UI tiene que decir lo que
 // corresponde — al Real Madrid le explicaba cómo suma la tabla anual.
 function esLigaARG(){ return ligaMia()==='Liga ARG'; }
+// ⚠️ Para los TEXTOS del formato no alcanza con "¿es la liga argentina?": una
+// temporada histórica con menos de 30 clubes juega todos contra todos, así que
+// el rótulo tenía que explicar un Apertura/Clausura y unas zonas que ese año
+// no existen. Se deriva del calendario REAL (`G.arPhases`), no del nombre de
+// la liga — es el mismo criterio que hizo que la copa continental salga de
+// `COPA_CONT` en vez de decir "Libertadores" en todos lados.
+function juegaZonas(){
+  return !!(typeof G==='object'&&G&&G.arPhases&&G.arPhases.apertura);
+}
 function esLigaLocal(c){ return c===ligaComp(); }
 // Los clubes que juegan la primera de esa liga, por valor de plantel
 // ═══════════════════════════════════════════════════════════════════════
@@ -2968,10 +2977,43 @@ function esLigaLocal(c){ return c===ligaComp(); }
 // `LIGA_DB` dice bajo qué etiqueta leer, y el corte lo hace `AR_CLUBS`.
 const LIGA_DB={'Primera Nacional':'Liga ARG'};
 function ligaDB(lg){ return LIGA_DB[lg]||lg; }
-// Los 30 de Primera. Sale de `G.arClubs` cuando existe para que un día los
-// ascensos puedan moverla sin tocar la constante.
-function clubesPrimera(){ return (typeof G==='object'&&G&&G.arClubs)||AR_CLUBS; }
+// ⚠️ EN UNA TEMPORADA VIEJA, LOS 30 DE HOY NO SON LOS DE ESE AÑO.
+// `AR_CLUBS` es la Primera de 2026. Filtrar un archivo histórico contra esa
+// lista BORRA en silencio a todo club que hoy no esté en Primera —Olimpo,
+// Nueva Chicago, Crucero del Norte, Arsenal…— que es exactamente el patrón de
+// "clubes que desaparecen sin que nadie se entere" que ya costó 12 equipos en
+// la extracción. Medido con un archivo de prueba de 20 clubes: `clubesDeLiga`
+// devolvía **13**, y la liga igual se armaba con los 30 de hoy, o sea 17
+// clubes que ese año no existían, con plantel inventado.
+// En histórico la lista sale de la BASE CARGADA, que es la única fuente de
+// verdad de ese año. Cacheada porque la recorren el wizard y el fixture.
+let _arClubsHist=null, _arClubsHistDe=null;
+function esHistorica(){
+  // Derivado, no duplicado: es histórica si la base enchufada NO es la actual.
+  return _PDB_ACTUAL!==null && (typeof window!=='undefined') && window.PLAYERS_DB!==_PDB_ACTUAL;
+}
+function clubesPrimera(){
+  if(typeof G==='object'&&G&&G.arClubs)return G.arClubs;
+  if(!esHistorica())return AR_CLUBS;
+  const t=(typeof tempActual==='function')?tempActual():0;
+  if(_arClubsHist&&_arClubsHistDe===t)return _arClubsHist;
+  const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
+  const val={};
+  db.forEach(r=>{ if(r[6]!=='Liga ARG'||!r[5])return; val[r[5]]=(val[r[5]]||0)+(r[7]||0); });
+  const orden=Object.entries(val).sort((a,b)=>b[1]-a[1]).map(([c])=>c);
+  // Hasta 30: si el año trae más (porque el archivo incluye el ascenso), los
+  // de abajo quedan para la Primera Nacional, igual que en la base actual.
+  _arClubsHist=orden.slice(0,30); _arClubsHistDe=t;
+  return _arClubsHist;
+}
 function esSegundaARG(lg){ return lg==='Primera Nacional'; }
+// ⚠️ Los clubes que JUEGAN una categoría, en UN solo lugar. La Liga ARG es el
+// caso especial (`clubesPrimera()`, que en histórico sale de la base del año);
+// el resto es el corte por valor de siempre. Estaba escrito dos veces —en
+// `buildAllTeams` y en el paso 3 del wizard— y las dos se desincronizaban:
+// como `buildAllTeams` NO limpia TEAMS, al cambiar de temporada el selector
+// mostraba 36 clubes argentinos, 16 de ellos de 2026 y con plantel inventado.
+function clubesDeCategoria(lg){ return lg==='Liga ARG'?clubesPrimera():clubesDeLiga(lg); }
 function clubesDeLiga(lg){
   const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
   const tag=ligaDB(lg);
@@ -3009,7 +3051,10 @@ function buildCalOtra(teamName,lg,startWeek){
 // Reparte los 30 clubes en 2 zonas de 15 (tu club siempre entra, y siempre
 // en la Zona A: las tablas de la pantalla principal cuentan con eso).
 function arBuildZones(teamName){
-  const pool=AR_CLUBS.includes(teamName)?[...AR_CLUBS]:[teamName,...AR_CLUBS.slice(0,29)];
+  // Misma razón que arriba: la lista del AÑO, no la de 2026. `buildCal` ya sólo
+  // llega acá cuando hay 30 clubes de verdad (ver `_zonasOK`).
+  const _ar=clubesPrimera();
+  const pool=_ar.includes(teamName)?[..._ar]:[teamName,..._ar.slice(0,29)];
   const hay=new Set(pool);
   const A=[],B=[],puesto=new Set();
   // 1) Primero los clásicos: uno de cada pareja a cada zona
@@ -3177,7 +3222,16 @@ function buildCal(teamName, teamId){
   // sobrevive al guardado. Sin esto, al continuar una partida del Real Madrid la
   // temporada siguiente se armaba con zonas argentinas y Libertadores.
   const _lgMia=(typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
-  if(_lgMia!=='Liga ARG'){
+  // ⚠️ EL FORMATO DE ZONAS NECESITA 30 CLUBES DE VERDAD.
+  // `arBuildZones` parte en dos zonas de 15 y reparte `AR_CLASICOS`, que son
+  // los clásicos de 2026. Con un archivo histórico de 20 clubes rellenaba con
+  // los 10 que faltaban de la lista de hoy, así que la liga de 2015 se jugaba
+  // contra equipos que ese año no estaban. Si el año no tiene 30, va al
+  // formato común (todos contra todos, ida y vuelta), que es lo honesto:
+  // reproducir el formato REAL de cada año es un motor por temporada, no un
+  // parámetro — la misma razón por la que Colombia y México no tienen zonas.
+  const _zonasOK=(_lgMia==='Liga ARG')&&(clubesPrimera().length>=30);
+  if(_lgMia!=='Liga ARG'||!_zonasOK){
     const L=buildCalOtra(teamName,_lgMia,1+PRE_SEMANAS);
     buildCal._league={zones:null,fixtures:L.fixtures,clubs:L.clubs,liga:_lgMia,
       phases:null};
@@ -3932,7 +3986,7 @@ function buildAllTeams(liga){
   const tagDB=(typeof ligaDB==='function')?ligaDB(lg):lg;
   db.forEach(r=>{ const club=r[5]; if(!club||r[6]!==tagDB)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
   // En la Argentina son los 30 de la liga; afuera, los clubes de primera de ese país
-  const nombres=(lg==='Liga ARG')?AR_CLUBS:clubesDeLiga(lg);
+  const nombres=clubesDeCategoria(lg);
   nombres.forEach(name=>{
     const id=(lg==='Liga ARG')?_slugTeam(name):(_slugTeam(lg)+'_'+_slugTeam(name));
     if(TEAMS[id])return;                       // ya está curado a mano
@@ -4044,7 +4098,7 @@ function tsLigas(){
     // del paso 2 contradecía a la pantalla siguiente.
     let n=cl.length;
     try{
-      if(lg==='Liga ARG'&&typeof AR_CLUBS!=='undefined') n=AR_CLUBS.length;
+      if(lg==='Liga ARG'&&typeof clubesPrimera==='function') n=clubesPrimera().length;
       else if(typeof clubesDeLiga==='function'){ const c2=clubesDeLiga(lg); if(c2&&c2.length)n=c2.length; }
     }catch(e){}
     // El valor de la liga, sobre esos mismos clubes
@@ -4092,9 +4146,16 @@ function aplicarTemporada(y){
   if(!cambia) return _DB_SEASON;
   // ⚠️ Todo lo que cachea algo derivado de la base hay que tirarlo, o el
   // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
-  // Son cinco cachés y los cinco están anotados acá para que agregar uno
+  // Son SIETE cachés y los siete están anotados acá para que agregar uno
   // nuevo sin sumarlo a esta lista se note.
   try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
+  try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard
+  try{ _arClubsHist=null; _arClubsHistDe=null; }catch(e){} // los clubes de Primera de ese año
+  // ⚠️ Y TEAMS, que NO se limpia solo: `buildAllTeams` sólo agrega
+  // (`if(TEAMS[id])return`), así que los clubes de la temporada anterior
+  // quedaban pegados con su reputación, su presupuesto y su estadio del otro
+  // año. Se borran los `generado:true`; los 5 curados a mano se quedan.
+  try{ Object.keys(TEAMS).forEach(k=>{ if(TEAMS[k]&&TEAMS[k].generado) delete TEAMS[k]; }); }catch(e){}
   try{ _rankCache=null; _rankSeason=null; }catch(e){} // prestigio de los 600 clubes
   try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
   try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
@@ -4158,8 +4219,9 @@ function tsRender(soloLista){
     return;
   }
   // ── paso 3: clubes de la liga ──
+  const _vigentes=new Set(clubesDeCategoria(_tsLg));
   const clubes=Object.entries(TEAMS)
-    .filter(([id,t])=>(t.liga||'Liga ARG')===_tsLg)
+    .filter(([id,t])=>(t.liga||'Liga ARG')===_tsLg&&_vigentes.has(t.name))
     .map(([id,t])=>({id,t,val:tsValClub(t.name)}))
     .sort((a,b)=>(b.t.initRep-a.t.initRep)||(b.val-a.val));
   const vis=_tsFiltro?clubes.filter(c=>_tsNorm(c.t.name).includes(_tsFiltro)):clubes;
@@ -10931,8 +10993,8 @@ function rCal(){
       </div>`;}).join('')}
   </div>`:''}
   <div class="card" style="margin-bottom:9px">
-    <div class="ctitle">📅 ${esLigaARG()?'Tabla anual':'Tabla'} — ${ligaComp()}</div>
-    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">${esLigaARG()
+    <div class="ctitle">📅 ${juegaZonas()?'Tabla anual':'Tabla'} — ${ligaComp()}</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">${juegaZonas()
       ?'Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.'
       :'Todos contra todos, ida y vuelta. Define el campeón y los descensos.'}</div>
     <div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
