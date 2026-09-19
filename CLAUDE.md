@@ -3425,9 +3425,9 @@ final ya no se limita a listarlas: dice que no es un problema de un año —o
 cambiaron los IDs de competición, o cambió el HTML— y manda a 🩺 Diagnosticar,
 que es lo único que permite distinguirlos.
 
-⚠️ **Sigue sin verificarse que el parser case con el HTML real de TM**: el 400
-frenó antes de llegar al sitio. Lo único que se probó contra Transfermarkt de
-verdad es que el proxy rechaza la fuente.
+⚠️ En ese momento **seguía sin verificarse que el parser casara con el HTML
+real de TM**: el 400 frenó antes de llegar al sitio. **Ya está verificado** —
+ver la Fase 43, con cinco temporadas bajadas de verdad.
 
 ### Fase 42: `?api=ping` — porque no había forma de saber si el Worker estaba actualizado
 
@@ -3476,6 +3476,145 @@ mecanismo aislado, que es la lección que este archivo ya repite cuatro veces
 ("el check falla por el vecino"). Queda anotado para pinchar el sorteo como se
 hizo con `personalidades` — pero si lo ves rojo, **corré la regresión de
 nuevo antes de creerle**.
+
+## Fase 43: la primera extracción REAL — 2021-2025 en la carpeta
+
+El usuario corrió el extractor contra Transfermarkt y bajó cinco temporadas.
+Es la primera evidencia de que **el parser casa con el HTML real del sitio**,
+que era lo único que este archivo tenía anotado como sin verificar. Andaba: 500
+de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
+edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
+alrededor, y son cinco cosas distintas.
+
+| temporada | jugadores | clubes (Primera + Nacional) |
+|---|---|---|
+| 2021 | 2.542 | 29 + 36 |
+| 2022 | 2.541 | 28 + 37 |
+| 2023 | 3.277 | 28 + 38 |
+| 2024 | 2.609 | 28 + 36 |
+| 2025 | 1.821 | 28 + 35 |
+
+### ⚠️ El nombre del club salía del SLUG de la URL
+
+`parseClubes` cae al slug cuando el `<a>` no trae `title` ni texto, y eso es lo
+que pasa en la página de competición: llegaron **"club atletico boca juniors"**,
+**"cd riestra"** y **"club atletico central cordoba sde "** (con espacio al
+final). De 77 clubes distintos, **75 vinieron del slug**.
+
+No es cosmético: el juego indexa los clubes **por nombre**. Con el slug, Boca
+1994 juega sin escudo, sin sus colores y en un estadio genérico, porque los 5
+`TEAMS` curados a mano, `STADIUMS_DB` y los clásicos se enganchan por ahí.
+
+`HIST_CLUB_NOM` (77 entradas) + `histClubNombre()` viven en **el extractor**, no
+en el juego: el que genera el dato es el que lo tiene que dejar bien. La clave
+es el slug NORMALIZADO, así que la misma entrada sirve venga el nombre del
+`title` o del slug. El club que no está en la tabla **se nombra en el log** en
+vez de quedarse en minúscula en silencio.
+
+⚠️ **La tabla es a mano y tiene que serlo.** Se probó un emparejador
+automático contra los clubes de la base actual y los errores eran del peor tipo:
+"defensores de belgrano" → **Belgrano**, "gimnasia y esgrima de jujuy" →
+**Gimnasia** (que es la de La Plata), "independiente rivadavia" →
+**Independiente**, "atletico racing cordoba" → **Racing Club**. Cuatro clubes
+fusionados con un grande por parecido de nombre.
+
+### ⚠️ "€930,000" se leía como 930 MILLONES
+
+`valorEnMillones` normalizaba los separadores con "el último manda", que es
+correcto para `€1,20 mill.` pero no para el formato sin unidad de la .com:
+`€930,000` son 930 mil euros y quedaban en 930. Un jugador de Patronato valía
+más que todo el fútbol argentino junto. Y la alternancia `(bn|m|k|mil|th)`
+hacía que la `m` ganara antes que `mil`, así que **"€930 mil" también daba 930
+millones**.
+
+Ahora la unidad se lee entera y **sin unidad los separadores son de miles,
+siempre**. 15 casos verificados (los dos formatos de TM, `Th.`, `mil`, `mill.`,
+`mrd.`, euros crudos). El umbral viejo (`v>=10000 ? v/1e6 : v`) también se fue:
+dejaba pasar `€2.500` como 2.500 millones.
+
+### Dos categorías, un mismo club, y filas repetidas
+
+Un club puede aparecer en las **dos** competiciones del año (medido en 2025:
+Godoy Cruz, 34 filas repetidas). Si se baja dos veces, el plantel queda
+duplicado y el club sale en las dos categorías. Ahora gana la primera, que es
+Primera, y dentro de cada plantel se descarta el mismo nombre repetido. Total
+sobre las cinco temporadas: **77 filas**.
+
+### ⚠️ La 2ª división histórica venía etiquetada y el juego la leía como Primera
+
+Los archivos traen la categoría REAL de cada club (`Liga ARG` / `Primera
+Nacional`), que es mejor dato que el corte por valor. Pero `ligaDB` mandaba a
+leer `Primera Nacional` bajo la etiqueta `Liga ARG` —el alias que necesita la
+base actual, donde las dos categorías comparten etiqueta— y después le restaba
+los de Primera. Medido con el 2023 real: **Primera 28 clubes ✓, Primera
+Nacional 0**.
+
+`tagsDB()` (cacheado, el **octavo** caché que tira `aplicarTemporada`) dice qué
+etiquetas trae la base cargada y `ligaDB` prefiere la que existe. Derivado del
+dato, sin flag nuevo.
+
+⚠️ **La Nacional se recorta a 20 clubes** (`LIGA_TAM`) aunque el año tenga 38:
+38 clubes son 74 fechas y la temporada no entra en el calendario. Es la misma
+razón por la que Colombia y México no tienen zonas. La Primera sí entra entera
+(28 clubes = 54 fechas, semanas 4-57) y la temporada se juega y se cierra bien:
+medido con Boca 2023, 58 partidos, 2º con 122 puntos, salto a 2024 sin rivales
+de otro mundo y guardado/cargado con las dos globales ensuciadas.
+
+### ⚠️ Y apareció un candado en el juego NORMAL: el 🏋️ Predio
+
+Probando el histórico, el club se quedó clavado en la semana 3 día 7. No era
+del histórico: `advanceDay` se planta en el día 7 hasta que se juegue la fecha,
+y los amistosos de pretemporada son los **únicos** partidos de las semanas 1-3.
+`bookFriendlies` los repartía con `i%PRE_SEMANAS`, así que con menos amistosos
+que semanas las últimas quedaban vacías. Medido en la partida normal de 2026:
+
+| opción | amistosos por semana | hasta dónde llega el reloj |
+|---|---|---|
+| ✈️ Asia (4) | 2 · 1 · 1 | semana 25 |
+| 🏖️ Verano (3) | 1 · 1 · 1 | semana 25 |
+| **🏋️ Predio (2)** | **1 · 1 · —** | **semana 3, con 2 partidos jugados** |
+
+Y cerrar el modal con la ✕ o con "no viajar" era peor: **cero** amistosos y el
+candado en la semana 1. Ahora `bookFriendlies` garantiza uno por semana de
+pretemporada (el predio pasa de 2 a 3), la ✕ pasa por `preseasonSaltear()` —que
+reserva los amistosos igual— y el aviso del día 7 dice la verdad cuando no hay
+partido. Medido: el predio llega a la semana 22.
+
+⚠️ Se salía tocando "simular" (que salta al próximo partido), pero **"pasar el
+día" estaba muerto** y no había nada en pantalla que lo explicara.
+
+### ⚠️ La temporada 2025 es, en realidad, el plantel de hoy
+
+Transfermarkt, para la temporada en curso, sirve el plantel ACTUAL. Medido con
+Marcos Rojo: 30/31/32/33 años en 2021-2024 (coherente con cada año) y **36 en
+2025, ya en Racing** — o sea el plantel de 2026. Por eso 2025 tiene menos
+jugadores (1.821, mediana 29 por club) y por eso Godoy Cruz aparecía en la
+Nacional. No hay nada que arreglar en el código: es cómo responde el sitio.
+Las **temporadas viejas sí son del año** (Mastantuono 14/15/16 en 2022/2023/2024).
+
+⚠️ La lista de clubes de cada año la da la página de competición y **viene
+corrida un año** respecto de la temporada que juega el archivo (el "2023"
+trae la Primera del 2024). Los PLANTELES sí son del año pedido, que es lo que
+importa; la categoría de un club suelto puede no coincidir.
+
+### Lo que blinda la regresión
+
+El check `temporadas históricas` prueba el MECANISMO con un 2015 fabricado; el
+nuevo, `temporadas reales`, prueba el DATO que está en la carpeta: 0 nombres
+sacados del slug, 0 con espacio al borde, 0 filas repetidas, 0 clubes en las dos
+categorías, 0 valores disparados, 0 nat/pos UNK, 0 `nat2` inventado, mundo
+cerrado en 2 ligas, la Nacional jugable con plantel real y **Boca enganchando el
+`TEAMS` curado**. Si una extracción futura vuelve a traer slugs, se pone rojo.
+
+⚠️ Y el check viejo tuvo que aprender a convivir con los archivos de verdad:
+`sinArchivos` y `limpio` comprobaban `!hayHistoricos()`, que era cierto sólo
+mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
+mide, y lo restaura.
+
+🔶 **`la fatiga no separa` es FLAKY**, como `dilemas`. El umbral es
+`roto > sano*1.35` sobre 4.000 tiradas de Poisson y se cae por centésimas
+(medido: 1,64 contra 1,647 de umbral, y verde en la corrida siguiente con el
+mismo código). Si lo ves rojo, corré de nuevo antes de creerle.
 
 ## Deploy
 

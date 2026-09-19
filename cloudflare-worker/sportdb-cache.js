@@ -280,19 +280,33 @@ function txt(s) {
 
 function valorEnMillones(s) {
   if (!s) return 0;
-  const m = String(s).match(/€\s*([\d.,]+)\s*(bn|m|k|mil|th)?/i);
+  const m = String(s).match(/€\s*([\d.,]+)\s*([a-zäöü.]*)/i);
   if (!m) return 0;
-  // TM escribe 1.234,56 en .es y 1,234.56 en .com: se normaliza mirando cuál
-  // de los dos separadores va último.
+  // ⚠️ La unidad se lee ENTERA, no con una alternancia. Con `(bn|m|k|mil|th)?`
+  // la 'm' ganaba antes que 'mil' y "€930 mil" quedaba en 930 MILLONES.
+  const u = (m[2] || '').toLowerCase().replace(/\./g, '');
+  const mill = u === 'm' || u.indexOf('mill') === 0 || u === 'mio';
+  const bn = u === 'bn' || u.indexOf('mrd') === 0 || u.indexOf('bil') === 0;
+  const mil = !mill && !bn && (u === 'k' || u === 'th' || u === 'tsd' || u === 'mil');
   let n = m[1];
-  const iC = n.lastIndexOf(','), iP = n.lastIndexOf('.');
-  n = (iC > iP) ? n.replace(/\./g, '').replace(',', '.') : n.replace(/,/g, '');
+  // ⚠️ Sin unidad, los separadores son de MILES. Ésta es la que rompía:
+  // "€930,000" (el formato de la .com) caía en la regla de "el último
+  // separador es el decimal" y daba 930 en vez de 0,93. Con unidad sí manda
+  // esa regla, porque ahí TM escribe decimales: "1,20 mill." / "1.20m".
+  if (!mill && !bn && !mil) {
+    n = n.replace(/[.,]/g, '');
+  } else {
+    const iC = n.lastIndexOf(','), iP = n.lastIndexOf('.');
+    n = (iC > iP) ? n.replace(/\./g, '').replace(',', '.') : n.replace(/,/g, '');
+  }
   let v = parseFloat(n);
   if (isNaN(v)) return 0;
-  const u = (m[2] || '').toLowerCase();
-  if (u === 'bn') v *= 1000;
-  else if (u === 'k' || u === 'th') v /= 1000;
-  else if (!u) v = v >= 10000 ? v / 1e6 : v;   // euros crudos
+  if (bn) v *= 1000;
+  else if (mil) v /= 1000;
+  // ⚠️ Sin unidad, el número son EUROS, siempre. El umbral que había
+  // (`v>=10000 ? v/1e6 : v`) dejaba pasar "€2.500" como 2.500 millones. TM
+  // nunca escribe un valor en millones sin poner la unidad.
+  else if (!mill) v = v / 1e6;
   return Math.round(v * 1000) / 1000;
 }
 

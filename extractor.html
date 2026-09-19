@@ -1453,7 +1453,10 @@ function mapNat(nat, estricto) {
     'congo':'CGO','dr congo':'COD','uzbekistan':'UZB','armenia':'ARM',
     'algeria':'ALG','algerien':'ALG','argelia':'ALG',
     'south africa':'RSA','südafrika':'RSA','zambia':'ZAM','zimbabwe':'ZIM',
-    'burkina faso':'BFA','togo':'TOG','benin':'BEN','niger':'NIG_NE',
+    // ⚠️ Níger va NER: NIG ya es Nigeria y el juego exige 3 letras. Con
+    // 'NIG_NE' (largo 6) el código quedaba inventado, que es justo lo que
+    // ensucia el cupo de extranjeros.
+    'burkina faso':'BFA','togo':'TOG','benin':'BEN','niger':'NER',
     'new caledonia':'NCL','curacao':'CUW','curaçao':'CUW','suriname':'SUR',
     'trinidad and tobago':'TRI','haiti':'HAI','guatemala':'GUA',
     'nicaragua':'NCA','bulgaria':'BUL','belarus':'BLR','lithuania':'LTU',
@@ -1692,12 +1695,13 @@ async function extraerHistorico() {
   }
 
   window._histVacias = [];
+  window._histSinTabla = [];
   for (let y = h; y >= d; y--) {                    // de 2026 para atrás, como se pidió
     setProgress(((h - y) / (h - d + 1)) * 100);
     log(`\n═══ TEMPORADA ${y} ═══`);
     const filas = [];
     const comps = [[c1, 'Liga ARG'], ...(c2 ? [[c2, 'Primera Nacional']] : [])];
-    let clubesOK = 0, fallados = [];
+    let clubesOK = 0, fallados = [], yaBajado = {}, dupFilas = 0;
 
     for (const [cid, liga] of comps) {
       const clubs = await histClubes(cid, y);
@@ -1705,6 +1709,12 @@ async function extraerHistorico() {
       log(`  ${liga} ${y}: ${clubs.length} clubes`);
       for (let i = 0; i < clubs.length; i++) {
         const cl = clubs[i];
+        // ⚠️ Un club puede salir en las DOS competiciones del año (medido en
+        // 2025: Godoy Cruz, 34 filas repetidas). Si se baja dos veces, el
+        // plantel queda duplicado y el club aparece en las dos categorías.
+        // Gana la PRIMERA, que es Primera.
+        if (yaBajado[cl.id]) { log(`    ↩︎ ${cl.name} ya vino en la otra competición`); continue; }
+        yaBajado[cl.id] = 1;
         const r = await histPlantel(cl.id, y);
         const ps = (r && r.players) || [];
         if (!ps.length) {
@@ -1714,10 +1724,18 @@ async function extraerHistorico() {
         }
         if (clubesOK === 0) log(`    (primer club OK — ${cl.name}: ${JSON.stringify(r.diag)})`);
         clubesOK++;
-        log(`    [${i + 1}/${clubs.length}] ${cl.name}: ${ps.length} jugadores`);
-        ps.forEach(p => filas.push(histFila(p, cl.name, liga)));
+        const nom = histClubNombre(cl.name);
+        log(`    [${i + 1}/${clubs.length}] ${nom}: ${ps.length} jugadores`);
+        const vistos = {};
+        ps.forEach(p => {
+          const k = String(p.name || '') + '|' + nom;
+          if (vistos[k]) { dupFilas++; return; }   // el mismo tipo dos veces en el kader
+          vistos[k] = 1;
+          filas.push(histFila(p, nom, liga));
+        });
       }
     }
+    if (dupFilas) log(`  (${dupFilas} filas repetidas descartadas)`);
 
     if (!filas.length) {
       log(`  ⚠️ ${y} quedó VACÍA — no se descarga nada. Usá 🩺 Diagnosticar para ver por qué.`);
@@ -1743,7 +1761,83 @@ async function extraerHistorico() {
       log('     hace falta para arreglar el parser. Sin eso no se puede saber cuál de los dos es.');
     }
   }
+  if (window._histSinTabla.length) {
+    log(`\n⚠️ ${window._histSinTabla.length} club(es) sin entrada en HIST_CLUB_NOM (van capitalizados,`);
+    log('   pero sin escudo ni estadio propio). Agregalos a la tabla del extractor:');
+    log('   ' + window._histSinTabla.join(' · '));
+  }
   log('\n=== HISTÓRICO TERMINADO ===');
+}
+
+// ═══ EL NOMBRE DEL CLUB SALE DEL SLUG DE LA URL, Y ASÍ NO SIRVE ═══
+// `parseClubes` cae al slug cuando el <a> no trae title ni texto, así que la
+// primera corrida real trajo "club atletico boca juniors", "cd riestra" y
+// "club atletico central cordoba sde " (con espacio al final). Eso no es sólo
+// feo: el juego indexa los clubes POR NOMBRE — TEAMS (los 5 curados con
+// escudo, colores y borderó a mano), STADIUMS_DB y los clásicos. Con el slug,
+// Boca 1994 juega sin escudo y en un estadio genérico.
+// La clave es el slug NORMALIZADO (sin acentos, sin mayúsculas, sin espacios
+// de más), así que la misma entrada sirve venga el nombre del title o del slug.
+const HIST_CLUB_NOM = {
+  'ca river plate':'River Plate','club atletico river plate':'River Plate',
+  'club atletico boca juniors':'Boca Juniors','racing club':'Racing Club',
+  'club atletico independiente':'Independiente',
+  'club atletico san lorenzo de almagro':'San Lorenzo',
+  'club atletico velez sarsfield':'Vélez Sarsfield',
+  'club estudiantes de la plata':'Estudiantes LP',
+  'club atletico rosario central':'Rosario Central',
+  'club atletico talleres':'CA Talleres','club atletico lanus':'Lanús',
+  'club atletico huracan':'Huracán','argentinos juniors':'Argentinos Jrs.',
+  'club atletico banfield':'Banfield','club atletico newells old boys':"Newell's",
+  'club atletico belgrano':'Belgrano','ca belgrano':'Belgrano',
+  'instituto ac cordoba':'Instituto ACC',
+  'club atletico central cordoba sde':'Central Córdoba',
+  'club atletico barracas central':'Barracas C.','defensa y justicia':'Defensa',
+  'club atletico tigre':'Tigre','club atletico platense':'Platense',
+  'club atletico union':'Unión Santa Fe','club atletico tucuman':'Atl. Tucumán',
+  'club atletico sarmiento junin':'Sarmiento Junin','club atletico aldosivi':'Aldosivi',
+  'independiente rivadavia':'Ind. Rivadavia','cd riestra':'Dep. Riestra',
+  'club deportivo godoy cruz antonio tomba':'Godoy Cruz',
+  'club de gimnasia y esgrima la plata':'Gimnasia',
+  'club atletico san martin sj':'San Martín (SJ)',
+  'ca san martin tucuman':'San Martín (T)',
+  'club atletico colon':'Colon','club atletico patronato':'Patronato',
+  'club ferro carril oeste':'Ferro','quilmes atletico club':'Quilmes',
+  'ca chacarita juniors':'Chacarita Jrs.','nueva chicago':'Nueva Chicago',
+  'club atletico atlanta':'Atlanta','club atletico temperley':'CA Temperley',
+  'club atletico colegiales':'Colegiales','club almagro':'Almagro',
+  'club almirante brown':'Almirante Brown','defensores de belgrano':'Def. Belgrano',
+  'atletico de rafaela':'Atl. Rafaela','atletico racing cordoba':'Racing (Cba)',
+  'club atletico central norte':'Central Norte','club atletico guemes':'CA Güemes',
+  'club atletico mitre':'Mitre (SdE)','csd madryn':'Dep. Madryn',
+  'csd tristan suarez':'Tristán Suárez','cd moron':'Dep. Morón',
+  'cd maipu mendoza':'Dep. Maipú','ca all boys buenos aires':'All Boys',
+  'ca los andes':'Los Andes','ca san miguel':'San Miguel','ca san telmo':'San Telmo',
+  'acassuso cf':'Acassuso','argentino agropecuario':'Agropecuario',
+  'chaco for ever':'Chaco For Ever','ferrocarril midland':'Midland',
+  'club ciudad de bolivar':'Ciudad Bolívar',
+  'gimnasia y esgrima de jujuy':'Gimnasia (J)','gimnasia y esgrima de mendoza':'Gimnasia (M)',
+  'gimnasia y tiro salta':'Gimnasia y Tiro',
+  'aa estudiantes de rio cuarto':'Estudiantes RC','ca estudiantes buenos aires':'Estudiantes',
+  'ca talleres remedios de escalada':'Talleres (RE)',
+  // los que no están en la base de hoy porque hace años que no juegan arriba
+  'arsenal futbol club':'Arsenal','ca alvarado':'Alvarado','club sd flandria':'Flandria',
+  'club villa dalmine':'Villa Dálmine','defensores unidos zarate':'Defensores Unidos',
+  'deportivo santamarina':'Santamarina','sacachispas futbol club':'Sacachispas',
+  'brown de adrogue':'Brown (A)','club social y atletico guillermo brown':'Guillermo Brown',
+};
+function histNorm(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// Si el club no está en la tabla NO se lo tira ni se lo deja en minúscula: se
+// lo capitaliza y se lo NOMBRA en el log, que es la diferencia entre agregar
+// una línea y descubrir dentro de seis meses que a un club le falta el escudo.
+function histClubNombre(raw) {
+  const k = histNorm(raw);
+  if (HIST_CLUB_NOM[k]) return HIST_CLUB_NOM[k];
+  if (window._histSinTabla && window._histSinTabla.indexOf(k) < 0) window._histSinTabla.push(k);
+  return k.replace(/\b[a-z]/g, c => c.toUpperCase());
 }
 
 // Una fila con el MISMO formato de players-db.js. Las columnas nuevas van al

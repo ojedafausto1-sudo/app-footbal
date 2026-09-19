@@ -2976,7 +2976,23 @@ function esLigaLocal(c){ return c===ligaComp(); }
 // se perdería en la próxima extracción. Por eso la categoría se DERIVA:
 // `LIGA_DB` dice bajo qué etiqueta leer, y el corte lo hace `AR_CLUBS`.
 const LIGA_DB={'Primera Nacional':'Liga ARG'};
-function ligaDB(lg){ return LIGA_DB[lg]||lg; }
+// ⚠️ …PERO UN ARCHIVO HISTÓRICO SÍ TRAE LA CATEGORÍA DE VERDAD.
+// El extractor baja las dos competiciones por separado, así que en
+// `players-hist-AÑO.js` la segunda división viene etiquetada `Primera
+// Nacional` de fábrica — y ahí el alias de arriba se vuelve un bug: leía los
+// clubes bajo `Liga ARG` y después les restaba los de Primera, o sea NINGUNO.
+// Medido con el 2023 real: Primera 28 clubes ✓, **Primera Nacional 0**.
+// La etiqueta que existe en la base manda; el alias queda de reserva para la
+// base actual, donde las dos categorías comparten `Liga ARG`. Derivado del
+// dato, sin flag nuevo, y cacheado porque `ligaDB` la llama el fixture entero.
+let _tagsDB=null;
+function tagsDB(){
+  if(_tagsDB)return _tagsDB;
+  const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
+  const s={}; db.forEach(r=>{ if(r[6])s[r[6]]=1; });
+  return _tagsDB=s;
+}
+function ligaDB(lg){ return tagsDB()[lg]?lg:(LIGA_DB[lg]||lg); }
 // ⚠️ EN UNA TEMPORADA VIEJA, LOS 30 DE HOY NO SON LOS DE ESE AÑO.
 // `AR_CLUBS` es la Primera de 2026. Filtrar un archivo histórico contra esa
 // lista BORRA en silencio a todo club que hoy no esté en Primera —Olimpo,
@@ -4146,8 +4162,9 @@ function aplicarTemporada(y){
   if(!cambia) return _DB_SEASON;
   // ⚠️ Todo lo que cachea algo derivado de la base hay que tirarlo, o el
   // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
-  // Son SIETE cachés y los siete están anotados acá para que agregar uno
+  // Son OCHO cachés y los ocho están anotados acá para que agregar uno
   // nuevo sin sumarlo a esta lista se note.
+  try{ _tagsDB=null; }catch(e){}                     // qué etiquetas de liga trae la base
   try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
   try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard
   try{ _arClubsHist=null; _arClubsHistDe=null; }catch(e){} // los clubes de Primera de ese año
@@ -15875,6 +15892,14 @@ function tourRivals(zona,n){
 }
 // Arma los amistosos y los mete en el calendario para jugarlos de verdad
 function bookFriendlies(zona,cuantos){
+  // ⚠️ TIENE QUE HABER UN PARTIDO POR CADA SEMANA DE PRETEMPORADA.
+  // `advanceDay` se planta en el día 7 hasta que se juegue la fecha, así que
+  // una semana sin partido es un candado. Medido en la partida normal de 2026:
+  // el 🏋️ Predio reservaba 2 amistosos —semanas 1 y 2— y el club quedaba
+  // clavado en 3/7 con 2 partidos jugados; Asia (4) y Verano (3) llegaban a la
+  // semana 25 sin problema. Es el reparto `i%PRE_SEMANAS`: con menos amistosos
+  // que semanas, las últimas quedan vacías.
+  cuantos=Math.max(PRE_SEMANAS,cuantos||0);
   const rivales=tourRivals(zona,cuantos);
   if(!rivales.length)return [];
   G.friendlies=[];
@@ -15942,7 +15967,7 @@ function offerPreseason(){
   const chip=(txt,col)=>`<span style="display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;margin:3px 3px 0 0;background:rgba(${col},.14);border:1px solid rgba(${col},.5);color:rgb(${col})">${txt}</span>`;
   const VERDE='16,185,129', ORO='245,158,11', ROJO='239,68,68';
   showMod(`
-    <button class="mclose" onclick="closeMod();G._preseasonDone=G.season">✕</button>
+    <button class="mclose" onclick="preseasonSaltear()">✕</button>
     <div class="mtitle">✈️ Ofertas de Pretemporada</div>
     <div class="note" style="margin-bottom:9px">Llegaron tres propuestas para preparar la temporada ${G.season}, presidente. <b>Se elige una sola.</b> La plata de la gira se cobra ahora; el desgaste se paga en la fecha 1.</div>
     ${Object.entries(PRESEASON_TOURS).map(([k,t])=>`
@@ -15957,8 +15982,24 @@ function offerPreseason(){
           ${t.rep?chip('Reputación +'+t.rep,ORO):''}
         </div>
       </button>`).join('')}
-    <button class="btn bR bs" style="width:100%" onclick="closeMod();G._preseasonDone=G.season">No viajar ni entrenar distinto</button>
+    <button class="btn bR bs" style="width:100%" onclick="preseasonSaltear()">No viajar ni entrenar distinto</button>
   `);
+}
+// ⚠️ NO ELEGIR GIRA DEJABA EL CLUB CLAVADO EN EL DÍA 7 DE LA SEMANA 1.
+// Los amistosos de pretemporada son los ÚNICOS partidos de las semanas 1-3, y
+// los reserva `doPreseason`. Cerrando el modal con la ✕ (o con "no viajar")
+// esas tres semanas quedaban sin un solo partido, y `advanceDay` se planta en
+// el día 7 hasta que se juegue la fecha — una fecha que no existía.
+// Medido en la partida normal de 2026: 30 `advanceDay` seguidos y el reloj no
+// se movía de 1/7. (Se salía tocando "simular", que salta al partido de la
+// semana 4, pero "pasar el día" no lo decía en ningún lado.)
+// Quedarse en el predio es una opción legítima; jugar CERO amistosos, no.
+function preseasonSaltear(){
+  if(G&&G._preseasonDone!==G.season){
+    try{ bookFriendlies('local',2); }catch(e){}
+    G._preseasonDone=G.season;
+  }
+  closeMod(); if(typeof updateUI==='function')updateUI();
 }
 function doPreseason(k){
   const t=PRESEASON_TOURS[k];if(!t||!G)return;
@@ -24899,7 +24940,11 @@ function advanceDay(silencioso){
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   if(curDay()>=7){
-    if(!silencioso) flash('⚽ Es día de partido: jugalo o simulalo para pasar de semana','draw');
+    // Si la semana no tiene partido (un save viejo que saltó la pretemporada
+    // sin amistosos), el mensaje de antes mentía: no había nada que jugar.
+    const _hay=(G.calendar||[]).some(m=>!m.played&&m.week<=G.week);
+    if(!silencioso) flash(_hay?'⚽ Es día de partido: jugalo o simulalo para pasar de semana'
+                              :'📅 Esta semana no hay partido: simulá la próxima fecha para seguir','draw');
     return;
   }
   G.day=curDay()+1; G._daysTicked=(G._daysTicked||0)+1;
