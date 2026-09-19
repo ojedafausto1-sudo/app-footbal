@@ -3486,13 +3486,18 @@ de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
 edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
 alrededor, y son cinco cosas distintas.
 
-Después llegaron diez más (2011-2020) y **ya son QUINCE temporadas en la
-carpeta**, de 2011 a 2025. Todas vinieron limpias de valores y de
+Después llegaron quince más (2006-2020) y **ya son VEINTE temporadas en la
+carpeta**, de 2006 a 2025. Todas vinieron limpias de valores y de
 nacionalidades: lo único que traían era el mismo problema de los nombres,
 porque el usuario las bajó con el extractor de antes.
 
 | temporada | jugadores | clubes (Primera + Nacional) |
 |---|---|---|
+| 2006 | 955 | 22 + 15 |
+| 2007 | 942 | 17 + 20 |
+| 2008 | 1.271 | 17 + 20 |
+| 2009 | 1.408 | 20 + 20 |
+| 2010 | 1.484 | 20 + 20 |
 | 2011 | 1.516 | 20 + 20 |
 | 2012 | 1.493 | 19 + 20 |
 | 2013 | 1.955 | 16 + 22 |
@@ -3631,12 +3636,16 @@ Primera (nunca descendió) y de River sólo que ESTÉ en alguna de las dos.
 mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
 mide, y lo restaura.
 
-### Lo que agregaron las cinco temporadas viejas (2016-2020)
+### Lo que agregaron las quince temporadas viejas (2006-2020)
 
-- **7 clubes que no existían en la tabla de nombres**, y los nombró el log
+- **18 clubes que no existían en la tabla de nombres**, y los nombró el log
   igual que estaba pensado: Olimpo, Crucero del Norte, Atl. Paraná, Boca
-  Unidos, Douglas Haig, Estudiantes SL y Juventud Unida (G). Se agregan en una
-  línea cada uno; el extractor no se rompe por un club nuevo, lo reporta.
+  Unidos, Douglas Haig, Estudiantes SL y Juventud Unida (G) en 2016-2020;
+  Dep. Merlo, Sp. Desamparados, Sp. Belgrano (SF), Villa San Carlos, Guaraní
+  A. Franco, Unión (MdP) y Juventud Unida (SL) en 2011-2015; y Tiro Federal,
+  Sp. Ben Hur, Sp. Italiano y CAI en 2006-2010. Se agregan en una línea cada
+  uno, y el aviso funcionó en las cuatro tandas: ni un club quedó en minúscula
+  en silencio.
 - ⚠️ **Belgrano sale en las DOS competiciones en 2019, 2020 y 2021**, con dos
   slugs distintos (`Club Atlético Belgrano` y `ca belgrano`). Verificado que es
   el mismo club y no dos: los planteles coinciden **36/36, 55/55 y 31/31
@@ -3649,7 +3658,9 @@ mide, y lo restaura.
   2014 y 2015 también llegan a 30 y juegan igual; de los quince años son los
   únicos tres. Medido además: Boca 2011 (Orión, Ustari, un Paredes de 18) juega
   38 fechas contra los 19 del año y River 2013 (Barovero, Driussi) 30 fechas
-  contra los 15, los dos sin un jugador inventado y en su cancha real.
+  contra los 15, los dos sin un jugador inventado y en su cancha real. Y más
+  atrás todavía: Boca 2006 (Riquelme, Bobadilla, Caranta) sale campeón en 46
+  partidos y River 2009 (Buonanotte) termina 2º en 42.
 - ⚠️ **Los rivales de copa NO son del año.** La Libertadores y la Copa
   Argentina salen de listas escritas a mano (`INT_POW`, `caPool`), así que Boca
   2016 se cruza con Always Ready y LDU Quito de la lista de hoy. El TORNEO
@@ -3710,6 +3721,42 @@ arreglo de verdad es bajar 2011-2013 con el ID de competición VIEJO de TM (la
 Primera División anterior a la Superliga), si es que existe uno aparte; el
 campo del extractor ya está para eso. De 2014 en adelante la lista es del año
 y no hace falta nada.
+
+### ⚠️ Antes de 2008, TM no tiene el plantel entero de todos los clubes
+
+Es el límite nuevo que trajeron 2006 y 2007, y no tiene nada que ver con el
+parser: el sitio directamente no tiene esas fichas. Medido, clubes con menos
+de 18 jugadores:
+
+| año | en Primera | en la Nacional |
+|---|---|---|
+| 2006 | 5 de 22 | **8 de 15** |
+| 2007 | 2 de 17 | **13 de 20** |
+| 2008 | 1 de 17 | 0 de 20 |
+| 2009 | 2 de 20 | 0 de 20 |
+| 2010 | 4 de 20 | 0 de 20 |
+
+Los grandes están completos siempre (Boca 2006 trae 45 fichas, River 55), así
+que **la Primera se juega bien de 2006 en adelante**, pero **la Nacional de
+2006 y 2007 no vale la pena**: la mitad de la liga se rellena con jugadores
+inventados por `squadFromDB`. De 2008 en adelante está sana.
+
+⚠️ Y hay una coincidencia que conviene entender: los clubes flacos de Primera
+son casi siempre **los mismos que la lista de hoy metió de prestado** (Central
+Córdoba, Barracas C., Sarmiento, Talleres). Están flacos *porque* ese año
+militaban tres categorías más abajo y TM no los cubría. O sea que las dos
+fallas —lista moderna y plantel incompleto— se explican con el mismo dato.
+
+### ⚠️ Un arnés que no drena bien los dilemas informa una temporada de 7 fechas
+
+River 2009 "terminó" con **7 partidos jugados y campeón con 9 puntos**, y el
+juego estaba perfecto: el arnés resolvía los dilemas recorriendo `G.dilemas`
+con `d.did`, y el que FRENA lo devuelve `dilemaBloqueante()` y se contesta por
+`d.id`. Con eso arreglado la misma corrida da **42 partidos y 2º puesto**.
+Es otra vez el instrumento y no el producto: **antes de creerle a una
+temporada corta, revisá el drenaje**. La regresión ya lo hace bien
+(`dilResolver()`), así que lo correcto es copiar de ahí y no escribirlo de
+nuevo.
 
 🔶 **`la fatiga no separa` es FLAKY**, como `dilemas`. El umbral es
 `roto > sano*1.35` sobre 4.000 tiradas de Poisson y se cae por centésimas
