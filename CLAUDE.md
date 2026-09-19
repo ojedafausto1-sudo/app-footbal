@@ -3486,8 +3486,8 @@ de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
 edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
 alrededor, y son cinco cosas distintas.
 
-Después llegaron veinte más (2000-2020, sin 2005) y **ya son VEINTICINCO
-temporadas en la carpeta**, de 2000 a 2025. Todas vinieron limpias de valores y de
+Después llegaron veintiuna más (2000-2020) y **ya son VEINTISÉIS temporadas
+en la carpeta**, de 2000 a 2025, **sin un solo hueco**. Todas vinieron limpias de valores y de
 nacionalidades: lo único que traían era el mismo problema de los nombres,
 porque el usuario las bajó con el extractor de antes.
 
@@ -3498,6 +3498,7 @@ porque el usuario las bajó con el extractor de antes.
 | 2002 | 825 | 18 + — |
 | 2003 | 853 | 17 + — |
 | 2004 | 602 | 16 + — |
+| 2005 | 781 | 17 + — |
 | 2006 | 955 | 22 + — |
 | 2007 | 942 | 17 + — |
 | 2008 | 1.271 | 17 + 20 |
@@ -3641,7 +3642,7 @@ Primera (nunca descendió) y de River sólo que ESTÉ en alguna de las dos.
 mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
 mide, y lo restaura.
 
-### Lo que agregaron las veinte temporadas viejas (2000-2020)
+### Lo que agregaron las veintiuna temporadas viejas (2000-2020)
 
 - **18 clubes que no existían en la tabla de nombres**, y los nombró el log
   igual que estaba pensado: Olimpo, Crucero del Norte, Atl. Paraná, Boca
@@ -3743,6 +3744,7 @@ porque a los demás `squadFromDB` les inventa el equipo entero:
 | 2002 | 16 de 18 | **5 de 11** |
 | 2003 | 16 de 17 | **6 de 11** |
 | 2006 | 17 de 22 | **8 de 15** |
+| 2005 | 16 de 17 | **4 de 8** |
 | 2007 | **15 de 17** | **7 de 20** |
 | 2008 en adelante | 16-30 de 16-30 | **20 de 20** |
 
@@ -3763,7 +3765,16 @@ fallas —lista moderna y plantel incompleto— se explican con el mismo dato.
 
 Los grandes están completos siempre: **Boca 2000 trae 50 fichas y River 48**.
 Medido jugando: Boca 2000 (Óscar Córdoba, Abbondanzieri) sale campeón en 34
-partidos y River 2003 (un Carrizo de 20, Celso Ayala) en 36.
+partidos, River 2003 (un Carrizo de 20, Celso Ayala) en 36, y Boca 2005
+(Abbondanzieri, Bobadilla, Palermo) y River 2005 (Germán Lux y un **Gallardo
+de 30, como jugador**) en 36 cada uno.
+
+⚠️ **Un archivo que se vuelve a bajar puede ser idéntico al que ya está.** El
+2004 llegó dos veces —la primera con la 2ª división vacía, que parecía una
+corrida a medias— y comparando fila por fila salieron **602 idénticas, 0
+diferencias**: no era una extracción incompleta, es lo que TM tiene de ese año.
+Antes de re-instalar un archivo repetido, compará; si no, se reescribe por
+nada y se pierde el rastro de qué cambió.
 
 ### ⚠️ Un arnés que no drena bien los dilemas informa una temporada de 7 fechas
 
