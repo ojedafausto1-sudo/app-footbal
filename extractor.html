@@ -210,7 +210,12 @@ async function apiGet(path, apiType) {
       if (!res.ok) {
         // Sin el nombre de la fuente, un 500 de la API libre parecía un 500 del
         // plantel y daba la impresión de que no andaba nada.
-        log(`ERROR ${res.status} en ${path}  (fuente: ${apiType})`);
+        log(`ERROR ${res.status} en ${path}  (fuente: ${apiType}, por ${cfW ? 'el Worker' : 'Netlify'})`);
+        // ⚠️ EL CUERPO TAMBIÉN, que es donde el proxy EXPLICA el error.
+        // Sin esto, un 400 de "esta fuente sólo está en el Worker" llegaba a
+        // la pantalla como un número pelado: la extracción histórica corrió 12
+        // temporadas y 24 pedidos repitiendo `ERROR 400` sin decir nunca por qué.
+        try { const _b = await res.text(); if (_b && _b.length < 400) log(`   → ${_b}`); } catch (e) {}
         if (apiType === 'tmapi' && !tmapiDown) {
           tmapiDown = true;
           log('   → La API libre de nacionalidades está caída. No la consulto más en esta corrida.');
@@ -1614,6 +1619,39 @@ async function extraerHistorico() {
   if (!c1) { alert('Falta el ID de competición de Primera'); return; }
   if (h - d > 40) { alert('Máximo 40 temporadas por corrida'); return; }
 
+  // ═══ PREFLIGHT: ¿el proxy conoce las fuentes históricas? ═══
+  // ⚠️ Sin esto la corrida seguía igual año por año: 12 temporadas × 2
+  // competiciones = 24 pedidos para terminar con 12 temporadas vacías y el
+  // mismo ERROR 400 repetido. Un fallo de configuración se detecta UNA vez y
+  // se corta; sólo un fallo de DATOS (ese año no existe) justifica seguir.
+  const cfW0 = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log(`\n🕰️ Histórico ${d}-${h} · proxy: ${cfW0 ? 'Worker de Cloudflare' : 'función de Netlify'}`);
+  {
+    const pre = await rawGet('tmclubs', `/wettbewerb/${c1}/saison/${h}`, { max: 300 });
+    // ⚠️ Cortar SÓLO con 400 no alcanza. Medido con un Worker inalcanzable:
+    // `rawGet` devuelve status 0 (el fetch ni sale) y la corrida seguía las 24
+    // vueltas igual. 400 = "no conoce la fuente" y 0 = "no se llega al proxy"
+    // son las dos un problema de CONFIGURACIÓN: no los arregla reintentar.
+    // Un 500/502 sí puede ser pasajero, así que ese avisa y sigue.
+    if (pre.status === 400 || pre.status === 0) {
+      const noLlega = pre.status === 0;
+      log(noLlega ? '\n❌ NO SE LLEGA AL PROXY — no se baja nada.'
+                  : '\n❌ EL PROXY NO CONOCE api=tmclubs — no se baja nada.');
+      log(`   ${String(pre.body).slice(0, 300)}`);
+      log(cfW0
+        ? (noLlega
+            ? `   → No responde ${cfW0}\n     Revisá que la URL esté bien escrita y que el Worker esté desplegado.`
+            : '   → Tu Worker es una versión vieja. Actualizalo con cloudflare-worker/sportdb-cache.js del repo\n     (Cloudflare → Workers → sportdb-cache → Edit code → pegar todo → Deploy) y volvé a probar.')
+        : '   → Los planteles históricos SÓLO salen por el Worker de Cloudflare (Netlify no los tiene).\n     Pegá la URL de tu Worker en el campo "Worker de Cloudflare" de arriba y volvé a probar.');
+      setProgress(0);
+      return;
+    }
+    if (pre.status !== 200) {
+      log(`\n⚠️ El proxy contestó ${pre.status} en la prueba inicial. Sigo igual, pero ojo:`);
+      log(`   ${String(pre.body).slice(0, 300)}`);
+    }
+  }
+
   window._histVacias = [];
   for (let y = h; y >= d; y--) {                    // de 2026 para atrás, como se pidió
     setProgress(((h - y) / (h - d + 1)) * 100);
@@ -1656,7 +1694,16 @@ async function extraerHistorico() {
     histDescargar(y, filas, clubesOK);
   }
   setProgress(100);
-  if (window._histVacias.length) log(`\n⚠️ Temporadas vacías: ${window._histVacias.join(', ')}`);
+  if (window._histVacias.length) {
+    log(`\n⚠️ Temporadas vacías: ${window._histVacias.join(', ')}`);
+    const total = h - d + 1;
+    if (window._histVacias.length === total) {
+      log('   TODAS las temporadas salieron vacías, así que no es un problema de un año:');
+      log('   o los IDs de competición cambiaron, o Transfermarkt cambió el HTML.');
+      log('   → Apretá 🩺 Diagnosticar una temporada: muestra el HTML crudo, que es lo que');
+      log('     hace falta para arreglar el parser. Sin eso no se puede saber cuál de los dos es.');
+    }
+  }
   log('\n=== HISTÓRICO TERMINADO ===');
 }
 

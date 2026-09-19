@@ -3381,6 +3381,54 @@ colado sigue dando rojo).
 datos sintéticos para probar el pipeline. El archivo de verdad lo genera el
 usuario con el extractor y lo deja en su carpeta.
 
+### Fase 41: la primera corrida real contra Transfermarkt — y el error que no se leía
+
+El usuario corrió el histórico 2015-2026 desde el sitio de Netlify. Resultado:
+**12 temporadas vacías, 24 pedidos, `ERROR 400 en /wettbewerb/AR1N/saison/2015
+(fuente: tmclubs)` repetido 24 veces**, y nada que dijera por qué.
+
+El 400 es correcto y esperable —**los planteles históricos sólo están en el
+Worker de Cloudflare**, no en la función de Netlify (decisión de la Fase 39:
+el parser son ~150 líneas y tenerlo en los dos lados serían dos fuentes de
+verdad)—. Lo que estaba mal era **todo lo demás**:
+
+| | antes | ahora |
+|---|---|---|
+| pedidos para descubrirlo | **24** | **1** |
+| el mensaje del proxy llegaba a pantalla | ❌ nunca | ✅ |
+| decía qué hacer | ❌ | ✅ |
+
+⚠️ **`apiGet` logueaba el status pero NUNCA el cuerpo**, que es justo donde el
+proxy explica el error. La función de Netlify devolvía el texto exacto
+—"api=tmclubs sólo está en el Worker de Cloudflare: pegá su URL en el
+campo…"— y moría ahí adentro. Ahora el cuerpo se imprime (hasta 400 chars) y
+el log dice **por qué proxy** salió el pedido.
+
+⚠️ **Un fallo de CONFIGURACIÓN no se reintenta 24 veces.** `extraerHistorico`
+hace ahora un **preflight**: un solo `tmclubs` antes del bucle. Si vuelve 400
+(el proxy no conoce la fuente) o **0** (no se llega al proxy), corta y explica.
+Un 500/502 avisa y sigue, porque ese sí puede ser pasajero.
+
+⚠️ **Cortar sólo con 400 no alcanzaba, y lo dijo la medición.** Probado con un
+Worker inalcanzable: `rawGet` devuelve **status 0** (el fetch ni sale) y la
+corrida seguía las 24 vueltas igual. Verificado con la red interceptada, los
+dos casos cortan en **1 pedido**:
+
+| escenario | mensaje |
+|---|---|
+| sin Worker (Netlify) | "Los planteles históricos SÓLO salen por el Worker… Pegá la URL" |
+| Worker que no responde | "No responde `<url>` — revisá que esté bien escrita y desplegado" |
+| Worker viejo (400) | "Actualizalo con `cloudflare-worker/sportdb-cache.js` del repo" |
+
+Y si **todas** las temporadas salen vacías con el proxy andando, el resumen
+final ya no se limita a listarlas: dice que no es un problema de un año —o
+cambiaron los IDs de competición, o cambió el HTML— y manda a 🩺 Diagnosticar,
+que es lo único que permite distinguirlos.
+
+⚠️ **Sigue sin verificarse que el parser case con el HTML real de TM**: el 400
+frenó antes de llegar al sitio. Lo único que se probó contra Transfermarkt de
+verdad es que el proxy rechaza la fuente.
+
 ### 🔶 El check `dilemas` es FLAKY — está sin arreglar, no sin ver
 
 Medido sobre el MISMO código, cinco corridas: **verde 4, rojo 1**. En la roja
