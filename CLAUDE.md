@@ -3486,15 +3486,20 @@ de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
 edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
 alrededor, y son cinco cosas distintas.
 
-Después llegaron quince más (2006-2020) y **ya son VEINTE temporadas en la
-carpeta**, de 2006 a 2025. Todas vinieron limpias de valores y de
+Después llegaron veinte más (2000-2020, sin 2005) y **ya son VEINTICINCO
+temporadas en la carpeta**, de 2000 a 2025. Todas vinieron limpias de valores y de
 nacionalidades: lo único que traían era el mismo problema de los nombres,
 porque el usuario las bajó con el extractor de antes.
 
 | temporada | jugadores | clubes (Primera + Nacional) |
 |---|---|---|
-| 2006 | 955 | 22 + 15 |
-| 2007 | 942 | 17 + 20 |
+| 2000 | 693 | 16 + — |
+| 2001 | 723 | 20 + — |
+| 2002 | 825 | 18 + — |
+| 2003 | 853 | 17 + — |
+| 2004 | 602 | 16 + — |
+| 2006 | 955 | 22 + — |
+| 2007 | 942 | 17 + — |
 | 2008 | 1.271 | 17 + 20 |
 | 2009 | 1.408 | 20 + 20 |
 | 2010 | 1.484 | 20 + 20 |
@@ -3636,16 +3641,19 @@ Primera (nunca descendió) y de River sólo que ESTÉ en alguna de las dos.
 mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
 mide, y lo restaura.
 
-### Lo que agregaron las quince temporadas viejas (2006-2020)
+### Lo que agregaron las veinte temporadas viejas (2000-2020)
 
 - **18 clubes que no existían en la tabla de nombres**, y los nombró el log
   igual que estaba pensado: Olimpo, Crucero del Norte, Atl. Paraná, Boca
   Unidos, Douglas Haig, Estudiantes SL y Juventud Unida (G) en 2016-2020;
   Dep. Merlo, Sp. Desamparados, Sp. Belgrano (SF), Villa San Carlos, Guaraní
   A. Franco, Unión (MdP) y Juventud Unida (SL) en 2011-2015; y Tiro Federal,
-  Sp. Ben Hur, Sp. Italiano y CAI en 2006-2010. Se agregan en una línea cada
-  uno, y el aviso funcionó en las cuatro tandas: ni un club quedó en minúscula
-  en silencio.
+  Sp. Ben Hur, Sp. Italiano y CAI en 2006-2010; y Alte. Brown (Arr.) y
+  Gimnasia (CdU) en 2000-2004. Se agregan en una línea cada uno, y el aviso
+  funcionó en las cinco tandas: ni un club quedó en minúscula en silencio.
+  ⚠️ **Alte. Brown (Arr.) es el de Arrecifes**, no el Almirante Brown de
+  Isidro Casanova que ya estaba en la tabla: dos clubes distintos con el
+  mismo nombre corto.
 - ⚠️ **Belgrano sale en las DOS competiciones en 2019, 2020 y 2021**, con dos
   slugs distintos (`Club Atlético Belgrano` y `ca belgrano`). Verificado que es
   el mismo club y no dos: los planteles coinciden **36/36, 55/55 y 31/31
@@ -3722,30 +3730,40 @@ Primera División anterior a la Superliga), si es que existe uno aparte; el
 campo del extractor ya está para eso. De 2014 en adelante la lista es del año
 y no hace falta nada.
 
-### ⚠️ Antes de 2008, TM no tiene el plantel entero de todos los clubes
+### ⚠️ Antes de 2008, TM no cubre el ascenso — y una liga sin planteles NO se ofrece
 
-Es el límite nuevo que trajeron 2006 y 2007, y no tiene nada que ver con el
-parser: el sitio directamente no tiene esas fichas. Medido, clubes con menos
-de 18 jugadores:
+Es el límite que trajeron los años viejos, y no tiene nada que ver con el
+parser: el sitio directamente no tiene esas fichas. La medida que importa no es
+"cuántos clubes hay" sino **cuántos tienen plantel de verdad** (15+ fichas),
+porque a los demás `squadFromDB` les inventa el equipo entero:
 
-| año | en Primera | en la Nacional |
+| año | Primera | 2ª división |
 |---|---|---|
-| 2006 | 5 de 22 | **8 de 15** |
-| 2007 | 2 de 17 | **13 de 20** |
-| 2008 | 1 de 17 | 0 de 20 |
-| 2009 | 2 de 20 | 0 de 20 |
-| 2010 | 4 de 20 | 0 de 20 |
+| 2000 | 16 de 16 | **2 de 12** |
+| 2002 | 16 de 18 | **5 de 11** |
+| 2003 | 16 de 17 | **6 de 11** |
+| 2006 | 17 de 22 | **8 de 15** |
+| 2007 | **15 de 17** | **7 de 20** |
+| 2008 en adelante | 16-30 de 16-30 | **20 de 20** |
 
-Los grandes están completos siempre (Boca 2006 trae 45 fichas, River 55), así
-que **la Primera se juega bien de 2006 en adelante**, pero **la Nacional de
-2006 y 2007 no vale la pena**: la mitad de la liga se rellena con jugadores
-inventados por `squadFromDB`. De 2008 en adelante está sana.
+(2001 y 2004 directamente vuelven con la 2ª vacía o casi.)
+
+**La Primera nunca cae ahí** —lo peor es 2007 con 15 de 17— así que el corte
+separa exactamente lo que hay que separar. `ligasJugables()` ahora exige
+**10 clubes con 15+ fichas** (`LIGA_MIN_CLUBES` / `LIGA_MIN_PLANTEL`) en vez de
+contar clubes a secas, y con eso la 2ª división anterior a 2008 **desaparece
+del selector**. Verificado que **no toca ninguna de las 25 ligas de la base
+actual**: están todas al 100% (30/30, 20/20, 18/18…).
 
 ⚠️ Y hay una coincidencia que conviene entender: los clubes flacos de Primera
 son casi siempre **los mismos que la lista de hoy metió de prestado** (Central
 Córdoba, Barracas C., Sarmiento, Talleres). Están flacos *porque* ese año
 militaban tres categorías más abajo y TM no los cubría. O sea que las dos
 fallas —lista moderna y plantel incompleto— se explican con el mismo dato.
+
+Los grandes están completos siempre: **Boca 2000 trae 50 fichas y River 48**.
+Medido jugando: Boca 2000 (Óscar Córdoba, Abbondanzieri) sale campeón en 34
+partidos y River 2003 (un Carrizo de 20, Celso Ayala) en 36.
 
 ### ⚠️ Un arnés que no drena bien los dilemas informa una temporada de 7 fechas
 

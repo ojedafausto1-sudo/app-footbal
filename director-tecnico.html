@@ -4046,17 +4046,31 @@ function buildAllTeams(liga){
 
 // Dibuja los clubes generados debajo de los 5 grandes
 // Ligas que se pueden dirigir: las que tienen plantel suficiente en la base
+// ⚠️ NO ALCANZA CON QUE LA LIGA TENGA CLUBES: TIENEN QUE TENER PLANTEL.
+// Antes de 2008 Transfermarkt no cubre el ascenso argentino, y lo que llega
+// son clubes con UN jugador. Medido sobre los 26 archivos, clubes con plantel
+// de 15+ en la 2ª división: 2000 **2 de 12** · 2002 5/11 · 2003 6/11 ·
+// 2006 8/15 · 2007 7/20 — y de 2008 en adelante, 20 de 20. Ofrecer esas cinco
+// en el selector es ofrecer una liga donde `squadFromDB` inventa el 80% de los
+// jugadores. La Primera nunca cae ahí (lo peor es 2007 con 15 de 17), así que
+// el corte separa exactamente lo que hay que separar y **no toca ninguna de
+// las 25 ligas de la base actual**, que están todas al 100%.
+const LIGA_MIN_CLUBES=10, LIGA_MIN_PLANTEL=15;
 function ligasJugables(){
   const db=window.PLAYERS_DB||[];
-  const cnt={};
-  db.forEach(r=>{ if(!r[6]||!r[5])return; (cnt[r[6]]=cnt[r[6]]||new Set()).add(r[5]); });
-  const ligas=Object.entries(cnt).filter(([,s])=>s.size>=10).map(([l])=>l);
+  const filas={};                                   // etiqueta → club → cuántos
+  db.forEach(r=>{ if(!r[6]||!r[5])return; (filas[r[6]]=filas[r[6]]||{})[r[5]]=((filas[r[6]]||{})[r[5]]||0)+1; });
+  const conPlantel=(tag,clubs)=>{
+    const m=filas[tag]||{};
+    return (clubs||Object.keys(m)).filter(c=>(m[c]||0)>=LIGA_MIN_PLANTEL).length;
+  };
+  const ligas=Object.keys(filas).filter(l=>conPlantel(l)>=LIGA_MIN_CLUBES);
   // ⚠️ La segunda división argentina NO tiene etiqueta propia en la base (se
   // deriva, ver LIGA_DB), así que este conteo no la ve: hay que sumarla a
   // mano, y sólo si de verdad quedan clubes fuera de los 30 de Primera.
   Object.keys(LIGA_DB).forEach(l=>{
     if(ligas.includes(l))return;
-    try{ if(clubesDeLiga(l).length>=10) ligas.push(l); }catch(e){}
+    try{ if(conPlantel(ligaDB(l),clubesDeLiga(l))>=LIGA_MIN_CLUBES) ligas.push(l); }catch(e){}
   });
   const ord=l=>l==='Liga ARG'?0:l==='Primera Nacional'?1:2;   // el país propio primero
   return ligas.sort((a,b)=>(ord(a)-ord(b))||a.localeCompare(b));
