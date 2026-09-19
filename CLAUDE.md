@@ -3486,8 +3486,18 @@ de 500 filas parseadas por club, 0 posiciones UNK, 0 nacionalidades UNK, 0
 edades fuera de rango y planteles completos. Lo que vino mal fue todo lo de
 alrededor, y son cinco cosas distintas.
 
+Después llegaron cinco más (2016-2020) y **ya son DIEZ temporadas en la
+carpeta**, de 2016 a 2025. Las cinco nuevas vinieron limpias de valores y de
+nacionalidades: lo único que traían era el mismo problema de los nombres,
+porque el usuario las bajó con el extractor de antes.
+
 | temporada | jugadores | clubes (Primera + Nacional) |
 |---|---|---|
+| 2016 | 2.261 | **30** + 23 |
+| 2017 | 2.104 | 28 + 25 |
+| 2018 | 2.109 | 26 + 25 |
+| 2019 | 2.683 | 25 + 32 |
+| 2020 | 2.773 | 27 + 35 |
 | 2021 | 2.542 | 29 + 36 |
 | 2022 | 2.541 | 28 + 37 |
 | 2023 | 3.277 | 28 + 38 |
@@ -3610,6 +3620,34 @@ cerrado en 2 ligas, la Nacional jugable con plantel real y **Boca enganchando el
 `sinArchivos` y `limpio` comprobaban `!hayHistoricos()`, que era cierto sólo
 mientras la carpeta estuviera vacía. Ahora el check vacía `PLAYERS_DB_HIST`,
 mide, y lo restaura.
+
+### Lo que agregaron las cinco temporadas viejas (2016-2020)
+
+- **7 clubes que no existían en la tabla de nombres**, y los nombró el log
+  igual que estaba pensado: Olimpo, Crucero del Norte, Atl. Paraná, Boca
+  Unidos, Douglas Haig, Estudiantes SL y Juventud Unida (G). Se agregan en una
+  línea cada uno; el extractor no se rompe por un club nuevo, lo reporta.
+- ⚠️ **Belgrano sale en las DOS competiciones en 2019, 2020 y 2021**, con dos
+  slugs distintos (`Club Atlético Belgrano` y `ca belgrano`). Verificado que es
+  el mismo club y no dos: los planteles coinciden **36/36, 55/55 y 31/31
+  nombres**. Gana Primera, que es la regla ya escrita, y de ahí salen las 39 y
+  56 filas repetidas de esos años.
+- **2016 tiene 30 clubes de Primera, así que SÍ juega con zonas** (`_zonasOK`)
+  — Apertura + Clausura + playoffs, el formato argentino completo, con
+  `AR_CLASICOS` filtrado a los clubes que ese año existen. Medido: Boca 2016
+  con Tévez, Bentancur, Cardona y Rossi gana el Apertura y sale 2º en la anual.
+  Es el único año de los diez que llega a 30.
+- ⚠️ **Los rivales de copa NO son del año.** La Libertadores y la Copa
+  Argentina salen de listas escritas a mano (`INT_POW`, `caPool`), así que Boca
+  2016 se cruza con Always Ready y LDU Quito de la lista de hoy. El TORNEO
+  local sí es del año; el internacional no, y arreglarlo es bajar los cuadros
+  históricos de cada copa, no un parámetro.
+- **El contrato lo arregla `P()` solo y no hay que tocar el dato.** Un tercio de
+  las filas viejas trae un contrato ya vencido para ese año (el parser toma la
+  ÚLTIMA fecha de la fila y a veces es la de llegada): `(contractUntil >= _yr)`
+  lo descarta y pone uno plausible. Verificado que los años se agrupan donde
+  corresponde — el archivo 2018 tiene el pico en 2018/2019 y el de 2023 en
+  2023/2024. Queda un ~1% con contratos largos de verdad, que es dato real.
 
 🔶 **`la fatiga no separa` es FLAKY**, como `dilemas`. El umbral es
 `roto > sano*1.35` sobre 4.000 tiradas de Poisson y se cae por centésimas
