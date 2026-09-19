@@ -60,6 +60,33 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 </div>
 
 <div class="panel">
+  <label>🕰️ Planteles históricos — fútbol argentino</label>
+  <div style="font-size:11px;color:#8faed4;margin:-4px 0 10px">
+    SportDB sólo tiene el plantel <b>de hoy</b>. Los años viejos salen del HTML de Transfermarkt
+    (<b style="color:#0fb866">gratis, sin créditos</b>), que guarda todas las temporadas desde los 90.
+    Se baja <b>una temporada por vez</b> y cada una queda en su propio archivo
+    <code>players-hist-AÑO.js</code>, que el juego carga solo si está en la carpeta.
+    <br><b style="color:#f6d318">⚠️ Esta parte no se pudo probar contra el sitio real</b> (se programó sin
+    salida a transfermarkt.com). Si una temporada vuelve vacía, apretá
+    <b>🩺 Diagnosticar</b>: te dice cuántas filas encontró y te muestra el HTML crudo, que es lo que
+    hace falta para arreglar el parser de una.
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <div><label style="font-size:11px">Desde</label><input id="histDesde" value="2024" style="width:90px"></div>
+    <div><label style="font-size:11px">Hasta</label><input id="histHasta" value="2026" style="width:90px"></div>
+    <div><label style="font-size:11px">ID Primera (TM)</label><input id="histComp1" value="AR1N" style="width:90px"></div>
+    <div><label style="font-size:11px">ID Ascenso (TM)</label><input id="histComp2" value="ARG2" style="width:90px"></div>
+  </div>
+  <div style="font-size:10px;color:#5a7aaa;margin:6px 0 10px">
+    Los IDs son los de la URL de Transfermarkt: <code>/wettbewerb/<b>AR1N</b></code>. Si cambiaron,
+    corregilos acá — no hay nada escrito a mano en el código. Dejá el de Ascenso vacío para bajar
+    sólo Primera. En Transfermarkt la temporada <b>2015</b> es la que arranca en 2015.
+  </div>
+  <button onclick="extraerHistorico()">🕰️ Extraer temporadas</button>
+  <button class="secondary" onclick="diagHistorico()">🩺 Diagnosticar una temporada</button>
+</div>
+
+<div class="panel">
   <label>Progreso</label>
   <div class="progress"><div class="progress-bar" id="pbar" style="width:0%">0%</div></div>
   <div id="status">Esperando...</div>
@@ -1114,14 +1141,22 @@ function mapPos(pos) {
 // exactamente lo que pasaba. Este botón te dice cuál de las dos falla.
 // Pide una URL cruda y devuelve status + cuerpo, sin interpretar nada.
 // Sirve para ver EXACTAMENTE qué contesta cada fuente cuando algo falla.
-async function rawGet(apiType, path) {
-  const url = '/.netlify/functions/sportdb?api=' + apiType +
-    '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+// ⚠️ Esto ignoraba el Worker de Cloudflare y pegaba SIEMPRE en Netlify, así
+// que un diagnóstico podía decir "400, tu proxy no lo soporta" cuando el
+// Worker que estás usando sí lo soporta. Y cortaba el cuerpo en 400
+// caracteres, que para un diagnóstico que tiene que mostrar HTML crudo es
+// exactamente lo que no se quiere ver.
+async function rawGet(apiType, path, opts) {
+  opts = opts || {};
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  const base = cfW ? cfW.replace(/\/+$/, '') + '/?api=' : '/.netlify/functions/sportdb?api=';
+  const url = base + apiType + '&key=' + encodeURIComponent(API_KEY)
+    + '&path=' + encodeURIComponent(path) + (opts.extra || '');
   try {
     const r = await fetch(url);
     const t = await r.text();
-    return { status: r.status, body: t.slice(0, 400) };
-  } catch (e) { return { status: 0, body: 'FETCH ERROR: ' + e.message }; }
+    return { status: r.status, body: t.slice(0, opts.max || 400), proxy: cfW ? 'worker' : 'netlify' };
+  } catch (e) { return { status: 0, body: 'FETCH ERROR: ' + e.message, proxy: cfW ? 'worker' : 'netlify' }; }
 }
 
 // ═══ SONDA: prueba varias formas de endpoint hasta encontrar una que sirva ═══
@@ -1535,6 +1570,169 @@ function copyOutput() {
   el.select();
   document.execCommand('copy');
   alert('Copiado al portapapeles');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PLANTELES HISTÓRICOS (sólo Argentina, una temporada por archivo)
+// ═══════════════════════════════════════════════════════════════
+// ⚠️ NO VERIFICADO CONTRA TRANSFERMARKT. Se escribió sin poder hacer un solo
+// pedido al sitio (el entorno donde se programó sólo tiene salida a GitHub).
+// El parser vive en el Worker (api=tmkader / api=tmclubs) y siempre devuelve
+// un bloque `diag`; acá se lo MUESTRA en el log en vez de tragárselo, que es
+// la diferencia entre arreglarlo en una vuelta y arreglarlo a ciegas.
+//
+// Por qué una temporada por archivo y no todo junto: son ~170 KB por año de
+// fútbol argentino. Treinta años en un solo archivo son 5 MB que el juego
+// tendría que cargar siempre, aunque juegues 2026.
+
+async function histClubes(compId, year) {
+  const r = await apiGet(`/wettbewerb/${compId}/saison/${year}`, 'tmclubs');
+  if (!r) { log(`    ✗ no contestó la lista de clubes de ${compId} ${year}`); return []; }
+  if (r.diag) log(`    (clubes: ${JSON.stringify(r.diag)})`);
+  return r.clubs || [];
+}
+
+async function histPlantel(clubId, year) {
+  let r = await apiGet(`/verein/${clubId}/saison/${year}`, 'tmkader');
+  if (!r || !(r.players || []).length) {
+    // Segunda oportunidad con pausa larga: el mismo patrón que ya salvó a
+    // Santos y al Porto en la extracción normal. Un club que falla una vez y
+    // se saltea desaparece de esa temporada sin que nadie se entere.
+    await sleep(5000);
+    r = await apiGet(`/verein/${clubId}/saison/${year}`, 'tmkader');
+  }
+  return r;
+}
+
+async function extraerHistorico() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const d = parseInt(document.getElementById('histDesde').value, 10);
+  const h = parseInt(document.getElementById('histHasta').value, 10);
+  const c1 = (document.getElementById('histComp1').value || '').trim();
+  const c2 = (document.getElementById('histComp2').value || '').trim();
+  if (!d || !h || h < d) { alert('Revisá el rango de años'); return; }
+  if (!c1) { alert('Falta el ID de competición de Primera'); return; }
+  if (h - d > 40) { alert('Máximo 40 temporadas por corrida'); return; }
+
+  window._histVacias = [];
+  for (let y = h; y >= d; y--) {                    // de 2026 para atrás, como se pidió
+    setProgress(((h - y) / (h - d + 1)) * 100);
+    log(`\n═══ TEMPORADA ${y} ═══`);
+    const filas = [];
+    const comps = [[c1, 'Liga ARG'], ...(c2 ? [[c2, 'Primera Nacional']] : [])];
+    let clubesOK = 0, fallados = [];
+
+    for (const [cid, liga] of comps) {
+      const clubs = await histClubes(cid, y);
+      if (!clubs.length) { log(`  ✗ ${liga} ${y}: 0 clubes`); continue; }
+      log(`  ${liga} ${y}: ${clubs.length} clubes`);
+      for (let i = 0; i < clubs.length; i++) {
+        const cl = clubs[i];
+        const r = await histPlantel(cl.id, y);
+        const ps = (r && r.players) || [];
+        if (!ps.length) {
+          log(`    ✗ ${cl.name}: sin plantel${r && r.diag ? ' — ' + JSON.stringify(r.diag) : ''}`);
+          fallados.push(cl.name);
+          continue;
+        }
+        if (clubesOK === 0) log(`    (primer club OK — ${cl.name}: ${JSON.stringify(r.diag)})`);
+        clubesOK++;
+        log(`    [${i + 1}/${clubs.length}] ${cl.name}: ${ps.length} jugadores`);
+        ps.forEach(p => filas.push(histFila(p, cl.name, liga)));
+      }
+    }
+
+    if (!filas.length) {
+      log(`  ⚠️ ${y} quedó VACÍA — no se descarga nada. Usá 🩺 Diagnosticar para ver por qué.`);
+      window._histVacias.push(y);
+      continue;
+    }
+    // ⚠️ Los clubes que fallaron se NOMBRAN. Es el bug de los 12 clubes
+    // perdidos en silencio, que acá sería peor: una temporada vieja no se
+    // vuelve a mirar nunca.
+    if (fallados.length) log(`  ⚠️ ${fallados.length} club(es) sin plantel en ${y}: ${fallados.join(', ')}`);
+    else log(`  ✓ ningún club se quedó sin plantel`);
+    log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes`);
+    histDescargar(y, filas, clubesOK);
+  }
+  setProgress(100);
+  if (window._histVacias.length) log(`\n⚠️ Temporadas vacías: ${window._histVacias.join(', ')}`);
+  log('\n=== HISTÓRICO TERMINADO ===');
+}
+
+// Una fila con el MISMO formato de players-db.js. Las columnas nuevas van al
+// final, igual que siempre, así que el juego lee estos archivos sin cambios.
+// [num,nombre,pos,edad,nac,club,liga,valorM,pie,contratoHasta,alturaCm,
+//  pos2,clausulaM,goles,asistencias,partidos,nat2]
+function histFila(p, club, liga) {
+  const pos = mapPos(p.pos);
+  const nat = mapNat(p.nat);
+  let nat2 = p.nat2 ? mapNat(p.nat2, true) : '';
+  if (nat2 === nat) nat2 = '';
+  const pie = /left|links/.test(p.foot || '') ? 'izq' : /both|beid/.test(p.foot || '') ? 'amb' : 'der';
+  const num = parseInt(p.num, 10) || (pos === 'ARQ' ? 1 : pos.indexOf('DF') === 0 ? 4 : pos.indexOf('MC') === 0 ? 8 : 9);
+  const cUntil = parseContractYear(p.contract) || 0;
+  return [num, String(p.name || ''), pos, p.age || 25, nat, club, liga,
+    p.value || 0.1, pie, cUntil, p.height || 0, '', 0, 0, 0, 0, nat2];
+}
+
+function histDescargar(year, filas, clubes) {
+  // El archivo se ENCHUFA solo: declara su temporada dentro de PLAYERS_DB_HIST
+  // sin pisar PLAYERS_DB. El juego lo carga con un <script> y, si no está, no
+  // pasa nada (el onerror lo ignora) — igual que players-db.js.
+  const js = `// Planteles del fútbol argentino — temporada ${year}\n`
+    + `// ${filas.length} jugadores · ${clubes} clubes · generado por extractor.html\n`
+    + `(window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{})[${year}]=[\n`
+    + filas.map(r => JSON.stringify(r)).join(',\n')
+    + `\n];\n`;
+  const blob = new Blob([js], { type: 'text/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `players-hist-${year}.js`;
+  a.click();
+}
+
+// ═══ DIAGNÓSTICO: una temporada, un club, y el HTML crudo en pantalla ═══
+// Sin esto, "vino vacío" no dice si falló el fetch, si TM bloqueó el pedido o
+// si cambió el layout de la tabla. Con esto se ve exactamente cuál de las tres.
+async function diagHistorico() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const y = parseInt(document.getElementById('histHasta').value, 10);
+  const c1 = (document.getElementById('histComp1').value || '').trim();
+  log(`\n🩺 Diagnóstico de la temporada ${y} (competición ${c1})`);
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log(`   Proxy: ${cfW ? 'Worker de Cloudflare' : 'función de Netlify'}`);
+
+  const lc = await rawGet('tmclubs', `/wettbewerb/${c1}/saison/${y}`, { max: 900 });
+  log(`   1) lista de clubes → status ${lc.status} (por ${lc.proxy})`);
+  log(`      ${String(lc.body)}`);
+  if (lc.status === 400) {
+    log('   ⚠️ 400 = el proxy no conoce api=tmclubs.');
+    log(lc.proxy === 'worker'
+      ? '      → Actualizá el Worker con cloudflare-worker/sportdb-cache.js del repo.'
+      : '      → Las fuentes históricas SÓLO están en el Worker de Cloudflare. Pegá su URL arriba.');
+    return;
+  }
+  let clubId = '';
+  try { clubId = (JSON.parse(lc.body).clubs || [])[0].id; } catch (e) {}
+  if (!clubId) { log('   ✗ no salió ningún club: el parser de la tabla de clubes no encontró links /startseite/verein/'); return; }
+
+  // debug=1 va como parámetro SUELTO, no adentro de `path`: si va adentro se
+  // lo come el encodeURIComponent y el Worker nunca lo ve.
+  const lp = await rawGet('tmkader', `/verein/${clubId}/saison/${y}`, { max: 4000, extra: '&debug=1&fresh=1' });
+  log(`   2) plantel del club ${clubId} → status ${lp.status}`);
+  log(`      ${String(lp.body)}`);
+  try {
+    const j = JSON.parse(lp.body);
+    const n = (j.players || []).length;
+    if (n) log(`   ✅ ${n} jugadores parseados. Ejemplo: ${JSON.stringify(j.players[0])}`);
+    else {
+      log(`   ✗ 0 jugadores. diag = ${JSON.stringify(j.diag)}`);
+      log('   → Si `filas` es 0, cambió el contenedor de la tabla (ya no es <tr class="odd">).');
+      log('   → Si `filas` > 0 y `parseados` es 0, cambió la fila (el link /profil/spieler/).');
+      log('   → Arriba está el HTML crudo de la primera fila: pasámelo y lo arreglo de una.');
+    }
+  } catch (e) { log('   ✗ la respuesta no era JSON: ' + e.message); }
 }
 
 function downloadOutput() {

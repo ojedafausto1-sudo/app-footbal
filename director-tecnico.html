@@ -471,6 +471,19 @@ tr:hover td{background:rgba(255,255,255,.025)}
 /* TEAM SELECT CARD */
 /* ═══ SELECTOR DE INICIO EN 3 PASOS ═══ */
 .ts-steps{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+/* Fila de temporadas históricas. Es una FILA dentro del wizard, así que va con
+   translucidez + borde y NO con backdrop-filter: el vidrio va en los
+   contenedores, y los chips de los pasos que tiene al lado ya lo llevan. */
+.ts-temp{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin:-6px 0 16px;
+  padding:9px 12px;border-radius:12px;border:1px solid var(--bdr);background:rgba(255,255,255,.03)}
+.ts-temp-t{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--t3)}
+.ts-temp-b{padding:4px 11px;border-radius:999px;border:1px solid var(--bdr);background:transparent;
+  font-family:'Chakra Petch',sans-serif;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--t2);cursor:pointer;transition:.15s}
+.ts-temp-b:hover{border-color:rgba(var(--gold-rgb),.35);color:var(--t1)}
+.ts-temp-b.on{background:var(--gold);border-color:var(--gold);color:var(--dark)}
+.ts-temp-n{flex-basis:100%;text-align:center;font-size:10px;color:var(--t3)}
 .ts-step{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;border:1px solid var(--bdr);
   background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
@@ -560,6 +573,24 @@ tr:hover td{background:rgba(255,255,255,.025)}
 </style>
 <script src="players-db.js" onerror="window.PLAYERS_DB=window.PLAYERS_DB||[]"></script>
 <script src="dts-db.js" onerror="window.DTS_DB=window.DTS_DB||[]"></script>
+<script>
+// ═══ TEMPORADAS HISTÓRICAS: los archivos se enchufan solos ═══
+// Cada `players-hist-AÑO.js` que el extractor deje en esta carpeta aparece en
+// el selector de inicio sin tocar una línea de código. Los años que no están
+// fallan en silencio y no pasa nada.
+// ⚠️ Van con `document.write` y NO con appendChild a propósito: un script
+// agregado por JS carga ASÍNCRONO y `PLAYERS_DB_HIST` no existiría todavía
+// cuando arranca el juego. Escritos durante el parseo, se ejecutan en orden y
+// antes que el resto, igual que players-db.js.
+// ⚠️ Y tienen que ser `.js` con `window.PLAYERS_DB_HIST[año]=[...]`, no
+// `.json`: el usuario juega con file:// y un fetch de JSON ahí muere por CORS.
+// Es la misma razón por la que players-db.js es un .js.
+window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
+(function(){ var t='';
+  for(var y=2026;y>=1992;y--) t+='<scr'+'ipt src="players-hist-'+y+'.js" onerror="void 0"></scr'+'ipt>';
+  document.write(t);
+})();
+</script>
 </head>
 <body>
 
@@ -1278,6 +1309,20 @@ const PERF_ADJ = {
   'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
 };
 function perfAdj(name){ return PERF_ADJ[name]||0; }
+// ═══ EL SUELDO NO ERA LINEAL EN LA VIDA REAL Y ACÁ SÍ ═══
+// El sueldo inicial salía de `rat*0.4`, o sea LINEAL, y ese es el motivo por
+// el que NINGÚN club chico del juego podía sobrevivir un año. Medido: un
+// plantel de media 60 pagaba 2,8M por mes contra los 3,5M de Boca —el 80%—
+// teniendo el 7% del valor de plantel. San Martín (SJ), Paraguay y Venezuela
+// entraban en rojo en la SEMANA 8 y cerraban la temporada entre −15M y −28M.
+// Ahora es convexo, con el MISMO exponente que ya usa `_negWageExpect` para
+// la pretensión del mercado (2.35) —una sola curva de sueldos, no dos— y
+// anclado en la media de Boca para no mover el balance con el que está
+// tuneado el juego.
+const WAGE_EXP=2.35, WAGE_RAT0=73, WAGE_K=28.5;
+function wageDeRat(rat){
+  return Math.max(3,Math.round(Math.pow(Math.max(45,rat||60)/WAGE_RAT0,WAGE_EXP)*WAGE_K));
+}
 function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm,pos2,clauseM,gls,ast,aps,nat2) {
   const rat = (rat_override > 0) ? Math.min(91,rat_override)
     : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
@@ -1287,12 +1332,18 @@ function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contract
   // Si la base no lo trae, se estima: a los cracks les quedan más años.
   // El año base es la temporada EN CURSO, no 2026 fijo: un juvenil que sube en
   // 2029 tiene que firmar hacia adelante, no nacer con el contrato vencido.
-  const _yr = (typeof G!=='undefined' && G && G.season) ? G.season : 2026;
+  // ⚠️ El fallback NO puede ser 2026 fijo: `squadFromDB` corre DENTRO del
+  // literal que crea `G`, o sea cuando `G.season` todavía no existe. Jugando
+  // 2015 eso le ponía a todo el plantel contrato hasta 2026-2028 — treinta
+  // años de vínculo — y rompía precontratos, libres y descuentos por contrato
+  // corto. `tempActual()` sabe qué base está enchufada; 2026 no sabe nada.
+  const _yr = (typeof G!=='undefined' && G && G.season) ? G.season
+            : (typeof tempActual==='function' ? tempActual() : 2026);
   const cUntil = (contractUntil && contractUntil >= _yr) ? contractUntil
     : _yr + (rat>=80 ? 2+~~(Math.random()*2) : ~~(Math.random()*3));
   return {
     id:'p'+(PID++), num:n, name, pos, age, nat, club, lg,
-    val, rat, wage:wage||~~(rat*.4), pot,
+    val, rat, wage:wage||wageDeRat(rat), pot,
     perf:1, // multiplicador de rendimiento sobre el valor (0.75–1.30)
     morale:65+~~(Math.random()*25),
     contract:cUntil,
@@ -1417,7 +1468,7 @@ function pgr(pos){
 // Cada liga tiene sus nacionalidades locales (las británicas juntas en la
 // Premier, EE.UU. y Canadá en la MLS, como en la vida real).
 const LIGA_NAT={
-  'Liga ARG':['ARG'], 'Brasil':['BRA'], 'Chile':['CHI'], 'Paraguay':['PAR'],
+  'Liga ARG':['ARG'], 'Primera Nacional':['ARG'], 'Brasil':['BRA'], 'Chile':['CHI'], 'Paraguay':['PAR'],
   'Uruguay':['URU'], 'Colombia':['COL'], 'Perú':['PER'], 'Ecuador':['ECU'],
   'Venezuela':['VEN'], 'Bolivia':['BOL'], 'Liga MX':['MEX'],
   'MLS':['USA','CAN'], 'Premier':['ING','ESC','GAL','NIR','IRL'],
@@ -1573,7 +1624,10 @@ function squadFromDB(clubName, fallbackFn, overrides, liga){
   // La liga que dirigís sale de G cuando hay partida (es lo que SÍ se guarda) y
   // de la global sólo mientras se está creando: ver el comentario de loadGame.
   const _lg=liga||(typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG';
-  let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]===_lg);
+  // La segunda división argentina vive bajo la etiqueta 'Liga ARG' en la base
+  // (ver LIGA_DB): sin esto, un club del ascenso buscaba filas etiquetadas
+  // 'Primera Nacional', no encontraba ninguna y se caía al plantel inventado.
+  let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]===((typeof ligaDB==='function')?ligaDB(_lg):_lg));
   if(rows.length<15) return fallbackFn(); // datos insuficientes → plantel manual
   // Tope 30: los planteles TM traen hasta 37 fichas y el juego permite 35.
   // Se priorizan los más valiosos, garantizando al menos 2 arqueros.
@@ -2031,6 +2085,27 @@ const SPONSORS = [
   {id:'sp23',cat:'App',name:'PedidosYa',icon:'🚀',income:0.03,weeks:20,reqRep:48,region:'LATAM'},
   {id:'sp33',cat:'App',name:'EA Sports',icon:'🎮',income:0.09,weeks:52,reqRep:70,region:'GLOBAL'},
   {id:'sp40',cat:'App',name:'Glovo',icon:'🛴',income:0.03,weeks:20,reqRep:50,region:'EU'},
+  // ═══ GAMA BAJA: el catálogo arrancaba en rep 48 y hay clubes jugables en 35 ═══
+  // Medido antes de agregarlas: un club de rep 39 (San Martín de San Juan,
+  // Almirante Brown, cualquier chico de Paraguay o Venezuela) llegaba a
+  // **0 de las 10 categorías** y cerraba la temporada con CERO plata de
+  // patrocinio. Es el mismo agujero que la Fase 22 tapó por REGIÓN, ahora por
+  // REPUTACIÓN: la invariante no es "ninguna liga sin categoría" sino
+  // "ningún club jugable sin catálogo".
+  // ⚠️ Llevan `maxRep` porque `weeklySponsors` elige con `cand[random]`
+  // UNIFORME: sin tope, a Boca le ofrecerían la marca de 0,02 en vez de Nike y
+  // se le diluirían los patrocinios. Un corralón del barrio no le pone la
+  // camiseta a Boca, así que el tope además es lo que pasa en la realidad.
+  // Van en GLOBAL: un sponsor modesto existe en los 24 países, y limitarlos a
+  // LATAM habría dejado al club chico europeo otra vez en cero.
+  {id:'sp41',cat:'Camiseta',name:'Kelme',icon:'👕',income:0.030,weeks:26,reqRep:30,maxRep:54,region:'GLOBAL'},
+  {id:'sp42',cat:'Camiseta',name:'Joma',icon:'👕',income:0.035,weeks:26,reqRep:36,maxRep:54,region:'GLOBAL'},
+  {id:'sp43',cat:'Patrocinador Principal',name:'Banco Regional',icon:'🏦',income:0.035,weeks:26,reqRep:30,maxRep:54,region:'GLOBAL'},
+  {id:'sp44',cat:'Manga',name:'Macron',icon:'🎽',income:0.020,weeks:26,reqRep:28,maxRep:54,region:'GLOBAL'},
+  {id:'sp45',cat:'Bebidas',name:'Gaseosa Regional',icon:'🥤',income:0.022,weeks:26,reqRep:28,maxRep:54,region:'GLOBAL'},
+  {id:'sp46',cat:'Tecnología',name:'Cooperativa de Internet',icon:'📶',income:0.020,weeks:26,reqRep:28,maxRep:54,region:'GLOBAL'},
+  {id:'sp47',cat:'App',name:'Delivery del Barrio',icon:'🛵',income:0.020,weeks:20,reqRep:28,maxRep:54,region:'GLOBAL'},
+  {id:'sp48',cat:'Transporte',name:'Transporte Urbano',icon:'🚌',income:0.020,weeks:26,reqRep:28,maxRep:54,region:'GLOBAL'},
 ];
 
 // Qué marcas te golpean la puerta según dónde dirigís. La lista siempre
@@ -2057,6 +2132,16 @@ function sponRegiones(lg){
 // Un sponsor sin `region` es de un save/tabla vieja: se trata como LATAM, que
 // es lo que era el juego entero antes de esto.
 function sponsorEnRegion(s,lg){ return sponRegiones(lg).indexOf((s&&s.region)||'LATAM')>=0; }
+// La gama baja tiene TECHO de reputación: una marca modesta deja de golpearte
+// la puerta cuando el club creció. ⚠️ `!==undefined` y no `||`: si alguna vez
+// una marca lleva maxRep 0, `||` la haría ilimitada (la misma trampa que ya
+// arruinó `p.morale||60` y `cuposDescenso`).
+function sponsorEnRep(s,rep){
+  const r=(rep!==undefined)?rep:((G&&G.rep!==undefined)?G.rep:50);
+  if(!s) return false;
+  if(r<(s.reqRep||0)) return false;
+  return s.maxRep===undefined || r<=s.maxRep;
+}
 // El naming es de TU cancha: "Naming Bombonera" estaba escrito a mano y se lo
 // ofrecían al Real Madrid igual.
 function sponName(s){
@@ -2196,7 +2281,7 @@ function weeklySponsors(){
   // te miran: la reputación sigue siendo la puerta de entrada.
   const ocupadas=new Set((G.sponsors||[]).map(s=>s.cat));
   const enMesa=new Set(ofertasSponsor().map(o=>o.cat));
-  const cand=SPONSORS.filter(s=>sponsorEnRegion(s) && (G.rep||50)>=s.reqRep
+  const cand=SPONSORS.filter(s=>sponsorEnRegion(s) && sponsorEnRep(s)
     && !ocupadas.has(s.cat) && !enMesa.has(s.cat));
   if(!cand.length) return;
   const s=cand[~~(Math.random()*cand.length)];
@@ -2417,6 +2502,8 @@ function signSponsor(id){
   const sp=SPONSORS.find(s=>s.id===id);
   if(!sp) return;
   if(G.rep<sp.reqRep){flash('❌ Reputación insuficiente (necesitás '+sp.reqRep+')','loss');return;}
+  // Mismo criterio que la lista: si no, se firma la marca chica por id.
+  if(!sponsorEnRep(sp)){flash('❌ '+sponName(sp)+' ya no patrocina clubes de tu tamaño','loss');return;}
   // El filtro va también acá, no sólo en la lista: si no, alcanza con llamar a
   // signSponsor('sp5') para firmar YPF dirigiendo en la Premier.
   if(!sponsorEnRegion(sp)){flash('❌ '+sponName(sp)+' no patrocina en '+(typeof ligaComp==='function'?ligaComp():'esta liga'),'loss');return;}
@@ -2817,13 +2904,13 @@ const AR_CLASICOS=[
 // que ya usaba la liga argentina.
 // La base trae más clubes por país de los que juegan la primera (ascensos,
 // filiales, equipos de otras categorías), así que se toman los N más caros.
-const LIGA_TAM={'Liga ARG':30,'Premier':20,'España':20,'Italia':20,'Alemania':18,
+const LIGA_TAM={'Liga ARG':30,'Primera Nacional':20,'Premier':20,'España':20,'Italia':20,'Alemania':18,
   'Francia':18,'Portugal':18,'Holanda':18,'Bélgica':16,'Turquía':18,'Brasil':20,
   'Liga MX':18,'MLS':24,'Colombia':20,'Chile':16,'Perú':18,'Uruguay':15,
   'Paraguay':12,'Ecuador':15,'Bolivia':15,'Venezuela':11,'Arabia':18,
   'Rusia':16,'Grecia':14};
 // Nombre que se muestra de la competencia de cada país
-const LIGA_NOMBRE={'Liga ARG':'Liga Profesional','Premier':'Premier League',
+const LIGA_NOMBRE={'Liga ARG':'Liga Profesional','Primera Nacional':'Primera Nacional','Premier':'Premier League',
   'España':'LaLiga','Italia':'Serie A','Alemania':'Bundesliga','Francia':'Ligue 1',
   'Portugal':'Primeira Liga','Holanda':'Eredivisie','Bélgica':'Pro League',
   'Turquía':'Süper Lig','Brasil':'Brasileirão','Liga MX':'Liga MX','MLS':'MLS',
@@ -2854,18 +2941,55 @@ const COPA_CONT={
   'Turquía':'Champions League','Rusia':'Champions League',
   'Liga MX':'Concachampions','MLS':'Concachampions','Arabia':'Champions League Asiática'};
 function copaCont(){ return COPA_CONT[ligaMia()]||'copa internacional'; }
+// ⚠️ En la segunda división NO hay copa continental: el objetivo es SUBIR.
+// Sin esto la dirigencia te pedía "clasificar a la copa internacional (Top 4)"
+// dirigiendo a Chacarita — un objetivo que no se puede cumplir nunca porque
+// el torneo no existe para esa categoría.
+function hayCopaCont(){ return !esSegundaARG(ligaMia()); }
+function objetivoCopa(){ return hayCopaCont()?('clasificar a la '+copaCont()+' (Top 4)')
+                                             :'pelear el ascenso (Top 4)'; }
 // El formato de zonas + Apertura/Clausura + tabla anual es SÓLO argentino: el
 // resto del mundo juega todos contra todos. La UI tiene que decir lo que
 // corresponde — al Real Madrid le explicaba cómo suma la tabla anual.
 function esLigaARG(){ return ligaMia()==='Liga ARG'; }
 function esLigaLocal(c){ return c===ligaComp(); }
 // Los clubes que juegan la primera de esa liga, por valor de plantel
+// ═══════════════════════════════════════════════════════════════════════
+// LA SEGUNDA DIVISIÓN ARGENTINA — derivada, NO re-etiquetada
+// ═══════════════════════════════════════════════════════════════════════
+// Los 36 clubes del ascenso YA estaban en la base: son 66 argentinos y el
+// juego se quedaba con 30 y tiraba el resto. Verificado sobre players-db.js:
+// Almirante Brown, San Telmo, Chacarita, Quilmes, Ferro, Atlanta, Los Andes,
+// Colón, Patronato… todos con plantel de 20-35 jugadores.
+//
+// ⚠️ NO se les cambia la etiqueta `Liga ARG` en la base, y no es capricho:
+// `players-db.js` lo REGENERA el extractor, así que un re-etiquetado a mano
+// se perdería en la próxima extracción. Por eso la categoría se DERIVA:
+// `LIGA_DB` dice bajo qué etiqueta leer, y el corte lo hace `AR_CLUBS`.
+const LIGA_DB={'Primera Nacional':'Liga ARG'};
+function ligaDB(lg){ return LIGA_DB[lg]||lg; }
+// Los 30 de Primera. Sale de `G.arClubs` cuando existe para que un día los
+// ascensos puedan moverla sin tocar la constante.
+function clubesPrimera(){ return (typeof G==='object'&&G&&G.arClubs)||AR_CLUBS; }
+function esSegundaARG(lg){ return lg==='Primera Nacional'; }
 function clubesDeLiga(lg){
   const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
+  const tag=ligaDB(lg);
   const val={};
-  db.forEach(r=>{ if(r[6]!==lg||!r[5])return; val[r[5]]=(val[r[5]]||0)+(r[7]||0); });
+  db.forEach(r=>{ if(r[6]!==tag||!r[5])return; val[r[5]]=(val[r[5]]||0)+(r[7]||0); });
+  let orden=Object.entries(val).sort((a,b)=>b[1]-a[1]).map(([c])=>c);
+  // ⚠️ Las dos categorías argentinas salen de la MISMA etiqueta, así que el
+  // corte por valor no alcanza: medido, el top 30 por valor metía a Gimnasia
+  // (M), Ciudad Bolívar y Midland —los tres del ascenso— y dejaba afuera a
+  // Central Córdoba, Aldosivi y San Martín (SJ), que SÍ son de Primera.
+  // `buildAllTeams` ya tapaba eso con un `lg==='Liga ARG'?AR_CLUBS:` especial;
+  // acá el caso especial se generaliza y sirve para las dos categorías.
+  if(tag==='Liga ARG'){
+    const pri=clubesPrimera();
+    orden=orden.filter(c=>esSegundaARG(lg)?!pri.includes(c):pri.includes(c));
+  }
   const n=LIGA_TAM[lg]||18;
-  return Object.entries(val).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([c])=>c);
+  return orden.slice(0,n);
 }
 // Fixture de una liga común: todos contra todos, ida y vuelta
 function buildCalOtra(teamName,lg,startWeek){
@@ -3662,6 +3786,13 @@ function loadGame(){
     // liga por defecto, así que el escudo, los colores y los rivales salían de
     // Argentina. Las dos cosas se arreglan restaurando la liga ANTES de
     // reconstruir nada.
+    // ⚠️ Y LA TEMPORADA DE LA BASE, ANTES QUE LA LIGA. `_DB_SEASON` es otra
+    // global que no se serializa: es el MISMO bug que `_LIGA_ELEGIDA`, un
+    // escalón más abajo. Sin esto, una partida de 2015 recargada rearmaba
+    // `TEAMS` con los planteles de 2026 (Boca 2015 con el plantel de hoy) y
+    // el mercado quedaba mezclando dos mundos. Va primero porque
+    // `buildAllTeams` de la línea de abajo ya lee `PLAYERS_DB`.
+    try{ aplicarTemporada(saved.dbSeason||2026); }catch(e){}
     _LIGA_ELEGIDA = saved.miLiga || 'Liga ARG';
     // Sin esto, continuar con un club generado dejaba TEAMS[G.teamId] indefinido
     // (sin color, sin escudo, sin chequeo de Libertadores).
@@ -3793,7 +3924,13 @@ function buildAllTeams(liga){
   const db=window.PLAYERS_DB||[];
   const lg=liga||'Liga ARG';
   const fuerza={};
-  db.forEach(r=>{ const club=r[5]; if(!club||r[6]!==lg)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
+  // ⚠️ El filtro va contra la ETIQUETA DE LA BASE, no contra el nombre de la
+  // liga: la segunda división argentina se deriva de 'Liga ARG' (ver LIGA_DB)
+  // y con `r[6]!==lg` este mapa quedaba VACÍO. Medido: los 20 clubes del
+  // ascenso salían con val=0, o sea rep 35 (el piso), 9.000 de capacidad y 2M
+  // de presupuesto TODOS iguales — Chacarita y San Martín de Tucumán idénticos.
+  const tagDB=(typeof ligaDB==='function')?ligaDB(lg):lg;
+  db.forEach(r=>{ const club=r[5]; if(!club||r[6]!==tagDB)return; (fuerza[club]=fuerza[club]||[]).push(r[7]||0); });
   // En la Argentina son los 30 de la liga; afuera, los clubes de primera de ese país
   const nombres=(lg==='Liga ARG')?AR_CLUBS:clubesDeLiga(lg);
   nombres.forEach(name=>{
@@ -3843,8 +3980,16 @@ function ligasJugables(){
   const db=window.PLAYERS_DB||[];
   const cnt={};
   db.forEach(r=>{ if(!r[6]||!r[5])return; (cnt[r[6]]=cnt[r[6]]||new Set()).add(r[5]); });
-  return Object.entries(cnt).filter(([,s])=>s.size>=10)
-    .map(([l])=>l).sort((a,b)=>a==='Liga ARG'?-1:b==='Liga ARG'?1:a.localeCompare(b));
+  const ligas=Object.entries(cnt).filter(([,s])=>s.size>=10).map(([l])=>l);
+  // ⚠️ La segunda división argentina NO tiene etiqueta propia en la base (se
+  // deriva, ver LIGA_DB), así que este conteo no la ve: hay que sumarla a
+  // mano, y sólo si de verdad quedan clubes fuera de los 30 de Primera.
+  Object.keys(LIGA_DB).forEach(l=>{
+    if(ligas.includes(l))return;
+    try{ if(clubesDeLiga(l).length>=10) ligas.push(l); }catch(e){}
+  });
+  const ord=l=>l==='Liga ARG'?0:l==='Primera Nacional'?1:2;   // el país propio primero
+  return ligas.sort((a,b)=>(ord(a)-ord(b))||a.localeCompare(b));
 }
 // ═══════════════════════════════════════════════════════════════════════
 // SELECTOR DE INICIO EN 3 PASOS: PAÍS → LIGA → CLUB
@@ -3860,7 +4005,7 @@ function ligasJugables(){
 // del país), que son metadatos de diseño, no la lista: una liga sin entrada
 // acá igual aparece, con una bandera genérica.
 const LIGA_PAIS={
-  'Liga ARG':{p:'Argentina',f:'🇦🇷'}, 'Brasil':{p:'Brasil',f:'🇧🇷'},
+  'Liga ARG':{p:'Argentina',f:'🇦🇷'}, 'Primera Nacional':{p:'Argentina',f:'🇦🇷'}, 'Brasil':{p:'Brasil',f:'🇧🇷'},
   'Chile':{p:'Chile',f:'🇨🇱'}, 'Uruguay':{p:'Uruguay',f:'🇺🇾'},
   'Paraguay':{p:'Paraguay',f:'🇵🇾'}, 'Colombia':{p:'Colombia',f:'🇨🇴'},
   'Perú':{p:'Perú',f:'🇵🇪'}, 'Ecuador':{p:'Ecuador',f:'🇪🇨'},
@@ -3910,6 +4055,52 @@ function tsLigas(){
   }).sort((a,b)=>b.val-a.val);
   return _tsLigasCache;
 }
+// ═══════════════════════════════════════════════════════════════════════
+// TEMPORADAS HISTÓRICAS — MUNDO CERRADO
+// ═══════════════════════════════════════════════════════════════════════
+// Transfermarkt guarda los planteles de todas las temporadas y el extractor
+// los baja a `players-hist-AÑO.js` (ver la nota del <script> de arriba).
+// Elegir un año viejo cambia `window.PLAYERS_DB` entero y el resto del juego
+// no se entera: las ligas jugables, los clubes, los valores, los nombres de
+// la cantera y el mercado salen TODOS de esa misma global.
+//
+// De ahí sale el "mundo cerrado" sin escribir una sola regla: si el archivo
+// de 2015 sólo trae fútbol argentino, `ligasJugables()` devuelve Liga ARG y
+// Primera Nacional y nada más. No hay un modo histórico que apagar ni una
+// lista de ligas que filtrar — es la consecuencia del dato.
+//
+// ⚠️ `_DB_SEASON` es una GLOBAL y las globales NO se serializan: es
+// exactamente el bug de `_LIGA_ELEGIDA`, que al recargar volvía a 'Liga ARG'
+// y le metía la Libertadores al Real Madrid. Por eso el año se guarda en
+// `G.dbSeason` y `loadGame` llama a `aplicarTemporada` ANTES de reconstruir
+// nada, igual que hace con la liga.
+let _DB_SEASON=null, _PDB_ACTUAL=null;
+function temporadasDB(){
+  const h=window.PLAYERS_DB_HIST||{};
+  return Object.keys(h).map(Number).filter(y=>(h[y]||[]).length>200).sort((a,b)=>b-a);
+}
+function tempActual(){ return _DB_SEASON||2026; }
+function hayHistoricos(){ return temporadasDB().length>0; }
+function aplicarTemporada(y){
+  y=+y||2026;
+  if(_PDB_ACTUAL===null) _PDB_ACTUAL=window.PLAYERS_DB||[];
+  const h=window.PLAYERS_DB_HIST||{};
+  const nueva=(h[y]&&h[y].length>200)?h[y]:_PDB_ACTUAL;
+  const cambia=(window.PLAYERS_DB!==nueva);
+  window.PLAYERS_DB=nueva;
+  _DB_SEASON=(nueva===_PDB_ACTUAL)?2026:y;
+  if(!cambia) return _DB_SEASON;
+  // ⚠️ Todo lo que cachea algo derivado de la base hay que tirarlo, o el
+  // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
+  // Son cinco cachés y los cinco están anotados acá para que agregar uno
+  // nuevo sin sumarlo a esta lista se note.
+  try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
+  try{ _rankCache=null; _rankSeason=null; }catch(e){} // prestigio de los 600 clubes
+  try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
+  try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
+  try{ _topLiga._lg=null; _topLiga._v=null; }catch(e){} // rivales directos (cachea en la función)
+  return _DB_SEASON;
+}
 let _tsPaso=1,_tsPais=null,_tsLg=null,_tsFiltro='';
 function tsIr(paso,arg){
   if(paso===1){_tsPaso=1;_tsPais=null;_tsLg=null;}
@@ -3936,7 +4127,7 @@ function tsRender(soloLista){
     L.forEach(x=>{ (porPais[x.pais]=porPais[x.pais]||{flag:x.flag,ligas:[],val:0}).ligas.push(x);
                    porPais[x.pais].val+=x.val; });
     const paises=Object.entries(porPais).sort((a,b)=>b[1].val-a[1].val);
-    el.innerHTML=tsPasos()+`
+    el.innerHTML=tsPasos()+tsTemporadas()+`
       <div class="ts-grid" style="grid-template-columns:repeat(auto-fill,minmax(168px,1fr))">
         ${paises.map(([p,o])=>`
           <button class="ts-opt" onclick="tsIr(2,'${p.replace(/'/g,"\\'")}')">
@@ -4007,6 +4198,24 @@ function tsValClub(name){
   const v=(_tsValCache[name]||[]).sort((a,b)=>b-a).slice(0,18);
   return Math.round(v.reduce((a,x)=>a+x,0)*10)/10;
 }
+// La fila de temporadas del paso 1. No existe si no hay ningún archivo
+// histórico en la carpeta: un selector con una sola opción es ruido.
+function tsTemporadas(){
+  if(!hayHistoricos()) return '';
+  const ys=[2026].concat(temporadasDB().filter(y=>y!==2026));
+  const act=tempActual();
+  return `<div class="ts-temp">
+    <span class="ts-temp-t">🕰️ Temporada</span>
+    ${ys.map(y=>`<button class="ts-temp-b${y===act?' on':''}" onclick="tsSetTemporada(${y})">${y===2026?'Actual':y}</button>`).join('')}
+    ${act!==2026?`<span class="ts-temp-n">Mundo cerrado: sólo los clubes y jugadores que existían en ${act}.</span>`:''}
+  </div>`;
+}
+function tsSetTemporada(y){
+  aplicarTemporada(y);
+  // Volver al paso 1: el país que estabas mirando puede no existir en ese año.
+  _tsPaso=1;_tsPais=null;_tsLg=null;_tsFiltro='';
+  tsRender();
+}
 function tsPasos(){
   const p2=_tsPais||'País', p3=_tsLg?((typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[_tsLg])||_tsLg):'Liga';
   const cls=n=>_tsPaso===n?'ts-step on':(_tsPaso>n?'ts-step done':'ts-step');
@@ -4055,11 +4264,17 @@ function initGame(teamId){
   G = {
     teamId: teamId,
     teamName: tc.name,
-    budget: tc.initBudget, week:1, season:2026,
+    // ⚠️ El año NO es 2026 fijo: si elegiste una temporada histórica, la
+    // carrera arranca AHÍ. `tempActual()` sale de la base que está cargada, no
+    // de una constante — el mismo criterio que evitó el quinto 'Liga ARG'
+    // escrito a mano. `dbSeason` es lo único que se guarda de esto: es lo que
+    // `loadGame` necesita para volver a enchufar la base correcta.
+    budget: tc.initBudget, week:1, season:(typeof tempActual==='function'?tempActual():2026),
+    dbSeason:(typeof tempActual==='function'?tempActual():2026),
     // El año en que asumiste: lo usan las elecciones (cada 4 temporadas) y el
     // resumen de la carrera. Sin esto el ciclo electoral se contaba desde un
     // 2026 fijo aunque hubieras arrancado en otra temporada.
-    seasonIni:2026,
+    seasonIni:(typeof tempActual==='function'?tempActual():2026),
     wins:0, draws:0, losses:0, gf:0, ga:0,
     rep: tc.initRep, morale: tc.initMorale,
     formation:'4-3-3',
@@ -5143,7 +5358,7 @@ function sacarDelPlantel(p,tipo,det){
 // además se romperían `natsLocales()` y nacionalizar, que leen lo mismo.
 const CUPO_LIGA={
   'España':3, 'Italia':3, 'Francia':4,
-  'Liga ARG':6, 'Chile':6, 'Uruguay':6,
+  'Liga ARG':6, 'Primera Nacional':6, 'Chile':6, 'Uruguay':6,
   'Brasil':9, 'Liga MX':9, 'Colombia':4, 'MLS':8,
   'Paraguay':5, 'Perú':5, 'Ecuador':5, 'Venezuela':5, 'Bolivia':5,
   'Arabia':8, 'Rusia':8,
@@ -5248,9 +5463,11 @@ function updateBoard($){
   const lbl=conf>=85?'Excelente':conf>=70?'Buena':conf>=45?'Atenta':conf>=25?'Preocupada':'Crítica';
   if($('confV')){ $('confV').textContent=conf+' · '+lbl; $('confV').style.color=col; }
   if($('confBar')){ $('confBar').style.width=conf+'%'; $('confBar').style.background=col; }
-  const obj=G.rep>=80?('Salir campeón y llegar a semis de '+copaCont())
-          :G.rep>=70?('Clasificar a la '+copaCont()+' (top 4)')
-          :G.rep>=58?'Pelear arriba y clasificar a un torneo continental'
+  // En el ascenso el objetivo es SUBIR, no una copa que esa categoría no juega
+  const _cop=hayCopaCont();
+  const obj=G.rep>=80?(_cop?('Salir campeón y llegar a semis de '+copaCont()):'Ascender a Primera')
+          :G.rep>=70?objetivoCopa()
+          :G.rep>=58?(_cop?'Pelear arriba y clasificar a un torneo continental':'Pelear arriba y meterse en el reducido')
           :'Mantener la categoría y sanear las finanzas';
   let objHtml=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
   if(G.boardObjectives&&G.boardObjectives.length){
@@ -11686,9 +11903,9 @@ function setBoardTarget(){
   const nClubs=(G.league&&G.league.clubs.length)||19;
   let maxPos,desc;
   if(rep>=78){maxPos=Math.min(2,nClubs);desc='pelear el campeonato (terminar 1º o 2º)';}
-  else if(rep>=68){maxPos=4;desc='clasificar a la '+copaCont()+' (Top 4)';}
+  else if(rep>=68){maxPos=4;desc=objetivoCopa();}
   else if(rep>=58){maxPos=8;desc='terminar en la mitad de arriba (Top 8)';}
-  else if(rep>=48){maxPos=Math.max(10,nClubs-6);desc='pelear una copa internacional';}
+  else if(rep>=48){maxPos=Math.max(10,nClubs-6);desc=hayCopaCont()?'pelear una copa internacional':'no sufrir el descenso';}
   else{maxPos=nClubs-3;desc='mantener la categoría con comodidad';}
   G.boardTarget={maxPos,desc,reviewed:false};
   addPhoneMsg('board','Comisión Directiva',`📋 Presidente, el objetivo de la dirigencia para esta temporada es <b>${desc}</b>. Confiamos en su gestión.`,'🏛️');
@@ -12501,7 +12718,7 @@ function correrEleccion(){
 const DESCENSOS={
   'España':3,'Premier':3,'Italia':3,'Alemania':2,'Francia':2,'Portugal':2,
   'Holanda':2,'Bélgica':2,'Grecia':2,'Turquía':3,'Rusia':2,
-  'Brasil':4,'Liga ARG':2,'Liga MX':1,'MLS':0,
+  'Brasil':4,'Liga ARG':2,'Primera Nacional':4,'Liga MX':1,'MLS':0,
   'Colombia':2,'Chile':2,'Uruguay':2,'Perú':2,'Ecuador':2,'Paraguay':2,
   'Bolivia':2,'Venezuela':2,'Arabia':3,
 };
@@ -14583,7 +14800,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // trámite. Calibrado para que el neto anual quede cerca de +5M en
     // régimen: las obras grandes se pagan vendiendo bien, no esperando.
     const _estructura=Math.max(0,((G.rep||50)-50)/100*1.1)+(G.socios||20000)/100000*0.38;
-    const ops=Math.max(0.4,Math.round((1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035+_estructura-_wfx.opsCut)*10)/10);
+    // ═══ …Y UN CLUB CHICO TIENE QUE COSTAR COMO UN CLUB CHICO ═══
+    // `_estructura` ya hacía que crecer saliera caro, pero la parte FIJA de
+    // los gastos (base + cuerpo técnico + estadio + plantel = 3,6M/mes) era
+    // idéntica para Boca y para un club de rep 39 con 24.000 socios. Con un
+    // ingreso institucional de 2,1M/mes, ese piso solo ya funde a cualquier
+    // club chico de las 24 ligas: medido, TODOS entraban en rojo en la
+    // semana 8. `escalaEstructura()` lo escala por reputación.
+    // ⚠️ El tope es 1 A PROPÓSITO: escala hacia ABAJO y nada más. La punta de
+    // arriba ya la cubre `_estructura`, que está calibrada (Fase 23), así que
+    // de Boca para arriba no se mueve un peso.
+    const ops=Math.max(0.4,Math.round((( 1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035)*escalaEstructura()+_estructura-_wfx.opsCut)*10)/10);
     G.budget=Math.round((G.budget-wages+tv+socInc-ops)*10)/10;
     finAnota('sueldos',wages,'Sueldos del plantel');
     finAnota('tv',tv,'Derechos de TV');
@@ -15295,6 +15522,15 @@ function sociosActivos(){
   if(!G)return 0;
   if(G.socios===undefined)G.socios=sociosBase();
   return G.socios;
+}
+// ═══ CUÁNTO CLUB SOS: escala la parte fija de los gastos operativos ═══
+// Ancla en Boca (rep 78 → 1.0) y TOPE en 1: esto escala hacia abajo nada más.
+// Un club de rep 39 paga el 27% de la estructura fija; uno de rep 64, el 69%.
+// Sube sola a medida que el club crece, así que ascender y ganar cosas
+// también encarece la operación — que es justamente lo que se quiere.
+function escalaEstructura(){
+  const rep=(typeof G==='object'&&G&&G.rep!==undefined)?G.rep:50;
+  return Math.max(0.22,Math.min(1,Math.pow(Math.max(20,rep)/78,1.9)));
 }
 // Lo que entra por cuotas en un mes, en millones.
 function ingresoSocios(){

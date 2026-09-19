@@ -10,6 +10,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 |---|---|
 | `director-tecnico.html` | **El juego entero** (~14.000 líneas, HTML+CSS+JS inline) |
 | `players-db.js` | Base de jugadores generada por el extractor |
+| `players-hist-AÑO.js` | Planteles de una temporada vieja. **Opcional**: el que esté en la carpeta aparece solo en el selector (Fase 39) |
 | `dts-db.js` | Base de DTs, **curada a mano** (no pisarla sin fusionar) |
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
@@ -96,8 +97,12 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   (reputación + masa societaria). Sin eso el club ganaba +18 a +30M netos TODAS
   las temporadas y el presupuesto iba de 29 a 167M en ocho años.
 - **Quedar en zona de descenso es el fin del ciclo**: tu club no baja de
-  categoría (no hay Primera Nacional), pero `checkFired` te pide la renuncia si
-  terminás en los puestos que descienden. Antes sólo te echaban saliendo último.
+  categoría, pero `checkFired` te pide la renuncia si terminás en los puestos
+  que descienden. Antes sólo te echaban saliendo último.
+  ⚠️ Desde la Fase 38 la **Primera Nacional sí se puede dirigir**, pero es una
+  liga que se ELIGE al empezar: no hay ascenso ni descenso entre las dos
+  todavía. Descender sigue siendo el final del ciclo, no un cambio de
+  categoría.
 - **En la Liga ARG la tabla anual NO da título**: los campeones son el Apertura
   y el Clausura, que ya van a `G.trophies`. `archiveSeason` guarda
   `champion:false` y `anual1:true` para no contar doble. Usá `titulosLiga()`
@@ -3099,6 +3104,189 @@ qué fuente venía — parecía que fallaban los planteles cuando lo que fallaba
 la API libre. Ahora la caída se late una sola vez (`tmapiDown`) y el error
 nombra la fuente. La sonda `probeNats` también reconoce las rutas que **ya**
 están cableadas (`YA_CONECTADAS`) en vez de pedir que se las pasen.
+
+## Fase 38: la Primera Nacional, y la economía del club chico que ya estaba rota
+
+### La segunda división se DERIVA, no se re-etiqueta
+
+`players-db.js` lo regenera el extractor, así que retaggear a mano los clubes
+del ascenso se pierde en la próxima extracción. En su lugar hay
+`LIGA_DB={'Primera Nacional':'Liga ARG'}` + `ligaDB(lg)`: la liga nueva lee las
+filas de `'Liga ARG'` y `clubesDeLiga()` le saca los 30 de `AR_CLUBS`. Metadatos
+nuevos: `LIGA_TAM` 20, `LIGA_NAT` `['ARG']`, `CUPO_LIGA` 6, `DESCENSOS` 4,
+`LIGA_PAIS` y `LIGA_NOMBRE`. Formato: todos contra todos ida y vuelta, **38
+fechas** (`buildCalOtra`), sin zonas, sin Apertura/Clausura y **sin copa
+continental** (`hayCopaCont()` / `objetivoCopa()`: el objetivo es *ascender*,
+no "clasificar a la Libertadores (Top 4)" — un torneo que esa categoría no
+juega).
+
+⚠️ **`clubesDeLiga('Liga ARG')` estaba mal desde antes.** Ordenaba los clubes
+por valor de plantel y se quedaba con los 30 primeros: metía a **Gimnasia (M),
+Ciudad Bolívar y Midland** (que son del ascenso) y dejaba afuera a **Central
+Córdoba (11,0M), Aldosivi (10,4M) y San Martín SJ (7,1M)**, que sí son de
+Primera. La lista tiene que ser `AR_CLUBS`, no un ranking.
+
+⚠️ **`squadFromDB` no habría encontrado una sola fila** de un club del ascenso
+—filtra por `r[6]===lg` y en la base dice `'Liga ARG'`— y habría caído al
+plantel inventado. Ahora pasa por `ligaDB()`. Verificado: **0 jugadores
+inventados**.
+
+⚠️ **`buildAllTeams` tenía el mismo filtro y ahí el síntoma era peor**: el mapa
+de valores quedaba VACÍO, así que los 20 clubes del ascenso salían con `val=0`,
+o sea **rep 35, 9.000 de capacidad y 2M de presupuesto, los veinte idénticos**.
+Ahora hay **8 reputaciones distintas**.
+
+### ⚠️ Y ahí apareció lo de verdad: NINGÚN club chico del juego podía sobrevivir
+
+El ascenso fundía en la primera temporada, pero **no lo traía este feature**.
+Medido con temporada completa y el mismo arnés, en tres ligas que ya eran
+jugables:
+
+| liga | club | rep | presup. | cierre | en rojo desde |
+|---|---|---|---|---|---|
+| Liga ARG | San Martín (SJ) | 39 | 3M | **−36,6M** | semana 8 |
+| Paraguay | CS San Lorenzo | 35 | 3M | **−20,8M** | semana 8 |
+| Venezuela | Anzoátegui | 38 | 3M | **−18,9M** | semana 8 |
+| Liga ARG | Boca (control) | 78 | 28M | +60,6M | nunca |
+
+**Todos** entraban en rojo en la semana 8. La causa son tres números planos:
+
+1. **El sueldo era lineal.** `wage = rat*0.4`: un plantel de media 60 pagaba
+   **2,8M/mes contra los 3,5M de Boca —el 80%— teniendo el 7% del valor**. Ahora
+   es `wageDeRat()`, convexo con el **mismo exponente que ya usa
+   `_negWageExpect`** (2.35) — una sola curva de sueldos en el juego, no dos — y
+   anclado en la media de Boca. Medido por rat 50/60/70/80/90: **12/18/26/35/47k**
+   (antes 20/24/28/32/36). Un rat 90 cobra **3,9×** lo de un rat 50; antes, 1,8×.
+2. **La parte FIJA de los gastos era la misma para todos.** `_estructura` ya
+   hacía que crecer saliera caro, pero base + cuerpo técnico + estadio + plantel
+   = **3,6M/mes idénticos** para Boca y para un club de rep 39 con 24.000
+   socios. `escalaEstructura()` la escala por reputación: **×0,27 con rep 39**.
+   ⚠️ **Tiene TOPE en 1 a propósito**: escala hacia abajo nada más. La punta de
+   arriba ya la cubre `_estructura`, que está calibrada (Fase 23), así que de
+   Boca para arriba no se mueve un peso.
+3. **El catálogo de sponsors arrancaba en `reqRep:48`** y el juego tiene clubes
+   jugables en rep 35: un club de rep 39 llegaba a **0 de las 10 categorías** y
+   cerraba el año con **cero plata de patrocinio**. Es el mismo agujero que la
+   Fase 22 tapó por REGIÓN, ahora por REPUTACIÓN. Se agregó la gama baja (8
+   marcas, `reqRep` 28-36, GLOBAL porque un sponsor modesto existe en los 24
+   países): el club chico pasa a **7 categorías, 8,3M/temporada**.
+
+⚠️ **La gama baja lleva `maxRep`** porque `weeklySponsors` elige con
+`cand[random]` **uniforme**: sin tope, a Boca le ofrecerían la marca de 0,02 en
+vez de Nike. `sponsorEnRep(s,rep)` es el portero y va en las **dos** vías (la
+oferta semanal y `signSponsor` por id), igual que las cuatro vías de la Fase 16.
+Y `!==undefined` en vez de `||`, como `cuposDescenso`.
+
+Resultado, mismo arnés antes y después:
+
+| club | antes | ahora |
+|---|---|---|
+| San Martín (SJ) | −36,6M | **−5,7M** |
+| Anzoátegui | −18,9M | **+4,2M** |
+| CS San Lorenzo | −20,8M | **+2,6M** |
+| Almirante Brown (2ª ARG) | — | **−1,6M** |
+
+⚠️ **Boca no se movió, pero NO se puede demostrar con el delta de temporada.**
+Con el arnés que firma todos los patrocinios, 5 temporadas del **mismo código**
+dan **77,2 · 68,5 · 77,9 · 117,9 · 59,1** — 59M de dispersión, más que
+cualquier efecto buscado (la misma trampa de la Fase 32). La mediana pasa de
+**77,2 a 82,0**, que cae adentro del ruido. Lo que sí prueba que no se movió son
+los **deterministas**: ops/mes 5,0 → 5,0, sueldos/mes 3,5 → 3,4, masa salarial
+864k → 858k por semana, y las categorías de sponsor de Boca 9 → 9.
+
+⚠️ **El balance mensual es NEGATIVO hasta para Boca** (−3,6M/mes): el club se
+sostiene con el borderó y los sponsors, que sí escalan. Si alguna vez hay que
+apretar la economía, el lugar es `escalaEstructura` — no las cuotas ni la TV,
+que son lo único que le queda a un club de rep 39.
+
+## Fase 39: temporadas históricas — el mundo cerrado sale del dato
+
+Transfermarkt guarda los planteles de **todas** las temporadas. El extractor
+los baja a `players-hist-AÑO.js`, **un archivo por temporada** (~170 KB del
+fútbol argentino; treinta años en un solo archivo serían 5 MB que el juego
+cargaría siempre, aunque juegues 2026).
+
+Los archivos **se enchufan solos**: el juego escribe con `document.write` los
+`<script src="players-hist-AÑO.js">` de 1992 a 2026 y los que no están fallan en
+silencio. Dejar el archivo en la carpeta lo hace aparecer en el selector, sin
+tocar una línea.
+
+⚠️ **`document.write` y NO `appendChild`**: un script agregado por JS carga
+asíncrono y `PLAYERS_DB_HIST` no existiría todavía cuando arranca el juego.
+⚠️ **Tienen que ser `.js`, no `.json`** — el usuario juega con `file://` y ahí
+un `fetch` de JSON muere por CORS. La misma razón que `players-db.js`.
+
+### El mundo cerrado no es una regla: es la consecuencia del dato
+
+`aplicarTemporada(y)` cambia `window.PLAYERS_DB` entero y el resto del juego no
+se entera, porque las ligas jugables, los clubes, los valores, los nombres de la
+cantera y el mercado salen **todos** de esa misma global. Si el archivo de 2015
+sólo trae fútbol argentino, `ligasJugables()` devuelve `['Liga ARG']` y listo.
+**No hay un modo histórico que apagar ni una lista de ligas que filtrar.**
+Verificado: con un 2015 inyectado, `ligasJugables()` da exactamente `Liga ARG`.
+
+⚠️ **Hay CINCO cachés derivados de la base** y hay que tirarlos todos o el juego
+mezcla dos mundos (valores de 2026 con planteles de 2015): `_tsValCache`,
+`_rankCache`/`_rankSeason`, `_ynCache`, `_aiClubsCache`/`_aiClubsSeason` y
+`_topLiga._v`. Están enumerados en `aplicarTemporada` para que agregar uno nuevo
+sin sumarlo se note.
+
+⚠️ **`_DB_SEASON` es una global y las globales NO se serializan** — el mismo bug
+de `_LIGA_ELEGIDA` un escalón más abajo. El año va en **`G.dbSeason`** y
+`loadGame` llama a `aplicarTemporada` **antes** que a `buildAllTeams`, porque
+esa función ya lee `PLAYERS_DB`. Sin eso, una partida de 2015 recargada rearmaba
+`TEAMS` con los planteles de hoy.
+
+⚠️ **`P()` firmaba contratos hasta 2028 jugando 2015.** El año base caía a
+**2026 fijo** porque `squadFromDB` corre DENTRO del literal que crea `G`, o sea
+cuando `G.season` todavía no existe: todo el plantel quedaba con treinta años de
+vínculo y se rompían precontratos, libres y el descuento por contrato corto.
+Ahora cae a `tempActual()`. Medido: contrato máximo **2018**, no 2028.
+
+Verificado de punta a punta: sin archivos no aparece el selector · con 2015
+aparece y cambia la base · mundo cerrado · Boca 2015 juega con plantel de 2015 ·
+temporada completa de 48 partidos y salto a 2016 sin rivales de otro mundo ·
+sobrevive al guardado con las dos globales ensuciadas · volver a 2026 no deja
+restos.
+
+### 🛑 El extractor histórico NO está verificado contra Transfermarkt
+
+Se programó **sin poder hacer un solo pedido a transfermarkt.com**: el
+contenedor donde se trabajó sólo tiene salida a GitHub. Lo que está probado es
+el **parser contra el layout conocido** (17 asserts en `scratchpad/kader.js`:
+nombre con acentos, dorsal, posición, edad, doble nacionalidad, altura, pie, el
+contrato como la ÚLTIMA fecha de la fila, y el valor en los dos formatos que usa
+TM — `€1,20 mill.` de la versión .es y `€1,200,000` de la .com). Lo que **no**
+está probado es que el sitio tenga hoy ese layout.
+
+Dos ramas nuevas en el Worker (`cloudflare-worker/sportdb-cache.js`), gratis y
+sin créditos porque bajan el HTML server-rendered:
+
+| | |
+|---|---|
+| `api=tmkader&path=/verein/{id}/saison/{año}` | el plantel de ese club en ese año |
+| `api=tmclubs&path=/wettbewerb/{id}/saison/{año}` | los clubes de esa liga ese año |
+
+⚠️ **Las dos SÓLO están en el Worker**, no en la función de Netlify.
+
+**Todo está diseñado para que un fallo sea legible en UNA vuelta**, que es lo
+único sensato cuando no se puede probar:
+- las dos ramas devuelven **siempre** un bloque `diag` (`filas`, `parseados`,
+  `conValor`, `conNac`, `conPos`) — si `filas` es 0 cambió el contenedor de la
+  tabla; si `filas`>0 y `parseados` es 0, cambió la fila;
+- con `&debug=1` viene además **el HTML crudo de la primera fila**;
+- el botón **🩺 Diagnosticar una temporada** del extractor lo imprime entero;
+- **una respuesta vacía NO se cachea**: cachear un fallo de parseo lo dejaría
+  clavado 30 días y parecería que el club no existe (el bug de los 12 clubes
+  perdidos, otra vez);
+- los **IDs de competición son campos de la UI** (`AR1N` / `ARG2` por defecto),
+  no constantes en el código: si TM los cambió, se corrigen sin tocar nada.
+
+⚠️ `rawGet` del extractor **pegaba siempre en Netlify ignorando el Worker** y
+cortaba el cuerpo en 400 caracteres, así que un diagnóstico podía decir "tu
+proxy no lo soporta" con un Worker que sí lo soporta, y nunca mostraba el HTML.
+Arreglado, y el `&debug=1` va como parámetro suelto: adentro de `path` se lo
+comía el `encodeURIComponent`.
 
 ## Deploy
 
