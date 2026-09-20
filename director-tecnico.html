@@ -5689,7 +5689,7 @@ function updateUI(){
   if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=dayLabel()+(q>0?' · faltan '+q+' d':' · día de partido');}
   if($('dayBtn'))$('dayBtn').style.opacity=curDay()>=7?'.4':'1';
   rBotonesPartido();
-  rSq('all');
+  rSq();                       // sin argumento: respeta el filtro que elegiste
   rStand();
   rNews();
   rFormation();
@@ -5785,7 +5785,15 @@ function ordenarPlantel(arr){
   return arr.slice().sort((a,b)=>
     posOrden(a.pos)-posOrden(b.pos) || (b.rat||0)-(a.rat||0) || (a.num||0)-(b.num||0));
 }
+// ⚠️ El filtro vive FUERA de `G`: es de la pantalla, no de la partida (misma
+// regla que `_PT`, `_SPN` y `_mkLibres`). Antes `rSq` recibía el filtro por
+// parámetro y `updateUI` la llamaba con `'all'` fijo, así que **cualquier
+// acción sobre un jugador te devolvía la lista completa** y había que volver a
+// tocar la pestaña. Ahora el parámetro sólo lo manda el botón.
+let _sqFiltro='all';
 function rSq(f){
+  if(f!==undefined)_sqFiltro=f;
+  f=_sqFiltro;
   const el = document.getElementById('sqList');
   if(!el||!G) return;
   const fs = foreignStats(G.squad);
@@ -6137,9 +6145,16 @@ const JERARQUIA={ratCrack:83, repMin:75};
 // Portero único de las cuatro vías (negociar, cláusula, canje, préstamo): la
 // ficha del jugador tiene botones directos que NO pasan por openNeg, así que
 // sin esto se podía esquivar el filtro entrando por la cláusula.
-function jerarquiaBloquea(p){
-  // 1) El clásico no negocia. Ni por plata, ni por cláusula, ni por canje.
-  if(G&&esClasico(G.teamName,p.club)){
+// ⚠️ `viaClausula` existe por una razón concreta: **una cláusula de rescisión
+// no la negocia el club, se paga y listo**. El bloqueo del clásico cubría las
+// cuatro vías, así que le tapaba al presidente el ÚNICO camino que en la
+// realidad no depende de la voluntad del vendedor. Ahora el clásico sigue
+// siendo tabú para negociar, canjear y pedir a préstamo, pero por la cláusula
+// se lo podés sacar igual — y te odian: `enojarClub` ya se dispara con
+// cualquier cláusula de tu misma liga, y un clásico lo es por definición.
+function jerarquiaBloquea(p,viaClausula){
+  // 1) El clásico no negocia. Ni por plata, ni por canje, ni a préstamo.
+  if(G&&!viaClausula&&esClasico(G.teamName,p.club)){
     flash('❌ Imposible. No le van a vender a su clásico rival bajo ninguna circunstancia','loss');
     addPhoneMsg('agent',_negAgent(p).name,
       `📵 Ni lo sueñes. <b>${p.club}</b> no le vende a <b>${G.teamName}</b> ni loco: son el clásico. Me cortaron el teléfono apenas dije de dónde llamaba.`,'🤝');
@@ -6194,7 +6209,7 @@ function openNeg(id){
         <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${p.lg}</div>
         <div style="font-size:10px;color:var(--t3);margin-top:2px">${rbK(p)} Rating · ${potK(p)} Potencial · Valor ${fv(p.val)}</div>
         ${isKnown(p)?'':`<div style="font-size:9.5px;color:var(--gold);margin-top:2px">🔎 Estás negociando a ciegas — <a href="javascript:void(0)" style="color:var(--gold);text-decoration:underline" onclick="closeMod();scoutOne('${p.id}')">pedí el informe ($0.1M)</a></div>`}
-        <div style="font-size:10px;color:var(--red);margin-top:2px">💥 Cláusula de rescisión: <b>${fv(clauseOf(p))}</b></div>
+        <div style="font-size:10px;color:${clauseOf(p)>0?'var(--red)':'var(--t3)'};margin-top:2px">${clauseOf(p)>0?`💥 Cláusula de rescisión: <b>${fv(clauseOf(p))}</b>`:'🔒 Sin cláusula de rescisión en su contrato'}</div>
       </div>
     </div>
     <div class="mpanel" style="margin-bottom:10px">
@@ -6216,7 +6231,7 @@ function openNeg(id){
     <div class="note">Contactá al agente para iniciar la negociación. Tenés hasta 3 rondas para acordar el traspaso.</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button class="btn bg" onclick="negStep2()">📞 Contactar agente</button>
-      <button class="btn bo bs" onclick="payClause('${id}')">💥 Cláusula (${fv(clauseOf(p))})</button>
+      ${clauseOf(p)>0?`<button class="btn bo bs" onclick="payClause('${id}')">💥 Cláusula (${fv(clauseOf(p))})</button>`:''}
       <button class="btn bo bs" onclick="buyHalfPass('${id}')">➗ % del pase</button>
       <button class="btn bo bs" onclick="openSwap('${id}')">🔄 Canje</button>
       <button class="btn bo bs" onclick="negLoanOffer('${id}')">📥 Préstamo</button>
@@ -9112,7 +9127,7 @@ function promOne(id){
   if(!G) return;
   const yp = G.youth.players.find(x=>x.id===id);
   if(!yp) return;
-  if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
+  if(G.squad.length>=PLANTEL_MAX){ flash('❌ Plantel lleno (máx '+PLANTEL_MAX+')','loss'); return; }
   // ⚠️ NO va 'ARG'/'Liga ARG' fijos. Medido con el Real Madrid: el canterano
   // subía con nat ARG y lg 'Liga ARG', o sea que **le comía una plaza de
   // extracomunitario** — el cupo pasaba de 4 a 5 con un tope de 3. Un pibe de
@@ -9217,7 +9232,7 @@ function youthIntakeAbrir(){
 function rIntake(){
   const js=intakePendiente();
   if(!js.length){ closeMod(); return; }
-  const cupo=G.squad.length>=35;
+  const cupo=G.squad.length>=PLANTEL_MAX;
   showMod(`
     <div class="mclose" onclick="youthIntakeCerrar()">✕</div>
     <div class="mtitle">⚽ Pruebas de Inferiores</div>
@@ -9253,7 +9268,7 @@ function intakeFirmar(id){
   if(!G) return;
   const i=intakePendiente().findIndex(x=>x.id===id); if(i<0) return;
   const j=G.youthIntake[i];
-  if(G.squad.length>=35){ flash('❌ Plantel lleno (máx 35)','loss'); return; }
+  if(G.squad.length>=PLANTEL_MAX){ flash('❌ Plantel lleno (máx '+PLANTEL_MAX+')','loss'); return; }
   // Sueldo de juvenil: mínimo. P() lo toma como argumento, no lo inventa.
   const wage=Math.max(3,~~(j.rat*0.22));
   const np=P(~~(Math.random()*90)+1, j.name, j.pos, j.age, j.nat,
@@ -10868,12 +10883,15 @@ function aiClausula(muestra){
   // 260: un jugador de 76+ casi nunca milita en un club de nivel <68. Se afloja
   // a 74 y a nivel <72 (chico o medio-bajo), que sigue siendo "el grande le
   // roba al de abajo" pero existe de verdad.
-  const cand=muestra.filter(p=>!p._aiMov&&p.rat>=74&&nivelClub(p.club)<72);
+  // Y ahora, además, tiene que TENER cláusula: no todos la tienen.
+  const cand=muestra.filter(p=>!p._aiMov&&p.rat>=74&&nivelClub(p.club)<72&&clauseOf(p)>0);
   if(!cand.length)return false;
   const p=cand[~~(Math.random()*cand.length)];
   const buyer=_aiComprador(p.rat+6,p.lg);
   if(!buyer||buyer===G.teamName||aiTier(buyer)!==1)return false;
-  if(esClasico(p.club,buyer))return false;
+  // ⚠️ El clásico NO frena una cláusula, tampoco para la IA: si al presidente
+  // se le permite (ver `jerarquiaBloquea`), permitírselo sólo a él sería darle
+  // una herramienta que el resto del mundo no tiene.
   const origen=p.club, cl=clauseOf(p);
   _aiMudar(p,buyer);
   aiNews('💥',[`💥 ¡Bombazo! ${buyer} ejecutó la cláusula de rescisión de ${p.name}: €${cl}M al contado`,
@@ -11484,7 +11502,7 @@ function creditScorers(club,n){
     // La asistencia se la lleva otro: alguien se la tuvo que dar
     if(Math.random()<0.62){
       const asis=G.market.filter(q=>q.club===club&&q.lg===ligaMia()&&
-                 ['MCO','MC','EI','ED','LI','LD'].includes(q.pos)&&(!p||q.id!==p.id))
+                 ['MCO','MC','EI','ED','DFI','DFD'].includes(q.pos)&&(!p||q.id!==p.id))
                  .sort((a,b)=>b.rat-a.rat).slice(0,6);
       const q=asis.length?asis[~~(Math.random()*asis.length)]:null;
       if(q){
@@ -13345,7 +13363,7 @@ function youthSafetyNet(){
   const listos=[...G.youth.players].sort((a,b)=>(b.pot+b.rat)-(a.pot+a.rat)).slice(0,Math.min(faltan,cupo));
   const subidos=[];
   listos.forEach(yp=>{
-    if(G.squad.length>=35)return;
+    if(G.squad.length>=PLANTEL_MAX)return;
     // Primer contrato profesional: 3 años desde hoy, como en la vida real
     const np=P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,'ARG',G.teamName||'Boca Juniors',
               'Liga ARG',yp.val,yp.rat,~~(yp.rat*.3),yp.pot,(G.season||2026)+3);
@@ -13387,7 +13405,9 @@ function nuevasCamadas(cuantos){
   // De qué clubes se fue gente: ahí es donde suben los pibes
   const huecos=(G._retiradosMercado||[]).slice(0,cuantos);
   if(!huecos.length) return 0;
-  const poss=['ARQ','DFC','LI','LD','MCD','MC','MCO','EI','ED','DC'];
+  // mismo bug que RECONV: 'LI'/'LD' no son posiciones, y el pibe nacía siendo
+  // delantero para `pgr()` y sin perfil de atributos propio.
+  const poss=['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC'];
   let n=0;
   huecos.forEach(h=>{
     const pot=68+~~(Math.random()*20);
@@ -13530,10 +13550,23 @@ function retiros(){
 // ═══════════════════════════════════════════════════════════════════════
 // El lateral que termina de central, el extremo que se hace lateral. Lleva
 // tiempo y no sale gratis: mientras aprende juega peor en los dos puestos.
+// ⚠️ LOS LATERALES SON `DFD`/`DFI`, NO `LD`/`LI`.
+// `LD`/`LI` son sólo el RÓTULO que dibuja la cancha (`lbl` en FORMATIONS); como
+// POSICIÓN no existen en ningún lado. Esta tabla las usaba igual, así que
+// reconvertir a lateral le ponía al jugador un puesto fantasma y `pgr()` —que
+// no lo reconoce— lo mandaba al último `return 'DEL'`: **te lo convertía en
+// delantero**, que es exactamente el síntoma reportado. Además `RECONV.LD` y
+// `RECONV.LI` no se leían nunca, porque ningún jugador tiene esa posición.
+// ⚠️ El tope del plantel estaba escrito a mano en NUEVE lugares (fichar,
+// libres, cantera, canje, préstamo, el cierre de la firma…). Con un número
+// suelto por sitio, subirlo obliga a encontrarlos todos: por eso ahora es una
+// constante y el cartel también la lee.
+const PLANTEL_MAX=45;
 const RECONV={
-  ARQ:[], LD:['DFC','MC'], LI:['DFC','MC'], DFC:['MCD','LD','LI'],
-  MCD:['DFC','MC'], MC:['MCD','MCO','LD','LI'], MCO:['MC','EI','ED','DC'],
-  EI:['ED','LI','MCO'], ED:['EI','LD','MCO'], DC:['MCO','EI','ED'],
+  ARQ:[], DFD:['DFC','MC'], DFI:['DFC','MC'], DFC:['MCD','DFD','DFI'],
+  MCD:['DFC','MC'], MC:['MCD','MCO','DFD','DFI'], MCO:['MC','EI','ED','DC'],
+  EI:['ED','DFI','MCO'], ED:['EI','DFD','MCO'], DC:['MCO','EI','ED'],
+  MI:['EI','DFI','MC'], MD:['ED','DFD','MC'],
 };
 function puedeReconvertir(p){ return (RECONV[p.pos]||[]).filter(x=>x!==p.pos2); }
 function openReconv(id){
@@ -18300,8 +18333,36 @@ function loanIn(id){negLoanOffer(id);}
 // ═══ COMPRA DEL 50% DEL PASE: pagás el 55% del valor, cobrás la mitad al revenderlo ═══
 // ═══ CLÁUSULA DE RESCISIÓN: fórmula sobre valor, edad y jerarquía ═══
 // (Transfermarkt no publica cláusulas: el juego las genera como los managers)
+// ═══ NO TODOS LOS JUGADORES TIENEN CLÁUSULA ═══
+// Medido sobre la base: **0 de 17.108 fichas traen cláusula** (Transfermarkt no
+// las publica), así que `clauseOf` se la inventaba a TODOS y el botón
+// "💥 Cláusula" aparecía en cada ficha del mercado. En la realidad depende del
+// país y del jugador: en España es obligatoria por ley, en el resto es moneda
+// corriente para el pibe con proyección y rara para el jugador de plantel.
+//
+// La probabilidad es por LIGA y se corrige por perfil, y el sorteo es
+// DETERMINISTA por nombre —el mismo hash que ya usa `persDe`— por la misma
+// razón que las personalidades: si se tirara el dado al leer, recargar la
+// partida hasta que aparezca la cláusula sería una estrategia.
+const CLAUS_LIGA={'España':1.00,'Portugal':0.80,'Brasil':0.55,'Liga MX':0.45,
+  'Liga ARG':0.35,'Primera Nacional':0.30,'Italia':0.30,'Francia':0.30,'Holanda':0.30};
+const CLAUS_BASE=0.20;
+function tieneClausula(p){
+  if(!p)return false;
+  if(p.clause>0)return true;      // la trae la base o la negociaste vos
+  if(p.clause<0)return false;     // negociada a mano: expresamente SIN cláusula
+  const lg=(p.lg||(typeof ligaMia==='function'?ligaMia():''));
+  let pr=(CLAUS_LIGA[lg]!==undefined?CLAUS_LIGA[lg]:CLAUS_BASE);
+  if(pr>=1)return true;
+  const rat=p.rat||65, age=p.age||26;
+  pr += (rat>=82?0.25:rat>=76?0.12:0) + (age<=22?0.15:0) - (age>=32?0.12:0);
+  pr = Math.max(0.05,Math.min(0.95,pr));
+  const h=String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),11);
+  return ((h>>>3)%1000)/1000 < pr;
+}
 function clauseOf(p){
   if(!p)return 0;
+  if(!tieneClausula(p))return 0;                 // 0 = no tiene, no "es gratis"
   // Si la base trae la cláusula REAL del contrato, se respeta esa
   if(p.clause>0)return Math.round(p.clause*10)/10;
   const ageM=p.age<=21?3.0:p.age<=24?2.4:p.age<=28?1.9:p.age<=31?1.5:1.2;
@@ -18494,8 +18555,9 @@ function payClause(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
-  if(jerarquiaBloquea(p))return;      // la cláusula saltea al club, no al jugador
+  if(jerarquiaBloquea(p,true))return; // la cláusula saltea al club, no al jugador
   const cl=clauseOf(p);
+  if(!(cl>0)){flash('🔒 Este jugador no tiene cláusula de rescisión en su contrato','draw');return;}
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">💥 Pagar cláusula — ${p.name}</div>
@@ -18515,7 +18577,7 @@ function confirmClause(id){
   if(!ffpOk())return;
   const cl=clauseOf(p);
   if(G.budget<cl){flash('❌ Presupuesto insuficiente ('+fv(cl)+')','loss');return;}
-  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
+  if(G.squad.length>=PLANTEL_MAX){flash('❌ Plantel lleno','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // La cláusula saltea AL CLUB, no al jugador: primero tiene que firmar él.
   // Si dice que no, no se deposita un peso.
@@ -18598,7 +18660,7 @@ function confirmHalfPass(id){
   const wageExp=Math.round(_negWageExpect(p)*(1+(1-pc)*0.12));
   const wageCost=Math.round(wageExp*3*4/1000*10)/10;    // 3 años de contrato
   if(G.budget<cost+wageCost){flash(`❌ Presupuesto insuficiente (ficha ${fv(cost)} + salarios ${fv(wageCost)})`,'loss');return;}
-  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');return;}
+  if(G.squad.length>=PLANTEL_MAX){flash('❌ Plantel lleno','loss');return;}
   if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   // El club ya no contesta en el acto: primero arreglás con el jugador y la
   // oferta sale. pctInterest pasa a ser la chance con la que contestará dentro
@@ -24876,10 +24938,10 @@ function negCashOut(n){
 // El club aceptó: se ejecuta la operación según su tipo
 function negExecDeal(n,p){
   // En un canje salen jugadores: contarlos como si se quedaran hacía que un
-  // 2x1 con el plantel en 35 se rechazara aunque el neto fuera 34.
+  // 2x1 con el plantel al tope se rechazara aunque el neto entrara.
   const _salen=(n.kind==='canje')?[(n.deal||{}).mineId,(n.deal||{}).mine2Id].filter(Boolean):[];
   const _quedan=G.squad.filter(q=>_salen.indexOf(q.id)<0);
-  if(_quedan.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  if(_quedan.length>=PLANTEL_MAX){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
   // El cupo se validaba al ENVIAR la oferta. Con varias operaciones en curso
   // podías cerrarlas todas juntas y pasarte de 5 extranjeros.
   // En un canje se van jugadores, así que el cupo se mide descontándolos:
@@ -25195,7 +25257,7 @@ function weeklyNegotiations(){
   G.negs=keep;
 }
 function negComplete(n,p,price,isPre){
-  if(G.squad.length>=35){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
+  if(G.squad.length>=PLANTEL_MAX){flash('❌ Plantel lleno','loss');n.stage='cerrada';return;}
   // El cupo se validaba sólo en negExecDeal: por acá entraban libres y
   // precontratos sin control.
   if(typeof pIsForeign==='function'&&pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){
@@ -25248,7 +25310,7 @@ function firmasTick(){
     const p=f.jug; if(!p)return;
     // Las condiciones se revisan de nuevo el día de la firma: entre el acuerdo
     // y la revisión pudo llenarse el plantel o irse la plata.
-    if(G.squad.length>=35){
+    if(G.squad.length>=PLANTEL_MAX){
       addPhoneMsg('board','Secretaría Deportiva',`❌ No pudimos inscribir a <b>${p.name}</b>: el plantel está lleno (35).`,'🏛️');
       G.market.push(p); return;
     }
@@ -25571,7 +25633,9 @@ function weeklyAITransfers(){
   // No podés negarte — pero el jugador sí puede rechazar el pase.
   const anyRebel=G.squad.some(p=>p.wantsOut);
   if(Math.random()<(anyRebel?0.14:0.05)){
-    const targets=G.squad.filter(p=>p.rat>=78&&!(p.club||'').includes('prést'));
+    // ⚠️ Sólo puede irse por cláusula el que TIENE cláusula: si no, el club
+    // que lo quiere tiene que venir a negociar con vos como cualquiera.
+    const targets=G.squad.filter(p=>p.rat>=78&&!(p.club||'').includes('prést')&&clauseOf(p)>0);
     if(targets.length){
       targets.sort((a,b)=>(b.rat+(b.wantsOut?8:0))-(a.rat+(a.wantsOut?8:0)));
       const p=targets[~~(Math.random()*Math.min(3,targets.length))];
