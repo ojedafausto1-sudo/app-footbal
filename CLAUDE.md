@@ -3868,6 +3868,101 @@ el factor**: Boca sigue en rep 78 y 28M en los 26 años. Lo que sí se empareja
 es el ONCE, que es lo que se quería — medido, el promedio del once titular de
 Boca queda en **73-77 de 2000 a 2026** en vez de caer a 60 en los años viejos.
 
+## Fase 45: la lista del usuario — reconversiones, cláusulas y campos que se escriben
+
+### Reconvertir a lateral te devolvía un delantero
+
+`RECONV` usaba **`'LD'` / `'LI'`, que no son puestos en este juego**: son sólo
+la ETIQUETA que dibuja la cancha (`lbl` en `FORMATIONS`). Los códigos de
+verdad son `DFD` / `DFI`. Al terminar la reconversión el jugador quedaba con un
+puesto que nadie reconoce y `pgr()` se caía por su última línea,
+`return 'DEL'`. Medido: `pgr('LD')` da `'DEL'` y `pgr('DFD')` da `'DEF'`.
+
+⚠️ **Los mismos códigos fantasma estaban en otros dos lugares**: `nuevasCamadas`
+(que fabricaba juveniles del mercado como delanteros y sin perfil de atributos)
+y el sorteo de asistencias, donde simplemente no coincidían nunca. `MI`/`MD`
+además no tenían ninguna reconversión posible, y ahora sí.
+
+### El filtro de puesto del Plantel se reseteaba solo
+
+`rSq(f)` tomaba el filtro por argumento y `updateUI()` la llamaba con `'all'`
+clavado, así que cualquier acción devolvía la lista entera. Ahora vive en
+`_sqFiltro`, **fuera de `G`** como el resto del estado de pantalla (`_PT`,
+`_SPN`, `_mkLibres`). Medido: con DEF muestra 10 de 30 y sobrevive a `updateUI()`.
+
+El **tope del plantel es `PLANTEL_MAX` (45)**: estaba escrito a mano en nueve
+lugares, así que subirlo era encontrarlos todos.
+
+### La cláusula se PAGA, no se negocia — y no la tiene cualquiera
+
+El bloqueo del clásico (`jerarquiaBloquea`) se aplicaba también a la cláusula,
+que es justamente el camino que existe para saltear al club. Ahora recibe
+`viaClausula`. Medido con un jugador de River: negociar sigue bloqueado, la
+cláusula no. El club **igual queda hostil**, porque `enojarClub` ya se dispara
+con cualquier cláusula de tu misma liga y un clásico lo es por definición. La
+IA juega con la misma regla: dejar que sólo el presidente ignore un clásico
+sería darle una herramienta que nadie más tiene.
+
+⚠️ **`clauseOf` le inventaba una cláusula a TODOS.** Medido: **0 de las 17.108
+fichas** de la base traen una de verdad, así que el botón salía en cada tarjeta
+del mercado. Ahora `tieneClausula(p)` la decide por liga y perfil, determinista
+por nombre igual que `persDe`: **España 100%** (allá es obligatoria por ley),
+Brasil 57%, Liga ARG 37%, Premier 31% — **39% del mercado**. Las dos vías de la
+IA exigen que exista antes de usarla.
+
+### Los filtros del Mercado eran listas de cuatro opciones
+
+Valor, edad y media se elegían de un `<select>` con 4 escalones fijos: no había
+manera de pedir "más de 37,5M". Los seis son ahora **campos numéricos**
+(`mkMaxV`/`mkMinV`, `mkMaxAge`/`mkMinAge`, `mkMinR`, `mkMinPot`), más un
+selector de **situación contractual**.
+
+⚠️ **El potencial mínimo NO puede leer `p.pot`.** Sería la misma puerta de atrás
+que ya se tapó con la media: al desconocido se lo juzga por `potHi(p)`, el
+techo de su rango estimado, igual que `ratHi` para `minR`.
+
+⚠️ **`wantsOut` y `onLoan` no sirven para filtrar el mercado, y el código lo
+dice.** Los cinco lugares que ponen `wantsOut` y el único que pone `onLoan`
+tocan **sólo a tu plantel**, así que en el mercado dan 0 siempre — un filtro
+que nunca encuentra nada se lee como un bug. Lo que sí existe en la ficha de
+cualquiera es el año de contrato y la cláusula, así que las cuatro opciones son
+**con cláusula · precontrato (≤6 meses) · último año (≤18) · contrato largo
+(3+ años)**. El precontrato da 0 en la semana 1 y **lo explica**, igual que el
+filtro de libres.
+
+### El buscador del Plantel
+
+`#sqQ` busca por nombre, puesto, segundo puesto y nacionalidad, con **el mismo
+`_tsNorm`** del Mercado y del wizard — tres normalizadores distintos se
+desincronizan. Si no encuentra nada lo dice en vez de dejar la lista en blanco.
+
+### Los montos se escriben: `nPair` / `nRead` / `nClamp`
+
+Siete montos negociables (sueldo de la oferta, términos personales, renovación,
+propuesta al jugador, años, plata del canje, sueldo del DT, prima y semanal del
+sponsor) eran **sliders puros**. Con un rango de 22 a 77 el slider obliga a
+cazar el pixel. Ahora cada uno es un **par atado**: el slider para tantear y un
+campo para escribir el número exacto.
+
+⚠️ **Un `<input type="number">` NO se acota solo al tipear, y acotarlo en cada
+tecla es peor**: escribir "35" con mínimo 12 daría 1 → 12 → 122. Por eso se
+acota al **salir** del campo (`onchange`) y, sobre todo, **al leerlo**
+(`nRead`), que es lo que usan las funciones que deciden. Si agregás un monto
+escribible, leelo con `nRead` y no con `.value`.
+
+⚠️ **`soft` es obligatorio cuando el callback REDIBUJA el panel que contiene al
+par** — el sponsor (`spnSet` → `spnRender`) y el canje (`updSwapInfo`). Sin eso
+el campo se destruiría a mitad del número y se perdería el foco. Con `soft` el
+campo avisa al salir y el slider sigue dando la vista previa en vivo.
+
+Medido en los siete: el campo se acota arriba y abajo, el slider lo sigue, y
+`nRead` devuelve el tope aunque el campo tenga 999999 adentro. `.npair` no
+lleva `backdrop-filter`: vive dentro de un modal que ya es vidrio real.
+
+⚠️ **El `ticketSlider` y las barras de perfil del DT (`cdtProf`) quedan como
+están**: ahí el control ES el dato (una preferencia continua de 0,50 a 2,00 y
+unos diales 0-100), no un monto que se quiera escribir.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

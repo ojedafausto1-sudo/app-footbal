@@ -318,6 +318,23 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .fchip:hover{border-color:rgba(var(--gold-rgb),.35);color:var(--tx)}
 .fchip.on{background:rgba(16,185,129,.16);border-color:var(--green);color:var(--green)}
 .fs{background:var(--d3);border:1px solid var(--bdr);border-radius:5px;padding:4px 8px;color:var(--tx);font-size:11px;cursor:pointer;transition:border-color .15s}
+/* Campo numérico de filtro y de negociación: el usuario ESCRIBE el número en
+   vez de arrastrar una barra o elegir de una lista corta. Mismo lenguaje que
+   .fs — translucidez + borde luminoso, sin backdrop-filter, porque es una fila. */
+.fn{background:var(--d3);border:1px solid var(--bdr);border-radius:5px;padding:4px 7px;color:var(--tx);
+  font-family:'Chakra Petch','Rajdhani',sans-serif;font-size:11px;font-variant-numeric:tabular-nums;
+  width:92px;transition:border-color .15s}
+.fn:focus{outline:none;border-color:rgba(var(--gold-rgb),.55)}
+.fn::-webkit-inner-spin-button{opacity:.35}
+.numin{background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:8px 10px;color:#fff;
+  font-family:'Chakra Petch','Rajdhani',sans-serif;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;
+  width:100%;text-align:center;transition:border-color .15s}
+.numin:focus{outline:none;border-color:rgba(var(--gold-rgb),.6)}
+/* El par slider + campo escribible de un mismo monto (ver nPair) */
+.npair{display:flex;align-items:center;gap:8px;margin:2px 0}
+.npair input[type=range]{flex:1;margin:0;min-width:0}
+.npair .numin{width:86px;flex-shrink:0;font-size:15px;padding:6px 6px}
+.npair-s{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--gold);font-size:12px;min-width:26px}
 .fs:focus{outline:none;border-color:var(--gold)}
 /* BADGES */
 .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
@@ -793,6 +810,7 @@ window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
         <button class="tab" onclick="fSq('MED',this)">MED</button>
         <button class="tab" onclick="fSq('DEL',this)">DEL</button>
       </div>
+      <input class="mksearch" style="margin-bottom:6px" type="text" id="sqQ" placeholder="🔍 Buscar en el plantel por nombre, puesto o nacionalidad — las tildes no importan" oninput="rSq()">
       <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
       <!-- La cabecera de columnas se fue con la tabla: ahora cada jugador es
            una mini-card y lo que queda es la leyenda de lo que dice el disco. -->
@@ -880,9 +898,13 @@ window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
           <select class="fs" id="mkLg" onchange="fillTeamFilter();renderMkt()"><option value="">Todas ligas</option></select>
           <select class="fs" id="mkTeam" onchange="renderMkt()"><option value="">Todos los equipos</option></select>
           <select class="fs" id="mkNat" onchange="renderMkt()"><option value="">Todas naciones</option></select>
-          <select class="fs" id="mkMaxV" onchange="renderMkt()"><option value="">Cualquier precio</option><option value="1">≤€1M</option><option value="3">≤€3M</option><option value="8">≤€8M</option><option value="20">≤€20M</option><option value="50">≤€50M</option></select>
-          <select class="fs" id="mkMaxAge" onchange="renderMkt()"><option value="">Cualquier edad</option><option value="21">Sub-21</option><option value="24">≤24 años</option><option value="28">≤28 años</option><option value="32">≤32 años</option></select>
-          <select class="fs" id="mkMinR" onchange="renderMkt()"><option value="">Cualquier nivel</option><option value="70">70+ OVR</option><option value="75">75+ OVR</option><option value="80">80+ OVR</option><option value="85">85+ OVR</option></select>
+          <input class="fn" id="mkMaxV" type="number" min="0" step="0.5" placeholder="€M máx." title="Valor máximo: escribí el número (2.5, 12, 40…)" oninput="renderMkt()">
+          <input class="fn" id="mkMinV" type="number" min="0" step="0.5" placeholder="€M mín." title="Valor mínimo" oninput="renderMkt()">
+          <input class="fn" id="mkMaxAge" type="number" min="15" max="45" placeholder="Edad máx." title="Edad máxima" oninput="renderMkt()">
+          <input class="fn" id="mkMinAge" type="number" min="15" max="45" placeholder="Edad mín." title="Edad mínima" oninput="renderMkt()">
+          <input class="fn" id="mkMinR" type="number" min="40" max="99" placeholder="OVR mín." title="Media mínima" oninput="renderMkt()">
+          <input class="fn" id="mkMinPot" type="number" min="40" max="99" placeholder="POT mín." title="Potencial mínimo" oninput="renderMkt()">
+          <select class="fs" id="mkEstado" onchange="renderMkt()"><option value="">Cualquier situación</option><option value="clausula">💥 Con cláusula</option><option value="precontrato">✍️ Precontrato (≤6 meses)</option><option value="vence">⏳ Último año de contrato</option><option value="largo">📄 Contrato largo (3+ años)</option></select>
           <select class="fs" id="mkVirt" onchange="renderMkt()"><option value="">Toda virtud</option><option value="VEL">⚡ Velocistas</option><option value="TIR">🎯 Goleadores</option><option value="PAS">🎩 Cerebros</option><option value="REG">🪄 Gambeteadores</option><option value="DEF">🧱 Murallas</option><option value="FIS">💪 Tanques</option></select>
           <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="pos">Por puesto</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option><option value="ganga">💎 Gangas</option></select>
         </div>
@@ -2343,17 +2365,11 @@ function spnRender(){
     </div>
     <div class="mpanel">
       <div class="mpanel-t">💰 A la firma</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="range" min="0" max="${upMax}" step="0.1" value="${s.up}"
-          oninput="spnSet('up',this.value)" style="flex:1">
-        <span class="sv" style="min-width:64px;text-align:right;color:var(--gold)">${fv(s.up)}</span>
-      </div>
+      ${nPair('spnUp',0,upMax,s.up,0.1,"spnSet('up',nRead('spnUp'))",'M',1,true)}
+      <div style="text-align:right"><span class="sv" style="color:var(--gold)">${fv(s.up)}</span></div>
       <div class="mpanel-t" style="margin-top:10px">📅 Por semana</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="range" min="0" max="${wkMax}" step="0.01" value="${s.wk}"
-          oninput="spnSet('wk',this.value)" style="flex:1">
-        <span class="sv" style="min-width:64px;text-align:right;color:var(--green)">${fv(s.wk)}</span>
-      </div>
+      ${nPair('spnWk',0,wkMax,s.wk,0.01,"spnSet('wk',nRead('spnWk'))",'M',2,true)}
+      <div style="text-align:right"><span class="sv" style="color:var(--green)">${fv(s.wk)}</span></div>
       <div class="mpanel-row" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.07);padding-top:7px">
         <span>Total del contrato</span>
         <span class="sv">${fv(pedido)} <span style="color:${sube>0?'var(--gold)':'var(--t3)'};font-size:10px">${sube>0?'+':''}${sube}%</span></span>
@@ -4260,6 +4276,53 @@ function tsIr(paso,arg){
 // Sin quitar los acentos, buscar "vel" no encontraba "Vélez" y "gimnasia"
 // no encontraba "Gimnasia LP" si el usuario escribía sin tilde.
 function _tsNorm(x){ return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// MONTOS QUE SE ESCRIBEN, NO QUE SE ARRASTRAN
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Todo monto negociable (sueldo, a\u00f1os, plata del canje, prima del sponsor)
+// tiene DOS controles atados: el slider, para tantear, y un campo num\u00e9rico
+// para poner el n\u00famero exacto. Con un rango de 20 a 45 el slider obliga a
+// cazar el pixel; escribir "35" es una sola acci\u00f3n.
+//
+// \u26a0\ufe0f Un <input type="number"> NO se acota solo al tipear, y acotarlo en cada
+// tecla ser\u00eda peor: escribir "35" con m\u00ednimo 12 dar\u00eda 1 \u2192 12 \u2192 122. Por eso
+// se acota al SALIR del campo (`onchange`) y, sobre todo, al LEERLO
+// (`nRead`), que es lo que usan las funciones que deciden. Si agreg\u00e1s un
+// monto escribible, leelo con `nRead` y no con `.value`.
+function nClamp(v,mn,mx){
+  v=parseFloat(v);
+  if(!isFinite(v)) v=(isFinite(mn)?mn:0);
+  if(isFinite(mn)&&v<mn) v=mn;
+  if(isFinite(mx)&&v>mx) v=mx;
+  return v;
+}
+function nRead(id,def){
+  const el=document.getElementById(id);
+  if(!el) return (def===undefined?0:def);
+  return nClamp(el.value,parseFloat(el.min),parseFloat(el.max));
+}
+// `id` es el del CAMPO (el que se lee); el slider es su hermano anterior y no
+// necesita id. \u26a0\ufe0f `cb` no puede usar `this`: corre desde los dos controles.
+//
+// \u26a0\ufe0f `soft` es obligatorio cuando el callback REDIBUJA el panel que contiene
+// al par (el sponsor con `spnRender`, el canje con `updSwapInfo`): si el campo
+// disparara en cada tecla, el redibujo lo destruir\u00eda a mitad del n\u00famero y se
+// perder\u00eda el foco. Con `soft` el campo avisa al salir (Enter o clic afuera) y
+// el slider sigue siendo el que da la vista previa en vivo.
+function nPair(id,mn,mx,val,step,cb,suf,dec,soft){
+  const r=x=>Math.round(x*Math.pow(10,dec||0))/Math.pow(10,dec||0);
+  mn=r(mn); mx=Math.max(r(mx),mn); val=nClamp(val,mn,mx);
+  const s=step||1, c=cb||'';
+  return `<div class="npair">
+    <input type="range" class="neg-slider" min="${mn}" max="${mx}" step="${s}" value="${val}"
+      oninput="document.getElementById('${id}').value=this.value;${c}">
+    <input type="number" class="numin" id="${id}" min="${mn}" max="${mx}" step="${s}" value="${val}"
+      oninput="this.previousElementSibling.value=this.value;${soft?'':c}"
+      onchange="this.value=nClamp(this.value,${mn},${mx});this.previousElementSibling.value=this.value;${c}">
+    ${suf?`<span class="npair-s">${suf}</span>`:''}
+  </div>`;
+}
 function tsFiltrar(v){ _tsFiltro=_tsNorm(v); tsRender(true); }
 function tsRender(soloLista){
   const el=document.getElementById('tsWizard'); if(!el)return;
@@ -5825,11 +5888,21 @@ function rSq(f){
       + (_sud?`  •  <span style="color:var(--t2)">Mercosur: ${fs.mercosur}</span>  •  <span style="color:var(--t3)">No-Mercosur: ${fs.nonMercosur}</span>`:'')
       + (fs.nacionalizados?`  •  <span style="color:var(--green)" title="${fs.nombres.join(', ')}">${fs.nacionalizados} nacionalizado${fs.nacionalizados>1?'s':''} (no ocupan cupo)</span>`:'');
   }
-  const pl = ordenarPlantel(G.squad.filter(p=>f==='all'||pgr(p.pos)===f));
+  // Buscador del plantel. Mismo normalizador que el Mercado y el wizard
+  // (`_tsNorm`): tres normalizadores distintos se desincronizan, y el 27,4% de
+  // los nombres de la base lleva tilde.
+  const _sq=_tsNorm((document.getElementById('sqQ')||{value:''}).value);
+  let pl = ordenarPlantel(G.squad.filter(p=>f==='all'||pgr(p.pos)===f));
+  if(_sq) pl=pl.filter(p=>_tsNorm(p.name).includes(_sq)||_tsNorm(p.pos).includes(_sq)
+    ||_tsNorm(p.pos2||'').includes(_sq)||_tsNorm(p.nat||'').includes(_sq));
   // ═══ CADA JUGADOR ES UNA MINI-CARD, NO UNA FILA DE TEXTO ═══
   // Mismo dato que antes, pero legible de un vistazo: disco de media con el
   // aro de energía, dorsal en la chapita dorada, nombre en negrita y los
   // estados como insignias. El color comunica (ovrColor / fitColor / valColor).
+  if(_sq && !pl.length){
+    el.innerHTML = squadHealthPanel() + `<div class="note" style="text-align:center">🔍 Ningún jugador del plantel coincide con <b>"${(document.getElementById('sqQ')||{value:''}).value}"</b>${f!=='all'?` en el filtro <b>${f}</b>`:''}.</div>`;
+    return;
+  }
   el.innerHTML = squadHealthPanel() + pl.map(p=>{
     const fit=fitOf(p), rat=p.rat, mor=(p.morale===undefined?60:p.morale);
     const anillo=ovrColor(rat), fc=fitColor(fit);
@@ -6460,7 +6533,7 @@ function negStep3(id){
         <span style="color:var(--t2)">Pretensión: ~${wageExp}k</span>
         <span id="negWageL" style="color:var(--gold);font-weight:700">${recWage}k</span>
       </div>
-      <input type="range" id="negWage" class="neg-slider" min="${Math.round(wageExp*0.5)}" max="${Math.round(wageExp*2)}" value="${recWage}" oninput="updNegTerms()">
+      ${nPair('negWage',Math.round(wageExp*0.5),Math.round(wageExp*2),recWage,1,'updNegTerms()','k')}
     </div>
     <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">📅 DURACIÓN DEL CONTRATO</div>
@@ -6500,7 +6573,7 @@ function updNegTerms(){
   const nd=window._negData;if(!nd) return;
   const w=document.getElementById('negWage'),rx=document.getElementById('negTermsRx'),wl=document.getElementById('negWageL');
   if(!w||!rx) return;
-  const wage=+w.value;if(wl) wl.textContent=wage+'k';
+  const wage=nRead('negWage');if(wl) wl.textContent=wage+'k';
   const years=window._negYears||3;
   const role=window._negRole||2;
   const bonus=window._negBonus||0;
@@ -6533,7 +6606,7 @@ function submitNegTerms(id){
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
   const nd=window._negData;if(!nd) return;
-  const wage=+document.getElementById('negWage').value;
+  const wage=nRead('negWage');
   const years=window._negYears||3;
   const role=window._negRole||2;
   const bonus=window._negBonus||0;
@@ -6898,8 +6971,12 @@ function renderMkt(){
   const team = (document.getElementById('mkTeam')||{value:''}).value;
   const nat = (document.getElementById('mkNat')||{value:''}).value;
   const mv = parseFloat((document.getElementById('mkMaxV')||{value:''}).value)||9999;
+  const minV = parseFloat((document.getElementById('mkMinV')||{value:''}).value)||0;
   const maxAge = parseInt((document.getElementById('mkMaxAge')||{value:''}).value)||99;
+  const minAge = parseInt((document.getElementById('mkMinAge')||{value:''}).value)||0;
   const minR = parseInt((document.getElementById('mkMinR')||{value:''}).value)||0;
+  const minPot = parseInt((document.getElementById('mkMinPot')||{value:''}).value)||0;
+  const estado = (document.getElementById('mkEstado')||{value:''}).value;
   const virt = (document.getElementById('mkVirt')||{value:''}).value;
   const sort = (document.getElementById('mkSort')||{value:'rat'}).value;
 
@@ -6912,8 +6989,20 @@ function renderMkt(){
     if(lg2 && p.lg!==lg2) return false;
     if(team && p.club!==team) return false;
     if(nat && p.nat!==nat) return false;
-    if(p.val>mv) return false;
-    if(p.age>maxAge) return false;
+    if(p.val>mv||p.val<minV) return false;
+    if(p.age>maxAge||p.age<minAge) return false;
+    // Situación contractual. ⚠️ El potencial va por `potEst`, igual que el
+    // orden: filtrar por `p.pot` sería la misma puerta de atrás que ya se tapó
+    // con la media (ver la niebla de guerra).
+    if(minPot && (isKnown(p)?p.pot:potHi(p)) < minPot) return false;
+    // ⚠️ `wantsOut` y `onLoan` NO sirven acá: los cinco lugares que los ponen
+    // tocan sólo a TU plantel, así que en el mercado dan 0 siempre. Un filtro
+    // que nunca encuentra nada se lee como un bug. Lo que sí existe en la
+    // ficha de cualquiera es el año de contrato y la cláusula.
+    if(estado==='clausula' && !(clauseOf(p)>0)) return false;
+    if(estado==='precontrato' && !(contractMonths(p)<=6 && !esLibre(p))) return false;
+    if(estado==='vence' && !(contractMonths(p)<=18 && !esLibre(p))) return false;
+    if(estado==='largo' && contractMonths(p)<36) return false;
     // NIEBLA DE GUERRA: no podés filtrar por lo que no sabés. Al que no
     // scouteaste se lo juzga por el TECHO de su rango estimado, así no se
     // cuela el número exacto por la puerta de atrás del filtro.
@@ -6937,6 +7026,7 @@ function renderMkt(){
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
   ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe ($0.1M) o mandá un ojeador a la liga.</div>`:''}
+  ${estado&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">${estado==='precontrato'?`✍️ <b style="color:var(--gold)">Todavía no hay nadie a 6 meses del final.</b><br><span style="font-size:10px;color:var(--t3)">Los contratos se miden contra la temporada en curso: los que se vencen aparecen recién <b>sobre el final del año</b>. Mientras tanto probá "⏳ Último año de contrato".</span>`:`🔍 <b style="color:var(--gold)">Ningún jugador queda con esta situación contractual</b> junto al resto de los filtros. Aflojá alguno.`}</div>`:''}
   ${_mkLibres&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">🆓 <b style="color:var(--green)">No hay agentes libres todavía.</b><br><span style="font-size:10px;color:var(--t3)">Los jugadores quedan libres cuando se les vence el contrato, y eso pasa <b>al cerrar la temporada</b>. Medido: la primera temporada arranca con 0 y después del cierre aparecen ~950. Mientras tanto, al que le quedan 6 meses o menos podés hacerle un <b>precontrato</b> y que llegue gratis.</span></div>`:''}
   ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
@@ -9512,7 +9602,7 @@ function openDtNeg(name){
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:10px 0 4px">📋 LO QUE ÉL TE PIDE</div>
     ${dem.map(x=>`<div style="font-size:10.5px;color:var(--t2);padding:2px 0">• ${x}</div>`).join('')}
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:10px 0 4px">💰 SUELDO SEMANAL — pide $${d.salary}K</div>
-    <input type="range" class="neg-slider" min="${Math.round(d.salary*0.6)}" max="${Math.round(d.salary*1.6)}" value="${d.salary}" oninput="_dtNeg.offer=+this.value;document.getElementById('dtOffV').textContent='$'+this.value+'K'">
+    ${nPair('dtOff',Math.round(d.salary*0.6),Math.round(d.salary*1.6),d.salary,1,"_dtNeg.offer=nRead('dtOff');document.getElementById('dtOffV').textContent='$'+_dtNeg.offer+'K'",'K')}
     <div class="neg-val" id="dtOffV" style="font-size:20px;padding:2px">$${d.salary}K</div>
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:8px 0 4px">📅 DURACIÓN</div>
     <div style="display:flex;gap:4px">${[1,2,3].map(y=>`<button class="btn bs ${y===2?'bg':'bo'} dtYearBtn" onclick="_dtNeg.years=${y};document.querySelectorAll('.dtYearBtn').forEach(b=>b.className='btn bs bo dtYearBtn');this.className='btn bs bg dtYearBtn'">${y} año${y>1?'s':''}</button>`).join('')}</div>
@@ -11279,6 +11369,9 @@ function potEst(p){
 }
 function ratLo(p){ return Math.max(40,ratEst(p)-scoutMargin(p)); }
 function ratHi(p){ return Math.min(99,ratEst(p)+scoutMargin(p)); }
+// El techo del rango de POTENCIAL, con el mismo margen que usa potRangeTxt
+// (+2): lo lee el filtro del mercado, que al desconocido lo juzga por el techo.
+function potHi(p){ return Math.min(99,potEst(p)+scoutMargin(p)+2); }
 function ratRangeTxt(p){ return ratLo(p)+'–'+ratHi(p); }
 function potRangeTxt(p){
   const m=scoutMargin(p)+2, pe=potEst(p);
@@ -18445,7 +18538,7 @@ function ptRender(first){
         <span style="color:var(--t3)">💰 SUELDO — pide ~${s.wageExp}k${(()=>{const w=(typeof wageLabel==='function')&&wageLabel(p);
           return w?` · <b style="color:${w.c}">${w.t}</b>`:'';})()}</span>
         <span id="ptWL" style="color:var(--gold);font-weight:700">${s.wage}k</span></div>
-      <input type="range" id="ptW" class="neg-slider" min="${Math.round(s.wageExp*0.5)}" max="${Math.round(s.wageExp*2)}" value="${s.wage}" oninput="ptSetWage(+this.value)">
+      ${nPair('ptW',Math.round(s.wageExp*0.5),Math.round(s.wageExp*2),s.wage,1,"ptSetWage(nRead('ptW'))",'k')}
     </div>
     ${o.loan?'':`
     <div class="mpanel" style="margin-bottom:9px">
@@ -18755,7 +18848,7 @@ function updSwapInfo(targetId){
     <div class="sr"><span class="sl">Tus jugadores (85%)</span><span class="sv" style="color:var(--green)">${fv(credit)}${mine2?' (2)':''}</span></div>
     <div style="margin:8px 0">
       <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="color:var(--t2)">💵 Dinero que sumás</span><span style="color:var(--gold);font-weight:700" id="swapCashL">${fv(cash)}</span></div>
-      <input type="range" min="0" max="${maxCash}" step="0.5" value="${Math.min(cash,maxCash)}" class="neg-slider" oninput="window._swapCash=parseFloat(this.value);updSwapInfo('${p.id}')">
+      ${nPair('swapCash',0,maxCash,Math.min(cash,maxCash),0.5,"window._swapCash=nRead('swapCash');updSwapInfo('"+p.id+"')",'M',1,true)}
       <div style="font-size:9px;color:var(--t3)">Sugerido: ${fv(fair)} · poner más sube la chance</div>
     </div>
     <div class="sr"><span class="sl">Prob. de que acepten</span><span class="sv" style="color:${ev.prob>=0.55?'var(--green)':ev.prob>=0.35?'var(--gold)':'var(--red)'}">${Math.round(ev.prob*100)}%</span></div>
@@ -18991,7 +19084,7 @@ function openContract(id){
     <div class="note">Pretensión del jugador: <b style="color:var(--gold)">~${expected}k</b>/semana. Ofrecé salario y duración.</div>
     <div style="margin:12px 0">
       <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Salario semanal</span><span id="cWageL" style="color:var(--gold);font-weight:700">${recWage}k</span></div>
-      <input type="range" id="cWage" class="neg-slider" min="${Math.round(expected*0.5)}" max="${Math.round(expected*1.8)}" value="${recWage}" oninput="updContract(${expected})">
+      ${nPair('cWage',Math.round(expected*0.5),Math.round(expected*1.8),recWage,1,'updContract('+expected+')','k')}
     </div>
     <div style="margin:12px 0">
       <div style="font-size:11px;margin-bottom:5px">Duración del contrato</div>
@@ -19031,7 +19124,7 @@ function updContract(expected){
 }
 function submitContract(id,expected){
   const p=G.squad.find(x=>x.id===id); if(!p) return;
-  const wage=+document.getElementById('cWage').value, years=window._cYears||3;
+  const wage=nRead('cWage'), years=window._cYears||3;
   const ratio=wage/expected, cost=Math.round(wage*years*4/1000*10)/10;
   if(G.budget<cost){ flash('❌ Sin presupuesto para la firma ('+fv(cost)+')','loss'); return; }
   const piso=renovPiso(p);
@@ -24842,15 +24935,13 @@ function negStartPlayer(pid){
     <div class="sr"><span class="sl">Pretensión salarial</span><span class="sv">${wage}k/sem</span></div>
     ${pre?`<div class="note" style="margin:8px 0;border-color:var(--gold)">📝 Le quedan <b>${months} meses</b>: podés firmar un <b>precontrato</b> y que llegue <b>gratis</b> la próxima temporada, sin pagar ficha.</div>`:''}
     ${free?`<div class="note" style="margin:8px 0;border-color:var(--green)">🆓 Está <b>libre</b>: no hay club con el que negociar. Si acepta los términos, es tuyo.</div>`:''}
-    <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
-      <span style="font-size:11px;color:var(--t3);min-width:60px">Sueldo</span>
-      <input type="range" id="negWg" class="neg-slider" min="${Math.round(wage*0.6)}" max="${Math.round(wage*1.8)}" value="${wage}" oninput="document.getElementById('negWgV').textContent=this.value+'k'">
-      <span id="negWgV" style="font-family:'Rajdhani';font-weight:700;color:var(--gold);min-width:46px;text-align:right">${wage}k</span>
+    <div style="margin:10px 0">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:3px">Sueldo semanal</div>
+      ${nPair('negWg',Math.round(wage*0.6),Math.round(wage*1.8),wage,1,'','k')}
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="font-size:11px;color:var(--t3);min-width:60px">Años</span>
-      <input type="range" id="negYr" min="1" max="5" value="3" class="neg-slider" oninput="document.getElementById('negYrV').textContent=this.value">
-      <span id="negYrV" style="font-family:'Rajdhani';font-weight:700;color:var(--gold);min-width:46px;text-align:right">3</span>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:3px">Años de contrato</div>
+      ${nPair('negYr',1,5,3,1,'','a')}
     </div>
     <button class="btn bg" style="width:100%" onclick="negSendPlayer('${p.id}',${wage},${free?1:0},${pre?1:0})">📨 Enviarle la propuesta al jugador</button>
     <div style="font-size:9px;color:var(--t3);text-align:center;margin-top:6px">Te va a contestar en unos días.</div>
@@ -24858,8 +24949,8 @@ function negStartPlayer(pid){
 }
 function negSendPlayer(pid,baseWage,free,pre){
   const p=G.market.find(x=>x.id===pid); if(!p)return;
-  const wage=+document.getElementById('negWg').value;
-  const years=+document.getElementById('negYr').value;
+  const wage=nRead('negWg');
+  const years=nRead('negYr',3);
   ensureNegs();
   G.negs.push({pid,name:p.name,club:p.club,stage:'esperando_jugador',wait:3+~~(Math.random()*7),
     wage,years,free:!!free,pre:!!pre,bid:0,rounds:0,rivals:[],deadline:0,playerOk:false});
