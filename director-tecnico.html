@@ -4165,11 +4165,59 @@ function temporadasDB(){
 }
 function tempActual(){ return _DB_SEASON||2026; }
 function hayHistoricos(){ return temporadasDB().length>0; }
+// ═══ LA INFLACIÓN DEL MERCADO: UN AÑO VIEJO NO SE MIDE CON LA PLATA DE HOY ═══
+// La media sale del VALOR (`valToRat` es logarítmica), así que el mejor
+// jugador del 2000 —1,91M en Transfermarkt— daba **71** y el plantel entero
+// quedaba amontonado en 56. No es que fueran peores: la plata del fútbol
+// creció y, sobre todo, TM casi no valuaba la liga argentina de esos años.
+//
+// El factor NO está escrito a mano ni sale de un índice de inflación que no
+// puedo verificar: se DERIVA comparando la misma liga contra sí misma, el
+// promedio de los 10 valores más altos de la Primera de ese año contra el de
+// 2026. Medido: ×6,9 en 2000, ×5,5 en 2003, ×1,7 en 2005, ×1,1 en 2015 y
+// ×0,9 en 2020 (esos años la liga valía MÁS que hoy, y se corrige para abajo).
+//
+// Como el rating es logarítmico, multiplicar el valor SUMA puntos fijos:
+// ×2 son +3,3 y ×10 son +10,9. Resultado medido contra la referencia de 2026
+// (mediana 66 · p90 74 · máx 82):
+//   2000 hoy → mediana 56 · p90 61 · máx 76 · 0 jugadores de 80+
+//   2000 con el ajuste → mediana **65** · p90 **70** · máx **85** · 4 de 80+
+//
+// ⚠️ Lo que el ajuste NO puede arreglar es la DISPERSIÓN: en 2000-2003 el
+// 94-96% de las fichas no tiene valoración en TM y quedan todas en el mismo
+// número, así que el plantel sigue siendo más plano que uno de hoy (sd 3,4
+// contra 6,1). Eso es dato que no existe, no una constante para tunear.
+// Se probó la alternativa —escalar SÓLO a los que sí tienen precio— y deja la
+// mediana en 56: arregla a los cracks y abandona al resto. Medido, peor.
+const INFL_ANCLA=10, INFL_MIN=0.75, INFL_MAX=10;
+let _inflCache={};
+function _inflAncla(db){
+  const v=[];
+  db.forEach(r=>{ if(r[6]==='Liga ARG'&&r[7]>0)v.push(r[7]); });
+  if(v.length<INFL_ANCLA)return 0;
+  v.sort((a,b)=>b-a);
+  return v.slice(0,INFL_ANCLA).reduce((a,x)=>a+x,0)/INFL_ANCLA;
+}
+// Devuelve la base del año con los valores llevados a la escala de hoy. NO
+// toca el array del archivo (se cachea la copia), así que ir y volver entre
+// temporadas no escala dos veces.
+function _dbInflada(y,db){
+  if(_inflCache[y])return _inflCache[y];
+  const hoy=_inflAncla(_PDB_ACTUAL||[]), ese=_inflAncla(db);
+  let k=(hoy>0&&ese>0)?hoy/ese:1;
+  k=Math.max(INFL_MIN,Math.min(INFL_MAX,k));
+  const out=(Math.abs(k-1)<0.02)?db:db.map(r=>{
+    const c=r.slice(); c[7]=Math.round((r[7]||0)*k*1000)/1000; return c;
+  });
+  out._inflK=k;
+  return (_inflCache[y]=out);
+}
+function inflFactor(){ const d=window.PLAYERS_DB; return (d&&d._inflK)||1; }
 function aplicarTemporada(y){
   y=+y||2026;
   if(_PDB_ACTUAL===null) _PDB_ACTUAL=window.PLAYERS_DB||[];
   const h=window.PLAYERS_DB_HIST||{};
-  const nueva=(h[y]&&h[y].length>200)?h[y]:_PDB_ACTUAL;
+  const nueva=(h[y]&&h[y].length>200)?_dbInflada(y,h[y]):_PDB_ACTUAL;
   const cambia=(window.PLAYERS_DB!==nueva);
   window.PLAYERS_DB=nueva;
   _DB_SEASON=(nueva===_PDB_ACTUAL)?2026:y;
@@ -4178,6 +4226,9 @@ function aplicarTemporada(y){
   // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
   // Son OCHO cachés y los ocho están anotados acá para que agregar uno
   // nuevo sin sumarlo a esta lista se note.
+  // ⚠️ `_inflCache` NO va acá a propósito: está indexado por AÑO y sale del
+  // archivo, que no cambia. Tirarlo sería recalcular y recopiar la base entera
+  // cada vez que se va y se vuelve de una temporada.
   try{ _tagsDB=null; }catch(e){}                     // qué etiquetas de liga trae la base
   try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
   try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard

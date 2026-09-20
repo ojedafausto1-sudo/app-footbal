@@ -3792,6 +3792,82 @@ nuevo.
 (medido: 1,64 contra 1,647 de umbral, y verde en la corrida siguiente con el
 mismo código). Si lo ves rojo, corré de nuevo antes de creerle.
 
+## Fase 44: la inflación del mercado — un año viejo no se mide con la plata de hoy
+
+El síntoma que reportó el usuario: **el mejor jugador del 2000 tenía 69 de
+media**. La media sale del VALOR (`valToRat` es logarítmica) y la plata del
+fútbol creció, así que una liga vieja entera quedaba aplastada contra el piso.
+
+### El factor se DERIVA, no se escribe a mano
+
+No hay índice de inflación en el código ni traído de memoria: se compara **la
+misma liga contra sí misma**, el promedio de los 10 valores más altos de la
+Primera de ese año contra el de 2026 (`_inflAncla`). Medido:
+
+| año | 2000 | 2003 | 2005 | 2010 | 2015 | 2020 | 2025 |
+|---|---|---|---|---|---|---|---|
+| factor | **×6,86** | ×5,52 | ×1,70 | ×1,79 | ×1,11 | **×0,87** | ×0,87 |
+
+⚠️ **No es una curva suave y eso importa**: la corrección es fuerte hasta 2003
+y de 2004 en adelante es casi nada. En 2017-2020 el factor es **menor que 1**
+—esos años la liga argentina valía MÁS que hoy— y se corrige para abajo, que es
+lo consistente: la escala tiene que significar lo mismo en los 26 años.
+
+Como el rating es logarítmico, multiplicar el valor **suma puntos fijos**:
+×2 son +3,3 y ×10 son +10,9. Resultado contra la referencia de 2026
+(mediana 66 · p90 74 · máx 82):
+
+| 2000 | mediana | p90 | máx | jugadores de 80+ |
+|---|---|---|---|---|
+| antes | 56 | 61 | 76 | **0** |
+| ahora | **65** | **70** | **85** | **4** |
+
+### ⚠️ Lo que el factor NO arregla, y conviene no prometerlo
+
+La **dispersión**. En 2000-2003 el **94-96% de las fichas no tiene valoración
+en TM** (quedan en el 0,1 de fallback del extractor), así que el plantel sigue
+siendo más plano que uno de hoy: **sd 3,4 contra 6,1**. Eso es dato que no
+existe, no una constante para tunear.
+
+Y ojo: **eso prueba que el parser anda**. Si fuera un fallo de parseo sería
+todo o nada por página; acá la cobertura sube de a poco con el año (96% sin
+valor en 2000 → 17% en 2025) y en la MISMA página de 2004 hay jugadores con
+precio y jugadores sin él.
+
+Se probó la alternativa —escalar **sólo** a los que sí tienen precio— y deja la
+mediana en 56: le arregla la media a los cuatro cracks y abandona al resto.
+Medido, peor. Por eso se escala la columna entera.
+
+### Dónde vive
+
+`_dbInflada(y,db)` devuelve una **copia** de la base del año con los valores
+escalados y la cachea; `aplicarTemporada` la enchufa en lugar del array del
+archivo. Verificado:
+
+- **el archivo del disco no se toca** (el máximo de `players-hist-2000.js`
+  sigue abajo de 3M),
+- **ir y volver entre temporadas no escala dos veces** (2000 → 2026 → 2000 da
+  el mismo 13,095 y el mismo factor),
+- una partida de 2000 **sobrevive al guardado** con el factor puesto,
+- y medido sobre la base ya corregida el ancla vuelve a dar **×1,00** contra
+  2026, que es la definición de que quedó en escala.
+
+⚠️ `_inflCache` está indexado por AÑO y sale del archivo, que no cambia, así que
+**NO va en la lista de cachés que tira `aplicarTemporada`** (sería recopiar la
+base entera en cada ida y vuelta). Es el único derivado de la base que
+sobrevive al cambio de temporada, y está comentado ahí para que no se lo sumen
+sin querer.
+
+⚠️ **Una partida YA guardada conserva las medias viejas**: `G.squad` se
+serializa con el `rat` calculado al crearla. Es la regla de siempre —no se
+migra el save—, así que la corrección se ve en las partidas nuevas.
+
+⚠️ Los clubes curados a mano (Boca, River, Racing, Independiente, San Lorenzo)
+tienen reputación y presupuesto escritos en `TEAMS`, así que **no se mueven con
+el factor**: Boca sigue en rep 78 y 28M en los 26 años. Lo que sí se empareja
+es el ONCE, que es lo que se quería — medido, el promedio del once titular de
+Boca queda en **73-77 de 2000 a 2026** en vez de caer a 60 en los años viejos.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
