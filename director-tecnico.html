@@ -3793,8 +3793,36 @@ function unpackPlayer(row){
   if(ex&&typeof ex==='object') Object.assign(p,ex);
   return p;
 }
+// ═══════════════════════════════════════════════════════════════════════
+// EL GUARDADO SE AGRUPA: ERA LA MITAD DEL JUEGO TRABADO
+// ═══════════════════════════════════════════════════════════════════════
+// `updateUI` terminaba SIEMPRE en `saveGame()`, y `saveGame` serializa los
+// 17.000 jugadores del mercado a un JSON de 3,1 MB. Medido: **137,6 ms de los
+// 167 que costaba `updateUI`** — el 82%. Y `updateUI` corre en cada click.
+//
+// Ahora el que agrupa es `updateUI`, que llama a `saveSoon()`: pide guardar y
+// a los 900 ms se hace UNO solo.
+//
+// ⚠️ `saveGame()` SIGUE GUARDANDO EN EL ACTO. Es la parte importante del
+// diseño: hacer que la llamada explícita "guardá" no guarde sería exactamente
+// el tipo de bug silencioso que este archivo documenta una y otra vez — y de
+// hecho lo destapó la regresión, que hace `saveGame(); G=null; loadGame();`
+// y se encontró con que no había nada guardado. Lo que se agrupa es el
+// guardado AUTOMÁTICO de cada render, no el pedido de nadie.
+// ⚠️ El `beforeunload` es obligatorio: sin él, cerrar el navegador dentro de
+// esos 900 ms perdía la última jugada, y eso sería peor que el lag.
+const SAVE_DEBOUNCE=900;
+let _saveT=null, _savePend=false;
+function saveSoon(){
+  _savePend=true;
+  if(_saveT) return;
+  _saveT=setTimeout(()=>{ _saveT=null; if(_savePend) saveGame(); }, SAVE_DEBOUNCE);
+}
+function saveFlush(){ if(_saveT){clearTimeout(_saveT);_saveT=null;} if(_savePend) saveGame(); }
+try{ window.addEventListener('beforeunload',()=>{ try{saveFlush();}catch(e){} }); }catch(e){}
 function saveGame(){
   if(!G) return;
+  _savePend=false;
   try{
     const snap={};
     for(const k in G) snap[k]=G[k];
@@ -4240,7 +4268,7 @@ function aplicarTemporada(y){
   if(!cambia) return _DB_SEASON;
   // ⚠️ Todo lo que cachea algo derivado de la base hay que tirarlo, o el
   // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
-  // Son OCHO cachés y los ocho están anotados acá para que agregar uno
+  // Son DIEZ cachés y los diez están anotados acá para que agregar uno
   // nuevo sin sumarlo a esta lista se note.
   // ⚠️ `_inflCache` NO va acá a propósito: está indexado por AÑO y sale del
   // archivo, que no cambia. Tirarlo sería recalcular y recopiar la base entera
@@ -4258,6 +4286,8 @@ function aplicarTemporada(y){
   try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
   try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
   try{ _topLiga._lg=null; _topLiga._v=null; }catch(e){} // rivales directos (cachea en la función)
+  try{ _nivMap=null; _nivMapSeason=null; }catch(e){}  // club → nivel (mapa de clubRank)
+  try{ _valMedCache=null; _valMedSeason=null; }catch(e){} // mediana de valor por rating
   return _DB_SEASON;
 }
 let _tsPaso=1,_tsPais=null,_tsLg=null,_tsFiltro='';
@@ -5212,7 +5242,56 @@ function clubRank(){
   _rankCache=out; _rankSeason=(G&&G.season);
   return out;
 }
-function nivelClub(c){ const r=clubRank().find(x=>x.club===c); return r?r.niv:63; }
+// ⚠️ Esto era `clubRank().find(...)`: un recorrido LINEAL sobre 612 clubes en
+// CADA llamada. Y lo llama `_negWageExpect`, que a su vez corre una vez por
+// fila del Mercado — 150 filas × 612 = 92.000 comparaciones por render, sólo
+// para leer un número que ya estaba calculado. El mapa se arma una vez por
+// temporada, igual que el propio `clubRank`.
+let _nivMap=null, _nivMapSeason=null;
+function nivelClub(c){
+  const t=(G&&G.season);
+  if(!_nivMap||_nivMapSeason!==t){
+    _nivMap={}; clubRank().forEach(x=>{_nivMap[x.club]=x.niv;}); _nivMapSeason=t;
+  }
+  const v=_nivMap[c];
+  return (v===undefined)?63:v;
+}
+// ═══════════════════════════════════════════════════════════════════════
+// LO QUE PIDE UN JUGADOR MIRA SU VALOR, NO SÓLO SU MEDIA
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ A IGUAL RATING la dispersión de valor es enorme y el sueldo no la veía:
+// medido sobre la base, un rat 84 va de **12M (p10) a 75M (máximo)** — seis
+// veces — y los dos pedían lo mismo. El caso concreto que lo delató: Jean
+// Butez (8M, Como) pedía **125k** y Kenan Yıldız (75M, Juventus) **92k**.
+//
+// Se compara contra la MEDIANA de su propia banda de rating, así el rating no
+// se cuenta dos veces: lo único que entra es la parte que el rating no
+// explica. `×3 de valor = +16%`, con tope para que no se dispare.
+let _valMedCache=null, _valMedSeason=null;
+function _valMedianaRat(r){
+  const t=(G&&G.season);
+  if(!_valMedCache||_valMedSeason!==t){
+    const porRat={};
+    (G&&G.market||[]).forEach(p=>{
+      const k=Math.round(p.rat||70);
+      (porRat[k]=porRat[k]||[]).push(p.val||0.1);
+    });
+    _valMedCache={};
+    Object.keys(porRat).forEach(k=>{
+      const a=porRat[k].sort((x,y)=>x-y);
+      _valMedCache[k]=a[Math.floor(a.length/2)]||0.1;
+    });
+    _valMedSeason=t;
+  }
+  const k=Math.round(r);
+  return _valMedCache[k]||_valMedCache[k-1]||_valMedCache[k+1]||0;
+}
+function _wageValFactor(p){
+  const med=_valMedianaRat(p.rat||70);
+  if(!(med>0))return 1;
+  const k=Math.log(Math.max(0.1,p.val||0.1)/med)/Math.log(3);
+  return Math.max(0.80,Math.min(1.35,1+k*0.16));
+}
 // Elige un club interesado en un jugador de este rating. `dir` corre la
 // ventana: 0 = comprador (club de su nivel o mejor), -1 = destino de
 // préstamo (club más chico, que es donde un pibe va a sumar minutos).
@@ -5751,40 +5830,43 @@ function updateUI(){
   if($('offCnt'))$('offCnt').textContent=G.offers.length;
   if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=dayLabel()+(q>0?' · faltan '+q+' d':' · día de partido');}
   if($('dayBtn'))$('dayBtn').style.opacity=curDay()>=7?'.4':'1';
+  // ⚠️ `G.league` se construía como EFECTO SECUNDARIO de dibujar la tabla
+  // (`rStand` llama a `ensureLeague`). Al pasar las pestañas a dibujarse sólo
+  // cuando se las mira, una partida en la que nunca abriste el Calendario
+  // quedaba con `G.league` en null — y de ahí leen la posición, el descenso y
+  // `archiveSeason`. Dibujar no puede ser lo que crea el estado del juego.
+  // Es idempotente (sale por el `if` en cuanto existe), así que no cuesta nada.
+  // ⚠️ Lo mismo con el resto del estado que se creaba al dibujar: la intensidad
+  // y el foco de entrenamiento los ponía `rTrain` —y los LEE `weeklyTraining`,
+  // así que sin abrir la pestaña el club entrenaba con `undefined`— y el pool
+  // de técnicos lo armaba `rStaff`, del que sale la Junta. Auditado
+  // comparando la huella de `G` antes y después de pintar las siete pestañas:
+  // eran CINCO campos (`league`, `trainIntensity`, `trainFocus`, `dtPool`,
+  // `_dtF`). Dibujar no puede ser lo que crea el estado del juego.
+  try{ ensureLeague(); }catch(e){}
+  if(G.trainIntensity===undefined)G.trainIntensity='normal';
+  if(G.trainFocus===undefined)G.trainFocus='general';
+  try{ if(typeof ensureDtPool==='function')ensureDtPool(); }catch(e){}
   rBotonesPartido();
-  rSq();                       // sin argumento: respeta el filtro que elegiste
-  rStand();
   rNews();
-  rFormation();
-  rXI();
-  renderMktSafe();
-  rSell();
-  rOffs();
-  rTrain();
-  rStaff();
-  rCal();
   rFBtns();
-  rStyle();
-  rTacOpts();
-  rSetPieces();
   if(typeof rFriendlies==='function')rFriendlies();
-  rInd();
-  rStad();
-  rTicket();
-  rLoans();
-  rFinanzas();
-  rVestuario();
-  rRetirados();
-  rJuv();
-  if(G.sponsors!==undefined) rSponsors();
+  // ═══════════════════════════════════════════════════════════════════════
+  // SE DIBUJA LA PESTAÑA QUE SE VE, NO LAS SIETE
+  // ═══════════════════════════════════════════════════════════════════════
+  // Acá se llamaban los ~30 renders de TODAS las pestañas en cada acción.
+  // Medido: `renderMktSafe` sola cuesta **58,5 ms** y se redibujaba aunque
+  // estuvieras mirando el Plantel; `rStaff` 9,2; `rStand` 4,6. Ahora cada
+  // pestaña se marca sucia y se dibuja al entrar (`gTab`), que es cuando se
+  // mira. La portada y la barra de arriba se dibujan siempre: están a la vista.
+  tabsSucias();
+  pintarTab(tabActiva());
   if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
-  if(document.getElementById('tab-social')&&document.getElementById('tab-social').classList.contains('on')) rSocial();
-  if(typeof rStats === 'function') rStats();
   rDtPedidos();
   rPressDemands();
   rFormDots();
   updatePhoneBadge();
-  saveGame();
+  saveSoon();                  // agrupado: ver saveGame / SAVE_DEBOUNCE
 }
 
 function rFormDots(){
@@ -6052,11 +6134,15 @@ function openP(id, inSquad){
         <button class="btn bo bs" style="border-color:var(--red);color:var(--red)" onclick="rescindPlayer('${p.id}')">🗑️ Rescindir</button>
         ${pIsForeign(p) && (p.seasonsAtClub||0)>=2 ? `<button class="btn bg bs" style="background:linear-gradient(135deg,#1565c0,#0d47a1)" onclick="naturalizePlayer('${p.id}')">${natGent(natLocalPrincipal())[1]} Nacionalizar</button>` : ''}
       ` : `
+        ${esLibre(p)?`
+        <button class="btn bg bs" onclick="negStartPlayer('${p.id}')">🆓 Arreglar contrato (llega sin ficha)</button>
+        ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
-        <button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>
+        ${clauseOf(p)>0?`<button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>`:''}
         <button class="btn bo bs" onclick="buyHalfPass('${p.id}')">➗ % del pase</button>
         <button class="btn bo bs" onclick="openSwap('${p.id}')">🔄 Canje</button>
         <button class="btn bo bs" onclick="loanIn('${p.id}')">📥 Préstamo</button>
+        `}
       `}
     </div>
   `);
@@ -6180,9 +6266,17 @@ function _negWageExpect(p){
     'Arabia':1.45,'Portugal':1.12,'Holanda':1.10,'Turquía':1.08,'Rusia':1.08,'Bélgica':1.05,
     'Brasil':1.06,'MLS':1.05,'Liga MX':1.02,'Grecia':1.0,'Liga ARG':1.0};
   base*=(LG[p.lg]||0.92);
-  // 5) Y si ya está en un grande, no baja los brazos
-  if(/Real Madrid|Barcelona|Man\. City|Liverpool|Bayern|PSG|Chelsea|Inter|Juventus|Al-Hilal|Al-Nassr/.test(p.club||''))
-    base*=1.12;
+  // 4b) Lo que el mercado paga POR ÉL, no sólo lo que rinde (ver _wageValFactor)
+  base*=_wageValFactor(p);
+  // 5) Y de qué club viene. ⚠️ Esto era un regex con 11 nombres escritos a
+  //    mano y cubría **14 de los 612 clubes de la base**. Peor: decía
+  //    `Man\. City` con punto y en la base el club se llama `Man City`, así que
+  //    el bonus **nunca se disparaba para el Manchester City**. Es el mismo
+  //    patrón de `bigClubs`/`midClubs` de la Fase 18, que ya había costado
+  //    cuatro nombres inexistentes. Ahora sale de `clubRank()`, que cubre los
+  //    612: medido, hay **27 clubes de nivel 84+** y 14 no estaban en la lista.
+  const _nv=nivelClub(p.club||'');
+  base*= _nv>=86?1.16 : _nv>=80?1.10 : _nv>=72?1.04 : _nv>=62?1.00 : 0.95;
   // 6) Su cabeza: el mercenario va por la plata y lo dice con el número.
   // Va ACÁ y no en negStep3 a propósito: `_negWageExpect` es el embudo que
   // leen las cuatro vías de fichaje (negociar, cláusula, canje, préstamo) vía
@@ -6262,13 +6356,15 @@ function openNeg(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado — esperá la próxima ventana','loss');return;}
+  if(libreBloquea(p,'club'))return;
   if(jerarquiaBloquea(p))return;
   const agent=_negAgent(p);
   const demand=_negDemand(p);
   const wageExp=_negWageExpect(p);
   const isTop=isKnown(p)&&p.rat>=85;   // la estrellita también es dato de scouting
   const styleTxt={duro:'Agente difícil — pedirá mucho',negociador:'Agente flexible — dispuesto a negociar',razonable:'Agente razonable — trato justo',ambicioso:'Agente ambicioso — quiere comisiones altas'}[agent.style];
-  window._negData={id,demand,agent,wageExp,round:1,maxRounds:3,lastOffer:0};
+  window._negData={id,demand,agent,wageExp,round:1,maxRounds:3,lastOffer:0,sellOn:0};
+  window._negSellOn=0; window._negClaus=2;
   const agentMsg={duro:`⚠️ Mirá, ${p.club} no necesita vender. Si querés a <b>${p.name}</b>, vas a tener que poner una oferta MUY seria. No me hagas perder el tiempo.`,negociador:`📞 Buenas. Recibí tu interés por <b>${p.name}</b>. ${p.club} está dispuesto a sentarse a negociar si la oferta es razonable. Hablemos.`,razonable:`😊 ¡Hola! Qué bueno que se interesen por <b>${p.name}</b>. Creo que podemos llegar a un acuerdo si ambas partes ponemos voluntad.`,ambicioso:`💰 Mi cliente <b>${p.name}</b> es un jugador top. ${p.club} lo valora mucho, y yo me aseguro de que reciba lo que merece. La comisión es parte del paquete.`}[agent.style];
   addPhoneMsg('agent',agent.name,agentMsg,'🤝');
   showMod(`
@@ -6365,6 +6461,7 @@ function negStep2(){
       </div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px">El pago diferido cuesta un recargo y <b>al club le gusta menos</b>: puede pedir más o rechazar. El contado es más fácil de cerrar.</div>
     </div>
+    ${_negSellOnHTML(p)}
     <div style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center">👨‍💼 ${nd.agent.name} · Fee estimado: ~${fv(agentFee)} · Ronda ${nd.round}/${nd.maxRounds}</div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
       <button class="btn bg" onclick="subNegI('${nd.id}',${nd.demand})">✉️ Enviar oferta</button>
@@ -6376,6 +6473,44 @@ function negStep2(){
   updNegI(nd.demand, G.budget);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// EL % DE FUTURA VENTA SE NEGOCIA
+// ═══════════════════════════════════════════════════════════════════════
+// El mecanismo existía pero SÓLO al revés: cuando un club te compraba un
+// jugador podía dejarte un % de su futura venta (`o.sellOn`). Comprando no
+// había manera de ofrecerlo, que es justamente cómo se cierran los pases
+// difíciles: "te pago menos hoy y te dejo el 20% de lo que saque mañana".
+//
+// ⚠️ NO se creó un campo nuevo. Se reusa `p.ownedPct`, que YA está cableado en
+// la venta (`val=val*p.ownedPct`) y en la insignia ➗ del plantel. `sellOnPct`
+// existía en el archivo y **no lo leía nadie** — era un campo muerto. Dos
+// campos para el mismo dato es el bug que este proyecto ya se hizo cinco veces.
+const SELLON_OPTS=[0,10,20,30];
+// Lo que el club VALORA la concesión. Una venta futura es incierta y lejana,
+// así que no vale el % del valor de hoy: se descuenta a la mitad largo.
+const SELLON_VAL=0.55;
+function negSellOnValor(p,pct){
+  if(!p||!pct)return 0;
+  return Math.round(p.val*(pct/100)*SELLON_VAL*100)/100;
+}
+function _negSellOnHTML(p){
+  const cur=window._negSellOn||0;
+  return `<div class="mpanel" style="padding:9px;margin-top:8px">
+    <div style="font-size:10px;color:var(--t3);margin-bottom:5px">📈 % DE UNA FUTURA VENTA PARA ${String(p.club||'SU CLUB').toUpperCase()}</div>
+    <div style="display:flex;gap:4px">
+      ${SELLON_OPTS.map(pc=>`<button class="btn ${cur===pc?'bg':'bo'} bs negSoBtn" data-so="${pc}" onclick="selNegSellOn(${pc})" style="flex:1;font-size:10px">${pc?pc+'%':'Nada'}${pc?`<br><span style="font-size:8px">vale ${fv(negSellOnValor(p,pc))}</span>`:''}</button>`).join('')}
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:4px">Cedés parte de lo que cobres el día que lo vendas, y a cambio <b>aceptan menos plata hoy</b>. Queda anotado en su ficha con la insignia ➗.</div>
+  </div>`;
+}
+function selNegSellOn(pc){
+  window._negSellOn=pc;
+  if(window._negData)window._negData.sellOn=pc;
+  document.querySelectorAll('.negSoBtn').forEach(b=>{const on=+b.dataset.so===pc;
+    b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});
+  const nd=window._negData;
+  if(nd&&document.getElementById('negRx'))updNegI(nd.demand,G.budget);
+}
 function updNegI(demand, budget){
   const inp=document.getElementById('negInp');
   const rx=document.getElementById('negRx');
@@ -6384,7 +6519,10 @@ function updNegI(demand, budget){
   const plan=window._negPlan||1;
   // El pago en cuotas baja el atractivo de la oferta para el club vendedor
   const planPenalty=plan===1?1:plan===2?0.93:0.86;
-  const ratio=(val/demand)*planPenalty;
+  // Ceder % de una futura venta es plata para el club: entra en la oferta.
+  const _nd=window._negData, _p=_nd&&G.market.find(x=>x.id===_nd.id);
+  const soVal=negSellOnValor(_p,window._negSellOn||0);
+  const ratio=((val+soVal)/demand)*planPenalty;
   // La primera cuota (lo que sale hoy) es lo que se controla contra el presupuesto
   const payNow=Math.round(val*(plan===1?1:plan===2?1.05:1.10)/plan*10)/10;
   let txt,col,bg;
@@ -6395,6 +6533,7 @@ function updNegI(demand, budget){
   else if(ratio>=0.60)  {txt='🟠 Probablemente rechacen';      col='var(--ora)';  bg='rgba(240,148,58,.1)';}
   else                  {txt='⚠️ Oferta insuficiente — rechazarán';col='var(--red)';  bg='rgba(232,69,69,.1)';}
   if(plan>1&&payNow<=budget)txt+=` · hoy pagás ${fv(payNow)}`;
+  if(soVal>0)txt+=` · el ${window._negSellOn}% de futura venta les suma ${fv(soVal)}`;
   rx.textContent=txt; rx.style.color=col; rx.style.background=bg; rx.style.padding='7px'; rx.style.borderRadius='6px';
 }
 
@@ -6418,9 +6557,13 @@ function subNegI(id, demand){
   if(pIsForeign(p)&&foreignCount(G.squad)>=cupoExt()){flash('❌ Cupo de '+labelCupo().toLowerCase()+' lleno ('+cupoExt()+'/'+cupoExt()+')','loss');return;}
   const nd=window._negData||{demand,agent:{name:'Agente',style:'razonable'},round:1,maxRounds:3};
   nd.lastOffer=offer;nd.plan=plan;
-  // El club valora menos el pago diferido
+  nd.sellOn=window._negSellOn||0;
+  // El club valora menos el pago diferido, y más si le dejás % de reventa.
+  // ⚠️ La MISMA cuenta que el semáforo (`updNegI`): si el preview y la decisión
+  // usaran fórmulas distintas, el 🟢 mentiría.
   const planPenalty=plan===1?1:plan===2?0.93:0.86;
-  const ratio=(offer/demand)*planPenalty;
+  const soVal=negSellOnValor(p,nd.sellOn);
+  const ratio=((offer+soVal)/demand)*planPenalty;
   const rnd=Math.random();
   const topClubs=['Real Madrid','Barcelona','Man. City','Liverpool','Bayern','PSG','Chelsea','Inter','Juventus'];
   const hard=topClubs.some(c=>p.club.includes(c))?0.92:1;
@@ -6428,7 +6571,7 @@ function subNegI(id, demand){
   const adj=ratio*hard+styleBonus;
   if(adj>=0.95||(adj>=0.86&&rnd>.2)||(adj>=0.76&&rnd>.55)){
     nd.agreedFee=offer;
-    addPhoneMsg('agent',nd.agent.name,`✅ <b>${p.club}</b> aceptó tu oferta de <b style="color:var(--gold)">${fv(offer)}</b> por <b>${p.name}</b>. Ahora tenés que acordar los términos personales con el jugador.`,'💰');
+    addPhoneMsg('agent',nd.agent.name,`✅ <b>${p.club}</b> aceptó tu oferta de <b style="color:var(--gold)">${fv(offer)}</b> por <b>${p.name}</b>${nd.sellOn?` <b>+ el ${nd.sellOn}% de una futura venta</b>`:''}. Ahora tenés que acordar los términos personales con el jugador.`,'💰');
     flash('✅ '+p.club+' aceptó '+fv(offer)+'!','win');
     window._negData=nd;
     negStep3(id);
@@ -6554,6 +6697,13 @@ function negStep3(id){
         ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}
       </div>
     </div>
+    <div class="mpanel" style="margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">💥 CLÁUSULA DE RESCISIÓN</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${PT_CLAUS.map((c,i)=>`<button class="btn ${i===(window._negClaus===undefined?2:window._negClaus)?'bg':'bo'} bs negClBtn" data-i="${i}" onclick="selNegClaus(${i})" style="flex:1;min-width:62px;font-size:9.5px">${c.lbl}<br><span style="font-size:8px">${c.m?fv(Math.round((p.val||1)*c.m*10)/10):'—'}</span></button>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px" id="negClDesc">${PT_CLAUS[window._negClaus===undefined?2:window._negClaus].desc}</div>
+    </div>
     <div style="font-size:9px;color:var(--t3);margin-bottom:6px">💳 Pago acordado con el club: <b style="color:var(--gold)">${(nd.plan||1)===1?'Contado':(nd.plan)+' cuotas'}</b></div>
     <div class="neg-rx" id="negTermsRx"></div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -6564,6 +6714,11 @@ function negStep3(id){
   updNegTerms();
 }
 
+function selNegClaus(i){window._negClaus=i;
+  document.querySelectorAll('.negClBtn').forEach(b=>{const on=+b.dataset.i===i;
+    b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});
+  const d=document.getElementById('negClDesc'); if(d)d.textContent=PT_CLAUS[i].desc;
+  updNegTerms();}
 function selNegYears(y){window._negYears=y;document.querySelectorAll('.negYrBtn').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
 function selNegRole(r){window._negRole=r;document.querySelectorAll('.negRoleBtn').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});updNegTerms();}
 function selNegBonus(b){window._negBonus=b;document.querySelectorAll('.negBonBtn').forEach(btn=>{const on=parseFloat(btn.dataset.b)===b;btn.classList.toggle('bg',on);btn.classList.toggle('bo',!on);});updNegTerms();}
@@ -6586,6 +6741,8 @@ function updNegTerms(){
   if(roleDiff<=0) score+=2; else if(roleDiff===1) score+=1; else score-=1;
   if(bonus>=2) score+=1; else if(bonus>=1) score+=0.5;
   if(years>=4) score+=0.5; else if(years<=1) score-=1;
+  // La cláusula, con el MISMO peso que en `ptScore`: es su puerta de salida.
+  score+=PT_CLAUS[window._negClaus===undefined?2:window._negClaus].s;
   let txt,col,bg;
   if(score>=5){txt='✅ Aceptará encantado — oferta irresistible';col='var(--green)';bg='rgba(26,170,107,.12)';}
   else if(score>=3.5){txt='🟢 Muy probable que acepte';col='var(--green)';bg='rgba(26,170,107,.08)';}
@@ -6607,6 +6764,9 @@ function submitNegTerms(id){
   if(!p) return;
   const nd=window._negData;if(!nd) return;
   const wage=nRead('negWage');
+  const sellOn=(nd.sellOn||0);
+  const _cli=(window._negClaus===undefined?2:window._negClaus);
+  const clausula=PT_CLAUS[_cli].m?Math.round((p.val||1)*PT_CLAUS[_cli].m*10)/10:0;
   const years=window._negYears||3;
   const role=window._negRole||2;
   const bonus=window._negBonus||0;
@@ -6630,6 +6790,8 @@ function submitNegTerms(id){
   if(roleDiff<=0) score+=2; else if(roleDiff===1) score+=1; else score-=1;
   if(bonus>=2) score+=1; else if(bonus>=1) score+=0.5;
   if(years>=4) score+=0.5; else if(years<=1) score-=1;
+  // La cláusula, con el MISMO peso que en `ptScore`: es su puerta de salida.
+  score+=PT_CLAUS[window._negClaus===undefined?2:window._negClaus].s;
   // REPUTACIÓN: los cracks quieren un club a su altura
   const repGap=(p.rat)-(G.rep||50);
   if(repGap>=25) score-=3; else if(repGap>=15) score-=1.5; else if(repGap>=8) score-=0.7;
@@ -6646,7 +6808,7 @@ function submitNegTerms(id){
       lg('💳',`Financiado: ${plan-1} cuota(s) de ${fv(cuota)} pendiente(s) a ${oldClub}`);
     }
     // El acuerdo se cierra hoy; la firma es después de la revisión médica.
-    firmaProgramar(p,{price:0,pagado:true,fee:feeTot,wage,years,motivo:'fichaje'});
+    firmaProgramar(p,{price:0,pagado:true,fee:feeTot,wage,years,motivo:'fichaje',sellOn,clausula});
     lg('💰',`Acuerdo por ${p.name}: ${fv(feeTot)}${plan>1?' en '+plan+' cuotas':''} (${wage}k/sem, ${years}a, ${roles[role]})`);
     addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de arreglar con <b>${G.teamName||'el club'}</b>! Paso la revisión y firmo.`,'⭐');
     addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
@@ -6777,6 +6939,7 @@ function negLoanOffer(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(libreBloquea(p,'prestamo'))return;
   if(jerarquiaBloquea(p))return;
   const agent=_negAgent(p);
   const _ref=loanRefusal(p);
@@ -7014,12 +7177,20 @@ function renderMkt(){
   // NIEBLA DE GUERRA: ordenar por media era la última puerta de atrás —
   // la lista ordenada por p.rat te daba el ranking EXACTO sin pagar un peso.
   // Al que no scouteaste se lo ordena por la estimación del informante.
+  // ⚠️ El orden se hace con la clave PRECALCULADA, no llamando a `ratEst`
+  // dentro del comparador: un sort de 17.075 elementos lo invoca ~480.000
+  // veces contra las 17.075 de acá. Medido, es la mitad del costo del Mercado.
+  const _ordenar=(key)=>{
+    const tmp=pl.map(p=>({p,k:key(p)}));
+    tmp.sort((a,b)=>b.k-a.k);
+    pl=tmp.map(x=>x.p);
+  };
   if(sort==='pos') pl=ordenarPlantel(pl);        // arqueros, defensa, medio, ataque
-  else if(sort==='rat') pl.sort((a,b)=>ratEst(b)-ratEst(a));
-  else if(sort==='val') pl.sort((a,b)=>b.val-a.val);
-  else if(sort==='pot') pl.sort((a,b)=>potEst(b)-potEst(a));
-  else if(sort==='ganga') pl.sort((a,b)=>(ratEst(b)/Math.max(0.3,b.val))-(ratEst(a)/Math.max(0.3,a.val)));
-  else pl.sort((a,b)=>a.age-b.age);
+  else if(sort==='rat') _ordenar(ratEst);
+  else if(sort==='val') _ordenar(p=>p.val);
+  else if(sort==='pot') _ordenar(potEst);
+  else if(sort==='ganga') _ordenar(p=>ratEst(p)/Math.max(0.3,p.val));
+  else _ordenar(p=>-p.age);
   const totalFound=pl.length;
   pl = pl.slice(0,150);
   const sinInf=pl.filter(p=>!isKnown(p)).length;
@@ -11349,8 +11520,20 @@ function scoutMargin(p){
   const n=String((p&&p.name)||'').length, a=(p&&p.age)||25;
   return 3+((n*7+a*3)%4);
 }
+// ⚠️ Esto era un `split('').reduce(...)` sobre el nombre en CADA llamada, y
+// `ratEst` lo llama desde el comparador del orden del Mercado: ordenar 17.075
+// fichas son ~480.000 recorridos de string. Medido: **27,7 ms de los 37,5 que
+// costaba `renderMkt`**. Es determinista por jugador, así que se cachea.
+// ⚠️ Va como propiedad NO ENUMERABLE: con 17.000 fichas, un campo más en el
+// objeto se va al save — que es exactamente el problema de los 395 KB que este
+// archivo ya documenta con `p.personality`.
 function _scoutHash(p){
-  return String((p&&(p.id||p.name))||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+  if(!p)return 7;
+  if(p._shash!==undefined)return p._shash;
+  const h=String((p.id||p.name)||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),7);
+  try{ Object.defineProperty(p,'_shash',{value:h,enumerable:false,configurable:true}); }
+  catch(e){ p._shash=h; }
+  return h;
 }
 // ⚠️ EL RANGO NO SE CENTRA EN EL RATING REAL. Medido: con el rango centrado
 // (rat±m), el punto medio de "79–89" era exactamente 84 — el número que se
@@ -11975,8 +12158,59 @@ function seVaLibre(p){
   if(p.age>=35) irse-=0.20;                            // a esa edad no lo busca nadie
   return Math.random() < Math.max(0.05,Math.min(0.95,irse));
 }
+// ═══════════════════════════════════════════════════════════════════════
+// EL CIERRE DE TEMPORADA: LA JUNTA SALVA LO QUE PUEDE
+// ═══════════════════════════════════════════════════════════════════════
+// `weeklyJunta` ya renovaba, pero corre UNA VEZ POR MES y cierra hasta 3, así
+// que en el cierre podían quedar varios contratos vencidos sin tocar y se
+// iban libres. Esto es el último barrido, justo antes de `expireContracts`.
+//
+// ⚠️ NO renueva a todos: si lo hiciera, delegar apagaría el riesgo entero de
+// quedarte sin plantel. Salva a los MÁS VALIOSOS que pueda convencer, y el
+// resto sigue el camino de siempre.
+// ⚠️ Y corre ANTES de `expireContracts`, no adentro: `seVaLibre` tira un dado
+// en CADA llamada, así que preguntarlo dos veces por el mismo jugador daría
+// dos respuestas distintas.
+const JUNTA_RENOV_MAX=5;
+function juntaRenovFin(){
+  if(!G||!G.squad) return 0;
+  const dir=(typeof dirDeportivo==='function')?dirDeportivo():null;
+  if(!G.delegaRenov||!dir) return 0;
+  const n=Math.max(40,Math.min(90,dir.nivel||55));
+  const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season)
+    .sort((a,b)=>(b.val||0)-(a.val||0)).slice(0,JUNTA_RENOV_MAX);
+  if(!porVencer.length) return 0;
+  let cerr=0, gastado=0, fallo=0;
+  const nombres=[];
+  porVencer.forEach(p=>{
+    // La MISMA cuenta que `openContract` y que `weeklyJunta`: si el automático
+    // usara otros números, delegar cambiaría el precio de las cosas.
+    const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+    const ratio=Math.max(renovPiso(p), 1.22-(n-40)/50*0.34);
+    const wage=Math.round(exp*ratio);
+    const years=n>=70?2:1;                       // a último momento se firma corto
+    const cost=Math.round(wage*years*4/1000*10)/10;
+    if(Math.random()>0.38+(n-40)/50*0.45){ fallo++; return; }
+    if(G.budget<cost){ fallo++; return; }
+    G.budget=Math.round((G.budget-cost)*10)/10;
+    if(cost>0&&typeof finAnota==='function') finAnota('otros_out',cost,'Renovación de '+p.name+' (Junta)');
+    p.wage=wage; p.contract=G.season+years;
+    p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+5);
+    cerr++; gastado+=cost; nombres.push(p.name);
+  });
+  if(cerr){
+    lg('🏛️',`${dir.name} salvó ${cerr} contrato(s) sobre la hora: ${nombres.join(', ')} (${fv(Math.round(gastado*10)/10)})`);
+    addPhoneMsg('board',dir.name,
+      `🖊️ Presidente, antes de que se venciera el plazo renové a <b>${nombres.join('</b>, <b>')}</b> por ${fv(Math.round(gastado*10)/10)}.${fallo?` A ${fallo} no lo pude retener.`:''}`,'🏛️');
+  } else if(fallo){
+    addPhoneMsg('board',dir.name,
+      `😕 Presidente, intenté retener a ${fallo} jugador${fallo>1?'es':''} con el contrato vencido y no hubo caso.`,'🏛️');
+  }
+  return cerr;
+}
 function expireContracts(){
   if(!G||!G.squad) return;
+  try{ juntaRenovFin(); }catch(e){}
   const sueltos=[];
   G.squad.slice().forEach(p=>{
     if(!p.contract || p.contract>G.season) return;     // todavía tiene vínculo
@@ -13878,6 +14112,9 @@ function rRetirados(){
 }
 
 function nextSeason(){
+  // ⚠️ El guardado agrupado espera 900 ms; el cambio de temporada NO puede
+  // perderse, así que acá se fuerza (ver `saveSoon` / `saveFlush`).
+  try{ saveFlush(); }catch(e){}
   const finalPos=myLeaguePos()||10;
   archiveSeason();
   // El campeonato de las ligas largas queda en G.history[].champion (no en
@@ -15110,6 +15347,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${m.score} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
+  // Un partido jugado no se puede perder por el agrupado de 900 ms.
+  try{ saveFlush(); }catch(e){}
   return {res, scorersList, stats, isLastMatch};
 }
 
@@ -16039,16 +16278,29 @@ function rHeadlines(containerId){
 // 75 llega a 100 para la fecha 1 (medido: 75 → 84,6 → 94,2 → 100). Por eso se
 // guarda en G.giraFit y lo aplica preseasonFit() cuando empieza la liga.
 const PRESEASON_TOURS={
-  asia:{label:'✈️ Gira por Asia / EEUU',
+  // ⚠️ `reqRep` — a la gira internacional te INVITAN, y te invitan porque
+  // vendés camisetas. Sin esto, un club del ascenso elegía Asia/EEUU y cobraba
+  // los mismos 3M que Boca. Medido: con rep 39 el presupuesto entero del club
+  // son 3M, así que la gira le duplicaba la caja en la semana 1.
+  asia:{label:'✈️ Gira por Asia / EEUU', reqRep:68,
         desc:'Estadios llenos del otro lado del mundo, camisetas vendidas y la marca del club en todos lados. El plantel vuelve muerto.',
         income:3, fitIni:75, moral:10, chem:0, rep:2, inj:0.12},
-  verano:{label:'🏖️ Copa de Verano local',
+  verano:{label:'🏖️ Copa de Verano local', reqRep:0,
         desc:'El clásico de enero en la costa. Deja poco, pero se viaja poco y el equipo llega bien.',
         income:0.5, fitIni:90, moral:0, chem:0, rep:0, inj:0.05},
-  predio:{label:'🏋️ Quedarse en el predio',
+  predio:{label:'🏋️ Quedarse en el predio', reqRep:0,
         desc:'Nada de giras: doble turno, video y trabajo táctico. Cero ingresos, pero llegan enteros y se entienden de memoria.',
         income:0, fitIni:100, moral:0, chem:15, rep:0, inj:0.02},
 };
+// La plata de la gira sale de lo que el club MUEVE, no de una constante: los
+// 3M están anclados en Boca (rep 78). Tope arriba para que el Real Madrid no
+// haga una diferencia absurda, y piso para que no quede en cero.
+function tourIngreso(t){
+  if(!t||!t.income)return 0;
+  const r=(G&&G.rep!==undefined)?G.rep:50;
+  return Math.round(t.income*Math.max(0.35,Math.min(1.6,r/78))*10)/10;
+}
+function tourOfrecida(t){ return !t.reqRep || ((G&&G.rep!==undefined?G.rep:50)>=t.reqRep); }
 // La física elegida se ancla en la fecha 1 del torneo, no en la semana 1.
 function preseasonFit(){
   if(!G||G.giraFit===undefined)return;                 // save viejo o sin elegir
@@ -16064,22 +16316,49 @@ function preseasonFit(){
 // La gira era un número: elegías destino y te sumaba física y plata. Ahora
 // elegís CONTRA QUIÉN, los rivales salen de las ligas que tenés cargadas en la
 // base, y los amistosos se juegan y se pueden mirar como cualquier partido.
+// ⚠️ LA GIRA NO MIRABA QUIÉN SOS. Esto tomaba los 40 clubes de MAYOR nivel de
+// la zona y sorteaba entre ellos, así que medido sobre 50 sorteos por club:
+//
+//   San Martín (SJ), nivel 53 → Barcelona 88 · PSG 88 · Real Madrid 88
+//   Boca Juniors,    nivel 72 → Arsenal 88   · Barcelona 88 · Real Madrid 88
+//
+// o sea EXACTAMENTE los mismos rivales para los dos. Un amistoso de
+// pretemporada es una invitación, y al club del ascenso no lo invita el City.
+// Ahora los rivales salen de una banda alrededor de TU nivel.
+const TOUR_BANDA=7;          // ventana inicial, en puntos de nivel
+// Mi nivel EN LA MISMA ESCALA que el de ellos (promedio de los 14 mejores).
+// ⚠️ No sirve `nivelClub`, que es el logaritmo del VALOR del plantel: mezclar
+// las dos escalas haría que la banda no quiera decir nada.
+function _tourMiPow(){
+  const r=(G&&G.squad?G.squad:[]).map(p=>p.rat).sort((a,b)=>b-a).slice(0,14);
+  return r.length?Math.round(r.reduce((a,x)=>a+x,0)/r.length):68;
+}
 function tourRivals(zona,n){
   if(!G||!G.market)return [];
   const LIGAS={regional:['Brasil','Colombia','Chile','Uruguay','Paraguay','Perú','Ecuador','Bolivia'],
                intl:['Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Grecia','Rusia','Arabia'],
-               local:['Liga ARG']};
+               local:[ligaMia()]};
   const ligas=LIGAS[zona]||LIGAS.local;
   const porClub={};
   G.market.forEach(p=>{
     if(!ligas.includes(p.lg)||p.club===G.teamName)return;
     (porClub[p.club]=porClub[p.club]||[]).push(p.rat);
   });
-  return Object.entries(porClub)
+  const todos=Object.entries(porClub)
     .filter(([,r])=>r.length>=8)
-    .map(([club,r])=>({club,pow:Math.round(r.sort((a,b)=>b-a).slice(0,14).reduce((a,x)=>a+x,0)/Math.min(14,r.length))}))
-    .sort((a,b)=>b.pow-a.pow).slice(0,40)
-    .sort(()=>Math.random()-0.5).slice(0,n);
+    .map(([club,r])=>({club,pow:Math.round(r.sort((a,b)=>b-a).slice(0,14).reduce((a,x)=>a+x,0)/Math.min(14,r.length))}));
+  if(!todos.length)return [];
+  const mio=_tourMiPow();
+  // ⚠️ La banda se ABRE hasta encontrar rivales. Filtrar sin rellenar es el
+  // error que ya está documentado dos veces en este archivo, y acá además
+  // sería un candado: sin amistosos, las semanas 1-3 quedan sin partido y
+  // `advanceDay` se planta en el día 7 (ver bookFriendlies).
+  let cand=[];
+  for(let w=TOUR_BANDA; w<=45 && cand.length<Math.max(n,6); w+=6)
+    cand=todos.filter(c=>Math.abs(c.pow-mio)<=w);
+  if(!cand.length)
+    cand=todos.slice().sort((a,b)=>Math.abs(a.pow-mio)-Math.abs(b.pow-mio)).slice(0,10);
+  return cand.sort(()=>Math.random()-0.5).slice(0,n);
 }
 // Arma los amistosos y los mete en el calendario para jugarlos de verdad
 function bookFriendlies(zona,cuantos){
@@ -16161,18 +16440,20 @@ function offerPreseason(){
     <button class="mclose" onclick="preseasonSaltear()">✕</button>
     <div class="mtitle">✈️ Ofertas de Pretemporada</div>
     <div class="note" style="margin-bottom:9px">Llegaron tres propuestas para preparar la temporada ${G.season}, presidente. <b>Se elige una sola.</b> La plata de la gira se cobra ahora; el desgaste se paga en la fecha 1.</div>
-    ${Object.entries(PRESEASON_TOURS).map(([k,t])=>`
+    ${Object.entries(PRESEASON_TOURS).filter(([,t])=>tourOfrecida(t)).map(([k,t])=>`
       <button class="btn bo" style="width:100%;margin-bottom:7px;text-align:left;white-space:normal" onclick="doPreseason('${k}')">
         <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:14px">${t.label}</div>
         <div style="font-size:9.5px;color:var(--t3);line-height:1.35;margin-top:2px">${t.desc}</div>
         <div style="margin-top:3px">
-          ${chip(t.income>0?'+'+fv(t.income)+' a la caja':'Sin ingresos', t.income>0?VERDE:'124,135,152')}
+          ${chip(tourIngreso(t)>0?'+'+fv(tourIngreso(t))+' a la caja':'Sin ingresos', tourIngreso(t)>0?VERDE:'124,135,152')}
           ${chip('Física en la fecha 1: '+t.fitIni+'%', t.fitIni>=100?VERDE:t.fitIni>=90?ORO:ROJO)}
           ${t.moral?chip('Moral +'+t.moral,VERDE):''}
           ${t.chem?chip('Química +'+t.chem,VERDE):''}
           ${t.rep?chip('Reputación +'+t.rep,ORO):''}
         </div>
       </button>`).join('')}
+    ${Object.entries(PRESEASON_TOURS).filter(([,t])=>!tourOfrecida(t)).map(([,t])=>`
+      <div class="note" style="margin-bottom:7px;font-size:10px;color:var(--t3)">🔒 <b>${t.label}</b> — no llegó ninguna invitación. Esas giras las arman los clubes que venden camisetas afuera: hace falta <b style="color:var(--gold)">${t.reqRep} de reputación</b> y el club está en <b>${Math.round((G&&G.rep)||50)}</b>.</div>`).join('')}
     <button class="btn bR bs" style="width:100%" onclick="preseasonSaltear()">No viajar ni entrenar distinto</button>
   `);
 }
@@ -16194,9 +16475,13 @@ function preseasonSaltear(){
 }
 function doPreseason(k){
   const t=PRESEASON_TOURS[k];if(!t||!G)return;
-  if(t.income>0){
-    G.budget=Math.round((G.budget+t.income)*10)/10;
-    finAnota('otros_in',t.income,'Pretemporada: '+(t.label||k));
+  // El portero va también acá, no sólo en la lista: es la misma regla de las
+  // cuatro vías de la Fase 16 y de `signSponsor`.
+  if(!tourOfrecida(t)){flash('❌ Ese destino no te invitó: te falta reputación','loss');return;}
+  const _inc=tourIngreso(t);
+  if(_inc>0){
+    G.budget=Math.round((G.budget+_inc)*10)/10;
+    finAnota('otros_in',_inc,'Pretemporada: '+(t.label||k));
   }
   // La física va como OBJETIVO para la fecha 1 (ver preseasonFit): fijarla acá
   // y nada más no serviría, la pretemporada la devuelve a 100 igual.
@@ -16222,9 +16507,9 @@ function doPreseason(k){
   const riv=bookFriendlies(zona,k==='asia'?4:k==='verano'?3:2);
   if(riv.length)addPhoneMsg('board','Secretaría del Club',`📋 Cerramos los amistosos: <b>${riv.map(r=>r.club).join('</b>, <b>')}</b>. Los podés jugar desde la portada.`,'🏛️');
   G._preseasonDone=G.season;
-  lg('🧳',`Pretemporada: ${t.label} — ${t.income>0?'+'+fv(t.income)+', ':''}física ${t.fitIni}% en la fecha 1${t.moral?', moral +'+t.moral:''}${t.chem?', química +'+t.chem:''}`);
+  lg('🧳',`Pretemporada: ${t.label} — ${_inc>0?'+'+fv(_inc)+', ':''}física ${t.fitIni}% en la fecha 1${t.moral?', moral +'+t.moral:''}${t.chem?', química +'+t.chem:''}`);
   addPhoneMsg('board','Secretaría del Club',
-    `🧳 Cerramos la <b>${t.label}</b>. ${t.income>0?`Entraron <b style="color:var(--gold)">${fv(t.income)}</b>. `:'No hubo ingresos por gira. '}`+
+    `🧳 Cerramos la <b>${t.label}</b>. ${_inc>0?`Entraron <b style="color:var(--gold)">${fv(_inc)}</b>. `:'No hubo ingresos por gira. '}`+
     `El cuerpo médico calcula que llegamos a la fecha 1 al <b>${t.fitIni}%</b>${t.chem?' y con la táctica muy trabajada':''}.`,'🏛️');
   closeMod();updateUI();
   flash('✅ '+t.label.replace(/^\S+\s/,'')+' confirmada','win');
@@ -18453,8 +18738,28 @@ function tieneClausula(p){
   const h=String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),11);
   return ((h>>>3)%1000)/1000 < pr;
 }
+// ⚠️ CON UN LIBRE SÓLO SE NEGOCIA EL CONTRATO. No hay club del otro lado, así
+// que la cláusula, el canje, el préstamo, el % del pase y la propia "oferta al
+// club" no existen. Medido antes de esto: la ficha de un libre ofrecía
+// **Cláusula y Canje**, y `openNeg` abría la pantalla de traspaso hablando de
+// "Valor TM" y de una ficha que nadie iba a cobrar.
+// Es el mismo patrón que las cuatro vías de la Fase 16: el portero va en TODAS,
+// no sólo en la lista, porque la ficha tiene botones directos.
+function libreBloquea(p,via){
+  if(!p||typeof esLibre!=='function'||!esLibre(p))return false;
+  const txt={clausula:'no tiene cláusula: no hay contrato que rescindir',
+             canje:'no hay club con el que canjear',
+             prestamo:'no se puede pedir a préstamo a alguien que no tiene club',
+             pase:'no hay pase que comprar: su ficha es libre',
+             club:'no hay club con el que negociar'}[via]||'está libre';
+  flash('🆓 '+p.name+' está libre — '+txt+'. Arreglá con él los términos personales.','draw');
+  if(typeof negStartPlayer==='function')setTimeout(()=>negStartPlayer(p.id),120);
+  return true;
+}
 function clauseOf(p){
   if(!p)return 0;
+  // Sin contrato no hay cláusula de rescisión: no hay nada que rescindir.
+  if(typeof esLibre==='function'&&esLibre(p))return 0;
   if(!tieneClausula(p))return 0;                 // 0 = no tiene, no "es gratis"
   // Si la base trae la cláusula REAL del contrato, se respeta esa
   if(p.clause>0)return Math.round(p.clause*10)/10;
@@ -18469,6 +18774,28 @@ function clauseOf(p){
 // el jugador aparecía en el plantel sin que nadie le preguntara nada. Ahora
 // las cuatro rutas terminan acá: con el club podés arreglar lo que quieras,
 // pero el que firma es él y puede decir que no.
+// ═══════════════════════════════════════════════════════════════════════
+// LA CLÁUSULA DE RESCISIÓN SE NEGOCIA AL FIRMAR
+// ═══════════════════════════════════════════════════════════════════════
+// Antes la cláusula era un número que el juego inventaba (`clauseOf`) y con el
+// que vos no tenías nada que ver. Ahora es parte del contrato, y tiene el
+// sentido que tiene en la realidad: **es la puerta de salida DEL JUGADOR**.
+// Una cláusula baja le gusta (se puede ir cuando quiera) y te deja expuesto;
+// una alta —o ninguna— te protege y a él no le cierra.
+// El multiplicador es sobre el VALOR de mercado, la misma escala que ya usa
+// `clauseOf` para los contratos que vienen de la base.
+const PT_CLAUS=[
+  {m:0,   lbl:'Sin cláusula', s:-1.0, desc:'Nadie te lo saca pagando. Es lo que más le cuesta aceptar.'},
+  {m:2,   lbl:'2× valor',     s:+0.8, desc:'Salida barata: firma contento y te lo pueden robar.'},
+  {m:3.5, lbl:'3,5× valor',   s:+0.35,desc:'El estándar del mercado.'},
+  {m:6,   lbl:'6× valor',     s:-0.2, desc:'Alta: sólo un grande la paga.'},
+  {m:10,  lbl:'10× valor',    s:-0.9, desc:'Blindado. Va a pedir algo a cambio.'},
+];
+function ptClausIdx(){ return (_PT&&_PT.clausIdx!==undefined)?_PT.clausIdx:2; }
+function ptClausMonto(p,i){
+  const c=PT_CLAUS[i===undefined?2:i]; if(!c||!c.m)return 0;
+  return Math.round((p.val||1)*c.m*10)/10;
+}
 const PT_ROLES=['Titular indiscutido','Titular habitual','Rotación','Suplente','Jugador de copa'];
 function ptRoleExpect(p){ return p.rat>=85?0:p.rat>=80?1:p.rat>=75?2:3; }
 
@@ -18490,6 +18817,9 @@ function ptScore(p,t){
   if(t.recompra) s-=0.6;      // que lo puedan recomprar no le gusta
   if(t.bajaDesc) s-=1.2;      // cobrar menos si descienden, menos todavía
   if(t.bonoComp) s+=0.8;      // un bono por copas lo entusiasma
+  // La cláusula es SU puerta de salida: una baja le gusta, una alta lo encierra
+  const cl=PT_CLAUS[t.clausIdx===undefined?2:t.clausIdx];
+  if(cl) s+=cl.s;
   return s+(t.pull||0);
 }
 function ptWhyNo(p,t){
@@ -18566,6 +18896,11 @@ function ptRender(first){
       <label style="display:flex;align-items:center;gap:7px;font-size:11px;cursor:pointer">
         <input type="checkbox" id="ptBono" ${s.bonoComp?'checked':''} onchange="ptSetCl('bonoComp',this.checked)">
         <span>🏆 <b>Bono por competición</b> — cobra extra si entrás a copas. Le encanta.</span></label>
+      <div style="font-size:10px;color:var(--t3);margin:9px 0 5px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px">💥 CLÁUSULA DE RESCISIÓN</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${PT_CLAUS.map((c,i)=>`<button class="btn ${i===ptClausIdx()?'bg':'bo'} bs ptCl" data-i="${i}" onclick="ptSetClaus(${i})" style="flex:1;min-width:64px;font-size:9.5px">${c.lbl}<br><span style="font-size:8px">${c.m?fv(ptClausMonto(p,i)):'—'}</span></button>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">${PT_CLAUS[ptClausIdx()].desc} <b>Es su puerta de salida</b>: cuanto más baja, más fácil firma… y más fácil te lo sacan.</div>
     </div>`}
     <div class="neg-rx" id="ptRx"></div>
     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -18577,13 +18912,15 @@ function ptRender(first){
   ptUpd();
 }
 function ptSetCl(k,v){ if(!_PT)return; _PT[k]=v; ptUpd(); }
+function ptSetClaus(i){ if(!_PT)return; _PT.clausIdx=i; ptRender(); }
 function ptSetWage(v){_PT.wage=v;const l=document.getElementById('ptWL');if(l)l.textContent=v+'k';ptUpd();}
 function ptSetYears(y){_PT.years=y;document.querySelectorAll('.ptYr').forEach(b=>{const on=+b.dataset.y===y;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
 function ptSetRole(r){_PT.role=r;document.querySelectorAll('.ptRl').forEach(b=>{const on=+b.dataset.r===r;b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});ptUpd();}
 function ptSetBonus(b){_PT.bonus=b;document.querySelectorAll('.ptBn').forEach(x=>{const on=parseFloat(x.dataset.b)===b;x.classList.toggle('bg',on);x.classList.toggle('bo',!on);});ptUpd();}
 function ptTerms(){const s=_PT;return {wage:s.wage,years:s.years,role:s.role,bonus:s.bonus,
   wageExp:s.wageExp,pull:s.o.pull||0,loan:!!s.o.loan,
-  recompra:!!s.recompra,bajaDesc:!!s.bajaDesc,bonoComp:!!s.bonoComp};}
+  recompra:!!s.recompra,bajaDesc:!!s.bajaDesc,bonoComp:!!s.bonoComp,
+  clausIdx:ptClausIdx(), clausula:ptClausMonto(s.p,ptClausIdx())};}
 function ptUpd(){
   const s=_PT,rx=document.getElementById('ptRx'); if(!s||!rx)return;
   const sc=ptScore(s.p,ptTerms());
@@ -18611,7 +18948,7 @@ function ptSubmit(){
   if(ok){
     _PT=null; closeMod();
     s.o.onAccept({wage:t.wage,years:t.years,role:t.role,bonus:t.bonus,roleLabel:PT_ROLES[t.role],
-      recompra:t.recompra,bajaDesc:t.bajaDesc,bonoComp:t.bonoComp});
+      recompra:t.recompra,bajaDesc:t.bajaDesc,bonoComp:t.bonoComp,clausula:t.clausula});
     return;
   }
   s.tries++;
@@ -18648,6 +18985,7 @@ function payClause(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(libreBloquea(p,'clausula'))return;
   if(jerarquiaBloquea(p,true))return; // la cláusula saltea al club, no al jugador
   const cl=clauseOf(p);
   if(!(cl>0)){flash('🔒 Este jugador no tiene cláusula de rescisión en su contrato','draw');return;}
@@ -18682,7 +19020,7 @@ function confirmClause(id){
       if(G.budget<cl+t.bonus){flash('❌ Presupuesto insuficiente ('+fv(cl+t.bonus)+')','loss');return;}
       G.budget=Math.round((G.budget-cl-t.bonus)*10)/10;
       finAnota('fichajes',cl+t.bonus,'Cláusula de rescisión de '+p.name);
-      firmaProgramar(p,{price:0,pagado:true,fee:cl,wage:t.wage,years:t.years,motivo:'le pagamos la cláusula'});
+      firmaProgramar(p,{price:0,pagado:true,fee:cl,wage:t.wage,years:t.years,motivo:'le pagamos la cláusula',clausula:t.clausula});
       lg('💥',`Cláusula pagada: ${p.name} (${fv(cl)}) — ${t.wage}k/sem, ${t.years}a, ${t.roleLabel}`);
       addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
       addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
@@ -18701,6 +19039,7 @@ function buyHalfPass(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(libreBloquea(p,'pase'))return;
   window._pctSel=0.5;
   const btn=pc=>{const cost=Math.round(p.val*pc*1.1*10)/10;return `<button class="btn ${pc===0.5?'bg':'bo'} bs pctBtn" data-p="${pc}" onclick="selPct('${p.id}',${pc})" style="flex:1">${Math.round(pc*100)}%<br><span style="font-size:9px">${fv(cost)}</span></button>`;};
   showMod(`
@@ -18786,6 +19125,7 @@ function openSwap(id){
   const p=G.market.find(x=>x.id===id);
   if(!p){flash('Jugador no disponible','draw');return;}
   if(!isTransferWindowOpen()){flash('🔒 Mercado cerrado','loss');return;}
+  if(libreBloquea(p,'canje'))return;
   if(jerarquiaBloquea(p))return;
   const opts=G.squad.filter(q=>!q.injured).sort((a,b)=>b.val-a.val).slice(0,25);
   window._swap2=null;
@@ -19072,6 +19412,12 @@ function openContract(id){
   const expected=Math.max(5,Math.round(p.rat*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
   const recWage=Math.round(expected*1.05);
   window._cYears=3; window._cPid=id;
+  // La cláusula arranca en la que YA tiene (si tiene), no en el estándar: una
+  // renovación es una re-negociación, no una firma de cero.
+  const _clAct=clauseOf(p);
+  window._cClaus=_clAct>0?PT_CLAUS.reduce((mej,c,i)=>
+      Math.abs((p.val||1)*c.m-_clAct)<Math.abs((p.val||1)*PT_CLAUS[mej].m-_clAct)?i:mej,2)
+    :(p.clause<0?0:2);
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">📝 Negociar contrato: ${p.name}</div>
@@ -19092,12 +19438,26 @@ function openContract(id){
         ${[1,2,3,4,5].map(y=>`<button class="btn ${y===3?'bg':'bo'} bs cYearBtn" data-y="${y}" onclick="selYears(${y},${expected})" style="flex:1">${y} año${y>1?'s':''}</button>`).join('')}
       </div>
     </div>
+    <div class="mpanel" style="padding:9px;margin:12px 0">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:5px">💥 CLÁUSULA DE RESCISIÓN ${_clAct>0?`— hoy tiene <b style="color:var(--red)">${fv(_clAct)}</b>`:'— hoy <b>no tiene</b>'}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${PT_CLAUS.map((c,i)=>`<button class="btn ${i===window._cClaus?'bg':'bo'} bs cClBtn" data-i="${i}" onclick="selCClaus(${i},${expected})" style="flex:1;min-width:62px;font-size:9.5px">${c.lbl}<br><span style="font-size:8px">${c.m?fv(Math.round((p.val||1)*c.m*10)/10):'—'}</span></button>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px" id="cClDesc">${PT_CLAUS[window._cClaus].desc}</div>
+    </div>
     <div class="neg-rx" id="cRx"></div>
     <div style="display:flex;gap:6px;margin-top:12px">
       <button class="btn bg" onclick="submitContract('${id}',${expected})">✓ Ofrecer contrato</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
     </div>
   `);
+  updContract(expected);
+}
+function selCClaus(i,expected){
+  window._cClaus=i;
+  document.querySelectorAll('.cClBtn').forEach(b=>{const on=+b.dataset.i===i;
+    b.classList.toggle('bg',on);b.classList.toggle('bo',!on);});
+  const d=document.getElementById('cClDesc'); if(d)d.textContent=PT_CLAUS[i].desc;
   updContract(expected);
 }
 function selYears(y,expected){
@@ -19107,27 +19467,37 @@ function selYears(y,expected){
 }
 function updContract(expected){
   const w=document.getElementById('cWage'), rx=document.getElementById('cRx'), wl=document.getElementById('cWageL'); if(!w||!rx) return;
-  const wage=+w.value; if(wl) wl.textContent=wage+'k';
+  const wage=nRead('cWage'); if(wl) wl.textContent=wage+'k';
   const years=window._cYears||3, ratio=wage/expected;
   // El preview tiene que decir la VERDAD sobre el piso real: si mostrara
   // "rechazará" y el leal firmara igual, se leería como un bug del juego.
   const _p=(G&&G.squad||[]).find(x=>x.id===window._cPid);
-  const piso=_p?renovPiso(_p):0.85;
+  const piso=(_p?renovPiso(_p):0.85)+renovClausAjuste();
   let t,c,b;
   if(ratio>=1.0){t='✅ Aceptará con gusto';c='var(--green)';b='rgba(26,170,107,.1)';}
   else if(ratio>=piso){t='🟢 Probablemente acepte';c='var(--green)';b='rgba(26,170,107,.07)';}
   else if(ratio>=piso-0.15){t='🟡 Lo pensará — puede pedir más';c='var(--gold)';b='rgba(var(--gold-rgb),.08)';}
   else {t='🔴 Rechazará — salario muy bajo';c='var(--red)';b='rgba(232,69,69,.1)';}
   const cost=Math.round(wage*years*4/1000*10)/10;
-  rx.innerHTML=t+`<div style="font-size:10px;color:var(--t3);margin-top:3px">Costo de firma: ${fv(cost)} · ${years} año(s) · hasta ${G.season+years}</div>`;
+  const _cm=PT_CLAUS[window._cClaus===undefined?2:window._cClaus];
+  rx.innerHTML=t+`<div style="font-size:10px;color:var(--t3);margin-top:3px">Costo de firma: ${fv(cost)} · ${years} año(s) · hasta ${G.season+years} · ${_cm.m?'cláusula '+_cm.lbl:'sin cláusula'}</div>`;
   rx.style.color=c;rx.style.background=b;rx.style.padding='7px';rx.style.borderRadius='6px';
+}
+// Lo que la cláusula le mueve al PISO que pide para firmar. Es el mismo signo
+// que en `ptScore`: la cláusula es su puerta de salida, así que una baja lo
+// ablanda y encerrarlo le sale caro. ⚠️ El semáforo (`updContract`) y la
+// decisión (`submitContract`) tienen que usar esta misma función, si no el 🟢
+// mentiría — la misma regla que `renovPiso`.
+function renovClausAjuste(){
+  const c=PT_CLAUS[window._cClaus===undefined?2:window._cClaus];
+  return c?-c.s*0.06:0;      // sin cláusula +0.06 al piso · 2× valor −0.048
 }
 function submitContract(id,expected){
   const p=G.squad.find(x=>x.id===id); if(!p) return;
   const wage=nRead('cWage'), years=window._cYears||3;
   const ratio=wage/expected, cost=Math.round(wage*years*4/1000*10)/10;
   if(G.budget<cost){ flash('❌ Sin presupuesto para la firma ('+fv(cost)+')','loss'); return; }
-  const piso=renovPiso(p);
+  const piso=renovPiso(p)+renovClausAjuste();
   const accept = ratio>=piso || (ratio>=piso-0.15&&Math.random()>0.5);
   if(!accept){ flash('❌ '+p.name+' rechazó — ofrecé más salario o menos años','loss'); lg('📝',`${p.name} rechazó la renovación`); return; }
   // El leal que firma por menos de lo que pedía lo dice: es la única pista que
@@ -19139,7 +19509,9 @@ function submitContract(id,expected){
   G.budget=Math.round((G.budget-cost)*10)/10;
   if(cost>0)finAnota('otros_out',cost,'Prima de renovación de '+p.name);
   p.wage=wage; p.contract=G.season+years; p.morale=Math.min(100,p.morale+8);
-  lg('📝',`${p.name} renovó hasta ${p.contract} (${wage}k/sem)`);
+  const _ci=(window._cClaus===undefined?2:window._cClaus), _cm=PT_CLAUS[_ci].m;
+  p.clause=_cm?Math.round((p.val||1)*_cm*10)/10:-1;
+  lg('📝',`${p.name} renovó hasta ${p.contract} (${wage}k/sem, ${_cm?'cláusula '+fv(p.clause):'sin cláusula'})`);
   updateUI(); closeMod(); flash('✅ '+p.name+' renovó hasta '+p.contract,'win');
 }
 
@@ -24533,13 +24905,41 @@ function rTacticaTab(){
     try{ fn(); }catch(e){ console.error('Táctica ·',n,e); lg('⚠️','No se pudo dibujar '+n+' en Táctica'); }
   });
 }
+// ═══ QUÉ DIBUJA CADA PESTAÑA ═══
+// ⚠️ Una función que no esté en esta tabla NO se va a dibujar nunca. Si
+// agregás una tarjeta nueva, sumala a su pestaña (o a `_TAB_R.always` si va en
+// la portada / la barra de arriba, que se dibujan en cada `updateUI`).
+const _TAB_R={
+  sq:   ['rSq','rVestuario','rRetirados'],
+  tac:  ['rFormation','rXI','rStyle','rTacOpts','rSetPieces'],
+  mkt:  ['renderMktSafe','rSell','rOffs'],
+  ent:  ['rTrain','rStaff','rInd','rJuv'],
+  cal:  ['rCal','rStand'],
+  pres: ['rStad','rTicket','rLoans','rFinanzas','rSponsors','rPresTab'],
+  est:  ['rStats'],
+  social:['rSocial'],
+};
+let _tabSucia={};
+function tabActiva(){
+  const t=document.querySelector('#game .main > .tc.on');
+  return t?String(t.id).replace(/^tab-/,''):'sq';
+}
+function tabsSucias(){ Object.keys(_TAB_R).forEach(k=>{_tabSucia[k]=true;}); }
+function pintarTab(name){
+  const fns=_TAB_R[name]; if(!fns) return;
+  fns.forEach(k=>{ try{ if(typeof window[k]==='function') window[k](); }catch(e){} });
+  _tabSucia[name]=false;
+}
 function gTab(name, btn){
   document.querySelectorAll('#game .main > .tc').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   const t = document.getElementById('tab-'+name);
   if(t) t.classList.add('on');
-  btn.classList.add('on');
+  if(btn) btn.classList.add('on');
   selSlot = null; // clear tactics selection when switching tabs
+  // Se dibuja al ENTRAR, que es cuando se mira. Si la pestaña ya está limpia
+  // no se toca: entrar y salir de una pestaña no puede costar 58 ms.
+  if(_tabSucia[name]!==false) pintarTab(name);
 }
 // ═══ TEMAS DE COLOR (acento de la interfaz) ═══
 // OJO: esto es la fuente de verdad de --gold, no el :root. applyTheme() corre
@@ -24891,6 +25291,12 @@ function contractDiscount(p){
   return 1;
 }
 function askingPrice(p){
+  // ⚠️ UN LIBRE NO TIENE PRECIO DE PASE. Medido antes de esto: un libre de 74
+  // con 2,5M de valor pedía **2,7M de ficha**, y no hay club a quien pagársela.
+  // El camino de la negociación ya cerraba en 0 (`if(n.free)`), pero el número
+  // se mostraba en la ficha, en la lista y en la pantalla de negociación, así
+  // que el precio existía en todos lados menos en la caja.
+  if(typeof esLibre==='function'&&esLibre(p))return 0;
   // Un clásico te lo cobra bastante más caro que a cualquier otro
   const rv=(typeof fxRivalidad==='function')?fxRivalidad(p.club).precio:1;
   return Math.max(0.05,Math.round(p.val*contractDiscount(p)*1.08*rv*100)/100);
@@ -24924,14 +25330,14 @@ function negStartPlayer(pid){
   if(negFind(pid)){flash('Ya tenés una negociación abierta por este jugador','draw');return;}
   const wage=Math.round(_negWageExpect(p)*(1+(p.rat>=82?0.15:0)));
   const months=contractMonths(p);
-  const free=isFreeAgent(p);
+  const free=esLibre(p);
   const pre=months>0&&months<=6;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🤝 Términos personales — ${p.name}</div>
-    <div class="sr"><span class="sl">Contrato con ${p.club}</span><span class="sv">${free?'<b style="color:var(--green)">LIBRE</b>':months+' meses'}</span></div>
+    <div class="sr"><span class="sl">${free?'Situación':'Contrato con '+p.club}</span><span class="sv">${free?'<b style="color:var(--green)">🆓 AGENTE LIBRE</b>':months+' meses'}</span></div>
     <div class="sr"><span class="sl">Valor de mercado</span><span class="sv">${fv(p.val)}</span></div>
-    <div class="sr"><span class="sl">Precio con su contrato</span><span class="sv" style="color:${free?'var(--green)':'var(--gold)'}">${free?'sin ficha':fv(askingPrice(p))}</span></div>
+    <div class="sr"><span class="sl">${free?'Costo del pase':'Precio con su contrato'}</span><span class="sv" style="color:${free?'var(--green)':'var(--gold)'}">${free?'sin ficha — sólo el contrato':fv(askingPrice(p))}</span></div>
     <div class="sr"><span class="sl">Pretensión salarial</span><span class="sv">${wage}k/sem</span></div>
     ${pre?`<div class="note" style="margin:8px 0;border-color:var(--gold)">📝 Le quedan <b>${months} meses</b>: podés firmar un <b>precontrato</b> y que llegue <b>gratis</b> la próxima temporada, sin pagar ficha.</div>`:''}
     ${free?`<div class="note" style="margin:8px 0;border-color:var(--green)">🆓 Está <b>libre</b>: no hay club con el que negociar. Si acepta los términos, es tuyo.</div>`:''}
@@ -25010,6 +25416,7 @@ function negQueueClub(o){
     wage:o.terms.wage, years:o.terms.years, role:o.terms.role,
     roleLabel:o.terms.roleLabel, bonus:o.terms.bonus||0,
     recompra:!!o.terms.recompra, bajaDesc:!!o.terms.bajaDesc, bonoComp:!!o.terms.bonoComp,
+    clausula:o.terms.clausula||0,
     bid:o.bid||0, acc:o.acc, deal:o.deal||{}});
   closeMod(); updateUI();
   flash(`📨 ${p.name} ya arregló con vos. La propuesta viaja a ${p.club}.`,'draw');
@@ -25096,6 +25503,10 @@ function negExecDeal(n,p){
     }
     if(n.kind==='pct') p.ownedPct=d.pc;
     p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
+    // La cláusula que acordaste queda ESCRITA en su contrato. `clauseOf` ya
+    // respeta `p.clause>0`, así que no hace falta un campo nuevo; y `-1` es la
+    // marca de "expresamente SIN cláusula" que `tieneClausula` ya conoce.
+    p.clause=(n.clausula>0)?n.clausula:-1;
     if(n.recompra)p.buyBack=Math.round(p.val*1.6*100)/100;   // su ex club puede recomprarlo
     if(n.bajaDesc)p.wageDropOnRel=0.4;
     if(n.bonoComp)p.compBonus=Math.round(Math.max(0.1,p.wage*0.02)*100)/100;
@@ -25383,7 +25794,8 @@ function firmaProgramar(p,cfg){
   // el día de la firma sólo se completan los papeles (si no, se cobra dos veces)
   G.firmas.push({pid:p.id,name:p.name,desde:p.club,dias:2+~~(Math.random()*4),
     price:cfg.price||0,wage:cfg.wage||p.wage||10,years:cfg.years||3,
-    pagado:!!cfg.pagado,fee:cfg.fee||cfg.price||0,
+    pagado:!!cfg.pagado,fee:cfg.fee||cfg.price||0,sellOn:cfg.sellOn||0,
+    clausula:(cfg.clausula===undefined?null:cfg.clausula),
     isPre:!!cfg.isPre,motivo:cfg.motivo||'',cuotas:cfg.cuotas||null,jug:p});
   G.market=G.market.filter(x=>x.id!==p.id);   // ya está apalabrado: sale del mercado
   lg('🩺',`${p.name}: acuerdo cerrado, pasa la revisión médica`);
@@ -25425,6 +25837,18 @@ function firmasTick(){
     // quedaba fichado "en la Liga ARG".
     p.club=G.teamName;p.lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';p.wage=f.wage;p.contract=G.season+f.years;
     p.pressuring=0;p.forceSale=false;p.freeAgent=false;
+    // El % de futura venta que le concediste al club vendedor. Se anota como
+    // `ownedPct` —el mecanismo que la venta YA descuenta— y no como un campo
+    // nuevo. Multiplica por si el jugador ya venía con un % ajeno.
+    // La cláusula acordada queda ESCRITA en el contrato. `clauseOf` ya respeta
+    // `p.clause>0`, y `-1` es la marca de "expresamente sin cláusula" que
+    // `tieneClausula` ya conoce: así no se la vuelve a inventar por liga.
+    if(f.clausula!==null&&f.clausula!==undefined) p.clause=(f.clausula>0?f.clausula:-1);
+    if(f.sellOn>0){
+      p.ownedPct=Math.round(Math.max(0.05,(p.ownedPct||1)*(1-f.sellOn/100))*100)/100;
+      p.sellOnTo=f.desde||'';
+      lg('📈',`${p.name}: ${f.desde} se queda con el ${f.sellOn}% de una futura venta (cobrás el ${Math.round(p.ownedPct*100)}%)`);
+    }
     G.squad.push(p);(G.bench=G.bench||[]).push(p);
     const _fee=f.fee||f.price;
     const modo=f.isPre?'con un PRECONTRATO (llega libre)':_fee>0?`por ${fv(_fee)}`:'LIBRE, sin costo de ficha';

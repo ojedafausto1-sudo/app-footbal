@@ -3963,6 +3963,217 @@ lleva `backdrop-filter`: vive dentro de un modal que ya es vidrio real.
 están**: ahí el control ES el dato (una preferencia continua de 0,50 a 2,00 y
 unos diales 0-100), no un monto que se quiera escribir.
 
+## Fase 46: el resto de la lista — giras, libres, cláusulas, % de reventa y el lag
+
+### La gira no miraba quién sos
+
+El usuario lo reportó jugando con Chacarita y cruzándose con el City. Medido
+sobre 50 sorteos por club, `tourRivals` tomaba **los 40 de MAYOR nivel de la
+zona** y sorteaba entre ellos:
+
+| club | nivel | rivales de la gira internacional |
+|---|---|---|
+| San Martín (SJ) | 53 | Barcelona 88 · PSG 88 · Real Madrid 88 |
+| Boca Juniors | 72 | Arsenal 88 · Barcelona 88 · Real Madrid 88 |
+
+O sea **exactamente los mismos para los dos**. Ahora salen de una banda
+alrededor de TU nivel (`TOUR_BANDA=7`, medido en la misma escala: el promedio
+de tus 14 mejores, `_tourMiPow`). Después del arreglo:
+
+| club | rivales |
+|---|---|
+| San Martín (SJ) | Estoril 71 · Rio Ave 71 · Rostov 71 … Celta Fortuna 64 |
+| Boca | Crystal Palace 84 · Brentford 84 · Napoli 84 … Charleroi 70 |
+
+⚠️ **La banda se ABRE hasta encontrar rivales.** Filtrar sin rellenar es el
+error que este archivo ya documenta dos veces, y acá además sería un **candado**:
+sin amistosos, las semanas 1-3 quedan sin partido y `advanceDay` se planta en el
+día 7 (es el bug del 🏋️ Predio de la Fase 43).
+
+⚠️ **No sirve `nivelClub` para la banda**: es el logaritmo del VALOR del
+plantel, otra escala. Mezclarlas haría que la ventana no quiera decir nada.
+
+### A la gira internacional te INVITAN
+
+`reqRep:68` en `PRESEASON_TOURS.asia`. Sin eso, un club de rep 39 —cuyo
+presupuesto ENTERO son 3M— elegía Asia/EEUU y **duplicaba la caja en la semana
+1** cobrando lo mismo que Boca. Y la plata ya no es una constante:
+`tourIngreso(t)` la escala por reputación (ancla en Boca, rep 78), con tope
+1,6× y piso 0,35×.
+
+El portero va en las **dos** vías, no sólo en la lista: `doPreseason` también
+lo chequea, igual que `signSponsor` y las cuatro vías de la Fase 16.
+Verificado: con rep 35 la gira no aparece, el modal **explica por qué** en vez
+de esconderla, y forzarla por código cobra **0**.
+
+### Con un libre sólo se negocia el contrato
+
+Medido sobre un libre de 74 con 2,5M de valor: **`askingPrice` pedía 2,7M** de
+ficha por alguien que no tiene club, la ficha del mercado le ofrecía **Cláusula
+y Canje**, y `openNeg` abría la pantalla de traspaso hablando de "Valor TM".
+
+- `askingPrice` y `clauseOf` devuelven **0** si `esLibre(p)`.
+- `libreBloquea(p,via)` es el portero único y va en las **cuatro** vías más
+  `openNeg`, porque la ficha tiene botones directos que no pasan por ahí. No
+  rebota y ya: **te manda a los términos personales**, que es lo que sí existe.
+- La ficha de un libre muestra un solo botón: *"🆓 Arreglar contrato (llega
+  sin ficha)"*.
+
+⚠️ De paso: el botón de Cláusula del mercado salía **siempre**, aun para el
+61% de los jugadores que desde la Fase 45 no tienen una. Ahora se dibuja sólo
+si `clauseOf(p)>0`.
+
+### La cláusula de rescisión se negocia (al firmar y al renovar)
+
+Era un número que el juego inventaba y con el que vos no tenías nada que ver.
+Ahora es parte del contrato y tiene el sentido que tiene en la realidad: **es
+la puerta de salida DEL JUGADOR**. `PT_CLAUS` son cinco opciones sobre el valor
+de mercado —la misma escala que ya usaba `clauseOf`— y el peso va en la
+dirección correcta, verificado monótono:
+
+| | sin cláusula | 2× | 3,5× | 6× | 10× |
+|---|---|---|---|---|---|
+| puntaje del jugador al firmar | 3,00 | **4,80** | 4,35 | 3,80 | 3,10 |
+| piso que pide para renovar | **0,910** | 0,802 | 0,829 | — | 0,904 |
+
+Vive en **un solo lugar** (`PT_CLAUS`) y lo leen las tres pantallas: los
+términos personales (las cuatro vías de fichaje), `negStep3` (la negociación
+larga) y `openContract` (la renovación). Queda **escrita** en `p.clause`, que
+`clauseOf` ya respetaba, y **"sin cláusula" deja `-1`** — la marca que
+`tieneClausula` ya conocía, así que no se la vuelve a inventar por liga.
+
+⚠️ El semáforo y la decisión usan la MISMA función (`renovClausAjuste`). Si el
+preview dijera 🟢 y el jugador rechazara, se leería como un bug — es la misma
+regla que `renovPiso` en la Fase 34.
+
+### El % de futura venta se ofrece en la mesa
+
+El mecanismo existía **sólo al revés**: cuando un club te compraba un jugador
+podía dejarte un % (`o.sellOn`). Comprando no había manera de ofrecerlo, que es
+justamente cómo se cierran los pases difíciles.
+
+⚠️ **NO se creó un campo nuevo.** Se reusa `p.ownedPct`, que YA está cableado
+en la venta (`val=val*p.ownedPct`) y en la insignia ➗ del plantel. `sellOnPct`
+existía en el archivo y **no lo leía nadie** — campo muerto. Dos campos para el
+mismo dato es el bug que este proyecto ya se hizo cinco veces.
+
+Medido de punta a punta con Kevin Mac Allister (valor 12M, piden 14,5M):
+
+| | oferta mínima que da verde |
+|---|---|
+| sin ceder nada | **12,8M** |
+| cediendo el 30% de una futura venta | **10,8M** |
+
+y al venderlo después en 20M cobrás **14M**. Ese es el trade.
+
+### La Junta salva contratos en el cierre de temporada
+
+`weeklyJunta` ya renovaba, pero corre **una vez por mes** y cierra hasta 3, así
+que en el cierre quedaban varios vencidos y se iban libres. `juntaRenovFin()`
+es el último barrido, **justo antes** de `expireContracts`. Medido, 12 corridas
+por nivel con 8 contratos vencidos:
+
+| | contratos salvados (mediana de 5) |
+|---|---|
+| sin delegar | **0** |
+| sin Director Deportivo | **0** |
+| Director nivel 40 | 2 |
+| Director nivel 65 | 3 |
+| Director nivel 90 | **4** |
+
+⚠️ **No salva a todos** (`JUNTA_RENOV_MAX=5`): si lo hiciera, delegar apagaría
+el riesgo entero de quedarte sin plantel. Con 8 vencidos salva 5 y **quedan 3**.
+
+⚠️ **Corre ANTES de `expireContracts`, no adentro**: `seVaLibre` tira un dado en
+CADA llamada, así que preguntarlo dos veces por el mismo jugador daría dos
+respuestas distintas.
+
+### Lo que pide un jugador mira su VALOR, y de qué club viene
+
+Dos agujeros, los dos medidos:
+
+1. **El valor no entraba en la cuenta.** A igual rating la dispersión es
+   enorme —un rat 84 va de **12M (p10) a 75M (máximo)**, seis veces— y los dos
+   pedían lo mismo. `_wageValFactor` compara contra la **mediana de su propia
+   banda de rating**, así el rating no se cuenta dos veces: sólo entra lo que
+   el rating no explica. `×3 de valor = +16%`, con tope. Medido: 0,88 en el
+   p10 · 1,00 en la mediana · 1,14 en el máximo.
+2. **El club de origen era un regex con 11 nombres a mano** que cubría **14 de
+   los 612 clubes de la base**. Y peor: decía `Man\. City` con punto, y en la
+   base el club se llama `Man City`, así que **el bonus nunca se disparó para el
+   Manchester City**. Es el mismo patrón de `bigClubs`/`midClubs` de la Fase 18.
+   Ahora sale de `clubRank()`: hay **27 clubes de nivel 84+** y 14 no estaban en
+   la lista. Medido con el mismo jugador clonado: Man City/Real Madrid **68k** ·
+   Boca **61k** · Aldosivi **56k**.
+
+### ⚠️ El juego trabado: `updateUI` dibujaba las SIETE pestañas y guardaba 3,1 MB
+
+El usuario lo reportó y la causa son dos líneas. Medido con `performance.now`,
+mediana de 7 corridas:
+
+| | antes |
+|---|---|
+| `updateUI` | **167 ms** |
+| …de eso, `saveGame` | **137,6 ms** (el 82%) |
+| …de eso, `renderMktSafe` | **58,5 ms**, aunque estuvieras mirando el Plantel |
+| `renderMkt` | 37,5 ms, de los cuales **27,7 son el ORDEN** |
+
+Tres arreglos:
+
+1. **El guardado se agrupa** (`saveSoon` / `SAVE_DEBOUNCE=900`). ⚠️ **`saveGame()`
+   sigue guardando en el acto**: hacer que la llamada explícita "guardá" no
+   guarde sería el tipo de bug silencioso que este archivo documenta una y otra
+   vez — y de hecho **lo destapó la regresión**, que hace `saveGame(); G=null;
+   loadGame();` y se encontró con que no había nada. Lo que se agrupa es el
+   guardado automático de cada render. Hay `saveFlush()` en el fin de partido,
+   el cambio de temporada y `beforeunload`.
+2. **Se dibuja la pestaña que se VE** (`_TAB_R` + `pintarTab` + `gTab`). ⚠️ Una
+   función que no esté en `_TAB_R` no se dibuja nunca: si agregás una tarjeta,
+   sumala a su pestaña.
+3. **El orden del Mercado precalcula la clave** en vez de llamar a `ratEst`
+   dentro del comparador (480.000 llamadas contra 17.075), y `_scoutHash` se
+   cachea por jugador como propiedad **no enumerable** — con 17.000 fichas, un
+   campo más se va al save, que es el problema de los 395 KB de `p.personality`.
+   `nivelClub` pasó de un `find` lineal sobre 612 clubes a un mapa.
+
+| | antes | ahora |
+|---|---|---|
+| `updateUI` en el Plantel | 167 ms | **2,9 ms** |
+| `updateUI` en el Mercado | 167 ms | **13,2 ms** |
+| `renderMkt` | 37,5 ms | **16 ms** |
+| cambiar de pestaña | — | 0,6 ms |
+
+### ⚠️ Y dibujar estaba CREANDO estado del juego
+
+Es la consecuencia peligrosa de (2) y la destapó la regresión: `G.league` lo
+construía **`rStand`**, o sea la tabla de posiciones. Con las pestañas
+perezosas, una partida en la que nunca abriste el Calendario quedaba con
+`G.league` en **null** — y de ahí leen la posición, el descenso y
+`archiveSeason`.
+
+Auditado comparando la huella de `G` antes y después de pintar las siete
+pestañas: eran **cinco campos**. `G.league` (`rStand`), `trainIntensity` y
+`trainFocus` (`rTrain` — y los **lee `weeklyTraining`**, así que sin abrir la
+pestaña el club entrenaba con `undefined`) y `dtPool` (`rStaff`, del que sale
+la Junta). Los cinco se inicializan ahora en `updateUI`, que es donde
+corresponde. Los dos que quedan (`_dtF`, `_socialReal`) son estado de pantalla
+y no los lee ninguna regla del juego.
+
+**Dibujar no puede ser lo que crea el estado del juego**, y la regresión ahora
+lo verifica comparando esa huella.
+
+### Dos trampas nuevas del instrumento, las dos ya documentadas antes
+
+- **El check de la gira comparaba contra la constante 3M.** La plata ahora
+  escala con la reputación, así que se caía en cuanto otro check de la sesión
+  compartida movía la rep. Peor: el esperado se calculaba DESPUÉS de la gira, y
+  la de Asia da `rep:2` — se pedía un número más alto que el que se cobró.
+- **El check del embudo dependía de un dado.** `submitNegTerms` acepta por
+  puntaje con un `Math.random()` en la banda del medio, y el puntaje se mueve
+  con la reputación. Verde una corrida y rojo la siguiente con el mismo código.
+  Se fija el dado: lo que se prueba es que el número LLEGUE al embudo, no la
+  suerte del jugador.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
