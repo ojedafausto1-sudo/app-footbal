@@ -4174,6 +4174,142 @@ lo verifica comparando esa huella.
   Se fija el dado: lo que se prueba es que el número LLEGUE al embudo, no la
   suerte del jugador.
 
+## Fase 47: inmersión — que el juego CUENTE lo que pasa
+
+Medido antes de escribir una línea, jugando 8 fechas: llegaron **36 noticias y
+ninguna era de tus partidos** (24 fichajes ajenos, 8 rumores, 4 varias), el
+vestuario mandó **9 mensajes y ninguno mencionaba un gol o una derrota**, y
+entre fecha y fecha el club no hacía absolutamente nada.
+
+### ⚠️ Las "Calificaciones XI" eran la MEDIA del jugador
+
+El resumen tenía un bloque titulado **📋 Calificaciones XI** que imprimía
+`rb(p.rat)`. O sea: el mismo número todos los partidos, ganaras 5-0 o
+perdieras 0-4. No era una calificación, era la ficha.
+
+`calcNotas()` da una nota de 3,5 a 10 por titular, y sale **sólo de lo que
+pasó en el partido**: el resultado, sus goles y asistencias, la valla invicta
+(al arquero y a la defensa), la posesión (al mediocampo), los remates al arco
+(al ataque), las tarjetas de ESE partido, con qué energía terminó y su nivel
+dentro del once. Medido a 10 partidos: rango **5,3 a 10,0**, 11 notas por
+partido y **3,2 puntos** de diferencia media entre el mejor y el peor.
+
+⚠️ **El ruido tiene que ser DETERMINISTA por partido** (hash del nombre + la
+semana + la competencia). Si se sorteara al dibujar, volver a abrir el resumen
+cambiaría las notas y se leería como un bug. Verificado.
+
+⚠️ **Van calculadas después de `stats`, no arriba con el MVP.** `stats` se
+arma 65 líneas más abajo que el bloque del MVP: calculadas allá, `calcNotas`
+recibía `undefined`, el `try/catch` se lo comía **en silencio** y las
+calificaciones no se dibujaban nunca sin que nada avisara.
+
+⚠️ **La figura del partido salía del jugador de mayor MEDIA.** En un 0-0 la
+figura era siempre el más caro del once, jugara como jugara. Ahora es el de
+mejor nota, que ya contempla los goles y la valla invicta.
+
+⚠️ **`N&&N[p.id]` devuelve `null`, no `undefined`**, cuando no hay notas: el
+guard tiene que ser `typeof n==='number'` o `.toFixed` revienta el resumen
+entero. Lo agarró la primera medición.
+
+### Tus goles no tenían asistencia
+
+`G.league.assists` se acreditaba para los clubes de la IA desde siempre, pero
+cuando el gol era **tuyo** no la anotaba nadie: la columna de asistencias de tu
+plantel se movía sólo por los partidos ajenos. Ahora el pase gol tiene dueño
+(68% de los goles, con peso hacia los `MCO`/`EI`/`ED`), aparece en el resumen
+al lado del gol y va también a la tabla de la liga.
+
+### La crónica: el resumen cuenta el partido
+
+⚠️ **Esto NO es relato jugada a jugada** — el usuario pidió expresamente que
+simular vaya directo al resumen, y va. Lo que cambia es que el resumen ahora
+**cuenta** el partido en vez de sólo tabularlo, y se arma después, con el
+partido terminado.
+
+Todo el material ya estaba y no lo leía nadie: `G._tiempos` (goles por tiempo y
+energía de la defensa), `G._S` (posesión, fuerzas, rival) y los minutos de cada
+gol. Medido: **10 de 10 crónicas distintas**, todas con minutos, nombres y
+porcentajes reales.
+
+⚠️ **Cada frase tiene que salir de un dato del partido.** Una crónica genérica
+("fue un partido intenso") es peor que no tenerla: se nota en dos fechas que
+siempre dice lo mismo. Por eso hay variantes elegidas por el hash del propio
+partido, y por eso la frase de la valla invicta —que es muy frecuente— sale
+sólo en 1 de cada 3.
+
+⚠️ **Nada de clima en la crónica.** `window.matchWeather` se sortea sólo en los
+partidos JUGABLES y la simulación de texto no lo mira: al simular quedaría el
+clima del último partido que jugaste a mano y la crónica contaría una lluvia
+que no existió.
+
+### La prensa cubre TU club
+
+`prensaCubrePartido` publica un titular por partido en `G.news` con tipo nuevo
+`'club'` (y su pestaña en el diario). Sale del partido: la goleada, el clásico,
+el hat-trick, el arco en cero, el papelón — más el ángulo del día, que es la
+nota más alta o la más baja con el nombre de un diario real.
+
+⚠️ **Se publica en `applyMatchResult`, no en `showMatchSummary`**: el resumen se
+puede reabrir desde el botón "📊 Ver resumen" y publicaría el mismo titular
+dos veces.
+
+⚠️ **EL TOPE DE NOTICIAS SE LA COMÍA, y el recorte estaba escrito en CUATRO
+lugares.** Medido sobre una temporada de 40 partidos: se publicaron 40
+titulares y **sobrevivieron 7**. `G.news` topea en 50 y los rumores y fichajes
+de la IA entran varias veces por semana. Es exactamente el bug que la Fase 18
+ya arregló entre `aiNews` y `_pubRumor` — con el tope partido en dos — sólo que
+ahora eran cuatro `G.news.length=AI_NEWS_MAX` sueltos. Los cuatro pasan por
+`newsRecortar()`, que tira **primero lo ajeno** y le reserva `NEWS_CLUB_MIN=18`
+a tu club. Medido después: **18 sobreviven**. ⚠️ No agregues un quinto
+`G.news.length=` suelto.
+
+### El vestuario reacciona a la cancha
+
+Los chats existían (`weeklyChats`) pero se disparan por el estado general
+—moral baja, contrato por vencer, pocos minutos— y nunca por un partido
+concreto. `vestuarioTrasPartido` agrega cinco reacciones al partido que se
+acaba de jugar: el del hat-trick, la figura de una tarde enorme, el goleador
+que no viene jugando, la goleada en contra (habla el **capitán** y cae la moral
+de todos) y el que sacó una nota de desastre.
+
+⚠️ **Una por partido y con umbral.** Un vestuario que te escribe 50 veces por
+temporada es ruido, no inmersión — es la misma lección que la indisciplina
+mensual (Fase 29) y las conferencias por hito (Fase 35).
+
+⚠️ **Y había un bug que lo destapó la regresión**: la rama de "salió redondo"
+se disparaba también **después de un 0-4**, porque sólo miraba la nota del
+jugador. Felicitar a la figura tras una goleada en contra se lee como un bug
+del juego. Ahora pide que el equipo no haya cobrado (`ga-gf<3`).
+
+### La vida del club entre fecha y fecha
+
+Pasar el día no era nada: se recuperaba la física, avanzaban las negociaciones
+y de vez en cuando sonaba el teléfono por el mercado ajeno. `vidaDeClub()`
+agrega seis voces, **todas derivadas del estado real**: el parte del cuerpo
+médico del que está más cerca de volver, el juvenil que está pegando el salto,
+el veterano cerca de los 100 partidos o los 50 goles, el humor de la calle
+(que sale de `fanMood`), el técnico avisando quién entrena de mala gana, y la
+tesorería cuando la caja está en rojo.
+
+⚠️ **Lo que sale de acá tiene que ser VERDAD sobre el estado actual.** Un
+generador de frases de color se gasta en una semana; un parte que te informa
+algo que no sabías, no.
+
+⚠️ **Dos cosas que hubo que medir para que no fuera ruido.** El primer valor
+(`0.30`) daba **2,8 mensajes por semana (94 en una temporada)** y, peor, la
+misma rama una y otra vez: 4 de cada 5 eran el Coordinador de Inferiores
+elogiando a un pibe distinto. Ahora `VIDA_CLUB_P=0.16` (**1,3 por semana**
+medido), nunca dos veces seguidas la misma rama, y al mismo juvenil no se lo
+elogia dos veces en el mismo semestre.
+
+### El estado, como manda el proyecto
+
+`G._notas` (11 números por partido), `G._vidaUlt`, `p._vidaPibe`, `p._yelMatch`
+y `p._redMatch` son primitivas: **0 funciones en `G`**, verificado. Retro-
+compatible sin migrar: un save viejo no tiene ninguno y eso es exactamente "no
+hay notas de ningún partido todavía" — el bloque de calificaciones no se dibuja
+y el resto sigue igual.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

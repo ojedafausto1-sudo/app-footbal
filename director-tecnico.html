@@ -10937,7 +10937,7 @@ function _pubRumor(msg,tipo){
   G.news.unshift({w:'S'+G.week, ic:'📰', msg, type:tipo||'rumor'});
   // Mismo tope que aiNews: con 35 acá y 50 allá, los rumores —que se publican
   // seguido— aplastaban las noticias de fichaje y el mercado parecía muerto.
-  if(G.news.length>AI_NEWS_MAX) G.news.length=AI_NEWS_MAX;
+  newsRecortar();   // ⚠️ nunca `G.news.length=AI_NEWS_MAX` a secas: ver newsRecortar
 }
 function weeklyRumores(){
   if(!G||!G.market) return;
@@ -11027,7 +11027,7 @@ function aiNews(ic,msg,type){
   if(!G)return;
   if(!G.news)G.news=[];
   G.news.unshift({w:'S'+(G.week||1),ic,msg,type:type||'transfer'});
-  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
+  newsRecortar();   // ⚠️ nunca `G.news.length=AI_NEWS_MAX` a secas: ver newsRecortar
 }
 // 1 = grande (Tier 1), 2 = mediano, 3 = chico
 function aiTier(club){ const n=nivelClub(club); return n>=80?1:n>=68?2:3; }
@@ -11215,7 +11215,7 @@ function aiTransfers(){
     const item=miscNews[~~(Math.random()*miscNews.length)];
     aiNews(item.ic,item.msg,'misc');
   }
-  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
+  newsRecortar();   // ⚠️ nunca `G.news.length=AI_NEWS_MAX` a secas: ver newsRecortar
 }
 
 function rNewsTab(){
@@ -11227,6 +11227,7 @@ function rNewsTab(){
   }
   const transfers=G.news.filter(n=>n.type==='transfer');
   const misc=G.news.filter(n=>n.type==='misc');
+  const club=G.news.filter(n=>n.type==='club');
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="background:${winOpen?'rgba(15,184,102,.1)':'rgba(232,69,69,.08)'};border:1px solid ${winOpen?'rgba(15,184,102,.3)':'rgba(232,69,69,.25)'};border-radius:7px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:6px">
     <div>
@@ -11238,10 +11239,12 @@ function rNewsTab(){
       <div style="font-size:13px;font-weight:700;color:var(--gold)">${transfers.length}</div>
     </div>
   </div>`;
-  const typeStyle={transfer:'border-left:3px solid var(--gold)',misc:'border-left:3px solid rgba(122,179,247,.5)',default:''};
+  const typeStyle={transfer:'border-left:3px solid var(--gold)',misc:'border-left:3px solid rgba(122,179,247,.5)',
+    club:'border-left:3px solid var(--green)',default:''};
   el.innerHTML=winBanner+`
     <div class="tabs" style="margin-bottom:8px">
       <button class="tab on" onclick="newsFilter('all',this)">Todo (${G.news.length})</button>
+      <button class="tab" onclick="newsFilter('club',this)">${(G.teamName||'Mi club').split(' ')[0]} (${club.length})</button>
       <button class="tab" onclick="newsFilter('transfer',this)">Fichajes (${transfers.length})</button>
       <button class="tab" onclick="newsFilter('misc',this)">Noticias (${misc.length})</button>
     </div>
@@ -13069,7 +13072,7 @@ function dilemaResolver(id,i){
   if(!G.news)G.news=[];
   G.news.unshift({w:'S'+(G.week||1), ic:'⚖️', type:'misc',
     msg:`<b>${d.ops[i].t}</b> — ${msg}`});
-  if(G.news.length>AI_NEWS_MAX)G.news.length=AI_NEWS_MAX;
+  newsRecortar();   // ⚠️ nunca `G.news.length=AI_NEWS_MAX` a secas: ver newsRecortar
   // Se libera el modal recién acá: es la única salida del bloqueo.
   if(!dilemaBloqueante()){
     try{ document.getElementById('modOv').style.display='none'; }catch(e){}
@@ -14676,6 +14679,47 @@ function resolveKO(m){
 
 // Contabilidad post-partido a partir del marcador final.
 // providedScorers (opcional): goles ya definidos por el modo jugable [{id,name,min}].
+// Nota de 3,5 a 10 para cada titular. Se apoya SÓLO en lo que pasó en el
+// partido: el resultado, lo que hizo él, lo que hizo su línea y cómo llegó de
+// energía. `NOTA_*` están afuera para poder retocarlas de a una.
+const NOTA_BASE=6.0;
+function _notaHash(nombre,m){
+  const k=String(nombre||'')+'|'+((G&&G.week)||0)+'|'+String((m&&m.comp)||'');
+  return k.split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),17);
+}
+function calcNotas(xi,res,stats,scorers,gf,ga,m){
+  if(!xi||!xi.length)return null;
+  const out={};
+  const avgR=xi.reduce((a,p)=>a+(p.rat||70),0)/xi.length;
+  const poss=(stats&&stats.poss)||50;
+  const sot=(stats&&stats.onTarget)||0;
+  const goles={}, asis={};
+  (scorers||[]).forEach(sc=>{ goles[sc.name]=(goles[sc.name]||0)+1;
+    if(sc.assist)asis[sc.assist]=(asis[sc.assist]||0)+1; });
+  xi.forEach(p=>{
+    const gr=(typeof pgr==='function')?pgr(p.pos):'MED';
+    let n=NOTA_BASE;
+    n += res==='W'?0.55 : res==='D'?0.05 : -0.45;         // el resultado tiñe todo
+    n += (goles[p.name]||0)*(gr==='ARQ'?2.2:gr==='DEF'?1.35:1.10);
+    n += (asis[p.name]||0)*0.70;
+    if(gr==='ARQ'){ n += (ga===0?0.95:-0.32*ga) + Math.max(0,(sot- (stats&&stats.onTargetCpu||0)))*0; }
+    else if(gr==='DEF'){ n += (ga===0?0.55:-0.24*ga); }
+    else if(gr==='MED'){ n += (poss-50)/40*0.55; }
+    else { n += Math.min(0.7,sot*0.09) - (gf===0?0.45:0); }   // al 9 se le pide gol
+    // Su nivel dentro del equipo: el mejor suele ser el que resuelve
+    n += ((p.rat||70)-avgR)*0.030;
+    // Con qué energía terminó: el que llegó fundido no rindió los 90
+    const fit=(p.fit===undefined?100:p.fit);
+    if(fit<55)n-=0.35; else if(fit<70)n-=0.15; else if(fit>=92)n+=0.10;
+    // Tarjetas: las del partido, las mismas que cuentan para la quinta
+    if(p._yelMatch)n-=0.30; if(p._redMatch)n-=1.60;
+    // Ruido determinista, para que dos partidos iguales no den la misma planilla
+    n += ((_notaHash(p.name,m)%121)-60)/100;                 // ±0,60
+    out[p.id]=Math.max(3.5,Math.min(10,Math.round(n*10)/10));
+  });
+  return out;
+}
+function notaColor(n){ return n>=8?'var(--green)':n>=6.5?'var(--gold)':n>=5?'var(--t2)':'var(--red)'; }
 function applyMatchResult(m, gf, ga, providedScorers){
   const psychLv = (G.staffLevels&&G.staffLevels.psych)||0;
   const res = gf>ga?'W':gf===ga?'D':'L';
@@ -14810,12 +14854,15 @@ function applyMatchResult(m, gf, ga, providedScorers){
   (function cards(){
     const prof=(typeof dtProfile==='function')?dtProfile(G.dt):{cyn:0.5,aggr:0.5};
     const heat=0.5+(prof.cyn||0.5)*0.6+(prof.aggr||0.5)*0.4+(derby?0.5:0);
+    // La tarjeta DE ESTE PARTIDO, aparte del acumulado de la quinta: la
+    // calificación necesita saber si lo amonestaron hoy, no cuántas lleva.
+    xiPlayers.forEach(p=>{ p._yelMatch=false; p._redMatch=false; });
     xiPlayers.forEach(p=>{
       if(p.susp>0)return;
       const defish=pgr(p.pos)==='DEF'||p.pos==='MCD';
       const pY=0.085*heat*(defish?1.5:1);
       if(Math.random()<pY){
-        _amaMias++;
+        _amaMias++; p._yelMatch=true;
         p.yellows=(p.yellows||0)+1;
         if(p.yellows>=5){
           p.yellows=0;p.susp=(p.susp||0)+1;
@@ -14824,7 +14871,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
         }
       }
       if(Math.random()<0.012*heat){
-        _rojasMias++;
+        _rojasMias++; p._redMatch=true;
         const games=Math.random()<0.25?2:1;
         p.susp=(p.susp||0)+games;p.yellows=0;
         lg('🟥',`Roja para ${p.name}: ${games} fecha(s) de suspensión`);
@@ -14847,12 +14894,36 @@ function applyMatchResult(m, gf, ga, providedScorers){
     G.dtRel=Math.max(0,Math.min(100,G.dtRel+d));
   })();
   applyFatigue(xiPlayers);
+  // ⚠️ TUS GOLES NO TENÍAN ASISTENCIA. La liga simulada sí acreditaba una
+  // (`G.league.assists`) para los clubes de la IA, pero cuando el gol era tuyo
+  // no la anotaba nadie: la columna de asistencias del plantel se movía sólo
+  // por los partidos ajenos. Ahora el pase gol tiene dueño, y va también a la
+  // tabla de la liga.
+  const _asistDe=(golId)=>{
+    if(Math.random()>=0.68)return null;
+    const cand=xiPlayers.filter(q=>q.id!==golId&&['MCO','MC','EI','ED','DFI','DFD','MI','MD','DC'].indexOf(q.pos)>=0);
+    if(!cand.length)return null;
+    const peso=cand.map(q=>({q,w:Math.pow(Math.max(1,(q.rat||70)-55),1.6)*(['MCO','EI','ED'].indexOf(q.pos)>=0?1.6:1)}));
+    let t=peso.reduce((a,x)=>a+x.w,0)*Math.random();
+    for(const x of peso){ t-=x.w; if(t<=0)return x.q; }
+    return cand[0];
+  };
+  const _anotaAsist=(q)=>{
+    if(!q)return;
+    q.assists=(q.assists||0)+1;
+    if(G.league&&esLigaLocal(m.comp)){
+      G.league.assists=G.league.assists||{};
+      if(!G.league.assists[q.name])G.league.assists[q.name]={club:G.teamName,assists:0};
+      G.league.assists[q.name].assists++;
+    }
+  };
   if(providedScorers && providedScorers.length){
     // Goles anotados por el jugador en el modo jugable
     providedScorers.forEach(s=>{
       const p = G.squad.find(x=>x.id===s.id);
       if(p) p.goals++;
-      scorersList.push({name:s.name, min:s.min});
+      const _a=_asistDe(s.id); _anotaAsist(_a);
+      scorersList.push({name:s.name, min:s.min, assist:_a?_a.name:null});
     });
   } else {
     // Generate scorer events — los goleadores natos (TIR/VEL altos) marcan más
@@ -14875,7 +14946,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
         let min = 5 + ~~(Math.random()*85);
         while(usedMins.has(min)) min = (min % 90) + 1;
         usedMins.add(min);
-        scorersList.push({name:scorer.name, min});
+        const _a=_asistDe(scorer.id); _anotaAsist(_a);
+        scorersList.push({name:scorer.name, min, assist:_a?_a.name:null});
       }
     }
   }
@@ -14893,22 +14965,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
     p.val=calcVal(p);
   });
   scorersList.sort((a,b)=>a.min-b.min);
-  // ═══ MVP del partido: goleador destacado o mejor del XI ═══
-  if(res!=='L'||scorersList.length){
-    let mvp=null;
-    if(scorersList.length){
-      // el que más goles hizo
-      const cnt={};scorersList.forEach(s=>cnt[s.name]=(cnt[s.name]||0)+1);
-      const topName=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
-      mvp=G.squad.find(p=>p.name===topName);
-    }
-    if(!mvp)mvp=xiPlayers.slice().sort((a,b)=>b.rat-a.rat)[0];
-    if(mvp){
-      mvp.mvpCount=(mvp.mvpCount||0)+1;
-      mvp.perf=Math.min(1.30,(mvp.perf||1)+0.02);
-      G._lastMVP={name:mvp.name,pos:mvp.pos,goals:scorersList.filter(s=>s.name===mvp.name).length};
-    }
-  } else G._lastMVP=null;
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA CALIFICACIÓN DEL PARTIDO, QUE NO EXISTÍA
+  // ═══════════════════════════════════════════════════════════════════════
+  // El resumen tenía un bloque titulado "📋 Calificaciones XI" que imprimía
+  // `rb(p.rat)` — la MEDIA del jugador. O sea: el mismo número todos los
+  // partidos, ganaras 5-0 o perdieras 0-4. No era una calificación, era la
+  // ficha. Ahora sale del partido que se jugó.
+  //
+  // ⚠️ El ruido tiene que ser DETERMINISTA por partido: si se sorteara al
+  // dibujar, volver a abrir el resumen cambiaría las notas y se leería como un
+  // bug. Sale del hash del nombre + la semana + la competencia.
   // Estado de forma del XI según su aporte
   updateForm(xiPlayers,scorersList,res);
   updateChemistry(xiPlayers);
@@ -14979,6 +15046,41 @@ function applyMatchResult(m, gf, ga, providedScorers){
     reds: _rojasMias,
     yellowsCpu: Math.max(0,Math.round(_foulsC/4.5+_rnd(-0.6,0.6))),
   };
+
+  // ⚠️ LAS NOTAS VAN ACÁ, NO ARRIBA CON EL MVP. `stats` se arma 65 líneas más
+  // abajo que el bloque del MVP: calculadas allá, `calcNotas` recibía
+  // `undefined`, el try/catch se lo comía en silencio y `G._notas` quedaba en
+  // null — las calificaciones no se dibujaban nunca y nada avisaba.
+  try{ G._notas=calcNotas(xiPlayers,res,stats,scorersList,gf,ga,m); }catch(e){ G._notas=null; }
+  // ═══ FIGURA DEL PARTIDO ═══
+  // ⚠️ Esto elegía "el que más goles hizo, y si no, el de mayor MEDIA" — o sea
+  // que en un 0-0 la figura era siempre el jugador más caro del once,
+  // jugadas como jugara. Ahora es el de mejor NOTA del partido, que ya
+  // contempla los goles, la valla invicta y todo lo demás.
+  // Va acá y no arriba porque las notas necesitan `stats`.
+  if(res!=='L'||scorersList.length){
+    let mvp=null;
+    if(G._notas){
+      mvp=xiPlayers.slice().sort((a,b)=>(G._notas[b.id]||0)-(G._notas[a.id]||0))[0];
+    }
+    if(!mvp&&scorersList.length){
+      const cnt={};scorersList.forEach(s=>cnt[s.name]=(cnt[s.name]||0)+1);
+      const topName=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
+      mvp=G.squad.find(p=>p.name===topName);
+    }
+    if(!mvp)mvp=xiPlayers.slice().sort((a,b)=>b.rat-a.rat)[0];
+    if(mvp){
+      mvp.mvpCount=(mvp.mvpCount||0)+1;
+      mvp.perf=Math.min(1.30,(mvp.perf||1)+0.02);
+      G._lastMVP={name:mvp.name,pos:mvp.pos,goals:scorersList.filter(s=>s.name===mvp.name).length,
+                  nota:(G._notas&&G._notas[mvp.id])||null};
+    }
+  } else G._lastMVP=null;
+  // ⚠️ La prensa se publica ACÁ, no en `showMatchSummary`: el resumen se puede
+  // volver a abrir desde el botón "📊 Ver resumen" y publicaría el mismo
+  // titular dos veces.
+  try{ prensaCubrePartido(m,res,gf,ga,scorersList,stats); }catch(e){}
+  try{ vestuarioTrasPartido(m,res,gf,ga,scorersList); }catch(e){}
 
   // === TOURNEY TRACKING ===
   if(!G.tourney) G.tourney = buildTourney();
@@ -15799,6 +15901,240 @@ function showMatchLive(m, res, gf, ga, scorersList, stats, isLastMatch){
   render();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LA CRÓNICA DEL PARTIDO
+// ═══════════════════════════════════════════════════════════════════════
+// El resumen era una planilla: marcador, barras y la lista de goles. Todo el
+// material para contarlo ya estaba y no lo leía nadie — `G._tiempos` (goles
+// por tiempo y energía de la defensa), `G._S` (posesión, fuerzas, clima,
+// táctica) y los minutos de cada gol.
+//
+// ⚠️ Esto NO es relato jugada a jugada: el usuario pidió expresamente que
+// simular vaya directo al resumen, y va. Lo que cambia es que el resumen
+// ahora CUENTA el partido en vez de sólo tabularlo, y se arma después, con el
+// partido terminado.
+// ⚠️ Cada frase tiene que salir de un dato del partido. Una crónica genérica
+// ("fue un partido intenso") es peor que no tenerla: se nota en dos fechas que
+// siempre dice lo mismo.
+// ═══════════════════════════════════════════════════════════════════════
+// LA PRENSA CUBRE TU CLUB, NO SÓLO EL MERCADO AJENO
+// ═══════════════════════════════════════════════════════════════════════
+// Medido antes de esto, en 8 fechas llegaban 36 noticias: **24 de fichajes
+// ajenos, 8 rumores y 4 varias — CERO de tus partidos**. El diario del juego
+// hablaba del mercado de otros clubes y no de lo único que el usuario
+// realmente está haciendo, que es dirigir.
+//
+// El titular sale del partido que se jugó, no de una plantilla: el resultado,
+// contra quién, la racha y el nombre propio que lo definió.
+const PRENSA_DIARIOS=['Olé','El Gráfico','La Nación Deportes','TyC Sports','Doble Amarilla','Radio Continental'];
+function prensaCubrePartido(m,res,gf,ga,scorers,stats){
+  if(!G)return;
+  G.news=G.news||[];
+  const yo=G.teamName||'El equipo';
+  const rival=(m.home===yo?m.away:m.home);
+  const ap=x=>String(x||'').split(' ').pop();
+  const dif=gf-ga;
+  const cnt={}; (scorers||[]).forEach(sc=>cnt[sc.name]=(cnt[sc.name]||0)+1);
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  const hat=top&&top[1]>=3, doblete=top&&top[1]===2;
+  const N=G._notas||null;
+  const derby=(typeof isDerby==='function')?isDerby(m):null;
+  const _h=_notaHash(yo+rival+gf+'-'+ga+'x',m);
+  const diario=PRENSA_DIARIOS[_h%PRENSA_DIARIOS.length];
+  let ic='📰', tit='';
+  if(hat)                     { ic='🎩'; tit=`<b>${top[0]}</b> se llevó la pelota: tres goles en el ${gf}-${ga} de ${yo} a ${rival}.`; }
+  else if(derby&&res==='W')   { ic='🔥'; tit=`${yo} ganó el <b>${derby}</b> ${gf}-${ga}. La ciudad es suya por una semana.`; }
+  else if(derby&&res==='L')   { ic='😖'; tit=`Duro golpe: ${rival} se quedó con el <b>${derby}</b> por ${ga}-${gf}.`; }
+  else if(dif>=4)             { ic='💥'; tit=`Goleada histórica: <b>${yo} ${gf}-${ga} ${rival}</b>. No hubo partido.`; }
+  else if(dif<=-4)            { ic='🚨'; tit=`Papelón: <b>${rival} le hizo ${ga}</b> a ${yo}. La pregunta ya no es el partido, es el proyecto.`; }
+  else if(res==='W'&&ga===0)  { ic='🧱'; tit=`${yo} ganó ${gf}-0 con el arco en cero${doblete?` y doblete de <b>${top[0]}</b>`:''}.`; }
+  else if(res==='W')          { ic='✅'; tit=`Tres puntos: ${yo} le ganó ${gf}-${ga} a ${rival}${doblete?` con dos de <b>${top[0]}</b>`:(top?` — gol de <b>${top[0]}</b>`:'')}.`; }
+  else if(res==='D'&&gf===0)  { ic='😐'; tit=`Aburrido 0-0 entre ${m.home} y ${m.away}. Ni una.`; }
+  else if(res==='D')          { ic='🤝'; tit=`${yo} empató ${gf}-${ga} con ${rival} y se le escapó.`; }
+  else                        { ic='❌'; tit=`Derrota de ${yo} ${gf}-${ga} ante ${rival}.`; }
+  // el ángulo del día: la nota más alta o la más baja, que es lo que tiene la tapa
+  let angulo='';
+  if(N){
+    const xi=Object.values(G.slots||{}).filter(Boolean).map(id=>G.squad.find(q=>q.id===id)).filter(Boolean)
+      .filter(q=>typeof N[q.id]==='number').sort((a,b)=>N[b.id]-N[a.id]);
+    if(xi.length){
+      const mej=xi[0], peo=xi[xi.length-1];
+      if(N[mej.id]>=8.5) angulo=` <span style="color:var(--t3)">${diario} le pone <b>${N[mej.id].toFixed(1)}</b> a ${ap(mej.name)}.</span>`;
+      else if(N[peo.id]<=4.5) angulo=` <span style="color:var(--t3)">${diario} destroza a ${ap(peo.name)}: <b>${N[peo.id].toFixed(1)}</b>.</span>`;
+      else if(stats&&stats.poss>=64) angulo=` <span style="color:var(--t3)">${diario}: "${stats.poss}% de la pelota y ${stats.shots} remates".</span>`;
+    }
+  }
+  newsPush({w:'S'+(G.week||1),ic,type:'club',msg:tit+angulo});
+}
+// ⚠️ EL TOPE DE NOTICIAS APLASTABA LA COBERTURA DE TU CLUB. Medido sobre una
+// temporada de 40 partidos: se publicaron 40 titulares y **sobrevivieron 8**.
+// `G.news` topea en 50 y los rumores y fichajes de la IA entran varias veces
+// por semana, así que empujaban afuera lo único que hablaba de vos. Es el
+// mismo bug que la Fase 18 ya arregló entre `aiNews` y `_pubRumor`, con el
+// tope partido en dos.
+// Ahora el recorte tira PRIMERO lo ajeno y le reserva lugar a tu club.
+const NEWS_CLUB_MIN=18;        // titulares tuyos que nunca se caen
+// ⚠️ EL RECORTE ESTABA ESCRITO EN CUATRO LUGARES, todos `G.news.length=
+// AI_NEWS_MAX` a secas. Con la reserva puesta sólo acá, cualquiera de los
+// otros tres volvía a tirar la cobertura de tu club: medido, de 40 titulares
+// sobrevivían 7. Es exactamente el bug que la Fase 18 ya había arreglado entre
+// `aiNews` y `_pubRumor`, con el tope partido en dos. Ahora los cuatro llaman
+// a esta función. **No agregues un quinto `G.news.length=` suelto.**
+function newsRecortar(){
+  if(!G||!G.news)return;
+  const max=(typeof AI_NEWS_MAX!=='undefined'?AI_NEWS_MAX:50);
+  if(G.news.length<=max)return;
+  const mios=[], otros=[];
+  G.news.forEach(n=>((n&&n.type==='club')?mios:otros).push(n));
+  const guardo=mios.slice(0,NEWS_CLUB_MIN);
+  const resto=otros.slice(0,Math.max(0,max-guardo.length));
+  const set=new Set(guardo.concat(resto));
+  G.news=G.news.filter(n=>set.has(n)).slice(0,max);
+}
+function newsPush(item){
+  if(!G)return;
+  G.news=G.news||[];
+  G.news.unshift(item);
+  newsRecortar();
+}
+// ═══════════════════════════════════════════════════════════════════════
+// EL VESTUARIO REACCIONA A LO QUE PASÓ EN LA CANCHA
+// ═══════════════════════════════════════════════════════════════════════
+// Los chats existían (`weeklyChats`) pero se disparan por el estado general
+// —moral baja, contrato por vencer, pocos minutos— y nunca por un partido
+// concreto. Medido: 9 mensajes de jugadores en 8 fechas, y ninguno mencionaba
+// un gol, una nota o una derrota.
+//
+// ⚠️ Esto NO puede sonar todos los partidos. Un vestuario que te escribe 50
+// veces por temporada es ruido, no inmersión — es la misma lección que la
+// indisciplina mensual (Fase 29) y las conferencias por hito (Fase 35). Cada
+// rama tiene su propio umbral y se limita a UNA por partido.
+function vestuarioTrasPartido(m,res,gf,ga,scorers){
+  if(!G||!G.squad)return;
+  const N=G._notas||{};
+  const xi=Object.values(G.slots||{}).filter(Boolean).map(id=>G.squad.find(q=>q.id===id)).filter(Boolean);
+  if(!xi.length)return;
+  const cnt={}; (scorers||[]).forEach(sc=>cnt[sc.name]=(cnt[sc.name]||0)+1);
+  const chat=(p,txt)=>{ try{ ensureChats(); if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'them',txt); }catch(e){} };
+  const yo=G.teamName||'el club';
+  const rival=(m.home===yo?m.away:m.home);
+  // 1 · el del hat-trick habla, y la moral se le va al techo
+  const hat=Object.entries(cnt).find(([,n])=>n>=3);
+  if(hat){
+    const p=G.squad.find(q=>q.name===hat[0]);
+    if(p){
+      p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+14);
+      chat(p,`¡Tres goles, presidente! Me llevo la pelota a casa. Gracias por bancarme cuando no entraban.`);
+      addPhoneMsg('player',p.name,`🎩 <b>Hat-trick</b> contra ${rival}. Está enchufadísimo.`,'⚽');
+      return;
+    }
+  }
+  // 2 · la figura del partido, sólo si fue una tarde ENORME
+  // ⚠️ …y sólo si el EQUIPO no cobró: un mensaje de "salió redondo" después de
+  //    un 0-4 se lee como un bug del juego. Lo agarró la regresión, que lo
+  //    marcó una corrida de cada cuatro (el goleado caía en esta rama y salía
+  //    por el `return` antes de llegar a la del capitán).
+  const conNota=xi.filter(q=>typeof N[q.id]==='number').sort((a,b)=>N[b.id]-N[a.id]);
+  if(ga-gf<3&&conNota.length&&N[conNota[0].id]>=8.8&&Math.random()<0.55){
+    const p=conNota[0];
+    p.morale=Math.min(99,(p.morale===undefined?60:p.morale)+8);
+    chat(p,`Salió redondo, presidente. Así da gusto. Ojalá podamos sostenerlo.`);
+    addPhoneMsg('player',p.name,`⭐ Partidazo de <b>${p.name}</b> (${N[p.id].toFixed(1)}) contra ${rival}.`,'⭐');
+    return;
+  }
+  // 3 · el goleador del equipo que NO viene jugando: reclama su lugar
+  const goleador=Object.keys(cnt)[0]&&G.squad.find(q=>q.name===Object.keys(cnt)[0]);
+  if(goleador&&(goleador.rendim!==undefined&&goleador.rendim<=-0.3)&&Math.random()<0.5){
+    chat(goleador,`Entré, la metí, y la semana que viene vuelvo al banco. Se lo digo con respeto: yo quiero jugar.`);
+    addPhoneMsg('player',goleador.name,`🪑 Hizo el gol y casi no viene jugando. Está caliente.`,'🪑');
+    return;
+  }
+  // 4 · la goleada en contra rompe el vestuario, y habla el CAPITÁN
+  if(ga-gf>=3){
+    const capId=(G.roles&&G.roles.captain)||null;
+    const cap=(capId&&G.squad.find(q=>q.id===capId))||conNota[0];
+    G.squad.forEach(q=>{ q.morale=Math.max(3,(q.morale===undefined?60:q.morale)-5); });
+    if(cap){
+      chat(cap,`Presidente, lo de hoy es una vergüenza y me hago cargo como capitán. Hablo yo con el grupo, pero acá hay que cambiar cosas.`);
+      addPhoneMsg('player',cap.name,`😠 El capitán salió a dar la cara tras el ${ga}-${gf} con ${rival}. El vestuario está roto.`,'😠');
+    }
+    return;
+  }
+  // 5 · el que sacó una nota de desastre se disculpa (y se le cae la moral)
+  if(conNota.length){
+    const peor=conNota[conNota.length-1];
+    if(N[peor.id]<=4.3&&Math.random()<0.45){
+      peor.morale=Math.max(3,(peor.morale===undefined?60:peor.morale)-9);
+      chat(peor,`Sé que hoy fui un desastre. No hace falta que me lo diga nadie. La semana que viene lo arreglo en la cancha.`);
+      return;
+    }
+  }
+}
+function cronicaPartido(m,res,gf,ga,scorers,stats){
+  const T=(G&&G._tiempos)||null, S=(G&&G._S)||null;
+  const yo=(G&&G.teamName)||'El equipo';
+  const rival=(m.home===yo?m.away:m.home);
+  const local=m.home===yo;
+  const f=[];
+  const sc=(scorers||[]).slice().sort((a,b)=>a.min-b.min);
+  const ap=s=>String(s||'').split(' ').pop();
+  const derby=(typeof isDerby==='function')?isDerby(m):null;
+  // ⚠️ Variantes de cada frase, elegidas DETERMINISTAMENTE por el partido. Con
+  // una sola redacción se nota en dos fechas que siempre dice lo mismo, y con
+  // `Math.random()` la crónica cambiaría al reabrir el resumen.
+  const _h=_notaHash(yo+rival+gf+'-'+ga,m);
+  const v=(arr,i)=>arr[(_h>>((i||0)*3))%arr.length];
+  // 1 · el arranque
+  if(derby) f.push(`<b>${derby}</b>${local?' en casa':' de visitante'}, con todo lo que eso significa.`);
+  if(sc.length&&sc[0].min<=20) f.push(`${ap(sc[0].name)} lo abrió a los <b>${sc[0].min}'</b>${sc[0].assist?` tras el pase de ${ap(sc[0].assist)}`:''} y `+v(['el partido se jugó cuesta abajo.','el plan salió redondo desde el arranque.','a partir de ahí fue todo más fácil.','el rival tuvo que salir a buscarlo.'],0));
+  else if(gf>0&&sc.length) f.push(v([`Costó romper el cero: llegó recién a los <b>${sc[0].min}'</b>, con ${ap(sc[0].name)}.`,
+    `Hubo que esperar hasta los <b>${sc[0].min}'</b> para ver el primero, de ${ap(sc[0].name)}.`,
+    `El arco se abrió tarde, a los <b>${sc[0].min}'</b>, y lo destrabó ${ap(sc[0].name)}.`],0));
+  else if(gf===0) f.push(`No hubo manera de convertir${(stats&&stats.onTarget>=5)?` — ${stats.onTarget} remates al arco y ninguno adentro`:''}.`);
+  // 2 · cómo se repartió
+  if(T){
+    if(T.gf2>T.gf1&&T.gf2>0) f.push(`El equipo se soltó después del entretiempo: <b>${T.gf2}</b> de los ${gf} goles llegaron en el complemento.`);
+    else if(T.ga2>T.ga1&&T.ga2>=2) f.push(`El segundo tiempo fue otro partido: el rival hizo <b>${T.ga2}</b> en esos 45 minutos.`);
+    if(T.fat>0.34) f.push(`La línea de fondo salió al <b>${T.defFit}%</b> y se notó: sobre el final ${rival} entraba por donde quería.`);
+    // ⚠️ La valla invicta con la defensa entera es MUY frecuente, así que no
+    //    puede contarse siempre o la crónica termina diciendo lo mismo. Sale
+    //    en ~1 de cada 3 partidos, elegido por el hash del propio partido.
+    else if(T.fat<=0.05&&ga===0&&(_h%3===0)) f.push(v([`Atrás no se pasó un sobresalto: la defensa terminó entera (${T.defFit}%).`,
+      `El cero abajo no fue casualidad: la última línea llegó al final al ${T.defFit}%.`,
+      `El arco quedó en cero y sin sufrir.`],1));
+  }
+  // 3 · el relato del juego, con los números del partido
+  const poss=(stats&&stats.poss)||50;
+  if(poss>=62) f.push(`Fue un monólogo con la pelota: <b>${poss}%</b> de posesión y ${stats.passes} pases.`);
+  else if(poss<=38) f.push(`Se cedió la pelota (<b>${poss}%</b>) y se buscó en las transiciones.`);
+  if(stats&&stats.shots>=16&&stats.onTarget<=4) f.push(`${stats.shots} remates para ${stats.onTarget} al arco: mucho volumen y poca puntería.`);
+  if(stats&&(stats.reds||0)>0) f.push(`Y encima se terminó con uno menos.`);
+  else if(stats&&(stats.fouls||0)>=18) f.push(`Se jugó cortado: ${stats.fouls} faltas.`);
+  // 4 · ⚠️ NADA DE CLIMA ACÁ. `window.matchWeather` se sortea sólo en los
+  //     partidos JUGABLES (playMatch / startFullMatch) y la simulación de
+  //     texto no lo mira: al simular quedaría el clima del último partido que
+  //     jugaste a mano, y la crónica contaría una lluvia que no existió.
+  //     En su lugar, lo que sí es de este partido: el rival y la localía.
+  if(S&&S.oppRat!==undefined){
+    const mio=(S.avgR||70);
+    if(S.oppRat-mio>=6) f.push(`${rival} era muy superior en los papeles (${S.oppRat} contra ${Math.round(mio)})${res==='L'?'.':' y se le sacó algo igual.'}`);
+    else if(mio-S.oppRat>=8&&res!=='W') f.push(`Contra un rival bastante inferior (${S.oppRat} contra ${Math.round(mio)}), no se puede.`);
+  }
+  // 5 · el cierre
+  const N=(G&&G._notas)||null;
+  if(N){
+    const xi=Object.values(G.slots||{}).filter(Boolean).map(id=>G.squad.find(q=>q.id===id)).filter(Boolean);
+    const conNota=xi.filter(q=>N[q.id]!==undefined).sort((a,b)=>N[b.id]-N[a.id]);
+    if(conNota.length){
+      const mejor=conNota[0], peor=conNota[conNota.length-1];
+      if(N[mejor.id]>=8) f.push(`<b>${mejor.name}</b> fue lo mejor de la cancha (<b>${N[mejor.id].toFixed(1)}</b>).`);
+      if(N[peor.id]<=4.8) f.push(`${peor.name} tuvo una tarde para el olvido (${N[peor.id].toFixed(1)}).`);
+    }
+  }
+  if(!f.length) f.push(res==='W'?`Trabajo prolijo y tres puntos.`:res==='D'?`Un punto que sabe a poco.`:`No alcanzó.`);
+  return f.slice(0,5).join(' ');
+}
 function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
   const resColor = res==='W'?'var(--green)':res==='D'?'var(--gold)':'var(--red)';
   const resLabel = res==='W'?'VICTORIA':res==='D'?'EMPATE':'DERROTA';
@@ -15821,10 +16157,18 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       <div style="font-size:11px;color:${resColor};font-weight:700;margin-top:5px;font-family:'Rajdhani',sans-serif;letter-spacing:.08em">${resLabel} · ${_isH?'🏠 LOCAL':'✈️ VISITANTE'} · ${gf}-${ga} para vos</div>
     </div>
 
+    ${(function(){ try{
+      const c=cronicaPartido(m,res,gf,ga,scorers,stats);
+      return c?`<div class="mpanel" style="margin-bottom:11px;padding:10px 11px">
+        <div class="mpanel-t">📰 La crónica</div>
+        <div style="font-size:11.5px;line-height:1.55;color:var(--t2)">${c}</div>
+      </div>`:'';
+    }catch(e){ return ''; } })()}
+
     ${scorers.length ? `
     <div class="ctitle">⚽ Goles ${G&&G.teamName||''}</div>
     <div style="margin-bottom:10px">
-      ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span></div>`).join('')}
+      ${scorers.map(s=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">⚽ <strong>${s.name}</strong> <span style="color:var(--t3)">${s.min}'</span>${s.assist?`<span style="color:var(--t3);font-size:10px"> · 👟 asistencia de <b style="color:var(--t2)">${s.assist}</b></span>`:''}</div>`).join('')}
     </div>` : `<div class="note" style="margin-bottom:10px">${G&&G.teamName||'El equipo'} no anotó</div>`}
 
     ${(function(){
@@ -15890,14 +16234,32 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
     ${motm ? `
     <div class="note G" style="display:flex;align-items:center;gap:8px">
       <div>⭐</div>
-      <div><div style="font-size:11px;font-weight:700">Figura del partido</div><div style="font-size:13px;font-weight:700;font-family:'Rajdhani'">${motm.name}</div><div style="font-size:10px;color:var(--t3)">${motm.pos} · ${rb(motm.rat)}</div></div>
+      <div><div style="font-size:11px;font-weight:700">Figura del partido</div><div style="font-size:13px;font-weight:700;font-family:'Rajdhani'">${motm.name}</div><div style="font-size:10px;color:var(--t3)">${motm.pos}${(G._notas&&typeof G._notas[motm.id]==='number')?` · <b style="color:${notaColor(G._notas[motm.id])}">${G._notas[motm.id].toFixed(1)}</b> en este partido`:` · ${rb(motm.rat)}`}</div></div>
     </div>` : ''}
 
-    ${xl.length ? `
-    <div class="ctitle" style="margin-top:10px">📋 Calificaciones XI</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px">
-    ${xl.map(p=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px;padding:3px">${rb(p.rat)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.split(' ').pop()}</span></div>`).join('')}
-    </div>` : ''}
+    ${xl.length ? (function(){
+      // ⚠️ Esto imprimía `rb(p.rat)`, o sea la MEDIA del jugador: el mismo
+      // número todos los partidos, ganaras 5-0 o perdieras 0-4. Ahora es la
+      // nota de ESTE partido (ver `calcNotas`), ordenada de mejor a peor.
+      const N=(G&&G._notas)||null;
+      const filas=xl.slice().sort((a,b)=>((N&&N[b.id])||0)-((N&&N[a.id])||0));
+      if(!N)return '';
+      const gol={}, asi={};
+      (scorers||[]).forEach(sc=>{ gol[sc.name]=(gol[sc.name]||0)+1; if(sc.assist)asi[sc.assist]=(asi[sc.assist]||0)+1; });
+      return `<div class="ctitle" style="margin-top:10px">📋 Calificaciones del partido</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px">
+      ${filas.map(p=>{
+        // ⚠️ `N&&N[p.id]` da **null** cuando no hay notas, no undefined: el
+        // guard tiene que ser numérico o `.toFixed` revienta el resumen entero.
+        const n=(N&&typeof N[p.id]==='number')?N[p.id]:null;
+        return `<div style="display:flex;align-items:center;gap:5px;font-size:10px;padding:3px 4px;border-radius:5px;background:rgba(255,255,255,.03)">
+          <span class="sv" style="min-width:26px;font-size:12px;font-weight:700;color:${n===null?'var(--t3)':notaColor(n)}">${n===null?'–':n.toFixed(1)}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${p.name.split(' ').pop()}</span>
+          <span style="font-size:9px;white-space:nowrap">${'⚽'.repeat(gol[p.name]||0)}${'👟'.repeat(asi[p.name]||0)}${p._redMatch?'🟥':p._yelMatch?'🟨':''}</span>
+        </div>`;
+      }).join('')}
+      </div>`;
+    })() : ''}
 
     ${isLastMatch ? `
     <div style="margin-top:12px">
@@ -25594,7 +25956,100 @@ function dailyTick(){
   G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(100,p.fit+rec); });
   if(Math.random()<0.22&&typeof weeklyChats==='function')weeklyChats();
   if(Math.random()<0.18&&typeof weeklyOffers==='function')weeklyOffers();
+  try{ vidaDeClub(); }catch(e){}
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// LA VIDA DEL CLUB ENTRE FECHA Y FECHA
+// ═══════════════════════════════════════════════════════════════════════
+// Pasar el día no era nada: se recuperaba la física, avanzaban las
+// negociaciones y de vez en cuando sonaba el teléfono por el mercado. Entre un
+// partido y el siguiente no pasaba NADA del club.
+//
+// ⚠️ Todo lo que sale de acá tiene que ser VERDAD sobre el estado actual — el
+// que se recupera de una lesión, el pibe que está creciendo, el veterano cerca
+// de un hito, el parte del kinesiólogo. Un generador de frases de color se
+// gasta en una semana; un parte que te informa algo que no sabías, no.
+// ⚠️ 0.30 daba **2,8 mensajes por semana (94 en una temporada)** y, peor, la
+// misma rama una y otra vez: 4 de cada 5 eran el Coordinador de Inferiores
+// elogiando a un pibe distinto. Un buzón que suena todos los días deja de
+// leerse, que es lo contrario de lo que se busca. A 0.16 queda ~1 por semana.
+const VIDA_CLUB_P=0.16;
+function vidaDeClub(){
+  if(!G||!G.squad||!G.squad.length)return;
+  if(Math.random()>=VIDA_CLUB_P)return;
+  const sq=G.squad;
+  const ramas=[];
+  // ── parte médico: el que está más cerca de volver ──
+  const lesionados=sq.filter(p=>p.injured&&(p.injuredWeeks||0)>0)
+    .sort((a,b)=>(a.injuredWeeks||0)-(b.injuredWeeks||0));
+  if(lesionados.length) ramas.push(_vid('medico',()=>{
+    const p=lesionados[0];
+    addPhoneMsg('board','Cuerpo Médico',
+      `🩺 Parte de <b>${p.name}</b>: ${p.injType||'lesión'}. `+
+      (p.injuredWeeks<=1?`Ya trabaja con el grupo, <b>vuelve para la próxima fecha</b>.`
+       :p.injuredWeeks<=2?`Trota en el predio. Le calculamos <b>${p.injuredWeeks} semanas</b>.`
+       :`Sigue con kinesiología. <b>${p.injuredWeeks} semanas</b> por delante.`),'🩺');
+  }));
+  // ── el juvenil que está pegando el salto ──
+  const pibes=sq.filter(p=>(p.age||30)<=21&&(p.pot||0)-(p.rat||0)>=8&&!p.injured);
+  // ⚠️ El mismo pibe no se elogia dos veces en el mismo semestre: con 5-6
+  //    juveniles en el plantel, sin esto el buzón era una ronda de elogios.
+  const pibesOK=pibes.filter(p=>!p._vidaPibe||(G.week||1)-p._vidaPibe>=26);
+  if(pibesOK.length) ramas.push(_vid('pibe',()=>{
+    const p=pibesOK[~~(Math.random()*pibesOK.length)];
+    p._vidaPibe=(G.week||1);
+    addPhoneMsg('board','Coordinador de Inferiores',
+      `📈 El cuerpo técnico habla muy bien de <b>${p.name}</b> (${p.age} años). `+
+      `Dicen que en los entrenamientos está a otro nivel — si le dan minutos, es para el equipo.`,'📈');
+  }));
+  // ── el veterano cerca de un hito con la camiseta ──
+  const cerca=sq.filter(p=>{
+    const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0};
+    return (t.apps>=90&&t.apps<100)||(t.goals>=45&&t.goals<50);
+  });
+  if(cerca.length) ramas.push(_vid('hito',()=>{
+    const p=cerca[0];
+    const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0};
+    const falta=(t.apps>=90&&t.apps<100)?`<b>${100-t.apps} partidos</b> para los 100 con la camiseta`
+                                        :`<b>${50-t.goals} goles</b> para llegar a 50`;
+    addPhoneMsg('board','Prensa del club',
+      `🏅 A <b>${p.name}</b> le faltan ${falta}. Desde el departamento de prensa quieren preparar algo.`,'🏅');
+  }));
+  // ── el humor de la calle, que sale de fanMood de verdad ──
+  ramas.push(_vid('hinchada',()=>{
+    const h=(G.fanMood===undefined?55:G.fanMood);
+    const txt = h>=80?`🎉 La gente está eufórica. Se agotaron las entradas para la próxima de local.`
+      : h>=60?`🙂 Ambiente tranquilo en la puerta del predio. Hay ilusión.`
+      : h>=40?`😐 Clima de espera: la gente mira, pero no se entusiasma.`
+      : h>=20?`😠 Hubo banderas contra la dirigencia en el entrenamiento a puertas abiertas.`
+      : `🔥 La hinchada fue al predio a pedir explicaciones. Reforzamos la seguridad.`;
+    addPhoneMsg('board','Seguridad del club',txt,'📣');
+  }));
+  // ── el plantel: quién entrena bien y quién no, con la moral real ──
+  const enojados=sq.filter(p=>(p.morale===undefined?60:p.morale)<35&&!p.injured);
+  if(enojados.length>=3) ramas.push(_vid('vestuario',()=>{
+    addPhoneMsg('board','Cuerpo Técnico',
+      `😕 El técnico avisa que hay <b>${enojados.length} jugadores</b> entrenando de mala gana. `+
+      `Nombres: ${enojados.slice(0,3).map(p=>'<b>'+p.name+'</b>').join(', ')}. Si esto sigue, se va a ver en la cancha.`,'😕');
+  }));
+  // ── la caja, cuando aprieta de verdad ──
+  if(G.budget<0) ramas.push(_vid('caja',()=>{
+    addPhoneMsg('board','Tesorería',
+      `🏦 Presidente, seguimos en rojo (<b>${fv(G.budget)}</b>). El banco llamó preguntando. `+
+      `Mientras estemos así no se autoriza ningún fichaje.`,'🏦');
+  }));
+  if(!ramas.length)return;
+  // Nunca dos veces seguidas la misma rama: es lo que hacía que el buzón
+  // pareciera un bucle aunque el contenido cambiara.
+  let libres=ramas.filter((f,i)=>_vidaId(ramas,i)!==G._vidaUlt);
+  if(!libres.length)libres=ramas;
+  const el=libres[~~(Math.random()*libres.length)];
+  G._vidaUlt=_vidaId(ramas,ramas.indexOf(el));
+  el();
+}
+function _vidaId(ramas,i){ return (ramas[i]&&ramas[i]._vid)||('r'+i); }
+function _vid(id,f){ f._vid=id; return f; }
 
 // Un tick = un día. El motor es el mismo; lo que cambió es que n.wait ahora
 // se cuenta en días, así una operación tarda una o dos semanas de calendario
