@@ -23561,6 +23561,57 @@ function fmAI(p,team,idx,dt){
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
 }
 // Pase de equipo (cualquier lado): elige receptor según el perfil del DT
+// ═══════════════════════════════════════════════════════════════════════
+// FUERA DE JUEGO — validación cartesiana en el frame del pase
+// ═══════════════════════════════════════════════════════════════════════
+// La estructura ya era la correcta desde la Fase 26 (se evalúa SÓLO en el
+// frame del pase, SÓLO sobre el receptor previsto, y contra el segundo rival
+// más atrasado). Lo que estaba mal eran tres cosas concretas, las tres
+// medidas:
+//
+// 1) ⚠️ LA LÍNEA EXCLUÍA AL ARQUERO Y DESPUÉS TOMABA EL ÍNDICE [1].
+//    La ley dice "el penúltimo ADVERSARIO", y el arquero es un adversario —
+//    normalmente el último. Filtrándolo y tomando igual el [1] la línea caía
+//    sobre el ANTEPENÚLTIMO: un defensor entero más atrás. Medido sobre 696
+//    pases de un partido, la línea quedaba **53px más profunda** que la de la
+//    ley, o sea que el atacante quedaba en offside 53px antes de lo que
+//    corresponde. (Y el caso que lo vuelve importante es el arquero salido:
+//    ahí el último adversario ya no es él, y contar a los once es la única
+//    forma de que la línea sea la correcta.)
+//
+// 2) ⚠️ EL PITAZO NO ERA DETERMINISTA. Jugado el pase al adelantado, había un
+//    `Math.random()<0.65`: **el 35% de los fuera de juego reales no se
+//    cobraba**. Una regla no se tira a los dados — si las dos condiciones se
+//    cumplen, es offside.
+//
+// 3) Las tolerancias eran asimétricas (16px contra la línea, 30px contra la
+//    pelota). Ahora es una sola, simétrica, y la duda favorece al atacante.
+//
+// Lo que NO se tocó: que el pasador PREFIERA al compañero habilitado. Eso no
+// es la regla, es una decisión de la IA — un equipo no le pasa a propósito a
+// un tipo adelantado — y vive en el score del pase, no acá.
+const OFF_TOL=6;          // px de tolerancia: la duda favorece al atacante
+// ¿`a` está más adelantado que `b`? Depende de hacia dónde ataca el equipo.
+function fmMasAdelante(a,b,attRight){
+  return attRight ? (a > b+OFF_TOL) : (a < b-OFF_TOL);
+}
+// La línea: el SEGUNDO adversario más cercano a su propia línea de meta,
+// contando al arquero. Con un solo rival en cancha, ése es la línea; sin
+// ninguno, la propia línea de meta.
+function fmOffsideLine(rivals,attRight,f){
+  const xs=(rivals||[]).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
+  if(xs.length>=2)return xs[1];
+  if(xs.length===1)return xs[0];
+  return attRight?f.rightGL:f.leftGL;
+}
+// Las DOS condiciones del reglamento, más la de campo propio (no hay fuera de
+// juego en tu propia mitad).
+function fmEsOffside(tx,ballX,offLine,attRight,f){
+  const enCampoRival = attRight ? (tx > f.VW/2) : (tx < f.VW/2);
+  if(!enCampoRival) return false;
+  return fmMasAdelante(tx,offLine,attRight)      // por delante del penúltimo
+      && fmMasAdelante(tx,ballX,attRight);       // y por delante de la pelota
+}
 function fmTeamPass(team,fromIdx){
   const f=FM,b=f.ball;
   const isM=team==='my';
@@ -23611,9 +23662,8 @@ function fmTeamPass(team,fromIdx){
       return;
     }
   }
-  // Línea de offside rival (2º defensor más atrasado): no le pasamos a un adelantado
-  const oDefXs=rivals.filter(o=>!o.isGK).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
-  const offLine=oDefXs.length>=2?oDefXs[1]:(oDefXs[0]||(attRight?f.rightGL:f.leftGL));
+  // Línea de offside rival: el penúltimo ADVERSARIO, arquero incluido
+  const offLine=fmOffsideLine(rivals,attRight,f);
   let bestI=-1,bestScore=-Infinity,bestOff=false;
   let bestOnI=-1,bestOnScore=-Infinity; // mejor opción HABILITADA (sin offside)
   squad.forEach((t,i)=>{
@@ -23622,8 +23672,7 @@ function fmTeamPass(team,fromIdx){
     if(d<40)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
     // ¿el receptor está en posición adelantada? (un equipo no le pasa a un offside)
-    const inRivalHalf=attRight?(t.x>f.VW/2):(t.x<f.VW/2);
-    const isOff=inRivalHalf&&(attRight?(t.x>offLine+16):(t.x<offLine-16))&&(attRight?(t.x>b.x+30):(t.x<b.x-30));
+    const isOff=fmEsOffside(t.x,b.x,offLine,attRight,f);
     // apertura: cuántos rivales tiene cerca (preferir al que está SOLO)
     const near=rivals.reduce((a,m)=>a+(!m.isGK&&Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
     // ═══ LA LÍNEA DE PASE ═══
@@ -23707,8 +23756,10 @@ function fmTeamPass(team,fromIdx){
   if(bestOff&&bestOnI>=0&&Math.random()<0.66){bestI=bestOnI;bestOff=false;}
   if(bestI>=0){
     const t=squad[bestI];
-    // OFFSIDE sólo cuando, pese a todo, jugó el pase al adelantado
-    if(bestOff&&Math.random()<0.65){
+    // ⚠️ OFFSIDE SIN DADO. Acá había un `Math.random()<0.65`: jugado el pase
+    // al adelantado, el 35% de los fuera de juego no se cobraba. Si las dos
+    // condiciones se cumplen en el frame del pase, es offside y se cobra.
+    if(bestOff){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
       fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
@@ -24032,9 +24083,14 @@ function fmDrawSim(cv,ctx){
     ctx.beginPath();ctx.moveTo(gx,gy1);ctx.lineTo(gx,gy2);ctx.stroke();
   });
   // Línea de offside (tenue)
+  // ⚠️ ESTO DIBUJABA UNA LÍNEA Y LA REGLA COBRABA OTRA. Acá se tomaba el
+  // defensor de campo MÁS ADELANTADO hacia su arco (el último defensor) y la
+  // validación usaba el anteúltimo: el jugador veía una raya y lo sancionaban
+  // por otra, 53px más atrás. Ahora las dos salen de `fmOffsideLine`, que es
+  // la del reglamento — una sola fuente de verdad, como `G.roles.captain` o
+  // `ARQ`/`DT_ARCHETYPES`.
   if(f.phase==='play'){
-    let offX=f.myAttRight?f.leftGL:f.rightGL;
-    f.opp.forEach(q=>{if(!q.isGK)offX=f.myAttRight?Math.max(offX,q.x):Math.min(offX,q.x);});
+    const offX=fmOffsideLine(f.opp,f.myAttRight,f);
     ctx.save();ctx.setLineDash([10,10]);ctx.strokeStyle='rgba(255,90,90,.25)';ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(offX,10);ctx.lineTo(offX,VH-10);ctx.stroke();
     ctx.setLineDash([]);ctx.restore();

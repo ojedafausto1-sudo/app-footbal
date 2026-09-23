@@ -4310,6 +4310,126 @@ compatible sin migrar: un save viejo no tiene ninguno y eso es exactamente "no
 hay notas de ningún partido todavía" — el bloque de calificaciones no se dibuja
 y el resto sigue igual.
 
+## Fase 48: el fuera de juego, con la línea de la ley
+
+⚠️ **El pedido decía `director-tecnico_2.html`: ese archivo no existe.** El
+juego es `director-tecnico.html` y no hay ninguna copia `_2`.
+
+Y la mitad del pedido **ya estaba desde la Fase 26**, que lo había medido: se
+evalúa sólo en el frame del pase (dentro de `fmTeamPass`), sólo sobre el
+receptor previsto, con la comparación dada vuelta según `attRight`, y se
+reanuda con tiro libre para el que defiende y el cartel en el canvas. Eso no se
+reescribió. Lo que estaba mal eran **cuatro cosas concretas**, y las cuatro se
+midieron antes de tocar.
+
+### 1 · ⚠️ La línea excluía al arquero y después tomaba igual el índice [1]
+
+```js
+const oDefXs = rivals.filter(o=>!o.isGK)...   // saca al arquero
+const offLine = oDefXs[1];                     // …y toma el SEGUNDO igual
+```
+
+La ley dice **"el penúltimo ADVERSARIO"**, y el arquero es un adversario —
+normalmente el último. Filtrándolo y tomando igual el `[1]`, la línea caía
+sobre el **antepenúltimo**: un defensor entero más atrás.
+
+Medido sobre **696 pases de un partido**, comparando la línea que usaba el
+código contra la de la ley en cada frame de pase: **53px de diferencia
+promedio**, y siempre en la misma dirección (más profunda). O sea que el
+atacante quedaba en fuera de juego **53px antes** de lo que corresponde.
+
+El caso que lo vuelve importante es el **arquero salido**: ahí el último
+adversario ya no es él, y contar a los once es la única forma de que la línea
+sea la correcta. Verificado determinista en la regresión con el arquero en
+2000 y los defensores en 2600/2500: la línea pasa al 2500.
+
+### 2 · ⚠️ El pitazo se tiraba a los dados
+
+```js
+if(bestOff && Math.random()<0.65){ ... }   // el 35% NO se cobraba
+```
+
+Jugado el pase al adelantado, **uno de cada tres fuera de juego reales no se
+cobraba**. Una regla no depende del azar: si las dos condiciones se cumplen en
+el frame del pase, es offside. Ahora es `if(bestOff)`.
+
+⚠️ **Lo que SÍ sigue siendo un dado, y está bien, es otra cosa**: que el
+pasador PREFIERA al compañero habilitado (`Math.random()<0.66` sobre la
+elección del receptor). Eso no es el reglamento, es una decisión de la IA — un
+equipo no le pasa a propósito a un tipo adelantado — y vive en el score del
+pase, no en la validación.
+
+### 3 · ⚠️ La raya que se DIBUJABA no era la que se cobraba
+
+El dibujo de la cancha tomaba el **último** defensor de campo
+(`max(q.x)` sobre los no-arqueros) y la validación usaba el **anteúltimo**.
+O sea: veías una línea punteada y te sancionaban por otra, 53px más atrás.
+Las dos salen ahora de `fmOffsideLine` — una sola fuente de verdad, la misma
+regla que `G.roles.captain` o `ARQ`/`DT_ARCHETYPES`.
+
+### 4 · Las tolerancias eran asimétricas
+
+16px contra la línea y 30px contra la pelota, escritas en la misma expresión.
+Ahora hay una sola, `OFF_TOL=6`, simétrica, y la duda favorece al atacante.
+Verificada **en el píxel exacto** de los dos lados: a `offLine+6` está
+habilitado y a `offLine+7` no.
+
+### Cómo quedó
+
+```js
+const OFF_TOL=6;
+function fmMasAdelante(a,b,attRight){ return attRight ? (a>b+OFF_TOL) : (a<b-OFF_TOL); }
+function fmOffsideLine(rivals,attRight,f){
+  const xs=(rivals||[]).map(o=>o.x).sort((a,c)=>attRight?c-a:a-c);
+  if(xs.length>=2)return xs[1];
+  if(xs.length===1)return xs[0];
+  return attRight?f.rightGL:f.leftGL;
+}
+function fmEsOffside(tx,ballX,offLine,attRight,f){
+  const enCampoRival = attRight ? (tx>f.VW/2) : (tx<f.VW/2);
+  if(!enCampoRival) return false;
+  return fmMasAdelante(tx,offLine,attRight) && fmMasAdelante(tx,ballX,attRight);
+}
+```
+
+`f.VW/2` es la mitad de cancha de verdad: `VW=2960`, `leftGL=92`,
+`rightGL=2868`, y `(92+2868)/2 = 1480 = VW/2`. Verificado antes de usarlo.
+
+### 🛑 La FRECUENCIA no se pudo medir, y no se afirma que haya mejorado
+
+Es la regla del proyecto y acá aplica de lleno. Con el mismo arnés, antes y
+después:
+
+| | minutos | pases | offsides | por 90 |
+|---|---|---|---|---|
+| antes | 90 | 312 | **2** | 2,0 |
+| después | 360 | 1.676 | **7** | 1,8 |
+
+**Dos eventos contra siete no deciden nada**, y encima el arnés ni siquiera
+acumuló los mismos minutos en las dos corridas (90 contra 360) — es el mismo
+problema del instrumento que la Fase 26 documentó con las faltas (25,4 / 3,6 /
+4,5 por 90 **sobre el mismo código**) y la Fase 32 con el bloque. Así que:
+**la regla está bien; cuántas veces por partido cae, no se sabe.**
+
+Lo que sí queda anotado es la dirección de cada cambio, que se cancelan entre
+sí: la línea correcta es **más benévola** (se corre 53px hacia el arco rival,
+así que hay menos adelantados), el pitazo determinista es **más severo** (+35%
+de los jugados), y la tolerancia de 6px también. Si algún día hay que acercarse
+a los 4-5 por 90 reales, el lugar NO es la validación —que ahora es el
+reglamento— sino el `0.66` de "el pasador ve el offside", que es lo que decide
+cuántos pases se llegan a jugar a un adelantado.
+
+### La regresión lo blinda DETERMINISTA, sin estadística
+
+16 asserts de geometría pura, que es la única forma de blindar algo en este
+motor (el baseline se mueve ±120px entre corridas idénticas): la línea con el
+arquero adentro, la simetría atacando a la izquierda, el arquero salido, un
+solo rival, ningún rival, las dos condiciones por separado (adelantarse a una
+sola NO es offside), la propia mitad, la tolerancia en el píxel exacto de los
+dos lados, que `fmTeamPass` ya no tenga `Math.random()` en la rama del cobro,
+que se reanude con `freekick` y el cartel, que ninguna otra función del motor
+llame a `fmEsOffside`, y que el dibujo use `fmOffsideLine`.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
