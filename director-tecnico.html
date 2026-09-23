@@ -1152,8 +1152,23 @@ let selSlot = null; // currently selected slot index in tactics
 // OVR = MIN(91, MAX(55, 55 + 36·(ln(val)−ln(0.1))/(ln(200)−ln(0.1)) + ModEdad + ModPos))
 // Escala log €0.1M–€200M · veteranos premiados por jerarquía · promesas moderadas
 const RAT_LN0=Math.log(0.1), RAT_LNR=Math.log(200)-Math.log(0.1);
-function ratValPts(val){
-  const v=Math.min(200,Math.max(0.1,val));
+// ═══ DEFLACIÓN HISTÓRICA: SÓLO ADENTRO DE LA MEDIA, NUNCA EN EL PRECIO ═══
+// El techo de la escala son €200M, que es plata de HOY. Un plantel del 2000
+// medido contra ese techo queda aplastado contra el piso de 55 sin que sus
+// jugadores hayan sido peores. La corrección lleva el valor a moneda de hoy
+// **en una variable local** (`v`), con la tabla de `getYearInflation`.
+//
+// ⚠️ `val` NO se modifica y no se escribe en ningún lado: `p.val`, `r[7]`, el
+// Mercado, la ficha y el balance siguen mostrando el euro exacto que trae
+// Transfermarkt. Lo único que se corrige es el número que calculamos nosotros.
+//
+// ⚠️ El año por defecto sale de `anioBase()` = el año de la BASE cargada
+// (`_DB_SEASON` / `G.dbSeason`), no de `G.season`: los planteles de una
+// partida que empezó en 2000 siguen siendo los de 2000 aunque el calendario
+// llegue a 2006. Ver el comentario de `anioBase()`.
+function ratValPts(val,year){
+  const v=Math.min(200,Math.max(0.1,(val||0)*getYearInflation(
+    year||(typeof anioBase==='function'?anioBase():2026))));
   return 36*(Math.log(v)-RAT_LN0)/RAT_LNR;
 }
 function ageAdj(age){
@@ -1165,13 +1180,13 @@ function ratPosMod(pos){
   if(['MCD','MC','MCO'].includes(pos))return 1;
   return 0;
 }
-function valToRat(val, age, pos){
-  return Math.min(91,Math.max(55,Math.round(55+ratValPts(val)+ageAdj(age)+ratPosMod(pos))));
+function valToRat(val, age, pos, year){
+  return Math.min(91,Math.max(55,Math.round(55+ratValPts(val,year)+ageAdj(age)+ratPosMod(pos))));
 }
-function valToPot(val, age, pos){
+function valToPot(val, age, pos, year){
   // Potencial: su nivel proyectado en plenitud (+1) más margen de crecimiento joven
   const bonus=age<=18?7:age<=21?5:age<=24?3:age<=27?1:0;
-  return Math.max(valToRat(val,age,pos),Math.min(92,Math.round(55+ratValPts(val)+1+ratPosMod(pos)+bonus)));
+  return Math.max(valToRat(val,age,pos,year),Math.min(92,Math.round(55+ratValPts(val,year)+1+ratPosMod(pos)+bonus)));
 }
 
 // Badge de rating coloreado
@@ -1285,9 +1300,19 @@ function devFactor(p){
   return -0.40;                  // muy pasado: se cae
 }
 
-function ratToVal(rat, age, pos) {
+// ⚠️ ES LA INVERSA DE `ratValPts` Y TIENE QUE DESHACER LA DEFLACIÓN.
+// `ratValPts` multiplica por el factor del año; acá hay que DIVIDIR, o el
+// precio vuelve en moneda de hoy. Y esto no es teórico: `calcVal` la llama
+// cada vez que un jugador sube o baja un punto de media (`weeklyTraining`) y
+// en cada tick del mercado (`weeklyMarketEvolution`). Sin la división, el
+// plantel del 2000 conservaba sus precios de 2000 el primer día y se los
+// reescribía ×5 solo, de a un jugador por vez, en cuanto empezaban a
+// entrenar — justo lo que la regla prohíbe, pero en cámara lenta.
+function ratToVal(rat, age, pos, year) {
   const pts=Math.max(0,Math.min(36,rat-55-ageAdj(age)-ratPosMod(pos||'MC')));
-  return Math.max(0.1,Math.round(0.1*Math.exp(pts/36*RAT_LNR)*10)/10);
+  const hoy=0.1*Math.exp(pts/36*RAT_LNR);
+  const k=getYearInflation(year||(typeof anioBase==='function'?anioBase():2026));
+  return Math.max(0.1,Math.round(hoy/(k||1)*10)/10);
 }
 // Valor efectivo = calculadora × rendimiento de la temporada
 // (así un 28/29 en gran nivel NO se desploma: el rendimiento lo sostiene)
@@ -4233,35 +4258,65 @@ function hayHistoricos(){ return temporadasDB().length>0; }
 // contra 6,1). Eso es dato que no existe, no una constante para tunear.
 // Se probó la alternativa —escalar SÓLO a los que sí tienen precio— y deja la
 // mediana en 56: arregla a los cracks y abandona al resto. Medido, peor.
-const INFL_ANCLA=10, INFL_MIN=0.75, INFL_MAX=10;
-let _inflCache={};
-function _inflAncla(db){
-  const v=[];
-  db.forEach(r=>{ if(r[6]==='Liga ARG'&&r[7]>0)v.push(r[7]); });
-  if(v.length<INFL_ANCLA)return 0;
-  v.sort((a,b)=>b-a);
-  return v.slice(0,INFL_ANCLA).reduce((a,x)=>a+x,0)/INFL_ANCLA;
+//
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ EL FACTOR DERIVADO SE FUE, Y NO POR GUSTO: TOCABA EL PRECIO
+// ═══════════════════════════════════════════════════════════════════════
+// `_dbInflada` escalaba la COLUMNA DE VALOR de la base del año, así que el
+// jugador más caro del 2000 —**€1,91M en Transfermarkt**— aparecía en el
+// juego, en el mercado y en su ficha valiendo **€13,1M**. El precio que el
+// usuario lee tiene que ser el que dice TM; la corrección es de la MEDIA,
+// que es un número nuestro, no de la plata, que es dato ajeno.
+//
+// Y el ancla derivada, medida año por año, además NO servía: sale del
+// promedio de los 10 valores más altos de Primera, o sea de si TM valuó o no
+// a los cracks de ESE año. El resultado salta:
+//
+//   2003 ×5,52 → 2004 ×1,31 → 2005 ×1,70 → 2011 ×2,86 → 2017 ×0,89
+//
+// Un acantilado de 4× entre 2003 y 2004 no es inflación, es cobertura de
+// datos. Con ese factor puesto, las medianas seguían hundidas justo en el
+// medio de la serie: **2015 daba 58 y 2020 daba 57** contra los 63 de 2026.
+//
+// La tabla de abajo es monótona y es un índice de mercado, no una muestra:
+// ×5,0 en 2000 bajando hasta ×1,0 en 2022. Se aplica **sólo adentro de
+// `ratValPts`**, sobre una copia local del número — `p.val`, `r[7]` y todo
+// lo que la UI imprime quedan exactamente como vinieron del archivo.
+const INFL_TABLA={
+  2000:5.0, 2001:4.7, 2002:4.4, 2003:4.1, 2004:3.9,
+  2005:3.7, 2006:3.5, 2007:3.3, 2008:3.0, 2009:2.7,
+  2010:2.4, 2011:2.2, 2012:2.0, 2013:1.85, 2014:1.7,
+  2015:1.55, 2016:1.45, 2017:1.35, 2018:1.25, 2019:1.15,
+  2020:1.1, 2021:1.05, 2022:1.0, 2023:1.0
+};
+function getYearInflation(year){
+  if(!year||year>=2024)return 1.0;
+  return INFL_TABLA[year]||1.0;
 }
-// Devuelve la base del año con los valores llevados a la escala de hoy. NO
-// toca el array del archivo (se cachea la copia), así que ir y volver entre
-// temporadas no escala dos veces.
-function _dbInflada(y,db){
-  if(_inflCache[y])return _inflCache[y];
-  const hoy=_inflAncla(_PDB_ACTUAL||[]), ese=_inflAncla(db);
-  let k=(hoy>0&&ese>0)?hoy/ese:1;
-  k=Math.max(INFL_MIN,Math.min(INFL_MAX,k));
-  const out=(Math.abs(k-1)<0.02)?db:db.map(r=>{
-    const c=r.slice(); c[7]=Math.round((r[7]||0)*k*1000)/1000; return c;
-  });
-  out._inflK=k;
-  return (_inflCache[y]=out);
+// ⚠️ EL AÑO ES EL DE LA BASE, NO EL DE LA TEMPORADA QUE ESTÁS JUGANDO.
+// No existen `G.startYear` ni `G.seasonYear`: el año que importa es el del
+// archivo enchufado (`_DB_SEASON`, que `loadGame` restaura desde
+// `G.dbSeason` antes de reconstruir nada). Si esto leyera `G.season`,
+// empezar en 2000 y llegar a 2006 le bajaría la media a todo el plantel un
+// poco cada año sin que nadie lo hubiera tocado — y los planteles siguen
+// siendo los de 2000, con los precios de 2000.
+// ⚠️ Y tiene que funcionar con `G` en null: `squadFromDB` corre DENTRO del
+// literal que crea `G`, que es el mismo motivo por el que el contrato de
+// `P()` cae a `tempActual()` y no a 2026 fijo.
+function anioBase(){
+  if(typeof _DB_SEASON!=='undefined'&&_DB_SEASON)return _DB_SEASON;
+  if(typeof G==='object'&&G&&G.dbSeason)return G.dbSeason;
+  return 2026;
 }
-function inflFactor(){ const d=window.PLAYERS_DB; return (d&&d._inflK)||1; }
+function inflFactor(){ return getYearInflation(anioBase()); }
 function aplicarTemporada(y){
   y=+y||2026;
   if(_PDB_ACTUAL===null) _PDB_ACTUAL=window.PLAYERS_DB||[];
   const h=window.PLAYERS_DB_HIST||{};
-  const nueva=(h[y]&&h[y].length>200)?_dbInflada(y,h[y]):_PDB_ACTUAL;
+  // ⚠️ La base del año entra TAL CUAL viene del archivo. Antes pasaba por
+  // `_dbInflada`, que le reescribía la columna de valor; la corrección ahora
+  // vive en `ratValPts` y no toca un solo euro de Transfermarkt.
+  const nueva=(h[y]&&h[y].length>200)?h[y]:_PDB_ACTUAL;
   const cambia=(window.PLAYERS_DB!==nueva);
   window.PLAYERS_DB=nueva;
   _DB_SEASON=(nueva===_PDB_ACTUAL)?2026:y;
@@ -4270,9 +4325,9 @@ function aplicarTemporada(y){
   // juego mezcla dos mundos: valores de 2026 con planteles de 2015.
   // Son DIEZ cachés y los diez están anotados acá para que agregar uno
   // nuevo sin sumarlo a esta lista se note.
-  // ⚠️ `_inflCache` NO va acá a propósito: está indexado por AÑO y sale del
-  // archivo, que no cambia. Tirarlo sería recalcular y recopiar la base entera
-  // cada vez que se va y se vuelve de una temporada.
+  // ⚠️ La inflación ya NO deja caché que tirar: `getYearInflation` es una
+  // tabla y el factor se lee en cada `ratValPts`, así que no hay copia de la
+  // base que pueda quedar desincronizada.
   try{ _tagsDB=null; }catch(e){}                     // qué etiquetas de liga trae la base
   try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
   try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard

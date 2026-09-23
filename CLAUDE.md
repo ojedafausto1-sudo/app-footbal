@@ -4510,6 +4510,102 @@ memoria con los `every` sobre arrays vacíos, la temporada que contaba
 iteraciones, los playoffs con 2 llaves, el `phoneMsgs.length` y el
 `m.opp` que no existía.
 
+## Fase 50: la deflación histórica va en la MEDIA, no en el precio
+
+Reemplaza el factor derivado de la Fase 44. El pedido traía una regla estricta
+—**no tocar `p.val`**— y esa regla arregla un problema real que el sistema
+viejo tenía y esta documentación no decía.
+
+### ⚠️ El sistema viejo SÍ reescribía el precio de Transfermarkt
+
+`_dbInflada` escalaba la columna de valor (`r[7]`) de la base del año y
+enchufaba esa copia. Medido antes de tocar nada:
+
+| año | archivo (lo que dice TM) | lo que mostraba el juego |
+|---|---|---|
+| 2000 | **€1,91M** | **€13,1M** |
+| 2005 | €10M | €17M |
+| 2010 | €8M | €14,3M |
+| 2020 | €20M | €17,3M |
+
+O sea: la ficha, el Mercado y el balance mentían sobre un dato ajeno. La media
+es un número nuestro y se puede corregir; el precio no.
+
+### ⚠️ Y el ancla derivada tampoco servía: no es inflación, es cobertura
+
+Salía del promedio de los 10 valores más altos de Primera de ese año, o sea de
+**si TM valuó o no a los cracks de ese año**. Medido año por año, salta:
+
+```
+2003 ×5,52  →  2004 ×1,31  →  2005 ×1,70  →  2011 ×2,86  →  2017 ×0,89
+```
+
+Un acantilado de 4× entre dos años consecutivos no es el mercado. Con ese
+factor puesto, las medianas seguían hundidas justo en el medio de la serie:
+**2015 daba 58 y 2020 daba 57** contra los 63 de 2026.
+
+### Lo que hay ahora
+
+`INFL_TABLA` + `getYearInflation(year)`: índice monótono, ×5,0 en 2000 bajando
+a ×1,0 en 2022 y 1,0 de 2024 en adelante. Se aplica **adentro de
+`ratValPts`, sobre una variable local**. Medido después:
+
+| año | factor | mediana | p90 | máx | 80+ |
+|---|---|---|---|---|---|
+| 2000 | ×5,0 | **64** | 69 | 84 | 4 |
+| 2005 | ×3,7 | 63 | 74 | 89 | 20 |
+| 2010 | ×2,4 | 65 | 73 | 87 | 10 |
+| 2015 | ×1,55 | **60** | 72 | 88 | 9 |
+| 2020 | ×1,1 | 58 | 69 | 81 | 3 |
+| 2025 | ×1,0 | 62 | 71 | 84 | 6 |
+| **2026** | ×1,0 | **63** | 72 | 82 | 5 |
+
+La serie queda pareja contra 2026 en vez de caer a 57-58 en el medio.
+
+⚠️ **Los valores quedan intactos, verificado por identidad**: la base del año
+que se enchufa es **el mismo array del archivo** (`window.PLAYERS_DB===H[y]`) y
+la suma de la columna de valor coincide al centavo en los 6 años medidos.
+
+⚠️ **Y 2026 no se movió ni un punto**: huella de las 17.108 medias de la base
+moderna, antes y después — misma suma (1.150.306) y mismo hash. La fase es un
+no-op exacto para una partida normal.
+
+### ⚠️ Tres trampas que el pedido no veía y hubo que resolver
+
+- **No existen `G.startYear` ni `G.seasonYear`.** El año que importa es el de
+  la **BASE cargada** (`_DB_SEASON`, que `loadGame` restaura desde
+  `G.dbSeason`), no `G.season`. Con `G.season`, empezar en 2000 y llegar a 2006
+  le habría bajado la media a todo el plantel un poco cada año sin que nadie lo
+  tocara — y los planteles siguen siendo los de 2000, con los precios de 2000.
+  El accesor es `anioBase()` y tiene que andar con `G` en null, porque
+  `squadFromDB` corre DENTRO del literal que crea `G` (el mismo motivo por el
+  que el contrato de `P()` cae a `tempActual()`).
+- **`ratToVal` es la inversa y tiene que DIVIDIR por el factor.** No es
+  teórico: `calcVal` la llama cada vez que un jugador sube o baja un punto
+  (`weeklyTraining`) y en cada tick del mercado. Sin la división, el plantel
+  del 2000 arrancaba con sus precios de 2000 y se los reescribía ×5 solo, **de
+  a un jugador por vez**, en cuanto empezaban a entrenar. Medido con un salto
+  de +6 de media: **€1,86M → €5,41M** con la división puesta contra los
+  **€29,9M** que daba sin ella (×5,53, o sea moneda de hoy).
+- **Aplicar la tabla ENCIMA del factor derivado daba ×34 en el 2000.** Por eso
+  `_dbInflada`, `_inflAncla`, `_inflCache` e `INFL_ANCLA/MIN/MAX` se fueron
+  enteros: son dos correcciones para lo mismo y este proyecto ya se hizo cinco
+  veces el daño de tener dos fuentes de verdad.
+
+`inflFactor()` sigue existiendo pero ahora devuelve `getYearInflation(anioBase())`.
+Y `aplicarTemporada` perdió un caché que tirar: la tabla no copia nada.
+
+### Lo que esto NO arregla, igual que antes
+
+La **dispersión**. En 2000-2003 el 94-96% de las fichas no tiene valoración en
+TM, así que el factor las levanta a todas por igual y el plantel sigue siendo
+más plano que uno de hoy. Es dato que no existe, no una constante para tunear.
+
+⚠️ Y una consecuencia nueva del cambio: como el factor levanta también el
+fallback de €0,1M, en los años viejos **ya no hay nadie en el piso de 55**
+(2000: 0 jugadores) mientras que en 2020-2023 hay más de mil. Eso no es la
+tabla funcionando mal — es la 2ª división de esos años, que TM valúa en cero.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
