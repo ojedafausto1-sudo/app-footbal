@@ -25324,18 +25324,43 @@ function rTacticaTab(){
   });
 }
 // ═══ QUÉ DIBUJA CADA PESTAÑA ═══
-// ⚠️ Una función que no esté en esta tabla NO se va a dibujar nunca. Si
-// agregás una tarjeta nueva, sumala a su pestaña (o a `_TAB_R.always` si va en
-// la portada / la barra de arriba, que se dibujan en cada `updateUI`).
+// ⚠️ Una función que no esté en esta tabla NO se va a dibujar nunca, y la
+// pestaña queda EN BLANCO. Si agregás una tarjeta nueva, sumala acá.
+//
+// ⚠️ LAS CLAVES SON LOS ids REALES DE `<div id="tab-XX">`, no nombres
+// inventados. La primera versión de esta tabla tenía `ent` y `est`, que no
+// existen como pestaña, y agrupaba cosas de cuatro pestañas distintas bajo
+// una sola clave. Resultado medido: **9 de las 15 pestañas no se dibujaban
+// nunca** — Inicio, Mi DT, Estadio, Juveniles, CT, Patrocinadores,
+// Entrenamiento, Noticias y Stats. El usuario lo reportó con Juveniles y CT
+// en blanco. Los 15 ids son:
+//   ov sq dt tac mkt trn stad juv ct pat cal stats news social pres
+// El reparto de abajo está MEDIDO, no leído: se hookeó `getElementById` y se
+// anotó, por cada render, dentro de qué `.tc` cae el elemento que toca.
+//
+// Sólo van las funciones RAÍZ: `rPresTab` ya llama a rVitrina/rFinChart/
+// rJunta/rAprob/rSocios, `rTrain` a rTrainMeta/rMentor, `rStaff` a rDtList,
+// `rDtTab` a rDtProfile/rDtReport/rDtXI, `rCal` a rOtherLeagues y
+// `rFormation` a rBench. Lo de la portada y la barra de arriba (rNews,
+// rBotonesPartido, rFBtns, rFriendlies, rMedReport, rFanReport, rFormDots,
+// rDtPedidos, rPressDemands) lo dibuja `updateUI` siempre, porque está a la
+// vista en cualquier pestaña.
 const _TAB_R={
-  sq:   ['rSq','rVestuario','rRetirados'],
-  tac:  ['rFormation','rXI','rStyle','rTacOpts','rSetPieces'],
-  mkt:  ['renderMktSafe','rSell','rOffs'],
-  ent:  ['rTrain','rStaff','rInd','rJuv'],
-  cal:  ['rCal','rStand'],
-  pres: ['rStad','rTicket','rLoans','rFinanzas','rSponsors','rPresTab'],
-  est:  ['rStats'],
+  ov:    ['rStand'],
+  sq:    ['rSq','rVestuario','rRetirados'],
+  dt:    ['rDtTab'],
+  tac:   ['rFormation','rXI','rStyle','rTacOpts','rSetPieces'],
+  mkt:   ['renderMktSafe','rSell','rOffs','rMovs'],
+  trn:   ['rTrain','rInd'],
+  stad:  ['rStad','rTicket'],
+  juv:   ['rJuv'],
+  ct:    ['rStaff'],
+  pat:   ['rSponsors'],
+  cal:   ['rCal'],
+  stats: ['rStats'],
+  news:  ['rNewsTab'],
   social:['rSocial'],
+  pres:  ['rLoans','rFinanzas','rPresTab'],
 };
 let _tabSucia={};
 function tabActiva(){
@@ -25343,9 +25368,20 @@ function tabActiva(){
   return t?String(t.id).replace(/^tab-/,''):'sq';
 }
 function tabsSucias(){ Object.keys(_TAB_R).forEach(k=>{_tabSucia[k]=true;}); }
+// ⚠️ Una pestaña sin entrada NO puede irse en silencio: así se perdieron
+// nueve. Queda anotada en el log y en la consola, que es la única forma de
+// que se note antes de que el usuario vea el hueco.
 function pintarTab(name){
-  const fns=_TAB_R[name]; if(!fns) return;
-  fns.forEach(k=>{ try{ if(typeof window[k]==='function') window[k](); }catch(e){} });
+  const fns=_TAB_R[name];
+  if(!fns){
+    if(!pintarTab._avisado||!pintarTab._avisado[name]){
+      (pintarTab._avisado=pintarTab._avisado||{})[name]=1;
+      console.error('Pestaña sin renders en _TAB_R:',name);
+      try{ lg('⚠️','La pestaña "'+name+'" no tiene nada que dibujar (falta en _TAB_R)'); }catch(e){}
+    }
+    return;
+  }
+  fns.forEach(k=>{ try{ if(typeof window[k]==='function') window[k](); }catch(e){ console.error('Pestaña',name,'·',k,e); } });
   _tabSucia[name]=false;
 }
 function gTab(name, btn){

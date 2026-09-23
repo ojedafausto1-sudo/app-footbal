@@ -4430,6 +4430,86 @@ dos lados, que `fmTeamPass` ya no tenga `Math.random()` en la rama del cobro,
 que se reanude con `freekick` y el cartel, que ninguna otra función del motor
 llame a `fmEsOffside`, y que el dibujo use `fmOffsideLine`.
 
+## Fase 49: nueve pestañas en blanco — las claves de `_TAB_R` eran inventadas
+
+El usuario lo reportó con **Juveniles y CT vacías**. La causa es de la Fase 46,
+donde `updateUI` dejó de dibujar las siete pestañas y pasó a dibujar la que se
+mira (`_TAB_R` + `pintarTab` + `gTab`). La tabla que dice qué dibuja cada
+pestaña **se escribió con nombres inventados**, no con los ids reales del DOM:
+
+```js
+const _TAB_R={ sq, tac, mkt, ent, cal, pres, est, social };   // 8 claves
+```
+
+Pero los `<div class="tc">` del juego son **quince**:
+
+```
+ov sq dt tac mkt trn stad juv ct pat cal stats news social pres
+```
+
+`ent` y `est` **no existen como pestaña**, y encima agrupaban cosas de cuatro
+pestañas distintas bajo una sola clave (`ent` tenía `rTrain`, `rStaff`, `rInd`
+y `rJuv`, que viven en `trn`, `ct`, `trn` y `juv`). `pintarTab` tiene
+`if(!fns) return;`, así que **se iba en silencio**.
+
+Medido con el archivo de antes del arreglo, entrando a las 15 pestañas:
+
+| pestaña | antes (caracteres de texto) | ahora |
+|---|---|---|
+| Juveniles | **12** (vacía) | 1.534 |
+| CT | **17** (vacía) | 14.370 |
+| Stats | **15** (vacía) | 793 |
+| Noticias | **21** (vacía) | 95 |
+| Estadio | 11 al entrar de cero | 3.941 |
+| Mi DT | 308 (a medias) | 1.894 |
+| Entrenamiento | 112 (a medias) | 1.699 |
+| Patrocinadores | 136 (a medias) | 325 |
+| Inicio | 1.231 (sin la tabla) | 2.376 |
+
+**Nueve de quince pestañas rotas**, cuatro de ellas permanentemente en blanco.
+Las seis que andaban (Plantel, Táctica, Mercado, Temporada, Redes, Presidente)
+son justo las que tenían la clave bien escrita.
+
+### El reparto se MIDIÓ, no se leyó
+
+Adivinar qué render va en qué pestaña es cómo se llegó al bug. Se hookeó
+`document.getElementById` y se anotó, por cada render, dentro de qué `.tc` cae
+el elemento que toca (`scratchpad/tabs2.js`). De ahí salen las 15 entradas, y
+de ahí también que sólo van las funciones **raíz**: `rPresTab` ya llama a
+rVitrina/rFinChart/rJunta/rAprob/rSocios, `rTrain` a rTrainMeta/rMentor,
+`rStaff` a rDtList, `rDtTab` a rDtProfile/rDtReport/rDtXI, `rCal` a
+`rOtherLeagues` y `rFormation` a `rBench`.
+
+Dos cosas que la medición corrigió respecto de lo que estaba escrito:
+**`rStand` dibuja en la portada (`ov`), no en el Calendario** —estaba en
+`cal`— y **`rMovs` no estaba en ninguna clave**, así que la solapa de
+Movimientos del Mercado tampoco se dibujaba sola.
+
+### ⚠️ Una pestaña sin entrada ya no se va en silencio
+
+`pintarTab` ahora avisa por `console.error` y por el log del juego la primera
+vez que le piden una pestaña que no está en la tabla, y los errores de cada
+render se imprimen con el nombre de la pestaña y de la función en vez de
+morir en un `catch(e){}` pelado. Sin eso, el próximo `<div class="tc">` que se
+agregue vuelve a quedar en blanco sin que nada avise.
+
+### ⚠️ Y el check de la regresión era un PASE VACÍO (el sexto documentado)
+
+Esto lo tenía que haber agarrado la regresión y dio verde con nueve pestañas
+rotas. El motivo:
+
+```js
+const conts={sq:'sqList', mkt:'mkList', pres:'loanBox', cal:'calView'};
+```
+
+Probaba **cuatro pestañas elegidas a mano — justo cuatro de las seis que
+funcionaban**. Ahora recorre **las que hay en el DOM**, exige que las 15
+tengan entrada en `_TAB_R`, que no sobre ninguna clave, y que al entrar quede
+texto de verdad (40+ caracteres). Es el mismo tipo de trampa que el check de
+memoria con los `every` sobre arrays vacíos, la temporada que contaba
+iteraciones, los playoffs con 2 llaves, el `phoneMsgs.length` y el
+`m.opp` que no existía.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
