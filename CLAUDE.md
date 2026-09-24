@@ -4606,6 +4606,192 @@ fallback de €0,1M, en los años viejos **ya no hay nadie en el piso de 55**
 (2000: 0 jugadores) mientras que en 2020-2023 hay más de mil. Eso no es la
 tabla funcionando mal — es la 2ª división de esos años, que TM valúa en cero.
 
+## Fase 51: las copas existen en las 25 ligas (y el reloj no se traba más)
+
+El usuario lo reportó así: *"después de unas temporadas se rompe el formato de
+la liga, no se juega la champions ni la libertadores, ni ninguna copa
+nacional"*. Son **cinco bugs distintos**, y ninguno era el obvio.
+
+### ⚠️ Lo primero que había que medir: cuánto se juega de verdad
+
+Jugando temporadas completas y contando los partidos **jugados** (no los del
+calendario, que es lo que engañaba):
+
+| club | antes |
+|---|---|
+| Real Madrid | 6 temporadas de **"LaLiga 38 + 1 partido de copa"**, cero Champions |
+| Boca | temporada 1 completa (53 partidos) y **0 partidos de la 2ª en adelante** |
+| Boca 2019 (histórico) | sin zonas, **sin Libertadores y sin Copa Argentina** |
+
+### 1 · El motor internacional ya era genérico: lo ataban DOS líneas
+
+`intBuildGroup`, `intProximaRonda`, `genIntKO` e `intGrpTabla` trabajan con la
+clave de la copa y leen `INT_COPAS`. Lo único hardcodeado era:
+
+```js
+function intCopaDe(comp){ if(comp.includes('Libertadores'))return 'lib'; … }
+const isLib=c.includes('Libertadores'), isCA=c.includes('Copa Argentina');  // resolveKO
+```
+
+Las dos preguntan por el NOMBRE. Ahora preguntan por la tabla
+(`for(const k in INT_COPAS)`), y con eso quedaron cableadas solas las cuatro
+copas nuevas: **Champions League, Europa League, Concachampions y la Champions
+Asiática**. `INT_COPAS` pasó de 2 a **6** entradas, cada una con `ligas` y
+`tier`, y el mapa liga→copa se **deriva** (`copaIntDeLiga`) en vez de
+escribirse dos veces.
+
+⚠️ **El bombo se deriva de `clubRank()`** (`intBombo`), con la lista escrita a
+mano sólo como red. Una lista fija se desincroniza con la extracción
+siguiente — es el bug de `bigClubs`/`midClubs` de la Fase 18, donde 4 de 21
+nombres ni existían en la base.
+
+### 2 · La copa nacional de las otras 24 ligas era un partido MUERTO
+
+`buildCal` metía una sola llave llamada `'Copa Nacional R16'`, y `resolveKO`
+no conocía ese nombre: **ganarla o perderla no hacía absolutamente nada**. Ni
+ronda siguiente, ni título, ni eliminación.
+
+`COPA_NAC` le pone nombre real a cada país (Copa del Rey, FA Cup, Coppa
+Italia, DFB-Pokal, Copa do Brasil, Copa MX, US Open Cup, King's Cup…) y
+`caProximaRonda` arma los nombres con el PREFIJO de tu liga en vez de con
+`'Copa Argentina'` escrito cinco veces. Es el mismo motor de rondas sorteadas
+una por vez que ya tenía la Copa Argentina.
+
+⚠️ `esCopaNac` acepta también `'Copa Nacional'`: si no, una partida en curso
+se quedaba con esa llave muerta sin ningún camino que la resolviera.
+
+⚠️ El tope de la fecha era `Math.min(38,…)` — el largo de una liga europea,
+no el de la Liga ARG con zonas, que llega a la semana 49. Sale del propio
+calendario.
+
+### 3 · ⚠️ `_intSemana` pedía una semana TOTALMENTE libre, y en una liga de 38 fechas no existe
+
+Éste es el que explica "la Champions no se juega" aunque el grupo sí saliera:
+
+```js
+function _intSemana(desde){ const usadas=new Set(G.calendar.map(m=>m.week));
+  let w=desde; while(usadas.has(w))w++; return w; }
+```
+
+En la Liga ARG hay huecos (los playoffs, el corte Apertura/Clausura) y por eso
+zafaba. En LaLiga las semanas **4 a 41 están todas ocupadas**, así que cada
+llave se empujaba más allá del fin de temporada: los octavos caían en la última
+semana y **cuartos, semis y final no se jugaban nunca** — `intProximaRonda`
+sorteaba el rival y el partido moría en el calendario.
+
+Ahora son **dos pasadas**: primero una semana libre (así la Liga ARG sigue
+metiendo las llaves en el hueco de los playoffs, **exactamente igual que
+antes**) y, si no queda ninguna, comparte semana con otra competencia — que es
+lo normal y el juego ya lo modela desde la Fase 15.
+
+### 4 · ⚠️ Una semana vacía era un CANDADO, y por eso el club se moría a la 2ª temporada
+
+El reloj sólo corre adentro de `simMatch`. `advanceDay` se planta en el día 7
+si no hay partido, así que **una semana sin un solo partido deja "pasar el
+día" muerto para siempre**. Dos caminos llegaban ahí:
+
+- **La pretemporada sin amistosos.** `offerPreseason` sale de un `setTimeout`
+  500 ms después de `nextSeason`, que termina en `closeMod()`. Cualquier modal
+  que caiga en esa ventana —un dilema, una conferencia, el resumen de
+  temporada— pisa la oferta, y entonces nadie reserva los amistosos. Medido:
+  **0 partidos jugados de la segunda temporada en adelante**. La Fase 43 había
+  tapado la ✕ y el botón "no viajar", pero no este camino.
+- **El hueco de los playoffs.** La Liga ARG reserva las semanas 20-23 y si NO
+  clasificás quedan vacías. Hasta ahora las tapaba de casualidad el sorteo de
+  la copa, que justamente buscaba semanas libres.
+
+Dos arreglos:
+
+- **`preseasonGarantizar()`**, llamado desde `updateUI` igual que
+  `preseasonFit`: si estás en pretemporada y no hay ningún amistoso, los
+  reserva. Es idempotente y no pisa tu elección, porque **`bookFriendlies`
+  ahora borra del calendario los amistosos que no se jugaron** antes de
+  reservar (antes sólo vaciaba `G.friendlies` y los viejos quedaban huérfanos:
+  elegir la gira después dejaba seis amistosos en vez de tres).
+- **`advanceDay` corre el reloj una semana** cuando no hay ningún partido
+  pendiente de esta semana o anterior. Avanza de a UNA y sólo habiendo un
+  partido más adelante, así que no puede quemar semanas en el vacío (el bug
+  del `G.week++` de fallback de `runContinuousSim`).
+
+⚠️ La contra: los rubros semanales (finanzas, dilemas) no corren en esas
+semanas vacías, porque el bloque semanal vive adentro de `simMatch`. Es un
+peaje chico contra un candado.
+
+### 5 · ⚠️ `G.qualifiedLib` se LEÍA y no lo escribía nadie
+
+`buildCal` decidía la copa con `(tc.initRep>=72)||G.qualifiedLib`, y ese campo
+**no se asignaba en ningún lado del archivo**. O sea: en qué copa jugás quedaba
+clavado en una constante para toda la carrera. Medido: Barracas salió campeón
+y siguió en la Sudamericana; Boca terminó 18º y siguió en la Libertadores.
+
+Lo escribe `archiveSeason`: **top 4 de la tabla, o campeón de la copa
+nacional**. Lo lee un solo lugar (`_tierCont`).
+
+### 6 · Y el nivel del rival de copa era un 70 fijo — el "73 de la Libertadores" otra vez
+
+`INT_RAT` es una tabla sudamericana, así que en la Champions **todos** los
+rivales caían en el fallback de 70. Medido: el Real Madrid ganaba la copa las
+4 temporadas seguidas. Ahora, para las copas que no son lib/sud, el nivel sale
+del plantel real del club (`clubPowerAny`, la misma escala que `clubPower`,
+que filtraba por `p.lg===ligaMia()` y por eso devolvía 66 a cualquier club de
+afuera).
+
+⚠️ **La Libertadores y la Sudamericana no se tocan**: su balance está
+calibrado y cambiarle el rating a los clubes que no están en `INT_RAT` movería
+una dificultad ya medida.
+
+### Lo que da ahora, medido temporada a temporada
+
+| club | liga | copa continental | copa nacional |
+|---|---|---|---|
+| Real Madrid | 38 | Champions: grupos + octavos + cuartos + semis + final | Copa del Rey R32→Final |
+| Man City | 38 | Champions completa (campeón 2 de 2) | FA Cup R32→Final |
+| Boca | 30 + playoffs | Libertadores completa + Recopa + Mundial de Clubes | Copa Argentina R32→Final |
+| Flamengo | 38 | **Libertadores** (antes un club brasileño no la jugaba) | Copa do Brasil |
+| Club América | 34 | Concachampions hasta semis | Copa MX |
+| Al-Hilal | 34 | Champions Asiática completa | King's Cup |
+| Boca 2019 (histórico) | 46 | Libertadores completa | Copa Argentina |
+| Gimnasia (M), 2ª ARG | 38 | **ninguna** (correcto) | Copa Argentina |
+
+Boca pasa de **53 partidos en la temporada 1 y 0 después** a **54-60 todas las
+temporadas**, con las 30 fechas de liga completas.
+
+### 7 · Y de paso: el ascenso no tenía amistosos
+
+`tourRivals` arma la zona `local` con `[ligaMia()]`, pero la Primera Nacional
+vive en la base bajo la etiqueta `'Liga ARG'` (ver `ligaDB`): no encontraba un
+solo club y el ascenso jugaba **0 amistosos** en todas las temporadas. Ahora
+mira las dos etiquetas.
+
+### Lo que NO se arregló, y por qué
+
+**El formato de un año histórico con menos de 30 clubes sigue siendo todos
+contra todos.** Las zonas + Apertura/Clausura necesitan 30 equipos de verdad
+(`_zonasOK`), y 2014/2015/2016 los tienen. Reproducir el formato REAL de cada
+temporada —cuándo hubo torneos cortos, cuántas zonas, qué playoffs— es un
+motor por año, no un parámetro: la misma razón por la que Colombia y México no
+tienen zonas. Lo que sí se arregló de esos años es que **ahora juegan sus
+copas**, que era la mitad de lo que faltaba.
+
+### La regresión
+
+Check nuevo, `copas en las 25 ligas`: las 6 copas continentales identificables
+por prefijo, ninguna liga jugable sin copa continental ni nacional,
+`_intSemana` devolviendo semana con el calendario lleno, una temporada entera
+de Real Madrid con 38 + 6 de grupos + 7 de llaves + 5 rondas de Copa del Rey,
+que una semana vacía destrabe el reloj y que `archiveSeason` escriba
+`G.qualifiedLib`.
+
+⚠️ Y el check `inmersión` se puso rojo por un vecino, otra vez: ahora hay
+amistosos donde antes no había, y **los amistosos salen de `simMatch` por un
+`return` temprano** (no tienen crónica ni calificaciones), así que contaban
+7 de 10. Se juegan igual pero no entran en la muestra.
+
+⚠️ `_LIGA_ELEGIDA='España'` **no alcanza** para arrancar con un club español
+en la regresión: los `TEAMS` los arma `setLigaSel`, y sin eso el `find`
+devolvía `undefined` y el check terminaba jugando la Liga ARG — 30 fechas en
+vez de 38, con el assert en verde por el motivo equivocado.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

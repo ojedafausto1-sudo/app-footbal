@@ -2989,6 +2989,36 @@ function copaCont(){ return COPA_CONT[ligaMia()]||'copa internacional'; }
 function hayCopaCont(){ return !esSegundaARG(ligaMia()); }
 function objetivoCopa(){ return hayCopaCont()?('clasificar a la '+copaCont()+' (Top 4)')
                                              :'pelear el ascenso (Top 4)'; }
+// ═══ LA COPA NACIONAL TIENE NOMBRE EN CADA PAÍS ═══
+// Fuera de la Liga ARG se metía UNA llave llamada 'Copa Nacional R16' y nada
+// más: `resolveKO` no conocía ese nombre, así que ganarla o perderla no hacía
+// absolutamente nada — ni siguiente ronda, ni título, ni eliminación. Medido
+// con el Real Madrid: 6 temporadas, 1 partido de copa por año y 0 rondas.
+// Ahora las 24 ligas juegan su copa de verdad, con el mismo motor de rondas
+// sorteadas una por vez que ya usaba la Copa Argentina.
+const COPA_NAC={
+  'Liga ARG':'Copa Argentina','Primera Nacional':'Copa Argentina',
+  'España':'Copa del Rey','Premier':'FA Cup','Italia':'Coppa Italia',
+  'Alemania':'DFB-Pokal','Francia':'Copa de Francia','Portugal':'Taça de Portugal',
+  'Holanda':'KNVB Beker','Bélgica':'Copa de Bélgica','Grecia':'Copa de Grecia',
+  'Turquía':'Copa de Turquía','Rusia':'Copa de Rusia','Brasil':'Copa do Brasil',
+  'Chile':'Copa Chile','Colombia':'Copa Colombia','Uruguay':'Copa Uruguay',
+  'Paraguay':'Copa Paraguay','Perú':'Copa Perú','Ecuador':'Copa Ecuador',
+  'Bolivia':'Copa Bolivia','Venezuela':'Copa Venezuela','Liga MX':'Copa MX',
+  'MLS':'US Open Cup','Arabia':'King’s Cup'};
+function copaNacNombre(lg){ return COPA_NAC[lg||ligaMia()]||'Copa Nacional'; }
+// El prefijo que está usando ESTA partida. Se guarda en `G` como string (no
+// hay nada que serializar mal) y un save viejo cae al nombre de su liga.
+function copaNacPref(){
+  return (typeof G==='object'&&G&&G.copaNac)||copaNacNombre();
+}
+// ⚠️ Acepta también 'Copa Nacional', que es como se llamaba la llave muerta
+// de los saves anteriores: si no, una partida en curso se quedaba con un
+// partido de copa que ningún camino podía resolver.
+function esCopaNac(comp){
+  if(!comp)return false;
+  return comp.startsWith(copaNacPref())||comp.startsWith('Copa Argentina')||comp.startsWith('Copa Nacional');
+}
 // El formato de zonas + Apertura/Clausura + tabla anual es SÓLO argentino: el
 // resto del mundo juega todos contra todos. La UI tiene que decir lo que
 // corresponde — al Real Madrid le explicaba cómo suma la tabla anual.
@@ -3222,7 +3252,75 @@ function arAttachLeague(){
   G.arPlayoff=null;G.arLastRound=[];
   G.libPotRivals=buildCal._libPotRivals||[];
   G.intGrp=buildCal._intGrp||null;  // fixture del grupo de copa (los otros 3 entre sí)
+  // ⚠️ El nombre de la copa nacional lo fija `_copaNacArmar`, pero en la
+  // PRIMERA temporada `buildCal` corre dentro del literal que crea `G` (G es
+  // null) y no podía escribirlo: `G.copaNac` quedaba undefined hasta el
+  // segundo año. Es el mismo motivo por el que el contrato de `P()` cae a
+  // `tempActual()`.
+  if(buildCal._caPref) G.copaNac=buildCal._caPref;
   G.league=null;                    // se reconstruye con los 30 clubes
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LAS COPAS, EN UN SOLO LUGAR PARA LAS 25 LIGAS
+// ═══════════════════════════════════════════════════════════════════════
+// Antes esto estaba escrito sólo dentro de la rama argentina de `buildCal`,
+// así que cualquier otra liga —y cualquier año histórico con menos de 30
+// clubes— se quedaba sin copa continental y con una llave nacional muerta.
+// ⚠️ EN QUÉ COPA JUGÁS SE GANA EN LA CANCHA. `G.qualifiedLib` se leía en
+// `buildCal` y **no lo escribía nadie**: el torneo salía de `TEAMS[id].initRep
+// >= 72`, una constante. Salir campeón no te metía en la Libertadores y salir
+// último no te sacaba, en toda la carrera. Lo escribe `archiveSeason`.
+function _tierCont(teamId){
+  if(typeof G==='object'&&G&&G.qualifiedLib!==undefined)return G.qualifiedLib?1:2;
+  const tc=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId||(G&&G.teamId)||'boca']:null;
+  return (tc&&tc.initRep>=72)?1:2;
+}
+// Arma el grupo continental de la liga que dirigís. Devuelve la clave de la
+// copa o null si esa categoría no juega ninguna (la 2ª división argentina).
+function _copaIntArmar(teamName,lg,teamId,sch,weeks){
+  const copa=copaIntDeLiga(lg,_tierCont(teamId));
+  if(!copa)return null;
+  const pool=intBombo(copa).filter(c=>c!==teamName);
+  if(pool.length<3)return null;
+  const mezcla=pool.slice();
+  for(let i=mezcla.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[mezcla[i],mezcla[j]]=[mezcla[j],mezcla[i]];}
+  const rivales=mezcla.slice(0,3);
+  const {mios,grupo}=intBuildGroup(copa,teamName,rivales.map((r,i)=>[r,i+1]),weeks);
+  mios.forEach(m=>sch.push(m));
+  buildCal._intGrp=grupo;
+  return copa;
+}
+// Los dos bombos de la copa nacional: los "grandes" entran recién en cuartos.
+// Salen del nivel real de los clubes (`clubRank`), no de una lista a mano —
+// que es el error de `bigClubs`/`midClubs` que ya está documentado.
+function _copaNacArmar(teamName,lg,clubsLiga,sch,semana,poolChicos,poolGrandes){
+  const pref=copaNacNombre(lg);
+  buildCal._caPref=pref;
+  if(typeof G==='object'&&G)G.copaNac=pref;
+  let chicos=poolChicos, grandes=poolGrandes;
+  if(!chicos||!grandes){
+    const enLiga=(clubsLiga||[]).filter(c=>c&&c!==teamName);
+    let orden=enLiga.slice();
+    try{
+      if(typeof nivelClub==='function') orden=enLiga.slice().sort((a,b)=>nivelClub(b)-nivelClub(a));
+    }catch(e){}
+    grandes=orden.slice(0,Math.max(3,Math.min(6,orden.length)));
+    // Los chicos: los de abajo de tu liga más, si existe, la categoría de abajo
+    chicos=orden.slice(Math.max(3,Math.floor(orden.length/2)));
+    try{
+      const seg=(typeof clubesDeLiga==='function'&&lg==='Liga ARG')?clubesDeLiga('Primera Nacional'):[];
+      if(seg&&seg.length)chicos=seg.filter(c=>c!==teamName).concat(chicos);
+    }catch(e){}
+    if(!chicos.length)chicos=grandes.slice();
+  }
+  buildCal._caPool=chicos.slice();
+  buildCal._caGrandes=grandes.slice();
+  const rival=chicos[~~(Math.random()*chicos.length)]||grandes[0];
+  if(!rival)return null;
+  sch.push({week:semana,comp:pref+' R32',home:teamName,away:rival,
+            played:false,result:null,score:null});
+  return pref;
 }
 
 function buildCal(teamName, teamId){
@@ -3296,11 +3394,16 @@ function buildCal(teamName, teamId){
     L.fixtures.filter(f=>f.home===teamName||f.away===teamName)
       .forEach(f=>sch.push({week:f.week,comp:f.comp,fecha:f.fecha,
         home:f.home,away:f.away,played:false,result:null,score:null}));
-    // Copa nacional: una llave por ronda, como la Copa Argentina
-    const rivales=shuf(L.clubs.filter(c=>c!==teamName)).slice(0,1);
-    if(rivales[0])sch.push({week:3+PRE_SEMANAS,comp:'Copa Nacional R16',
-      home:teamName,away:rivales[0],played:false,result:null,score:null});
+    // ═══ COPA CONTINENTAL Y COPA NACIONAL, IGUAL QUE EN LA LIGA ARG ═══
+    // Acá no había NINGUNA de las dos: sólo una llave suelta que no se
+    // resolvía nunca. Medido con el Real Madrid: 6 temporadas seguidas de
+    // "LaLiga 38 + 1 partido de copa" y cero Champions en toda la carrera.
+    buildCal._intGrp=null;
     if(typeof G==='object'&&G)G.intGrp=null;
+    const _intW=[2,4,6,8,11,13].map(w=>w+PRE_SEMANAS);
+    _copaIntArmar(teamName,_lgMia,teamId||(G&&G.teamId),sch,_intW);
+    _copaNacArmar(teamName,_lgMia,L.clubs,sch,3+PRE_SEMANAS);
+    if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
     return sch.sort((a,b)=>a.week-b.week);
   }
   // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
@@ -3324,7 +3427,10 @@ function buildCal(teamName, teamId){
       home:f.home,away:f.away,played:false,result:null,score:null}));
   const resolvedTeamId = teamId || (G&&G.teamId) || 'boca';
   const tc=TEAMS[resolvedTeamId];
-  const qualifiesLib=(tc&&tc.initRep>=72)||!!(G&&G.qualifiedLib);
+  // ⚠️ `G.qualifiedLib` no lo escribía nadie (ver `_tierCont`): en qué copa
+  // jugás quedaba clavado en `initRep` para toda la carrera. Ahora lo decide
+  // la tabla del año anterior, y `_tierCont` es el único que lo lee.
+  const qualifiesLib=_tierCont(resolvedTeamId)===1;
   // ═══ EL GRUPO ES UN GRUPO: 4 CLUBES, TODOS CONTRA TODOS, IDA Y VUELTA ═══
   // Los otros tres también juegan entre ellos (intBuildGroup deja ese fixture
   // aparte y lo levanta arAttachLeague en G.intGrp).
@@ -3347,9 +3453,9 @@ function buildCal(teamName, teamId){
   // rival y fecha ya asignados: sabías en marzo que la final era contra
   // Independiente. Ahora sólo se programa la primera; la siguiente se sortea
   // recién cuando ganás (ver caProximaRonda, llamada desde resolveKO).
-  buildCal._caPool=caPool.slice();
-  buildCal._caGrandes=caFinalRivals.slice();
-  sch.push({week:3+PRE_SEMANAS, comp:caRnds[0], home:teamName, away:caOpps[0], played:false,result:null,score:null});
+  // La Liga ARG pasa sus DOS bombos curados a mano (los clubes reales del
+  // ascenso y los cinco grandes); el resto de las ligas los deriva.
+  _copaNacArmar(teamName,'Liga ARG',null,sch,3+PRE_SEMANAS,caPool.slice(),caFinalRivals.slice());
   // arAttachLeague corrió más arriba, cuando el grupo todavía no estaba armado
   if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
   return sch.sort((a,b)=>a.week-b.week);
@@ -3374,8 +3480,84 @@ const INT_COPAS={
       'Ind. Medellín','Emelec','Deportivo Cali','Defensor Sporting','Sol de América',
       'Universidad Católica','Always Ready','Guaraní','Danubio','Junior FC',
       'Athletico Paranaense','Cruzeiro','Godoy Cruz','Huracán','Deportes Tolima']},
+  // ═══════════════════════════════════════════════════════════════════════
+  // LAS OTRAS CONFEDERACIONES: EL MOTOR YA ERA GENÉRICO, FALTABAN LOS DATOS
+  // ═══════════════════════════════════════════════════════════════════════
+  // Medido antes de tocar nada: dirigiendo al Real Madrid, SEIS temporadas
+  // seguidas dieron "LaLiga 38 + Copa Nacional 1" y nada más — 0 partidos de
+  // Champions en toda la carrera. `COPA_CONT` sólo cambiaba el NOMBRE en los
+  // textos; el torneo jugable (grupos → octavos → final) existía únicamente
+  // para la Liga ARG.
+  //
+  // No hizo falta un motor nuevo: `intBuildGroup`, `intProximaRonda`,
+  // `genIntKO` e `intGrpTabla` ya trabajan con la clave de la copa y leen
+  // `INT_COPAS`. Lo único hardcodeado eran `intCopaDe` y `resolveKO`, que
+  // preguntaban por el nombre en vez de por la tabla.
+  //
+  // ⚠️ `ligas` es lo que ata cada copa a su confederación y `tier` separa la
+  // copa grande de la segunda (Libertadores/Sudamericana, Champions/Europa
+  // League). El mapa liga→copa se DERIVA de acá (`copaIntDeLiga`): escribirlo
+  // dos veces es el bug que este proyecto ya se hizo cinco veces.
+  ucl:{nombre:'Champions League',pref:'Champions League',emoji:'🏆',tier:1,
+    ligas:['Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Grecia','Turquía','Rusia'],
+    bombo:['Real Madrid','Man City','Bayern Munich','Barcelona','PSG','Liverpool','Inter',
+      'Arsenal','Atlético Madrid','Borussia Dortmund','Juventus','Milan','Chelsea','Napoli',
+      'Benfica','Porto','Ajax','PSV','Atalanta','RB Leipzig','Bayer Leverkusen','Sporting CP']},
+  uel:{nombre:'Europa League',pref:'Europa League',emoji:'🥈',tier:2,
+    ligas:['Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Grecia','Turquía','Rusia'],
+    bombo:['Roma','Lazio','Villarreal','Real Betis','Tottenham','Aston Villa','West Ham',
+      'Olympique Lyon','Olympique Marsella','Eintracht Frankfurt','Feyenoord','AZ Alkmaar',
+      'Braga','Galatasaray','Fenerbahçe','Olympiacos','PAOK','Anderlecht','Club Brugge','Zenit']},
+  ccl:{nombre:'Concachampions',pref:'Concachampions',emoji:'🏆',tier:1,
+    ligas:['Liga MX','MLS'],
+    bombo:['Club América','Monterrey','Tigres UANL','Guadalajara','Cruz Azul','Pumas UNAM',
+      'Toluca','León','Pachuca','Inter Miami','LAFC','Seattle Sounders','LA Galaxy',
+      'Columbus Crew','Philadelphia Union','Portland Timbers']},
+  afc:{nombre:'Champions League Asiática',pref:'Champions Asiática',emoji:'🏆',tier:1,
+    ligas:['Arabia'],
+    bombo:['Al-Hilal','Al-Nassr','Al-Ittihad','Al-Ahli','Al-Shabab','Al-Ettifaq','Al-Taawoun',
+      'Al-Fateh','Al-Khaleej','Al-Wehda']},
 };
 const INT_RONDAS=['Octavos','Cuartos','Semis','Final'];
+// ⚠️ Liga → copa continental, DERIVADO de `INT_COPAS[].ligas`. Sudamérica no
+// lleva `ligas` en la tabla porque su copa jugable arranca sólo desde la Liga
+// ARG (ver `buildCal`), así que se mapea acá abajo con `COPA_CONT`, que ya
+// existía para los textos.
+const _COPA_INT_LG={};
+Object.entries(INT_COPAS).forEach(([k,C])=>{
+  (C.ligas||[]).forEach(lg=>{ (_COPA_INT_LG[lg]=_COPA_INT_LG[lg]||{})[C.tier||1]=k; });
+});
+['Liga ARG','Brasil','Chile','Colombia','Uruguay','Paraguay','Perú','Ecuador','Bolivia','Venezuela']
+  .forEach(lg=>{ _COPA_INT_LG[lg]={1:'lib',2:'sud'}; });
+// La segunda división no juega copa continental (ya lo decía `hayCopaCont`).
+function copaIntDeLiga(lg,tier){
+  if(typeof esSegundaARG==='function'&&esSegundaARG(lg))return null;
+  const m=_COPA_INT_LG[lg]; if(!m)return null;
+  return m[tier===2?2:1]||m[1]||null;
+}
+// ⚠️ EL BOMBO SE DERIVA DE LA BASE CUANDO SE PUEDE.
+// Una lista a mano se desincroniza con la extracción siguiente (es lo que ya
+// pasó con `bigClubs`/`midClubs` en la Fase 18, donde 4 de 21 nombres ni
+// existían en la base). `clubRank()` cubre los 612 clubes con su nivel real,
+// así que el bombo sale de ahí y la lista escrita queda sólo de red: una base
+// histórica que no trae clubes europeos cae a los nombres de siempre.
+function intBombo(copa){
+  const C=INT_COPAS[copa]; if(!C)return [];
+  const mio=(typeof G==='object'&&G&&G.teamName)||'';
+  if(C.ligas&&typeof clubRank==='function'){
+    try{
+      const set=new Set(C.ligas);
+      const rk=clubRank().filter(x=>set.has(x.lg)&&x.club!==mio);
+      if(rk.length>=12){
+        // tier 1 se lleva la elite; tier 2, la banda de abajo
+        const n=Math.min(24,Math.max(12,Math.round(rk.length*0.35)));
+        const pool=(C.tier===2)?rk.slice(n,n*2+8):rk.slice(0,n);
+        if(pool.length>=8)return pool.map(x=>x.club);
+      }
+    }catch(e){}
+  }
+  return (C.bombo||[]).filter(c=>c!==mio);
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // CUÁNTO VALE CADA CLUB DE AFUERA
@@ -3415,6 +3597,27 @@ const INT_RAT={
 };
 // Fuerza de un rival internacional. Si no está en la tabla, se estima por la
 // ronda: cuanto más avanzada la copa, mejor el que sobrevivió.
+// Nivel de un club de CUALQUIER liga: el promedio de sus 15 mejores medias.
+// `clubPower` filtra por `p.lg===ligaMia()` —está pensado para los rivales de
+// tu propia liga— y por eso a un club de afuera le devolvía 66 fijo.
+function clubPowerAny(club){
+  if(!G||!club)return 0;
+  if(club===G.teamName)return (typeof clubPower==='function')?clubPower(club):72;
+  G._powAny=G._powAny||{};
+  if(G._powAny[club])return G._powAny[club];
+  const rats=(G.market||[]).filter(p=>p.club===club&&!p.freeAgent)
+    .map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  const pow=rats.length>=8?rats.reduce((a,r)=>a+r,0)/rats.length:0;
+  return (G._powAny[club]=pow);
+}
+// ⚠️ EL FALLBACK DE 70 ERA EL "73 FIJO DE LA LIBERTADORES" OTRA VEZ.
+// `INT_RAT` es una tabla sudamericana, así que en la Champions TODOS los
+// rivales caían en el 70 del final: medido, el Real Madrid ganaba la copa las
+// 4 temporadas seguidas. Ahora, para las copas que no son lib/sud, el nivel
+// sale del plantel real del club (misma escala que `clubPower`).
+// ⚠️ La Libertadores y la Sudamericana NO se tocan: su balance está calibrado
+// desde la Fase 18 y cambiarle el rating a los clubes que no están en la
+// tabla movería una dificultad que ya está medida.
 function intRatDe(nombre,comp){
   if(INT_RAT[nombre])return INT_RAT[nombre];
   const c=comp||'';
@@ -3422,6 +3625,8 @@ function intRatDe(nombre,comp){
   if(/Recopa/.test(c))return 73;
   if(/Sudamericana/.test(c))return /Final|Semis/.test(c)?70:67;
   if(/Libertadores/.test(c))return /Final|Semis/.test(c)?76:73;
+  const real=clubPowerAny(nombre);
+  if(real>0)return Math.round(real);
   return 70;
 }
 
@@ -3446,7 +3651,9 @@ function intGroupFixture(clubs){
   return ida.concat(ida.map(par=>par.map(([h,a])=>[a,h])));   // vuelta: dados vuelta
 }
 // Fuerza por bombo, sólo para clubes que no estén en INT_RAT
-const INT_POW={lib:[78,74,70,66],sud:[70,68,66,63]};
+// Fuerza por bombo, de 1 a 4. Sólo cubre al rival que NO está en `INT_RAT`.
+const INT_POW={lib:[78,74,70,66],sud:[70,68,66,63],
+  ucl:[84,80,76,72],uel:[76,73,70,67],ccl:[73,70,67,64],afc:[75,72,69,66]};
 function intGrpPow(club){
   const g=G&&G.intGrp; if(!g)return 68;
   if(club===(G&&G.teamName))return (typeof clubPower==='function')?clubPower(club):72;
@@ -3495,8 +3702,11 @@ function intGrpTabla(){
 function intBuildGroup(copa,teamName,rivales,weeks){
   const clubs=[teamName,...rivales.map(r=>r[0])];
   // La fuerza real del club manda; el bombo sólo cubre a los que no están en la tabla
+  // El nivel real del plantel manda; el bombo sólo cubre al que no está en
+  // la tabla NI en la base (ver intRatDe: lib/sud conservan su calibración).
   const pow={}; rivales.forEach((r)=>{
-    pow[r[0]]=INT_RAT[r[0]]||(INT_POW[copa]||INT_POW.lib)[Math.min(3,r[1])]||68;});
+    const real=(copa!=='lib'&&copa!=='sud')?clubPowerAny(r[0]):0;
+    pow[r[0]]=INT_RAT[r[0]]||(real>0?Math.round(real):0)||(INT_POW[copa]||INT_POW.lib)[Math.min(3,r[1])]||68;});
   const pref=(INT_COPAS[copa]||{}).pref||'Copa Libertadores';
   const mios=[], fix=[];
   intGroupFixture(clubs).forEach((par,i)=>{
@@ -3510,16 +3720,52 @@ function intBuildGroup(copa,teamName,rivales,weeks){
   return {mios,grupo:{copa,clubs,pow,fix}};
 }
 
+// ⚠️ ESTO PREGUNTABA POR EL NOMBRE, NO POR LA TABLA, y era una de las DOS
+// líneas que ataban todo el motor internacional a Sudamérica. Ahora recorre
+// `INT_COPAS`, así que una copa nueva queda cableada sola en `intGrpPlay`,
+// `genIntKO`, `resolveKO` y `matchStrengths` sin tocar nada más.
 function intCopaDe(comp){
   if(!comp)return null;
-  if(comp.includes('Libertadores'))return 'lib';
-  if(comp.includes('Sudamericana'))return 'sud';
+  for(const k in INT_COPAS){ if(comp.startsWith(INT_COPAS[k].pref))return k; }
   return null;
 }
-// Semana libre a partir de una dada
-function _intSemana(desde){
-  const usadas=new Set((G.calendar||[]).map(m=>m.week));
-  let w=desde; while(usadas.has(w))w++; return w;
+// ¿Es un partido de copa continental? (lo usan la fuerza del rival, el
+// "partido importante" y la pestaña de estadísticas)
+function esCopaInt(comp){
+  if(!comp)return false;
+  return !!intCopaDe(comp)||/Recopa|Mundial de Clubes/.test(comp);
+}
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ PEDÍA UNA SEMANA TOTALMENTE LIBRE, Y EN UNA LIGA LARGA NO EXISTE
+// ═══════════════════════════════════════════════════════════════════════
+// Esto era `while(usadas.has(w))w++` sobre TODAS las semanas del calendario.
+// En la Liga ARG hay huecos (los playoffs, el corte Apertura/Clausura) y por
+// eso zafaba; en una liga de 38 fechas corridas, las semanas 4 a 41 están
+// TODAS ocupadas, así que cada llave se empujaba más allá del final de la
+// temporada. Medido con el Real Madrid: los octavos de Champions caían en la
+// última semana del año y **cuartos, semis y final no se jugaban nunca** —
+// `intProximaRonda(ucl,3)` sorteaba el rival y el partido moría en el
+// calendario.
+// Jugar liga y copa en la misma semana es lo normal y el juego ya lo modela
+// (es lo que cansa al plantel desde la Fase 15). Lo único que hay que evitar
+// es amontonar tres partidos o repetir la MISMA copa en la misma semana.
+// Dos pasadas a propósito:
+//  1) una semana LIBRE, que es lo que hacía antes — así la Liga ARG sigue
+//     metiendo las llaves en el hueco de los playoffs, exactamente igual;
+//  2) si no queda ninguna (liga de 38 fechas corridas), comparte semana con
+//     un partido de OTRA competencia.
+function _intSemana(desde,pref){
+  const cal=(G&&G.calendar)||[];
+  const d=Math.max(1,desde|0);
+  const fin=d+40;
+  for(let w=d;w<=fin;w++){ if(!cal.some(m=>m.week===w))return w; }
+  for(let w=d;w<=fin;w++){
+    const enSem=cal.filter(m=>m.week===w);
+    if(enSem.length>=2)continue;                                      // ya hay dos
+    if(pref&&enSem.some(m=>m.comp&&m.comp.startsWith(pref)))continue; // misma copa
+    return w;
+  }
+  return fin;
 }
 // Sortea UNA ronda de una copa internacional. rnd: 2=octavos … 5=final
 function intProximaRonda(copa,rnd){
@@ -3532,8 +3778,9 @@ function intProximaRonda(copa,rnd){
   // Nadie repetido: ni los que ya enfrentaste en esta copa, ni vos mismo
   const jugados=new Set(G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref))
     .map(x=>x.home===G.teamName?x.away:x.home));
-  const libres=C.bombo.filter(c=>c!==G.teamName&&!jugados.has(c));
-  const bombo=libres.length?libres:C.bombo.filter(c=>c!==G.teamName);
+  const _pool=intBombo(copa);
+  const libres=_pool.filter(c=>c!==G.teamName&&!jugados.has(c));
+  const bombo=libres.length?libres:_pool.filter(c=>c!==G.teamName);
   // ═══ SALIR PRIMERO DEL GRUPO SIRVE ═══
   // El sorteo era uniforme: daba lo mismo ganar el grupo o entrar segundo, y en
   // octavos te podía tocar Flamengo igual. Como en la copa de verdad, el primero
@@ -3553,12 +3800,12 @@ function intProximaRonda(copa,rnd){
   const ultima=Math.max(G.week||1,...G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref)).map(x=>x.week||1));
   if(rnd===5){
     // La final es a un partido y en cancha neutral
-    const w=_intSemana(Math.max((G.week||1)+3,ultima+4));
+    const w=_intSemana(Math.max((G.week||1)+3,ultima+4),C.pref);
     G.calendar.push({week:w,comp:C.pref+' - Final',home:G.teamName,away:rival,neutral:true,
                      played:false,result:null,score:null});
   } else {
-    const w1=_intSemana(Math.max((G.week||1)+2,ultima+3));
-    const w2=_intSemana(w1+1);
+    const w1=_intSemana(Math.max((G.week||1)+2,ultima+3),C.pref);
+    const w2=_intSemana(w1+1,C.pref);
     const local1=Math.random()<0.5;   // quién juega la ida de local
     G.calendar.push(
       {week:w1,comp:C.pref+' - '+nombreR+' IDA',   home:local1?G.teamName:rival,away:local1?rival:G.teamName,played:false,result:null,score:null},
@@ -4650,9 +4897,10 @@ function pressConf(){
   const pc=window._pendingPressConf;
   window._pendingPressConf=null;
   const isWin=pc.res==='W',isDraw=pc.res==='D',isLoss=pc.res==='L';
-  const isCopa=pc.comp&&(pc.comp.includes('Copa')||pc.comp.includes('Libertadores')||pc.comp.includes('Sudamericana'));
-  const isLib=pc.comp&&pc.comp.includes('Libertadores');
-  const isSuda=pc.comp&&pc.comp.includes('Sudamericana');
+  const isCopa=pc.comp&&(pc.comp.includes('Copa')||esCopaInt(pc.comp));
+  const _ci=pc.comp&&intCopaDe(pc.comp);
+  const isLib=_ci&&(INT_COPAS[_ci].tier||1)===1;
+  const isSuda=_ci&&(INT_COPAS[_ci].tier||1)===2;
   const goleada=pc.gf>=pc.ga+3;
   const ajustada=Math.abs(pc.gf-pc.ga)<=1&&pc.gf>0;
   const rk=()=>~~(Math.random()*3);
@@ -5840,6 +6088,9 @@ function updateUI(){
   // corre DESPUÉS de G.week++, o sea después de jugada la fecha 1.
   // Es idempotente: G._giraFitAplicada corta al segundo llamado.
   try{ preseasonFit(); }catch(e){}
+  // Y que la pretemporada tenga partidos: si no, `advanceDay` se traba en el
+  // día 7 de la semana 1 (ver preseasonGarantizar).
+  try{ preseasonGarantizar(); }catch(e){}
   const $ = id => document.getElementById(id);
   $('bTop').textContent='$'+G.budget+'M';
   $('wTop').textContent=(DIAS[curDay()-1]||'').slice(0,3)+' S'+G.week;
@@ -10894,10 +11145,10 @@ function rStand(){
   const copaEl=document.getElementById('standCopa');
   const copaTitleEl=document.getElementById('standCopaTitle');
   if(copaCard&&copaEl){
-    const copaComp=G.calendar.find(m=>m.comp&&(m.comp.includes('Libertadores - Grupos')||m.comp.includes('Sudamericana - Grupos')));
+    const copaComp=G.calendar.find(m=>m.comp&&/ - Grupos$/.test(m.comp)&&intCopaDe(m.comp));
     if(copaComp){
-      const isLib=copaComp.comp.includes('Libertadores');
-      const copaLabel=isLib?'🏆 Grupo Copa Libertadores':'🥈 Grupo Copa Sudamericana';
+      const _ck=intCopaDe(copaComp.comp), _cc=INT_COPAS[_ck]||{};
+      const copaLabel=(_cc.emoji||'🏆')+' Grupo '+(_cc.nombre||'Copa');
       if(copaTitleEl) copaTitleEl.textContent=copaLabel;
       copaCard.style.display='';
       // La tabla sale de los 12 partidos del grupo (los 6 míos del calendario
@@ -12436,7 +12687,7 @@ function repSuma(d){
 // loadGame: lo que cambia es qué se le da para guardar.
 const BOARD_OBJ=[
   {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=10&&(g.wins*3+g.draws)/(pj*3)>=0.55}},
-  {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp.includes('Libertadores')&&x.comp.includes('Semi')&&x.played).length>0},
+  {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp&&esCopaInt(x.comp)&&x.comp.includes('Semi')&&x.played).length>0},
   {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>g.squad.some(p=>p.rat>=80&&p.club===g.teamName)},
   {id:'budget_pos',desc:'Mantener presupuesto positivo',check:g=>g.budget>0},
   {id:'win60',desc:'Ganar al menos 60% de los partidos',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=5&&g.wins/pj>=0.6}},
@@ -13633,6 +13884,24 @@ function archiveSeason(){
   const repGain=pos===1?8:pos<=4?4:pos<=8?1:pos>=t.length-1?-4:0;
   if(repGain){ if(repGain>0)repSuma(repGain); else G.rep=Math.max(20,Math.round(((G.rep||50)+repGain)*10)/10);
     if(repGain>0)lg('⭐',`La reputación del club sube a ${G.rep} por la campaña`);}
+  // ═══ LA COPA GRANDE SE CLASIFICA EN LA CANCHA ═══
+  // `G.qualifiedLib` se leía en `buildCal` desde siempre y **no lo escribía
+  // nadie**: en qué copa jugabas salía de `TEAMS[id].initRep>=72`, una
+  // constante. Medido en 8 temporadas con Barracas: salió campeón y siguió
+  // jugando la Sudamericana; Boca terminó 18º y siguió en la Libertadores.
+  // Top 4 de la tabla, o campeón de la copa nacional, entra a la grande.
+  try{
+    const _titAño=(G.trophies||[]).filter(x=>x.season===G.season).map(x=>x.name);
+    const _copaNac=(typeof copaNacPref==='function')?copaNacPref():'Copa Argentina';
+    const _clasif=(pos>0&&pos<=4)||_titAño.indexOf(_copaNac)>=0;
+    if(G.qualifiedLib!==_clasif){
+      G.qualifiedLib=_clasif;
+      const _cn=(typeof copaCont==='function')?copaCont():'copa internacional';
+      lg(_clasif?'🏆':'📉',_clasif
+        ? `${G.teamName} clasificó a la ${_cn} del año que viene (${pos}º)`
+        : `${G.teamName} quedó afuera de la ${_cn} del año que viene (${pos}º)`);
+    } else G.qualifiedLib=_clasif;
+  }catch(e){}
   // ═══ DESCENSOS POR TABLA ANUAL (como en la Liga Profesional de verdad) ═══
   // G.league.table acumula el Apertura Y el Clausura, así que leagueSorted()
   // ES la tabla anual. Bajan los 2 últimos y suben 2 de la Primera Nacional.
@@ -13673,7 +13942,7 @@ function archiveSeason(){
       addPhoneMsg('board','Marketing',`🎯 <b>${s.name}</b> liberó el bono por objetivo (${s.obj.desc}): <b style="color:var(--gold)">+${fv(s.obj.bonus)}</b>. ¡Gran temporada comercial!`,'💼');
     }
   });
-  G._clubPow=null; // las fuerzas se recalculan con los planteles nuevos
+  G._clubPow=null; G._powAny=null; // las fuerzas se recalculan con los planteles nuevos
 }
 
 // ═══ LA CANTERA SOSTIENE AL CLUB ═══
@@ -14394,7 +14663,7 @@ function matchStrengths(m){
   // ═══ CADA RIVAL DE COPA VALE LO QUE VALE ═══
   // Acá había un 73 fijo para toda la Libertadores: el bombo 4 pegaba igual
   // que Flamengo y la copa era irremontable (12 temporadas, ni una semifinal).
-  const esInt = /Libertadores|Sudamericana|Recopa|Mundial de Clubes/.test(m.comp||'');
+  const esInt = esCopaInt(m.comp);
   let oppRat = 65;
   const dbPow = (esLigaLocal(m.comp)&&G.market&&G.market.some(p=>p.club===oppName))?clubPower(oppName):0;
   if(esInt)                        oppRat = intRatDe(oppName,m.comp);
@@ -14514,7 +14783,7 @@ function matchStrengths(m){
     const tr = G.dt.trait;
     if(tr==='Ofensivo') tacMod+=0.03;
     if(tr==='Defensivo') tacMod-=0.02;
-    if(tr==='Copero' && (m.comp.includes('Copa')||m.comp.includes('Libertadores'))) tacMod+=0.05;
+    if(tr==='Copero' && (m.comp.includes('Copa')||esCopaInt(m.comp))) tacMod+=0.05;
     if(tr==='Guerrero'||tr==='Intenso') tacMod+=0.02;
     if((tr==='Maestro'||tr==='Leyenda') && oppRat>=73) tacMod+=0.04;
     if(tr==='Táctico'||tr==='Analítico') tacMod+=0.015;
@@ -14645,12 +14914,17 @@ function koGoalsFor(mt){
 // Sortea la ronda siguiente de la Copa Argentina cuando avanzás. El rival sale
 // del bombo (los grandes recién de cuartos en adelante, como en la vida real) y
 // la localía se decide ahí, no dos meses antes.
-const CA_RONDAS=['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF','Copa Argentina Final'];
+// ⚠️ Los nombres de ronda se arman con el PREFIJO de la copa de tu liga, no
+// con 'Copa Argentina' escrito cinco veces: así la Copa del Rey, la FA Cup y
+// la Copa do Brasil usan exactamente este mismo motor.
+const CA_SUF=['R32','R16','QF','SF','Final'];
+function caRondas(pref){ const p=pref||copaNacPref(); return CA_SUF.map(s=>p+' '+s); }
 function caProximaRonda(rndActual){
   if(!G||!G.calendar)return null;
   const idx=rndActual;                       // 1=R32 → siguiente es índice 1 (R16)
-  if(idx>=CA_RONDAS.length)return null;
-  const comp=CA_RONDAS[idx];
+  const RON=caRondas();
+  if(idx>=RON.length)return null;
+  const comp=RON[idx];
   if(G.calendar.some(x=>x.comp===comp))return null;   // ya estaba sorteada
   const chicos=(typeof buildCal!=='undefined'&&buildCal._caPool)||
     ['Almagro','Quilmes','Atlanta','Chacarita','All Boys','Temperley','Tristán Suárez',
@@ -14659,44 +14933,56 @@ function caProximaRonda(rndActual){
     ['Racing Club','River Plate','Independiente','San Lorenzo','Vélez Sarsfield'];
   // De cuartos en adelante aparecen los grandes
   const bombo=(idx>=2?grandes:chicos).filter(c=>c!==G.teamName);
-  const yaJugados=new Set(G.calendar.filter(x=>/Copa Argentina/.test(x.comp||''))
+  const yaJugados=new Set(G.calendar.filter(x=>esCopaNac(x.comp))
                     .map(x=>x.home===G.teamName?x.away:x.home));
   const libres=bombo.filter(c=>!yaJugados.has(c));
   const rival=(libres.length?libres:bombo)[~~(Math.random()*(libres.length?libres.length:bombo.length))];
   if(!rival)return null;
   // La fecha: unas semanas después de la ronda que se acaba de jugar
-  const ultima=Math.max(...G.calendar.filter(x=>/Copa Argentina/.test(x.comp||'')).map(x=>x.week||1),G.week||1);
-  const semana=Math.min(38,Math.max((G.week||1)+3,ultima+(idx>=3?7:6)));
+  // ⚠️ El tope era 38 fijo y eso es el largo de una liga europea, no el de la
+  // Liga ARG con zonas (que llega a la semana 49). Con el tope viejo, las
+  // rondas de cuartos en adelante se apilaban todas en la 38. Sale del propio
+  // calendario, que es el que sabe cuánto dura la temporada.
+  const finTemp=Math.max(38,...(G.calendar||[]).map(x=>x.week||0));
+  const ultima=Math.max(...G.calendar.filter(x=>esCopaNac(x.comp)).map(x=>x.week||1),G.week||1);
+  const semana=Math.min(finTemp,Math.max((G.week||1)+3,ultima+(idx>=3?7:6)));
   const deLocal=Math.random()<0.5;
   G.calendar.push({week:semana,comp,home:deLocal?G.teamName:rival,away:deLocal?rival:G.teamName,
                    played:false,result:null,score:null});
   G.calendar.sort((a,b)=>a.week-b.week);
   const nombre=['','32avos','octavos','cuartos','la semifinal','la final'][idx+1]||comp;
-  lg('🎲',`Sorteo de Copa Argentina: ${nombre} contra ${rival} (${deLocal?'local':'visitante'}), semana ${semana}`);
+  const _cn=copaNacPref();
+  lg('🎲',`Sorteo de ${_cn}: ${nombre} contra ${rival} (${deLocal?'local':'visitante'}), semana ${semana}`);
   addPhoneMsg('board','Secretaría del Club',
-    `🎲 Salió el sorteo: en <b>${nombre}</b> de la Copa Argentina nos toca <b>${rival}</b>, de ${deLocal?'local':'visitante'}, en la semana ${semana}.`,'🏛️');
+    `🎲 Salió el sorteo: en <b>${nombre}</b> de la ${_cn} nos toca <b>${rival}</b>, de ${deLocal?'local':'visitante'}, en la semana ${semana}.`,'🏛️');
   return rival;
 }
+// ⚠️ ESTA ERA LA OTRA LÍNEA QUE ATABA TODO A SUDAMÉRICA.
+// `isLib/isCA/isSud` por nombre significaba que cualquier copa que no fuera
+// esas tres **no se resolvía nunca**: la llave quedaba jugada y el torneo no
+// avanzaba, no eliminaba y no daba título. Por eso la 'Copa Nacional R16' de
+// las otras 24 ligas era un partido muerto. Ahora la copa se identifica por
+// la tabla (`intCopaDe`) o por el prefijo nacional (`esCopaNac`), así que
+// sirve para las seis copas continentales y las 24 nacionales.
 function resolveKO(m){
   if(!m||!m.comp)return;
   const c=m.comp;
-  const isLib=c.includes('Libertadores'), isCA=c.includes('Copa Argentina');
-  const isSud=c.includes('Sudamericana');
-  if(!isLib&&!isCA&&!isSud)return;
+  const copaInt=intCopaDe(c);                   // 'lib','sud','ucl','uel','ccl','afc' o null
+  const isCA=!copaInt&&esCopaNac(c);
+  if(!copaInt&&!isCA)return;
   if(c.includes('Grupos'))return;               // los grupos se resuelven aparte
   const roundOf=(s)=>/R32/.test(s)?1:(/Octavos|R16/.test(s))?2:(/Cuartos|QF/.test(s))?3:(/Semi|SF/.test(s))?4:/Final/.test(s)?5:0;
   const rnd=roundOf(c);
   if(!rnd)return;
   // Una llave con IDA sólo se define en la VUELTA
   if(c.includes('IDA'))return;
+  const mismaCopa=x=>copaInt?(intCopaDe(x.comp)===copaInt):esCopaNac(x.comp);
   let mine=0,theirs=0;
-  const legs=G.calendar.filter(x=>x.played&&x.comp&&roundOf(x.comp)===rnd&&
-      ((isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'))
-       ||(isSud&&x.comp.includes('Sudamericana'))));
+  const legs=G.calendar.filter(x=>x.played&&x.comp&&roundOf(x.comp)===rnd&&mismaCopa(x));
   legs.forEach(l=>{const g=koGoalsFor(l);if(g){mine+=g.mine;theirs+=g.theirs;}});
   if(mine===theirs)mine+=Math.random()<0.5?1:-1;   // se define por penales
   const advanced=mine>theirs;
-  const compName=isLib?'Copa Libertadores':isSud?'Copa Sudamericana':'Copa Argentina';
+  const compName=copaInt?(INT_COPAS[copaInt].nombre):copaNacPref();
   const rndName=['','32avos','octavos','cuartos','semifinal','la final'][rnd];
   if(advanced){
     if(rnd===5){
@@ -14705,13 +14991,13 @@ function resolveKO(m){
       repSuma(6);G.boardConf=Math.min(100,(G.boardConf||50)+18);
       (G.trophies=G.trophies||[]).push({name:compName,season:G.season});
       // Queda anotado para la Recopa y el Mundial de Clubes de la temporada que viene
-      if(isLib){G.campeonLib=G.season;}
-      if(isSud){G.campeonSud=G.season;}
+      if(copaInt==='lib'){G.campeonLib=G.season;}
+      if(copaInt==='sud'){G.campeonSud=G.season;}
     } else {
       lg('✅',`${G.teamName} avanza en la ${compName} (global ${mine}-${theirs})`);
       flash(`✅ ¡Pasaste de ${rndName}! Global ${mine}-${theirs}`,'win');
       if(isCA) caProximaRonda(rnd);      // recién ahora se sortea la que viene
-      else if(isLib||isSud) intProximaRonda(isLib?'lib':'sud',rnd+1);
+      else intProximaRonda(copaInt,rnd+1);
     }
     return;
   }
@@ -14720,9 +15006,7 @@ function resolveKO(m){
   G.calendar=G.calendar.filter(x=>{
     if(x.played)return true;
     if(!x.comp)return true;
-    const sameCup=(isLib&&x.comp.includes('Libertadores'))||(isCA&&x.comp.includes('Copa Argentina'))
-                ||(isSud&&x.comp.includes('Sudamericana'));
-    if(!sameCup)return true;
+    if(!mismaCopa(x))return true;
     return roundOf(x.comp)<=rnd;                 // se caen las rondas siguientes
   });
   const removed=before-G.calendar.length;
@@ -14866,14 +15150,17 @@ function applyMatchResult(m, gf, ga, providedScorers){
 
   // El resto del grupo juega su fecha en la misma semana que vos
   if(/ - Grupos$/.test(m.comp||'')&&intCopaDe(m.comp))intGrpPlay(m.fecha||99);
-  // Check Libertadores group stage completion
-  const gsTotal  = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos').length;
-  const gsPlayed = G.calendar.filter(x=>x.comp==='Copa Libertadores - Grupos'&&x.played).length;
-  if(gsTotal>0&&gsPlayed===gsTotal) genIntKO('lib');   // el grupo son 3 rivales (6 partidos)
-  // La Sudamericana terminaba en los grupos: ganabas y no pasaba nada más.
-  const sudTot=G.calendar.filter(x=>x.comp==='Copa Sudamericana - Grupos').length;
-  const sudJug=G.calendar.filter(x=>x.comp==='Copa Sudamericana - Grupos'&&x.played).length;
-  if(sudTot>0&&sudJug===sudTot) genIntKO('sud');
+  // ¿Terminó la fase de grupos de la copa continental? Esto preguntaba por el
+  // nombre exacto ('Copa Libertadores - Grupos' y 'Copa Sudamericana - Grupos'),
+  // así que una Champions o una Concachampions terminaba el grupo y **no
+  // pasaba a octavos nunca**. Sale de la copa del partido que se acaba de jugar.
+  const _gk=intCopaDe(m.comp);
+  if(_gk&&/ - Grupos$/.test(m.comp||'')){
+    const _gp=INT_COPAS[_gk].pref+' - Grupos';
+    const gsTotal =G.calendar.filter(x=>x.comp===_gp).length;
+    const gsPlayed=G.calendar.filter(x=>x.comp===_gp&&x.played).length;
+    if(gsTotal>0&&gsPlayed===gsTotal) genIntKO(_gk);   // el grupo son 3 rivales (6 partidos)
+  }
   // ═══ ELIMINACIÓN EN COPAS: si perdés la llave, te vas afuera ═══
   // Antes las rondas siguientes ya estaban en el fixture y las jugabas igual
   // aunque hubieras perdido: llegabas a la final habiendo sido eliminado.
@@ -15139,7 +15426,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
 
   // === TOURNEY TRACKING ===
   if(!G.tourney) G.tourney = buildTourney();
-  const t = m.comp.includes('Liga')?G.tourney.liga:m.comp.includes('Libertadores')?G.tourney.lib:G.tourney.copa;
+  const t = esCopaInt(m.comp)?G.tourney.lib:(m.comp.includes('Liga')?G.tourney.liga:G.tourney.copa);
   t.pj++; t.gf+=gf; t.ga+=ga;
   if(res==='W') t.pts=(t.pts||0)+3;
   else if(res==='D') t.pts=(t.pts||0)+1;
@@ -16754,7 +17041,12 @@ function tourRivals(zona,n){
   if(!G||!G.market)return [];
   const LIGAS={regional:['Brasil','Colombia','Chile','Uruguay','Paraguay','Perú','Ecuador','Bolivia'],
                intl:['Premier','España','Italia','Alemania','Francia','Portugal','Holanda','Bélgica','Grecia','Rusia','Arabia'],
-               local:[ligaMia()]};
+               // ⚠️ `local` tiene que mirar la ETIQUETA DE LA BASE, no el
+               // nombre de la liga: la Primera Nacional vive bajo 'Liga ARG'
+               // (ver `ligaDB`), así que con `[ligaMia()]` no encontraba un
+               // solo club y el ascenso se quedaba SIN amistosos — 0 en todas
+               // las temporadas, medido.
+               local:[...new Set([ligaMia(),(typeof ligaDB==='function')?ligaDB(ligaMia()):ligaMia()])]};
   const ligas=LIGAS[zona]||LIGAS.local;
   const porClub={};
   G.market.forEach(p=>{
@@ -16789,7 +17081,13 @@ function bookFriendlies(zona,cuantos){
   cuantos=Math.max(PRE_SEMANAS,cuantos||0);
   const rivales=tourRivals(zona,cuantos);
   if(!rivales.length)return [];
-  G.friendlies=[];
+  // ⚠️ IDEMPOTENTE: los amistosos que todavía no se jugaron se BORRAN del
+  // calendario antes de reservar. Antes sólo se vaciaba `G.friendlies` y los
+  // partidos viejos quedaban huérfanos en `G.calendar`, así que reservar dos
+  // veces (elegir la gira después de que el club ya tenía fecha) dejaba seis
+  // amistosos en vez de tres.
+  G.calendar=(G.calendar||[]).filter(m=>!(m.friendly&&!m.played));
+  G.friendlies=(G.friendlies||[]).filter(m=>m.played);
   // Se reparten entre las semanas de pretemporada, alternando localía: son
   // fechas del calendario, no una lista aparte.
   rivales.forEach((r,i)=>{
@@ -16889,6 +17187,26 @@ function preseasonSaltear(){
     G._preseasonDone=G.season;
   }
   closeMod(); if(typeof updateUI==='function')updateUI();
+}
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ NINGÚN CAMINO PUEDE DEJAR LA PRETEMPORADA SIN UN SOLO PARTIDO
+// ═══════════════════════════════════════════════════════════════════════
+// `preseasonSaltear` tapaba la ✕ y el botón "no viajar", pero la oferta sale
+// de un `setTimeout` 500 ms después de `nextSeason`, que termina en
+// `closeMod()`. Cualquier modal que caiga en esa ventana —un dilema, una
+// conferencia, el resumen de temporada— pisa la oferta, y entonces NADIE
+// reserva los amistosos: las semanas 1-3 quedan sin partido y `advanceDay`
+// se planta en el día 7 para siempre. Medido: a partir de la segunda
+// temporada, **0 partidos jugados** y el reloj clavado en 1/7.
+// Esto corre desde `updateUI` igual que `preseasonFit`: es idempotente y no
+// pisa la elección del usuario, porque `bookFriendlies` ahora reemplaza los
+// amistosos que no se jugaron.
+function preseasonGarantizar(){
+  if(!G||!G.calendar)return false;
+  if((G.week||1)>PRE_SEMANAS)return false;
+  if(G.calendar.some(m=>m.friendly))return false;      // ya tiene (jugados o no)
+  try{ bookFriendlies('local',PRE_SEMANAS); }catch(e){ return false; }
+  return true;
 }
 function doPreseason(k){
   const t=PRESEASON_TOURS[k];if(!t||!G)return;
@@ -17100,7 +17418,7 @@ function isBigMatch(m){
   if(!m)return false;
   if(isDerby&&isDerby(m))return true;                            // clásico
   const c=m.comp||'';
-  if(/Libertadores|Sudamericana|Copa Argentina|Recopa|Mundial de Clubes/.test(c))return true;
+  if(esCopaInt(c)||esCopaNac(c))return true;
   if(/Octavos|Cuartos|Semi|Final/.test(c))return true;           // playoffs y llaves
   const last3=G.calendar.filter(x=>x.played).slice(-3).map(x=>x.result);
   if(last3.length>=3&&last3.every(r=>r==='L'))return true;       // hay que levantar al plantel
@@ -19040,10 +19358,10 @@ function rStats(){
   // copa —el caso de cualquier liga que no sea la argentina— caía igual en
   // "🏆 Copa Libertadores" y el Real Madrid veía una tabla de la Libertadores
   // con 0 partidos.
-  const copaMatch=G.calendar.find(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
-  const copaLabel=!copaMatch?('🏆 '+copaCont())
-    :copaMatch.comp.includes('Sudamericana')?'🥈 Copa Sudamericana':'🏆 Copa Libertadores';
-  const copaT=copaMatch&&copaMatch.comp.includes('Sudamericana')?t.copa:t.lib;
+  const copaMatch=G.calendar.find(m=>m.comp&&intCopaDe(m.comp));
+  const _ek=copaMatch&&intCopaDe(copaMatch.comp), _ec=INT_COPAS[_ek]||{};
+  const copaLabel=!copaMatch?('🏆 '+copaCont()):((_ec.emoji||'🏆')+' '+(_ec.nombre||copaCont()));
+  const copaT=t.lib;
   // Best scorer across all comps
   const allScorers=Object.entries({...(t.liga.scorers||{}),...(t.lib.scorers||{}),...(t.copa.scorers||{})})
     .reduce((acc,[name,g])=>{const ex=acc.find(x=>x.name===name);ex?ex.goals+=g:acc.push({name,goals:g});return acc;},[])
@@ -20287,8 +20605,8 @@ function rSocial(){
   G._socialReal=realNews;
   const topScorer=G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
   const injured=G.squad.filter(p=>p.injured);
-  const copaMs=G.calendar.filter(m=>m.comp&&(m.comp.includes('Libertadores')||m.comp.includes('Sudamericana')));
-  const copaLabel=copaMs.length&&copaMs[0].comp.includes('Sudamericana')?'Sudamericana':'Libertadores';
+  const copaMs=G.calendar.filter(m=>m.comp&&intCopaDe(m.comp));
+  const copaLabel=copaMs.length?(INT_COPAS[intCopaDe(copaMs[0].comp)]||{}).nombre||copaCont():copaCont();
   const winStreak=((arr,r)=>{let s=0;for(let i=arr.length-1;i>=0;i--){if(arr[i]===r)s++;else break;}return s;})(G.calendar.filter(m=>m.played).map(m=>m.result),'W');
   const templates=[
     ()=>lastRes==='W'?`🔥 TREMENDO ${tn}!!! Que triunfo señores, el equipo mostró carácter. ${G.dt.name} tiene revancha guardada. ${winStreak>1?`Ya van ${winStreak} victorias seguidas 🔥`:''} Esta noche se festeja 🏆`:`Muy triste la derrota de ${tn}. El equipo tuvo chances pero no las aprovechó. ${G.losses>4?'La situación se complica... 😟':'Hay que levantar cabeza 💪'}`,
@@ -26080,9 +26398,28 @@ function advanceDay(silencioso){
   if(curDay()>=7){
     // Si la semana no tiene partido (un save viejo que saltó la pretemporada
     // sin amistosos), el mensaje de antes mentía: no había nada que jugar.
-    const _hay=(G.calendar||[]).some(m=>!m.played&&m.week<=G.week);
+    const _pend=(G.calendar||[]).filter(m=>!m.played);
+    const _hay=_pend.some(m=>m.week<=G.week);
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️ UNA SEMANA VACÍA NO PUEDE SER UN CANDADO
+    // ═══════════════════════════════════════════════════════════════════════
+    // El reloj sólo corría adentro de `simMatch`, así que una semana sin un
+    // solo partido dejaba "pasar el día" muerto para siempre: el día se
+    // planta en 7 y la semana no avanza nunca. No es hipotético — la Liga ARG
+    // reserva las semanas 20-23 para los playoffs y si NO clasificás quedan
+    // vacías; hasta ahora las tapaba de casualidad el sorteo de la copa, que
+    // buscaba semanas libres. Ahora el reloj corre una semana por click.
+    // ⚠️ Avanza de a UNA y sólo hacia un partido que existe, así que no puede
+    // quemar semanas en el vacío (el bug del `G.week++` de fallback que ya
+    // está documentado en `runContinuousSim`).
+    if(!_hay&&_pend.length){
+      G.week++; G.day=1;
+      if(!silencioso){ updateUI();
+        flash('📅 Semana sin partido — arranca la semana '+G.week,'draw'); }
+      return;
+    }
     if(!silencioso) flash(_hay?'⚽ Es día de partido: jugalo o simulalo para pasar de semana'
-                              :'📅 Esta semana no hay partido: simulá la próxima fecha para seguir','draw');
+                              :'📅 No queda ningún partido por jugar en la temporada','draw');
     return;
   }
   G.day=curDay()+1; G._daysTicked=(G._daysTicked||0)+1;
