@@ -3354,7 +3354,12 @@ function buildCal(teamName, teamId){
   const libDraw=()=>{
     const used=new Set([teamName]);
     return LIB_POTS.map(pot=>{
-      const opts=shuf(pot.filter(([n])=>!used.has(n)));
+      // Jugando un año viejo, los clubes ARGENTINOS del bombo se filtran
+      // contra la base de ese año (ver histFiltraBombo): en 2000 no puede
+      // salir Talleres, que ese año no estaba en Primera.
+      const _vivos=(typeof histFiltraBombo==='function')
+        ? new Set(histFiltraBombo(pot.map(([n])=>n))) : null;
+      const opts=shuf(pot.filter(([n])=>!used.has(n)&&(!_vivos||_vivos.has(n))));
       const pick=opts[0]||pot[0];
       used.add(pick[0]);
       return pick;
@@ -3556,7 +3561,39 @@ function intBombo(copa){
       }
     }catch(e){}
   }
-  return (C.bombo||[]).filter(c=>c!==mio);
+  return histFiltraBombo((C.bombo||[]).filter(c=>c!==mio));
+}
+// ═══════════════════════════════════════════════════════════════════════
+// UNA COPA DE 2006 NO SE JUEGA CONTRA LOS CLUBES DE 2026
+// ═══════════════════════════════════════════════════════════════════════
+// `CLAUDE.md` lo dejó anotado en la Fase 43: "Boca 2016 se cruza con Always
+// Ready y LDU Quito de la lista de hoy". Los bombos son listas escritas a
+// mano y no miran el año.
+//
+// ⚠️ LO QUE SE PUEDE ARREGLAR ES SÓLO LA MITAD, Y EL DATO LO DICE.
+// Medido sobre los 26 archivos de la carpeta: **traen únicamente 'Liga ARG' y
+// 'Primera Nacional'** — cero clubes de Brasil, Colombia, Chile, Uruguay o
+// Paraguay en 2000, 2006, 2011, 2016, 2020 ni 2025. Derivar los bombos
+// extranjeros de `PLAYERS_DB` es imposible: el dato no existe en esos
+// archivos. Lo que SÍ existe es el fútbol argentino del año, así que los
+// clubes ARGENTINOS del bombo (River, Racing, Estudiantes, Talleres…) se
+// filtran contra la base cargada: en 2000 no aparece Talleres porque ese año
+// no estaba, y aparecen los que sí.
+//
+// Con la base moderna esto es un no-op exacto (todos los clubes existen).
+function histFiltraBombo(lista){
+  if(typeof esHistorica!=='function'||!esHistorica())return lista;
+  const db=(typeof window!=='undefined'&&window.PLAYERS_DB)||[];
+  if(!db.length)return lista;
+  const hay=new Set(); db.forEach(r=>{ if(r[5])hay.add(r[5]); });
+  // Sólo se juzga al club que PODRÍA estar en esta base (o sea, el argentino).
+  // A un club brasileño no se lo borra por no estar: la base del año no trae
+  // Brasil y borrarlo dejaría el bombo vacío.
+  const fuera=lista.filter(c=>!hay.has(c));
+  const dentro=lista.filter(c=>hay.has(c));
+  const arg=(typeof AR_CLUBS!=='undefined')?new Set(AR_CLUBS):new Set();
+  const sobreviven=dentro.concat(fuera.filter(c=>!arg.has(c)));
+  return sobreviven.length>=6?sobreviven:lista;   // nunca se queda sin bombo
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -4790,6 +4827,57 @@ function selectTeam(teamId){
 // =============================================
 // INIT
 // =============================================
+// ═══════════════════════════════════════════════════════════════════════
+// LIBRES DESDE LA SEMANA 1
+// ═══════════════════════════════════════════════════════════════════════
+// El filtro "Libres" del Mercado no servía para nada hasta cerrar la primera
+// temporada: medido, **0 libres de verdad en la semana 1** (los 5.262 que
+// mostraba antes eran el falso positivo de `isFreeAgent`, ya arreglado).
+//
+// ⚠️ EL CRITERIO DEL PEDIDO DABA CERO Y HABÍA QUE MEDIRLO.
+// "jugadores cuyo club no esté en una liga jugable Y tengan `freeAgent`":
+// `freeAgent` es un flag de RUNTIME, no viene en `players-db.js` — medido,
+// **0 de 17.075 filas** lo traen, y la columna de contrato tampoco existe en
+// 17.067 de ellas. Ese AND no marca a nadie.
+//
+// Lo que sí existe: **4.554 jugadores en clubes que no juegan NINGUNA liga
+// visible** (segundas divisiones que la base trae como mercado). De ésos,
+// **434 tienen 33 años o más**. Un veterano en un club que no aparece en
+// ninguna competencia del juego es exactamente lo que en la vida real está
+// sin equipo, y soltarlo no le saca un jugador a ninguna liga jugable.
+//
+// ⚠️ Determinista por nombre, igual que `persDe` y `antiguedadInicial`: si se
+// sorteara, recargar hasta que salga el libre que querés sería una estrategia.
+// ⚠️ Corre sólo en `initGame`. Una partida guardada no se toca (la regla de
+// siempre: no se migran saves).
+const LIBRES_INI={edad:33, rat:62, max:150};
+function libresIniciales(){
+  if(!G||!G.market||!G.market.length)return 0;
+  const clubesJug=new Set();
+  try{
+    (ligasJugables()||[]).forEach(l=>{
+      (clubesDeCategoria(l)||[]).forEach(c=>{ if(c)clubesJug.add(c); });
+    });
+  }catch(e){ return 0; }
+  if(!clubesJug.size)return 0;
+  const cand=G.market.filter(p=>
+       p && !p.freeAgent && p.club && !clubesJug.has(p.club)
+    && (p.age||0)>=LIBRES_INI.edad && (p.rat||0)>=LIBRES_INI.rat);
+  if(!cand.length)return 0;
+  // orden determinista (no por `Math.random`), y los mejores primero para que
+  // el filtro tenga algo que valga la pena mirar
+  cand.sort((a,b)=>(b.rat||0)-(a.rat||0)||String(a.name).localeCompare(String(b.name)));
+  let n=0;
+  for(const p of cand){
+    if(n>=LIBRES_INI.max)break;
+    p._exLg=p.lg; p._exClub=p.club;       // nextSeason los reparte por acá
+    p.freeAgent=true; p.club='Libre'; p.lg='Libre';
+    p.contract=(G.season||2026);
+    n++;
+  }
+  if(n)lg('🆓',`${n} jugadores sin club arrancan la temporada como agentes libres`);
+  return n;
+}
 function initGame(teamId){
   teamId = teamId || 'boca';
   const tc = TEAMS[teamId] || TEAMS.boca;
@@ -4868,6 +4956,7 @@ function initGame(teamId){
   G.socios    = sociosBase();
   G.memberFee = SOCIO_CUOTA_BASE;
   G._socTitulos = 0;
+  try{ libresIniciales(); }catch(e){}        // el filtro "Libres" arranca con algo
   // Aprobación: no se guarda (se deriva de boardConf+fanMood). Lo único que
   // vive en G es el contador de semanas en crisis y el estado de destitución.
   G._aprobCrisis = 0; G._fired = false; G.paused = false;
@@ -21763,6 +21852,29 @@ const FM13={
   desvio:0.50,     // probabilidad de que un balonazo se desvíe en un cuerpo (×)
   despeje:0.115,   // chance por tick del despeje de emergencia
 };
+// ═══ EL CENTRO DESDE LA BANDA (ver fmTeamPass) ═══
+// Mutable y fuera de la función para poder hacer ablación medida, igual que
+// FM13. `centro` en 0 apaga el mecanismo entero sin tocar el código.
+const FM52={
+  // ⚠️ APAGADO (0) A PROPÓSITO — ver la Fase 52 en CLAUDE.md.
+  // El mecanismo está implementado y dispara bien, pero **0,5 veces por 90'**,
+  // y las métricas del motor se mueven 15,5 → 22,5 remates entre corridas del
+  // MISMO código. O sea: no se puede verificar que sirva ni que moleste, y la
+  // regla del proyecto es que lo inverificable no se shippea encendido.
+  // Poniéndolo en 0.42 se enciende sin tocar una línea más.
+  centro:0,                  // prob. de centrar cuando se dan las condiciones
+  tercio:0.34,               // qué tan cerca del fondo (× ancho de cancha)
+  presion:150,               // px: un rival más cerca que esto = está apretado
+  // ⚠️ QUIÉN CENTRA SE DERIVA DEL DIBUJO, NO DE `p.pos`.
+  // Medido: `p.pos` es **undefined en los 22 jugadores** del 11v11 — el motor
+  // no guarda el puesto, arma a los once con `hx`/`hy` y `roleStyle`. Un test
+  // `/^(EI|ED|MI|MD|DFI|DFD)$/` sobre `p.pos` no matcheaba NUNCA (0 de 318
+  // llamadas a `fmTeamPass` en 45 minutos). Es la misma trampa que los códigos
+  // fantasma `LD`/`LI` de la Fase 45 y el `p.teamId` de la Fase 36: el campo
+  // que parecía obvio no existe.
+  // Un carrilero es el que JUEGA abierto en la formación, y eso es `p.hy`.
+  bandaDibujo:0.20,          // |hy−mid| > esto·VH  → juega por afuera
+};
 // ⚠️ ANTES ESTO IBA RASANTE (b.air=0) porque el chequeo del lateral tenía una
 // guarda que clavaba en el borde la pelota alta. Esa guarda ya no está (la línea
 // de banda es vertical), así que el despeje va POR ARRIBA como el de la línea de
@@ -24004,6 +24116,63 @@ function fmTeamPass(team,fromIdx){
   // 40 pelotazos por partido con 50 ticks de vuelo cada uno — la pelota se
   // pasaba el 15% del partido en el aire y parecía que sólo tiraban largo a la
   // nada. Un equipo de verdad manda al 5-8% de sus pases.
+  // ═══════════════════════════════════════════════════════════════════════
+  // EL CENTRO DESDE LA BANDA — es una DECISIÓN, no un objetivo de posición
+  // ═══════════════════════════════════════════════════════════════════════
+  // En este motor sólo funcionan las palancas que cambian QUÉ elige el jugador
+  // (Fase 30), y "centrar o tocar atrás" es exactamente eso. El carrilero que
+  // llega al fondo con un rival encima no la juega para atrás: la tira al área.
+  //
+  // ⚠️ VA APAGADA (`FM52.centro` = 0): dispara 0,5 veces por 90' y el motor
+  // se mueve 15,5 → 22,5 remates entre corridas del MISMO código, así que no
+  // se puede verificar ni que sirva ni que moleste. Con 0, `Math.random()<0`
+  // nunca es true y el motor queda idéntico al de antes.
+  //
+  // Los coeficientes viven FUERA de la función y son mutables para poder hacer
+  // ablación medida, igual que `FM13`.
+  const _cx=fromP?(attRight?(f.rightGL-fromP.x):(fromP.x-f.leftGL)):1e9;
+  const _cbanda=fromP&&Math.abs(fromP.y-mid5)>f.VH*0.24;
+  const _ccarril=fromP&&!fromP.isGK&&Math.abs((fromP.hy===undefined?mid5:fromP.hy)-mid5)>f.VH*FM52.bandaDibujo;
+  if(fromP&&_ccarril&&_cbanda&&_cx<fieldW*FM52.tercio&&!holding){
+    // presionado: sin nadie encima puede seguir conduciendo, como en la cancha
+    const _cpres=rivals.reduce((a,o)=>a+(!o.isGK&&Math.hypot(o.x-fromP.x,o.y-fromP.y)<FM52.presion?1:0),0);
+    if(_cpres>=1&&Math.random()<FM52.centro){
+      const _gx=attRight?f.rightGL:f.leftGL;
+      // ⚠️ NO SE EXIGE UN COMPAÑERO YA PARADO EN EL ÁREA, y eso contradice a
+      // propósito la nota vieja ("pedir un destinatario tiró los centros de
+      // 7,5 a 2,5"). Medido ahora: cuando el carrilero llega al fondo hay
+      // **0 compañeros dentro del área** — no porque no vayan, sino porque
+      // todavía están yendo (`fmMove` los acerca de a poco). Un centro real se
+      // tira al ESPACIO, no a los pies, y el motor ya tiene el mecanismo que
+      // manda a los dos más cercanos de cada equipo al punto de caída
+      // ("el centro se va a disputar"). Así que se centra al área y el que
+      // llega, llega — que es de donde salen el cabezazo y el córner.
+      let _tx=_gx+(attRight?-1:1)*fieldW*0.11;          // punto de penal, más o menos
+      let _ty=mid5+(fromP.y<mid5?1:-1)*f.GH*0.55;       // al palo lejano
+      // si hay alguien ya perfilado, se le tira a él
+      let _tg=null,_tgS=-1e9;
+      squad.forEach((t,i)=>{
+        if(i===fromIdx||t.isGK)return;
+        const dg=Math.abs(t.x-_gx);
+        if(dg>fieldW*0.28||Math.abs(t.y-mid5)>f.GH*2.6)return;
+        const marca=rivals.reduce((a,o)=>a+(Math.hypot(o.x-t.x,o.y-t.y)<110?1:0),0);
+        const sc=(fieldW*0.28-dg)*0.5-marca*70+Math.random()*40;
+        if(sc>_tgS){_tgS=sc;_tg=t;}
+      });
+      if(_tg){ _tx=_tg.x; _ty=_tg.y; }
+      const dx=_tx-b.x, dy=_ty-b.y, dd=Math.hypot(dx,dy)||1;
+      const pwr=5.4+dd*0.0052;
+      b.vx=dx/dd*pwr; b.vy=dy/dd*pwr;
+      b.air=Math.min(46,dd/pwr*0.80);          // centro alto: se disputa de cabeza
+      b.isShot=null;
+      f._lastTouch=team; f._lastPasser={team,i:fromIdx};
+      fromP._kickT=9; if(_tg)_tg._recvTick=f.ticks+~~(dd/pwr);
+      fmSndKick(0.6);
+      if(f.learn){ f.learn.centros=(f.learn.centros||0)+1;
+                   if(!_tg)f.learn.centrosAlEspacio=(f.learn.centrosAlEspacio||0)+1; }
+      return;
+    }
+  }
   const longChance=(0.018+prof.direct*0.060+(inTrans?0.035:0))*(holding?0.3:1);
   if(fromP&&!holding&&Math.random()<longChance){
     let bestL=-1,bestLS=-1e9;

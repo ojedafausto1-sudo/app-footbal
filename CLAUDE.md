@@ -4792,6 +4792,179 @@ en la regresión: los `TEAMS` los arma `setLigaSel`, y sin eso el `find`
 devolvía `undefined` y el check terminaba jugando la Liga ARG — 30 fechas en
 vez de 38, con el assert en verde por el motivo equivocado.
 
+## Fase 52: el centro por la banda, y la línea de fondo que ya estaba bien
+
+### ⚠️ La mitad del pedido era un bug que no existe, y el eje lo delató
+
+El pedido pedía que en `fmBall` "una pelota desviada que cruza la línea fuerce
+saque de arco o córner" y que "no rebote infinitamente en los límites
+verticales", con un ejemplo que hablaba de `y=0` y `y=f.VW`. **Ese eje está
+cambiado**: en este motor `x` es el largo (`VW=2960`, `leftGL=92`,
+`rightGL=2868`) e `y` es el ancho (`VH=1600`). `y=f.VW` no es ningún límite.
+
+Medido determinista, inyectando la pelota en un `FM` de prueba y llamando a
+`fmBall(1)`:
+
+| situación | resultado |
+|---|---|
+| remate desviado que cruza la línea de fondo **por el aire** (`air=20`) | **saque de arco**, `v=0`, la pelota se planta en la línea |
+| la misma, tocada por el que defiende | **córner** |
+| pelota que cruza la banda por el aire | **saque de banda**, `v=0` |
+| pelota adentro | **no dispara nada** |
+
+O sea: **ya funcionaba**, y funciona incluso por arriba, que es el caso difícil
+—la línea de FONDO nunca tuvo la guarda del aire que sí tenía la de banda, y
+sacarle esa guarda a la banda fue justamente lo que arregló los laterales en su
+momento—. No se tocó una línea de `fmBall`; lo que se agregó es la verificación
+determinista, que es la única que vale en este motor.
+
+### El centro por la banda: implementado, medido y APAGADO
+
+Es una palanca de **decisión** (qué pase elige), que es la única categoría que
+alguna vez funcionó acá, así que valía la pena probarla: el carrilero que llega
+al fondo apretado, en vez de devolverla, tira el centro al área.
+
+⚠️ **`p.pos` es `undefined` en los 22 jugadores del 11v11.** El motor no guarda
+el puesto: arma a los once desde `hx`/`hy` y `roleStyle`. El primer intento
+filtraba con `/^(EI|ED|MI|MD|DFI|DFD)$/.test(p.pos)` y **no matcheó nunca**
+—0 de 318 llamadas a `fmTeamPass` en 45 minutos—. Es la misma trampa que los
+códigos fantasma `LD`/`LI` de la Fase 45 y el `p.teamId` de la Fase 36: el
+campo que parecía obvio no existe. Quién juega abierto se deriva del **dibujo**
+(`|p.hy − mid| > VH·FM52.bandaDibujo`).
+
+⚠️ **Y el área está VACÍA en el momento del centro.** El segundo intento exigía
+un compañero ya dentro del área y daba `destino:0`: cuando el carrilero llega
+al fondo, los delanteros todavía están entrando. Ahora el centro va al espacio
+(punto de penal / palo lejano) y elige compañero sólo si hay alguno cerca.
+
+**Resultado medido: no se puede verificar, así que va en 0.**
+
+| | remates/90 |
+|---|---|
+| baseline (rama sin escribir) | 15,5 |
+| `FM52.centro=0` (ablación) | 22,5 |
+| `FM52.centro=0.42` | 18,3 |
+
+La rama dispara **0,5 veces por 90'**, y el mismo camino de código da 15,5 y
+22,5 remates entre corridas — **45% de dispersión sobre el mismo código**. Es
+exactamente lo que la Fase 32 dejó cerrado: mientras el arnés se mueva así,
+cualquier resultado es una moneda.
+
+`FM52.centro` queda en **0**, o sea `Math.random()<0` — la rama no puede
+disparar y el motor queda idéntico al de antes. **Poniéndolo en 0.42 se
+enciende sin tocar una línea más**, para el día que haya un arnés con semilla
+fija que permita medirlo.
+
+## Fase 53: el bombo de copa contra el año — la mitad que el dato permite
+
+La Fase 43 dejó anotado que "Boca 2016 se cruza con Always Ready y LDU Quito de
+la lista de hoy". El pedido era derivar los bombos de la base del año.
+
+⚠️ **No se puede, y el dato lo dice.** Medido sobre los 26 archivos de la
+carpeta (2000, 2006, 2011, 2016, 2020, 2025): traen **únicamente `Liga ARG` y
+`Primera Nacional`** — **cero clubes de Brasil, Chile, Uruguay, Colombia o
+Paraguay**. Derivar el bombo extranjero de `PLAYERS_DB` daría una lista vacía y
+dejaría la Libertadores sin rivales. Es el mismo error que ya está documentado
+dos veces: **filtrar sin rellenar**.
+
+Lo que SÍ existe en esos archivos es el fútbol argentino del año, así que
+`histFiltraBombo(lista)` filtra **sólo a los clubes argentinos** del bombo
+contra la base cargada: en 2000 no aparece Talleres —ese año no estaba— y sí
+los que estaban. A los de afuera no se los juzga.
+
+- Con la base moderna es un **no-op exacto** (todos los clubes existen).
+- Con menos de 6 supervivientes **vuelve la lista entera**: el bombo nunca
+  puede quedarse vacío.
+- Entra por **un solo lugar**: la última línea de `intBombo` (que ya deriva de
+  `clubRank()` cuando puede) y el sorteo de grupos de `buildCal`.
+
+⚠️ **Y lo que cambia sobre el dato REAL es casi nada — conviene no venderlo
+como más de lo que es.** Medido sobre los 42 clubes de los dos bombos
+sudamericanos en las 26 temporadas de la carpeta:
+
+| año | 2000 | 2006 | 2011 | 2016 | 2020 | 2025 |
+|---|---|---|---|---|---|---|
+| clubes del bombo que se caen | **1** (Godoy Cruz) | 0 | 0 | 0 | 0 | 0 |
+
+La razón es que de los 42 sólo **seis son argentinos** (River, Racing,
+Estudiantes LP, Lanús, Godoy Cruz, Huracán) y cinco de ésos están en la base
+todos los años. El resto del bombo es extranjero y, como la base histórica no
+trae un solo club de afuera, no se lo puede juzgar. O sea: **el mecanismo es
+correcto y está blindado, pero la mejora visible es un club en un año**. Para
+que Boca 2016 deje de cruzarse con Always Ready hay que bajar los cuadros
+históricos de la Libertadores, que es otra extracción y no un filtro.
+
+⚠️ **Los nombres son los de la BASE.** El club es `'CA Talleres'`, no
+`'Talleres'`, y una clave mal escrita no dispara nunca y deja el filtro apagado
+sin que nada avise — es el bug de `STADIUMS_DB` de la Fase 23. La regresión
+verifica que el filtro pueda MORDER (3+ clubes del bombo de la Libertadores
+existen como clubes de `AR_CLUBS`).
+
+## Fase 54: libres desde la fecha 1, y dos checks que fallaban por el vecino
+
+### ⚠️ El criterio del pedido daba CERO, y había que medirlo
+
+El pedido era inyectar en `G.market` a los jugadores cuyo club no esté en
+ninguna liga jugable **y** que tengan `freeAgent` marcado. Medido sobre
+`players-db.js`:
+
+| | |
+|---|---|
+| filas con `freeAgent` | **0 de 17.075** |
+| filas con columna de contrato | 8 de 17.075 |
+| jugadores en clubes que no juegan ninguna liga visible | **4.554** |
+| de ésos, con 33 años o más | **434** |
+
+`freeAgent` es un flag de RUNTIME, no viene en la base: ese AND no marca a
+nadie. Lo que sí existe es el club invisible — segundas divisiones que la base
+trae como mercado —, y un veterano ahí es exactamente el que en la vida real
+está sin equipo.
+
+`LIBRES_INI` + `libresIniciales()`: los mejores **150** de ese conjunto con
+**33+ años y 62+ de media** arrancan la partida como agentes libres. Medido en
+la semana 1: Areola 80, José Sá 80, Morata 79, Raúl Jiménez 78, Trippier 77.
+
+- **Determinista** (orden por media y nombre, no `Math.random`): recargar hasta
+  que salga el libre que querés no puede ser una estrategia. Misma regla que
+  `persDe` y `antiguedadInicial`.
+- **No le saca un jugador a nadie**: ninguno sale de un club de una liga
+  jugable. Verificado contra `clubesDeCategoria` de las 25.
+- Llegan **sin ficha ni cláusula** (`askingPrice` y `clauseOf` ya devuelven 0
+  para un libre desde la Fase 46) y guardan `_exClub`/`_exLg`.
+- Corre **sólo en `initGame`**: una partida guardada no se toca, que es la
+  regla de siempre. Como viven en `G.market`, que se serializa, sobreviven al
+  guardado sin migrar nada.
+
+⚠️ **El check del filtro "Libres" daba por sentado que en la semana 1 no hay
+ninguno** (probaba justamente el cartel "No hay agentes libres"). Ahora fabrica
+ese caso desmarcándolos y los restaura: es el séptimo "pase vacío" del
+proyecto, sólo que atrapado antes de shippear.
+
+### Los tres checks flaky, arreglados por la causa y no por el síntoma
+
+- **`la fatiga no separa`** era Monte-Carlo: 4.000 tiradas de Poisson por
+  escenario contra un umbral con **7% de margen** (teórico sano 1,2222 / roto
+  1,7722 contra 1,650). Caía por centésimas. Pero el modelo es **determinista**,
+  así que ahora se verifica el modelo: los coeficientes se **leen de
+  `simMatch`** (copiarlos sería una segunda fuente de verdad) y la escalera de
+  `defCansada` se mide en cuatro puntos — 95%→0, 70%→0, 55%→0,50, 40%→1,00.
+  Cero estadística.
+- **`dilemas`** caía con tres sub-flags juntas (`destraba`, `saveViejo`,
+  `indisciplina`), y esa firma —tres a la vez— era la pista: las tres son
+  "`advanceDay` SÍ corre", y `advanceDay` tiene **otros tres porteros** además
+  del dilema (la prensa de la Fase 35, la destitución de la Fase 33 y el día 7
+  con partido pendiente). Cualquiera de ellos las ponía en rojo sin que el
+  dilema tuviera nada que ver. Ahora el check despeja el entorno antes de
+  medir.
+- **`personalidades`** volvió a caer, esta vez en `rebajaLeal`: buscaba un Leal
+  **entre los 30 del plantel** y el salt es aleatorio por carrera, así que una
+  corrida de cada ~125 no tenía ninguno. Se fijan las dos personalidades a
+  mano, igual que ya hacía el punto del Conflictivo.
+
+⚠️ **El patrón es siempre el mismo y ya van seis: el check falla por el vecino
+o por el dado, no por el producto.** Antes de tocar el juego porque un check se
+puso rojo, verificá el mecanismo aislado.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
