@@ -5409,6 +5409,73 @@ mandaría el mismo mensaje veinte veces.
   producto estaba roto. El escenario hay que rearmarlo entero antes de cada
   llamada.
 
+## Fase 64: la Carpeta — el Mánager cierra, el Presidente firma
+
+Delegar dejaba de ser una decisión: el Mánager gastaba la plata y vos te
+enterabas después. Ahora `weeklyJunta` **propone** y la firma la das vos.
+
+`G.boardApprovals` son objetos planos (0 funciones en `G`, verificado) de dos
+tipos, `k:'renov'` y `k:'obra'`. Retro-compatible sin migrar: `aprobaciones()`
+lee `G.boardApprovals||[]`, que en un save viejo es "no hay nada para firmar".
+
+| | |
+|---|---|
+| dónde se ve | pestaña **🗂️ Carpeta** del celular, con contador en la solapa |
+| botones | **✍️ Firmar Acuerdo** · **❌ Rechazar** |
+| la plata | sale **al firmar**, no al proponer |
+| vencen | `APROB_VENCE` = 6 semanas |
+
+- **Renovaciones**: el Mánager calcula el sueldo con la misma cuenta de
+  siempre (`renovPiso` + el recargo del mercenario), deja la carpeta y te
+  manda el mensaje. Firmar aplica contrato, sueldo y moral; rechazar no cobra
+  nada y **marca al jugador** (`_delegNo`) — si no, te lo volvía a proponer
+  todos los meses para siempre.
+- **Obras**: si la caja supera en un **30%** (`APROB_OBRA_MARGEN`) el costo de
+  una mejora disponible, la recomienda. Una por vez: una carpeta con seis
+  obras no es una recomendación. Firmar cobra y llama a `obraIniciar`, **el
+  mismo embudo que el botón de la pestaña** — la obra queda EN MARCHA, no
+  construida; eso sigue siendo cosa de `weeklyObras`.
+
+⚠️ **Las obras las recomienda cualquier Director Deportivo, las renovaciones
+siguen atadas a su switch.** No hay "delegar obras" y una recomendación no
+compromete plata: la firma sí, y la firma la das vos.
+
+⚠️ **`juntaRenovFin` (el barrido del cierre de temporada) NO se tocó.** Ahí los
+contratos se vencen en el mismo salto, así que convertirlo en carpeta sería
+dejar la carpeta sin tiempo de firmarse.
+
+### ⚠️ El bug que destapó la medición: cuatro carpetas con el MISMO id
+
+`_aprobPush` armaba el `aid` con `Date.now()`. Las cuatro carpetas de una misma
+corrida de `weeklyJunta` se crean **dentro del mismo milisegundo**, así que
+salían todas con el mismo id y `findIndex` devolvía siempre la primera:
+**firmar una renovación ejecutaba la OBRA y cobraba 120M en vez de 0,5M.**
+Medido. Ahora el id sale de un contador entero en `G` (`G._aprobSeq`), que
+sobrevive al guardado y arranca en 0 en un save viejo.
+
+### Lo que se revalida al firmar
+
+Entre que el Mánager cierra y vos firmás pasan semanas, así que `aprobFirmar`
+comprueba de nuevo: que haya caja, que el jugador siga en el plantel, y que la
+obra no esté ya construida o en marcha. Si algo cambió, la carpeta se descarta
+con un aviso en vez de aplicar un acuerdo viejo.
+
+### ⚠️ Y el check `staff` daba 0% — pero no estaba roto
+
+Medía "cuántos contratos CIERRA el Director por nivel", y ahora no cierra
+ninguno: propone. Se mide lo mismo sobre las PROPUESTAS, que es la parte que
+sigue siendo suya, y la monotonía se mantiene:
+
+| nivel del Director | acuerdos alcanzados | sueldo mediano |
+|---|---|---|
+| 90 | **85-95%** | **36k** |
+| 40 | 45-47% | 50k |
+
+Y su assert de UI apagaba `G.delegaRenov` para probar que el switch prende;
+desde la Fase 63 el estado vive en `G.delegation`, así que el switch se
+dibujaba en ON y el toggle lo apagaba. Es el mismo patrón de siempre: **el
+check falla por el vecino, no por el producto.**
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

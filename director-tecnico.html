@@ -1135,6 +1135,7 @@ window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
       <button class="ph-tab" onclick="phTab('dt',this)">💬 Chat DT</button>
       <button class="ph-tab" onclick="phTab('player',this)">👥 Plantel</button>
       <button class="ph-tab" onclick="phTab('agent',this)">🤝 Ofertas</button>
+      <button class="ph-tab" onclick="phTab('carpeta',this)">🗂️ Carpeta <span id="phCarpN"></span></button>
     </div>
     <div class="ph-screen" id="phScreen"></div>
   </div>
@@ -13410,16 +13411,62 @@ const CONF_MORAL_IND=6;   // y lo que baja la de cada jugador
 // leería como un bug.
 const DELEG_SEMANAS=4;   // revisa una vez por mes, no todas las semanas
 function delegaRenov(){ return delegado('renov'); }
+// ══════════════════════════════════════════════════════════════════════
+// LA CARPETA: EL MÁNAGER CIERRA, EL PRESIDENTE FIRMA
+// ══════════════════════════════════════════════════════════════════════
+// Delegar dejaba de ser una decisión: el Mánager gastaba la plata y vos te
+// enterabas después. Ahora deja la carpeta sobre el escritorio.
+// Objetos PLANOS, 0 funciones en `G`. Retro-compatible sin migrar:
+// `aprobaciones()` lee `G.boardApprovals||[]`, que en un save viejo es
+// exactamente "no hay nada para firmar".
+const APROB_VENCE=6;                 // semanas que la carpeta espera
+function aprobaciones(){ return (G&&G.boardApprovals)||[]; }
+function _aprobPush(o){
+  if(!G)return null;
+  G.boardApprovals=G.boardApprovals||[];
+  // ⚠️ CONTADOR, NO `Date.now()`. Las cuatro carpetas de una misma corrida
+  // de `weeklyJunta` se crean dentro del MISMO milisegundo, así que con la
+  // marca de tiempo salían con el mismo `aid` y `findIndex` devolvía siempre
+  // la primera: firmar una renovación ejecutaba la OBRA y cobraba 120M en vez
+  // de 0,5M. Medido. El contador es un entero plano en `G`, así que sobrevive
+  // al guardado y un save viejo arranca en 0.
+  G._aprobSeq=(G._aprobSeq||0)+1;
+  o.aid='ap'+G._aprobSeq;
+  o.week=G.week||1;
+  G.boardApprovals.push(o);
+  return o;
+}
+// ⚠️ Vencen solas y hay que limpiarlas ANTES de proponer, o el mismo
+// jugador se propondría otra vez estando ya en la carpeta.
+function aprobLimpiar(){
+  if(!G||!G.boardApprovals)return;
+  const w=G.week||1;
+  G.boardApprovals=G.boardApprovals.filter(a=>{
+    if(w-(a.week||w)>APROB_VENCE){
+      lg('🗂️',`Se venció sin firmar: ${a.titulo}`);
+      return false;
+    }
+    return true;
+  });
+}
 function weeklyJunta(){
   if(!G||!G.squad) return;
+  aprobLimpiar();
   if((G.week||1)%DELEG_SEMANAS!==0) return;
   const dir=dirDeportivo();
-  if(!delegado('renov')||!dir) return;
+  if(!dir) return;
+  // ⚠️ Las OBRAS las recomienda cualquier Director Deportivo: no hay switch
+  // de "delegar obras" y una recomendación no compromete plata — la firma sí,
+  // y la firma la das vos. Las RENOVACIONES siguen atadas a su switch.
+  juntaObras(dir);
+  if(!delegado('renov')) return;
   // Sólo los que se vencen a fin de esta temporada
-  const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season&&!p._delegNo);
+  const yaEnCarpeta=new Set(aprobaciones().filter(a=>a.k==='renov').map(a=>a.pid));
+  const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season
+                                 &&!p._delegNo&&!yaEnCarpeta.has(p.id));
   if(!porVencer.length) return;
   const n=Math.max(40,Math.min(90,dir.nivel||55));
-  let cerr=0, gastado=0, fallo=0;
+  let prop=0, fallo=0;
   porVencer.slice(0,3).forEach(p=>{
     // Cuánto pide, con el recargo del mercenario que ya aplica openContract
     const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
@@ -13430,21 +13477,101 @@ function weeklyJunta(){
     const cost=Math.round(wage*years*4/1000*10)/10;
     // Convencerlo también depende del nivel del que negocia
     if(Math.random()>0.42+(n-40)/50*0.45){ p._delegNo=true; fallo++; return; }
-    if(G.budget<cost){ return; }
-    G.budget=Math.round((G.budget-cost)*10)/10;
-    if(cost>0&&typeof finAnota==='function') finAnota('otros_out',cost,'Renovación de '+p.name+' (Junta)');
-    p.wage=wage; p.contract=G.season+years;
-    p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+6);
-    cerr++; gastado+=cost;
+    // ⚠️ La plata NO se descuenta acá: se descuenta al FIRMAR. Si saliera
+    // ahora, la carpeta sería decorativa y rechazar no devolvería nada.
+    _aprobPush({k:'renov', pid:p.id, nombre:p.name, wage, years, cost,
+      titulo:'Renovación de '+p.name,
+      detalle:`${p.pos} · ${p.age} años · media ${p.rat} — ${fv(wage/1000)}/sem por ${years} año(s)`});
+    addPhoneMsg('board',dir.name,
+      `🖊️ Presidente, me senté con <b>${p.name}</b> y acordamos su renovación por `+
+      `<b style="color:var(--gold)">${fv(cost)}</b> (${years} año(s)). `+
+      `Está la carpeta en su escritorio para la firma.`,'🗂️');
+    prop++;
   });
-  if(cerr){
-    lg('🏛️',`${dir.name} renovó ${cerr} contrato(s) por ${fv(Math.round(gastado*10)/10)}`);
-    addPhoneMsg('board',dir.name,
-      `🖊️ Presidente, cerré <b>${cerr} renovación${cerr>1?'es':''}</b> sin molestarlo: ${fv(Math.round(gastado*10)/10)} en total.${fallo?` A ${fallo} no lo pude convencer, ese lo va a tener que ver usted.`:''}`,'🏛️');
-  } else if(fallo){
-    addPhoneMsg('board',dir.name,
+  if(prop) lg('🗂️',`${dir.name} dejó ${prop} acuerdo(s) para firmar`);
+  if(fallo) addPhoneMsg('board',dir.name,
       `😕 Presidente, no llegamos a un acuerdo con ${fallo} jugador${fallo>1?'es':''}. Va a tener que sentarse usted.`,'🏛️');
+}
+// ═══ RECOMENDACIÓN DE OBRAS ═══
+// Si la caja supera en 30% el costo de una mejora disponible, el Mánager la
+// propone. Una por vez: una carpeta con seis obras no es una recomendación.
+const APROB_OBRA_MARGEN=1.30;
+function juntaObras(dir){
+  if(!G||!dir)return;
+  if(aprobaciones().some(a=>a.k==='obra'))return;
+  const enObra=new Set((typeof obras==='function'?obras():[]).map(o=>o.id));
+  const cand=[];
+  const ver=(arr,tipo)=>{ (arr||[]).forEach(u=>{
+    if(!u||u.built||enObra.has(u.id))return;
+    if(G.budget < u.cost*APROB_OBRA_MARGEN)return;
+    cand.push({u,tipo}); }); };
+  ver(G.stadium&&G.stadium.upgrades,'stadium');
+  ver(G.youth&&G.youth.upgrades,'youth');
+  if(!cand.length)return;
+  // la más cara que la caja banca: es la que mueve la aguja
+  cand.sort((a,b)=>b.u.cost-a.u.cost);
+  const {u,tipo}=cand[0];
+  _aprobPush({k:'obra', tipo, id:u.id, nombre:u.name, cost:u.cost,
+    titulo:u.name,
+    detalle:`${tipo==='youth'?'Inferiores':'Estadio'} · ${fv(u.cost)} · `+
+            `${(typeof obraSemanas==='function'?obraSemanas(u):8)} semanas de obra`});
+  addPhoneMsg('board',dir.name,
+    `🏗️ Presi, hay plata para construir <b>${u.name}</b> (${fv(u.cost)}). ¿Avanzamos? `+
+    `Le dejé la propuesta en la carpeta.`,'🗂️');
+}
+// ═══ FIRMAR / RECHAZAR ═══
+function aprobFirmar(aid){
+  if(!G)return;
+  const i=(G.boardApprovals||[]).findIndex(a=>a.aid===aid);
+  if(i<0)return;
+  const a=G.boardApprovals[i];
+  if(G.budget<a.cost){ flash('❌ No alcanza la caja para firmar ('+fv(a.cost)+')','loss'); return; }
+  if(a.k==='renov'){
+    // ⚠️ El jugador puede haberse ido, lesionado de gravedad o vencido el
+    // contrato entre que el Mánager cerró y vos firmaste. Se revalida.
+    const p=(G.squad||[]).find(x=>x.id===a.pid);
+    if(!p){ flash('❌ '+a.nombre+' ya no está en el plantel','loss');
+            G.boardApprovals.splice(i,1); rPhone(); return; }
+    G.budget=Math.round((G.budget-a.cost)*10)/10;
+    if(a.cost>0&&typeof finAnota==='function') finAnota('otros_out',a.cost,'Renovación de '+p.name+' (Junta)');
+    p.wage=a.wage; p.contract=(G.season||2026)+a.years;
+    p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+6);
+    lg('✍️',`Firmaste la renovación de ${p.name}: ${fv(a.cost)} por ${a.years} año(s)`);
+    flash('✍️ '+p.name+' renovado hasta '+p.contract,'win');
+  } else if(a.k==='obra'){
+    const arr=a.tipo==='youth'?(G.youth&&G.youth.upgrades):(G.stadium&&G.stadium.upgrades);
+    const u=(arr||[]).find(x=>x.id===a.id);
+    if(!u||u.built){ flash('❌ Esa obra ya no está disponible','loss');
+                     G.boardApprovals.splice(i,1); rPhone(); return; }
+    if((typeof obras==='function'?obras():[]).some(o=>o.id===u.id)){
+      flash('⏳ Esa obra ya está en marcha','draw');
+      G.boardApprovals.splice(i,1); rPhone(); return; }
+    G.budget=Math.round((G.budget-u.cost)*10)/10;
+    obraIniciar(u,a.tipo);            // el mismo embudo que el botón de la pestaña
   }
+  G.boardApprovals.splice(i,1);
+  rPhone(); updateUI();
+}
+function aprobRechazar(aid){
+  if(!G)return;
+  const i=(G.boardApprovals||[]).findIndex(a=>a.aid===aid);
+  if(i<0)return;
+  const a=G.boardApprovals[i];
+  const dir=dirDeportivo();
+  // ⚠️ Rechazar una renovación marca al jugador (`_delegNo`): si no, el
+  // Mánager te lo volvía a proponer al mes siguiente, para siempre.
+  if(a.k==='renov'){
+    const p=(G.squad||[]).find(x=>x.id===a.pid);
+    if(p){ p._delegNo=true; p.morale=Math.max(0,(p.morale===undefined?60:p.morale)-4); }
+    if(dir)addPhoneMsg('board',dir.name,
+      `😕 Entendido, presidente. Le aviso a <b>${a.nombre}</b> que la renovación no va. No le va a caer bien.`,'🏛️');
+  } else if(dir){
+    addPhoneMsg('board',dir.name,
+      `👍 Como diga, presidente. Guardo la carpeta de <b>${a.nombre}</b> por si más adelante.`,'🏛️');
+  }
+  lg('❌','Rechazaste: '+a.titulo);
+  G.boardApprovals.splice(i,1);
+  rPhone(); updateUI();
 }
 function weeklyConflictivos(){
   if(!G||!G.squad||!G.squad.length)return;
@@ -26447,6 +26574,10 @@ function updatePhoneBadge(){
   const badge = document.getElementById('phoneBadge');
   if(btn) btn.style.display = phoneShouldShow() ? 'flex' : 'none';
   if(!badge) return;
+  // Lo que falta firmar se ve sin abrir el celúlar
+  const nCarp=(typeof aprobaciones==='function')?aprobaciones().length:0;
+  const elC=document.getElementById('phCarpN');
+  if(elC) elC.textContent=nCarp?'('+nCarp+')':'';
   const unread = (G && G.phoneMsgs) ? G.phoneMsgs.filter(m=>!m.read).length : 0;
   if(unread > 0){
     badge.textContent = unread > 9 ? '9+' : unread;
@@ -28031,6 +28162,45 @@ function rPhone(){
             <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last?(last.from==='me'?'Vos: ':'')+last.txt:p.pos+' · Moral '+(p.morale===undefined?70:p.morale)+'%'}</div>
           </div>
           ${th.length?`<span style="font-size:8px;color:var(--gold)">${th.length}💬</span>`:''}
+        </div>`;
+      }).join('');
+    return;
+  }
+  // ═══ CARPETA: LO QUE EL MÁNAGER CERRÓ Y FALTA QUE FIRMES ═══
+  if(_phTab==='carpeta'){
+    const A=aprobaciones();
+    if(!A.length){
+      const dir=dirDeportivo();
+      scr.innerHTML=`<div class="ph-empty">🗂️<br>No hay nada para firmar.<br>
+        <span style="font-size:9px;color:var(--t3)">${dir
+          ? (delegado('renov')
+             ? 'Cuando '+dir.name+' cierre una renovación o encuentre una obra que la caja banque, la carpeta aparece acá.'
+             : dir.name+' puede recomendarte obras, pero para que negocie renovaciones tenés que delegarlas en el Centro de Delegación.')
+          : 'Sin Director Deportivo nadie negocia por vos.'}</span></div>`;
+      return;
+    }
+    const w=G.week||1;
+    scr.innerHTML='<div style="font-size:9px;color:var(--t3);padding:2px 2px 8px">'
+      +'Acuerdos cerrados por el Mánager. <b>La plata sale recién cuando firmás.</b></div>'
+      + A.map(a=>{
+        const quedan=Math.max(0,APROB_VENCE-(w-(a.week||w)));
+        const alcanza=G.budget>=a.cost;
+        return `<div class="mpanel" style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11.5px;font-weight:700">${a.k==='obra'?'🏗️':'🖊️'} ${a.titulo}</div>
+              <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${a.detalle}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="sv-n" style="font-size:14px;color:${alcanza?'var(--gold)':'var(--red)'}">${fv(a.cost)}</div>
+              <div style="font-size:8px;color:var(--t3)">vence en ${quedan} sem</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn bg bs" style="flex:1" ${alcanza?'':'disabled'} onclick="aprobFirmar('${a.aid}')">✍️ Firmar Acuerdo</button>
+            <button class="btn bs" style="flex:1" onclick="aprobRechazar('${a.aid}')">❌ Rechazar</button>
+          </div>
+          ${alcanza?'':'<div style="font-size:9px;color:var(--red);margin-top:5px">No alcanza la caja ('+fv(G.budget)+')</div>'}
         </div>`;
       }).join('');
     return;
