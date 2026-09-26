@@ -5329,6 +5329,86 @@ recién ascendido con 10.000 localidades cobraba por el nombre de su estadio
   lo que cobra el balance semanal, así que si no, el naming se firmaría
   escalado y se cobraría plano.
 
+## Fase 63: el Mánager y el Centro de Delegación
+
+### El club arranca con Director Deportivo
+
+La Junta dependía de que volviera un ídolo, y eso tarda **dos temporadas
+después** de que la leyenda deje el plantel (Fase 37): en una partida nueva
+`G.board` quedaba vacío y con él todo el Centro de Delegación. Ahora
+`juntaManagerInicial()` mete un DD de carrera desde el día uno, desde
+`initGame`.
+
+| reputación | 35 | 62 | 78 | 92 |
+|---|---|---|---|---|
+| nivel del Mánager | 52 | 66 | **74** | 81 |
+
+- El nombre sale de **`_youthName(_ligaActual())`**, o sea del pool real de tu
+  liga: un Director Deportivo llamado "Thiago González" dirigiendo en Bélgica
+  es justo el bug que acaba de arreglar la Fase 59.
+- ⚠️ **Va marcado `generico:true` y el ídolo le SACA el cargo.** Sin eso, con
+  un DD puesto desde el arranque, el primer ídolo que volviera sería Vocal
+  para siempre y la Fase 37 quedaba sin sentido. Ahora `juntaTick` lo pasa a
+  Vocal y avisa. Verificado.
+
+### ⚠️ `G.delegation` NO es un campo nuevo al lado del que ya había
+
+`G.delegaRenov` existía y lo leían **tres** lugares. Crear `G.delegation.renov`
+al lado sería la **séptima** vez que este proyecto duplica un estado
+(`G.members`, `G.captainId`, `_DIL_LOCK`, `DT_ARCHETYPES`, `G.approval`,
+`sellOnPct`, el contador de congestión de la Fase 60).
+
+Hay **un solo portero**, `delegado(k)`, y los tres lectores pasan por él. El
+campo viejo queda como **fallback de LECTURA** para los saves que ya lo traen
+— la regla de siempre: no se migra el save, se pone el default en el punto de
+lectura. Verificado con un save al que se le borra `G.delegation`.
+
+`delegado(k)` devuelve false sin Director Deportivo: **sin Mánager no se
+delega nada**.
+
+### El paragolpes de prensa
+
+Con `G.delegation.press`, la conferencia por hito **no se encola**.
+
+⚠️ **Se corta en `prensaHito`, no en `prensaFrena`.** La conferencia frena el
+club por las cinco puertas del tiempo y el candado se deriva del DOM (Fase 35):
+si dejáramos la conferencia encolada y sólo apagáramos el freno, un save
+recargado la encontraría pendiente y volvería a trabar la pantalla.
+
+⚠️ **Y el cooldown se toca igual** (`G._confUltima`): si no, la primera
+conferencia después de sacar la delegación saldría con el reloj de hace veinte
+fechas.
+
+Medido: no encola, `prensaFrena()` da false, sale la noticia en `G.news`, y
+**la aprobación y la moral quedan exactamente iguales** — que es el trato. Sin
+delegar sigue frenando.
+
+### El paragolpes del DT
+
+Con `G.delegation.dt`, la queja por dejar al capitán afuera la absorbe el
+Mánager. Medido, el mismo escenario con y sin delegación:
+
+| | `dtRel` | moral |
+|---|---|---|
+| delegado | 65 → **65** | 72 → **72** |
+| sin delegar | 65 → **51** | 72 → **66** |
+
+⚠️ **La marca de semana (`G._capQuejaSem`) se pone IGUAL antes de salir**: si
+no, la queja se re-evaluaría en cada render de la misma semana y el Mánager
+mandaría el mismo mensaje veinte veces.
+
+### ⚠️ Dos trampas del instrumento, las dos costaron una medición
+
+- **`G.dtRel` se crea perezosamente** (65 recién en el primer `setDtRel`), así
+  que el primer assert comparaba `undefined` contra `undefined` y daba verde
+  **sin probar nada** — el octavo pase vacío de este proyecto, atrapado antes
+  de shippear.
+- **`capitanTrasOnce` REASIGNA la cinta al terminar**, así que en la segunda
+  llamada el "capitán anterior" ya era el que sí está en el once y la queja no
+  podía dispararse: el caso "sin delegar" daba 0 de castigo y parecía que el
+  producto estaba roto. El escenario hay que rearmarlo entero antes de cada
+  llamada.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

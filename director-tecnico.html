@@ -5089,6 +5089,7 @@ function initGame(teamId){
   G.memberFee = SOCIO_CUOTA_BASE;
   G._socTitulos = 0;
   try{ libresIniciales(); }catch(e){}        // el filtro "Libres" arranca con algo
+  try{ juntaManagerInicial(); }catch(e){}    // y el club arranca con un Mánager
   // Aprobación: no se guarda (se deriva de boardConf+fanMood). Lo único que
   // vive en G es el contador de semanas en crisis y el estado de destitución.
   G._aprobCrisis = 0; G._fired = false; G.paused = false;
@@ -5413,6 +5414,28 @@ function prensaHito(hito,dato){
   // sin esto, una goleada de la fecha siguiente te borraba la del título.
   if(ya){
     if((PRENSA_HITOS[hito].prio||0) <= (PRENSA_HITOS[ya.hito]||{prio:0}).prio) return false;
+  }
+  // ═══ EL PARAGOLPES: EL MÁNAGER DA LA CARA ═══
+  // ⚠️ Se corta ACÁ y no en `prensaFrena`. La conferencia frena el club por
+  // las cinco puertas del tiempo (Fase 35) y el candado se deriva del DOM:
+  // si dejáramos encolada la conferencia y sólo apagáramos el freno, un save
+  // recargado la encontraría pendiente y volvería a trabar la pantalla. Con
+  // delegación no se encola nada.
+  // ⚠️ Y el cooldown se toca igual (`G._confUltima`): si no, la primera
+  // conferencia que jugaras después de sacar la delegación saldría con el
+  // reloj de hace veinte fechas.
+  if(delegado('press')){
+    const dd=dirDeportivo();
+    const T={bomba:'el fichaje',goleada:'la goleada',titulo:'el título'}[hito]||'lo que pasó';
+    G._confUltima=sem;
+    addPhoneMsg('board',dd.name,
+      `🎙️ Presidente, fui yo a la sala de prensa por ${T} y calmé las aguas. No hace falta que salga usted.`,'🎙️');
+    if(!G.news)G.news=[];
+    G.news.unshift({w:'S'+sem,ic:'🎙️',type:'club',
+      msg:`El Mánager habló en conferencia sobre ${T} y calmó las aguas.`});
+    if(typeof newsRecortar==='function')newsRecortar();
+    lg('🎙️',`${dd.name} atendió a la prensa por ${T} (delegado)`);
+    return false;                      // efecto neutro: 0 aprobación, 0 moral
   }
   G.confPend={hito, dato:dato||{}, week:sem};
   return true;
@@ -6053,6 +6076,20 @@ function capitanTrasOnce(){
   const forzados = xi.filter(p=>p._forced>0);
   if(capAfuera && forzados.length && G._capQuejaSem!==(G.week||1)){
     G._capQuejaSem=(G.week||1);
+    // ═══ EL PARAGOLPES: EL MÁNAGER LO ATAJA ═══
+    // ⚠️ La marca de semana se pone IGUAL antes de salir: si no, la queja
+    // volvería a evaluarse en cada render de la misma semana y el Mánager
+    // mandaría el mismo mensaje veinte veces.
+    // El castigo se anula entero (dtRel y moral): es lo que se está comprando.
+    if(delegado('dt')){
+      const dd=dirDeportivo();
+      addPhoneMsg('board',dd.name,
+        `☕ Me junté a tomar un café con el técnico por el armado del equipo, ya lo tranquilicé. Lo de <b>${capViejo.name}</b> queda ahí.`,'☕');
+      lg('☕',`${dd.name} destrabó la queja del DT por ${capViejo.name} (delegado)`);
+      R.captain=dtPicksCaptain();
+      const cf0=capConflicto(); G._capPen=cf0.pen||0;
+      return;
+    }
     if(typeof setDtRel==='function')setDtRel(-14);
     G.morale=Math.max(0,(G.morale||60)-6);
     addPhoneMsg('dt',(G.dt&&G.dt.name)||'El técnico',
@@ -12753,7 +12790,7 @@ const JUNTA_RENOV_MAX=5;
 function juntaRenovFin(){
   if(!G||!G.squad) return 0;
   const dir=(typeof dirDeportivo==='function')?dirDeportivo():null;
-  if(!G.delegaRenov||!dir) return 0;
+  if(!delegado('renov')||!dir) return 0;
   const n=Math.max(40,Math.min(90,dir.nivel||55));
   const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season)
     .sort((a,b)=>(b.val||0)-(a.val||0)).slice(0,JUNTA_RENOV_MAX);
@@ -13372,12 +13409,12 @@ const CONF_MORAL_IND=6;   // y lo que baja la de cada jugador
 // usaran números distintos, delegar cambiaría el precio de las cosas y eso se
 // leería como un bug.
 const DELEG_SEMANAS=4;   // revisa una vez por mes, no todas las semanas
-function delegaRenov(){ return !!(G&&G.delegaRenov&&dirDeportivo()); }
+function delegaRenov(){ return delegado('renov'); }
 function weeklyJunta(){
   if(!G||!G.squad) return;
   if((G.week||1)%DELEG_SEMANAS!==0) return;
   const dir=dirDeportivo();
-  if(!G.delegaRenov||!dir) return;
+  if(!delegado('renov')||!dir) return;
   // Sólo los que se vencen a fin de esta temporada
   const porVencer=G.squad.filter(p=>p.contract&&p.contract<=G.season&&!p._delegNo);
   if(!porVencer.length) return;
@@ -14040,6 +14077,60 @@ const JUNTA_MAX=4;
 const JUNTA_ESPERA=2;   // temporadas fuera del club antes de volver de traje
 function junta(){ return (G&&G.board)||[]; }
 function dirDeportivo(){ return junta().find(m=>m&&m.role==='Director Deportivo')||null; }
+// ═══ EL CLUB ARRANCA CON UN MÁNAGER ═══
+// La Junta dependía de que volviera un ídolo, y eso tarda dos temporadas
+// DESPUÉS de que la leyenda deje el plantel (Fase 37): en una partida nueva
+// `G.board` quedaba vacío y con él todo el Centro de Delegación. Ahora entra
+// un Director Deportivo de carrera desde el día uno.
+// ⚠️ Va MARCADO (`generico:true`) porque el ídolo que vuelve tiene que poder
+// sacarle el cargo: si no, el primero que llegara sería Vocal para siempre y
+// la Fase 37 quedaba sin sentido.
+// ⚠️ El nombre sale del mismo pool que la cantera (`_youthName`), o sea de
+// los jugadores REALES de tu liga: un DD llamado "Thiago González" dirigiendo
+// en Bélgica es el bug que acaba de arreglar la Fase 59.
+function juntaManagerInicial(){
+  if(!G) return null;
+  G.board=G.board||[];
+  if(G.board.length) return null;                 // ya hay Junta: no se toca
+  const rep=(G.rep===undefined?50:G.rep);
+  // Un club grande contrata mejor: rep 35 → 52, rep 78 → 74, rep 92 → 81
+  const nivel=Math.max(45,Math.min(82,Math.round(34+rep*0.51)));
+  let nom='Director Deportivo';
+  try{ nom=_youthName(_ligaActual()); }catch(e){}
+  const m={id:'dd0', name:nom, pos:'', role:'Director Deportivo',
+           nivel, desde:(G.season||2026), generico:true};
+  G.board.push(m);
+  return m;
+}
+// ═══ CENTRO DE DELEGACIÓN ═══
+// ⚠️ `G.delegaRenov` YA EXISTÍA y lo leían tres lugares. Crear
+// `G.delegation.renov` al lado sería la séptima vez que este proyecto duplica
+// un estado (`G.members`, `G.captainId`, `_DIL_LOCK`, `DT_ARCHETYPES`,
+// `G.approval`, `sellOnPct`, el contador de congestión). Así que hay UN solo
+// portero, `delegado(k)`, y el campo viejo queda como **fallback de lectura**
+// para los saves que ya lo tienen — la regla de siempre: no se migra el save,
+// se pone el default en el punto de lectura.
+const DELEG_KEYS=['press','dt','renov'];
+function delegacion(){ if(!G)return {}; G.delegation=G.delegation||{}; return G.delegation; }
+function delegado(k){
+  if(!G||!dirDeportivo()) return false;           // sin Director no se delega nada
+  const d=(G.delegation)||{};
+  if(d[k]!==undefined) return !!d[k];
+  if(k==='renov') return !!G.delegaRenov;         // save viejo
+  return false;
+}
+function delegarToggle(k){
+  if(!G) return;
+  if(DELEG_KEYS.indexOf(k)<0) return;
+  if(!dirDeportivo()){ flash('No tenés Director Deportivo','loss'); return; }
+  const d=delegacion();
+  const v=!delegado(k);
+  d[k]=v;
+  if(k==='renov') G.delegaRenov=v;                // el campo viejo, en sincronía
+  const N={press:'la prensa',dt:'las quejas del técnico',renov:'las renovaciones'}[k];
+  flash((v?'✅ Delegaste ':'↩️ Volvés a manejar ')+N+(v?' en '+dirDeportivo().name:' vos'),v?'win':'draw');
+  rJunta();
+}
 function juntaSumar(p,role,nivel){
   if(!G) return null;
   G.board=G.board||[];
@@ -14073,7 +14164,15 @@ function juntaTick(){
   const l=cand[0];
   const nivel=Math.max(40,Math.min(90,Math.round(
     (l.rat||70)*0.55 + Math.min(20,(l.apps||0)/12) + Math.min(8,(l.goals||0)/6))));
-  const role=dirDeportivo()?'Vocal':'Director Deportivo';
+  // ⚠️ El ídolo le saca el cargo al DD de carrera: si no, con el mánager
+  // inicial puesto el primero que volviera sería Vocal para siempre.
+  const dd=dirDeportivo();
+  const role=(!dd||dd.generico)?'Director Deportivo':'Vocal';
+  if(dd&&dd.generico){
+    dd.role='Vocal';
+    addPhoneMsg('board','Comisión Directiva',
+      `🏛️ <b>${dd.name}</b> deja la Dirección Deportiva y pasa a Vocal: el cargo lo toma <b>${l.name}</b>, que es de la casa.`,'🏛️');
+  }
   juntaSumar({id:l.id,name:l.name,pos:l.pos},role,nivel);
 }
 function esLeyenda(p){
@@ -25996,25 +26095,37 @@ function rJunta(){
           <div class="sv-n" style="font-size:17px;color:${m.nivel>=70?'var(--green)':m.nivel>=55?'var(--gold)':'var(--red)'}">${m.nivel}</div></div>
       </div>${barra(m.nivel)}
     </div>`).join('')
-  + (dir?`
-    <div class="mpanel" style="margin-top:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+  + (dir?(()=>{
+    // ═══ CENTRO DE DELEGACIÓN ═══
+    // Tres cosas que el Mánager te puede sacar de encima. Los switches van
+    // dentro de un `.mpanel` que vive dentro de una `.card` con vidrio real,
+    // así que NO llevan `backdrop-filter`: sería anidarlo.
+    const items=[
+      {k:'renov', ic:'🖊️', t:'Renovaciones',
+       d:`${dir.name} cierra solo los contratos que se vencen. Negocia según su nivel (<b>${dir.nivel}</b>): `+
+         (dir.nivel>=70?'aprieta bien y te ahorra plata':dir.nivel>=55?'cierra razonable':'paga de más y a veces no convence a nadie')+'.'},
+      {k:'press', ic:'🎙️', t:'Prensa',
+       d:'Las conferencias por hito dejan de frenarte el club: va él y el efecto es <b>neutro</b> — no sumás aprobación, pero tampoco la perdés.'},
+      {k:'dt', ic:'☕', t:'Quejas del DT',
+       d:'Cuando le imponga un jugador al técnico y quede el capitán afuera, lo arregla él: no se cae la relación con el DT ni la moral.'},
+    ];
+    return `<div class="mpanel" style="margin-top:8px">
+      <div class="mpanel-t">🎯 Centro de Delegación</div>`
+      + items.map(it=>`
+      <div class="mpanel-row" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <div style="flex:1">
-          <div style="font-size:11.5px;font-weight:700">🖊️ Delegar Renovaciones</div>
-          <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${dir.name} cierra solo los contratos que se vencen. Negocia según su nivel (<b>${dir.nivel}</b>): ${dir.nivel>=70?'aprieta bien y te ahorra plata':dir.nivel>=55?'cierra razonable':'paga de más y a veces no convence a nadie'}.</div>
+          <div style="font-size:11.5px;font-weight:700">${it.ic} ${it.t}</div>
+          <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${it.d}</div>
         </div>
-        <div class="sw${G.delegaRenov?' on':''}" onclick="toggleDelegar()" title="Delegar renovaciones"><i></i></div>
-      </div>
-    </div>`
+        <div class="sw${delegado(it.k)?' on':''}" onclick="delegarToggle('${it.k}')" title="Delegar ${it.t.toLowerCase()}"><i></i></div>
+      </div>`).join('')
+      + `<div style="font-size:9px;color:var(--t3);margin-top:6px">Delegar te saca peso de encima, pero también te saca el crédito: lo que resuelve el Mánager no te suma aprobación.</div>
+    </div>`;
+  })()
   :`<div style="font-size:10px;color:var(--t3);margin-top:6px">Sin Director Deportivo no se puede delegar: el primer ídolo que llega toma ese cargo.</div>`);
 }
-function toggleDelegar(){
-  if(!G) return;
-  if(!dirDeportivo()){ flash('No tenés Director Deportivo','loss'); return; }
-  G.delegaRenov=!G.delegaRenov;
-  flash(G.delegaRenov?'🖊️ Renovaciones delegadas en '+dirDeportivo().name:'🖊️ Volvés a manejar las renovaciones vos',G.delegaRenov?'win':'draw');
-  rJunta();
-}
+// Compat: la firma vieja sigue andando (un onclick viejo en un save/pantalla).
+function toggleDelegar(){ delegarToggle('renov'); }
 function rPresTab(){
   if(!G) return;
   // Memoria de la carrera: vitrina + curva del patrimonio
