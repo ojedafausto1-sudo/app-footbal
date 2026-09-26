@@ -5476,6 +5476,60 @@ desde la Fase 63 el estado vive en `G.delegation`, así que el switch se
 dibujaba en ON y el toggle lo apagaba. Es el mismo patrón de siempre: **el
 check falla por el vecino, no por el producto.**
 
+## Fase 65: encargarle un fichaje al Consejo
+
+Botón **🤝 Encargar fichaje al Consejo** arriba del Mercado. Elegís puesto y
+tope, el Mánager sale a buscar, y lo que encuentra cae en la Carpeta de la
+Fase 64 para que lo firmes vos.
+
+`G.marketRequest` es un objeto plano `{pos,tope,desde}` — 0 funciones en `G`,
+y un save viejo no lo trae, que es exactamente "no encargaste nada".
+
+### ⚠️ El nivel sale del PRESTIGIO del club, no del presupuesto
+
+Es la decisión de diseño que evita que esto sea la quinta vía que esquiva las
+reglas. Con plata prestada un club de nivel 60 podría encargar un 88, y eso
+saltea `jerarquiaBloquea` (Fase 16), que es el portero de las cuatro vías.
+`encargoBanda()` usa la misma ventana que `pickBuyer`: `nivelClub−14` a
+`nivelClub+4`. Verificado: con Boca la banda es **58-76** y el Mánager trae un
+DFC de 73.
+
+El Consejo respeta además los porteros de siempre: el clásico, la jerarquía y
+el cupo. Y el tope se compara contra el **total** (ficha + contrato), no contra
+la ficha sola.
+
+El nivel del Director manda en dos cosas: **a quién ve** (uno flojo no siempre
+elige al mejor de la lista) y **cuánto descuento saca** sobre `askingPrice`.
+
+### ⚠️ Firmar pasa por `firmaProgramar`, no por `G.squad.push`
+
+El pedido decía "el jugador pasa a `G.squad`". En este juego **ninguna firma es
+instantánea**: el embudo lo saca del mercado, revalida plantel y plata el día
+de la firma, cobra en `firmasTick` y deja el movimiento en `G.movs`. Meterlo a
+mano en `G.squad` sería el décimo camino que esquiva el embudo. Verificado:
+al firmar queda encolado y sale del mercado, **la plata no se mueve todavía**,
+y a los pocos días entra al plantel y se cobra.
+
+### ⚠️ Dos cosas que sólo aparecieron midiendo
+
+- **La caducidad quedaba detrás del portón mensual.** La búsqueda vive dentro
+  de `weeklyJunta`, que arranca con `week % DELEG_SEMANAS`, así que un encargo
+  podía seguir vivo tres semanas después de vencido (medido: en la semana 11
+  seguía abierto uno que venía de la 1). `encargoVencer()` corre **todas las
+  semanas**, al lado de `aprobLimpiar()`.
+- **La Carpeta mostraba 1,7 y salían 1,6.** Primero por sumar y redondear una
+  sola vez donde `firmasTick` redondea el sueldo aparte — eso se arregló. Lo
+  que queda es que **`firmasTick` redondea el PRESUPUESTO**
+  (`Math.round((budget−price−wageCost)*10)/10`), así que con una ficha de 1,65
+  sobre una caja de 60 el movimiento es 1,6 contra los 1,7 del contrato. Eso
+  pasa en **todos** los fichajes del juego desde siempre; tocar ese redondeo
+  sería mover el camino de la plata de cada fichaje para arreglar un centavo
+  de presentación. El check lo tolera y lo dice.
+
+⚠️ Y el tope del modal es un **`nPair`** (slider + campo), no un slider pelado:
+con un rango de 0 a 400 el slider obliga a cazar el pixel, y la regla de la
+Fase 45 es que todo monto negociable se pueda escribir. Se lee con `nRead`.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

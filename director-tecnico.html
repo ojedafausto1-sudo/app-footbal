@@ -891,6 +891,8 @@ window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
         <button class="tab" onclick="openScouting()">🔭 Ojeadores</button>
       </div>
       <div id="mk-buy" class="tc on">
+        <button class="btn bg" id="mkEncargo" style="width:100%;margin-bottom:8px"
+          onclick="encargoModal()">🤝 Encargar fichaje al Consejo</button>
         <input class="mksearch" type="text" id="mkQ" placeholder="🔍 Buscar por nombre, club o liga — las tildes no importan (tevez, gutierrez, muñoz)" oninput="renderMkt()">
         <div class="frow">
           <button class="fchip" id="mkFree" onclick="mkToggleLibres(this)" title="Sólo jugadores sin club: llegan sin pagar ficha">🆓 Libres</button>
@@ -13451,7 +13453,7 @@ function aprobLimpiar(){
 }
 function weeklyJunta(){
   if(!G||!G.squad) return;
-  aprobLimpiar();
+  aprobLimpiar(); encargoVencer();     // los dos relojes corren todas las semanas
   if((G.week||1)%DELEG_SEMANAS!==0) return;
   const dir=dirDeportivo();
   if(!dir) return;
@@ -13459,6 +13461,7 @@ function weeklyJunta(){
   // de "delegar obras" y una recomendación no compromete plata — la firma sí,
   // y la firma la das vos. Las RENOVACIONES siguen atadas a su switch.
   juntaObras(dir);
+  encargoBuscar(dir);                  // y busca lo que le encargaste
   if(!delegado('renov')) return;
   // Sólo los que se vencen a fin de esta temporada
   const yaEnCarpeta=new Set(aprobaciones().filter(a=>a.k==='renov').map(a=>a.pid));
@@ -13519,6 +13522,154 @@ function juntaObras(dir){
     `🏗️ Presi, hay plata para construir <b>${u.name}</b> (${fv(u.cost)}). ¿Avanzamos? `+
     `Le dejé la propuesta en la carpeta.`,'🗂️');
 }
+// ══════════════════════════════════════════════════════════════════════
+// ENCARGARLE UN FICHAJE AL CONSEJO
+// ══════════════════════════════════════════════════════════════════════
+// `G.marketRequest` es un objeto plano `{pos,tope,desde}` — 0 funciones en `G`,
+// y un save viejo no lo trae, que es exactamente "no encargaste nada".
+const ENCARGO_VENCE=8;               // semanas que el Consejo busca
+function encargo(){ return (G&&G.marketRequest)||null; }
+// ⚠️ EL NIVEL SALE DEL PRESTIGIO DEL CLUB, NO DEL PRESUPUESTO.
+// Con plata prestada un club de nivel 60 podría encargar un 88, y eso saltea
+// `jerarquiaBloquea` (Fase 16), que es el portero de las cuatro vías. La
+// ventana es la misma que usa `pickBuyer`: de tu nivel para abajo y un poco
+// para arriba.
+function encargoBanda(){
+  const n=(typeof nivelClub==='function'&&G)?nivelClub(G.teamName):66;
+  return {min:Math.max(45,n-14), max:n+4};
+}
+function encargoPedir(pos,tope){
+  if(!G)return false;
+  if(!dirDeportivo()){ flash('No tenés Director Deportivo','loss'); return false; }
+  if(encargo()){ flash('⏳ El Consejo ya está buscando un '+encargo().pos,'draw'); return false; }
+  const t=Math.max(0,Math.min(nRead('encTope',0,(G.budget||0),1)||tope||0,(G.budget||0)));
+  G.marketRequest={pos, tope:Math.round(t*10)/10, desde:(G.week||1)};
+  const dir=dirDeportivo();
+  addPhoneMsg('board',dir.name,
+    `🤝 Anotado, presidente: salgo a buscar un <b>${pos}</b> por hasta `+
+    `<b style="color:var(--gold)">${fv(G.marketRequest.tope)}</b>. Le aviso apenas tenga algo.`,'🤝');
+  lg('🤝',`Le encargaste al Consejo un ${pos} por hasta ${fv(G.marketRequest.tope)}`);
+  closeMod(); updateUI();
+  return true;
+}
+// ═══ EL MODAL DEL ENCARGO ═══
+// ⚠️ El tope es un `nPair` (slider + campo), no un slider pelado: con un
+// rango de 0 a 400 el slider obliga a cazar el pixel, y la regla de la Fase 45
+// es que todo monto negociable se pueda ESCRIBIR. Se lee con `nRead`.
+const ENCARGO_POS=['ARQ','DFC','DFD','DFI','MCD','MC','MCO','MI','MD','EI','ED','DC'];
+let _encPos='DC';
+function encargoModal(){
+  if(!G)return;
+  const dir=dirDeportivo();
+  if(!dir){ showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🤝 Encargar fichaje</div>
+    <div class="mpanel">Sin <b>Director Deportivo</b> no hay nadie que salga a buscar.
+    El primer ídolo que vuelve toma el cargo, y el club arranca con uno de carrera.</div>`); return; }
+  const e=encargo();
+  if(e){
+    showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🤝 Encargo en curso</div>
+      <div class="mpanel">
+        <div class="mpanel-t">${dir.name} está buscando</div>
+        <div class="mpanel-row"><span>Puesto</span><b>${e.pos}</b></div>
+        <div class="mpanel-row"><span>Tope</span><b style="color:var(--gold)">${fv(e.tope)}</b></div>
+        <div class="mpanel-row"><span>Busca desde</span><b>semana ${e.desde}</b></div>
+        <div style="font-size:9.5px;color:var(--t3);margin-top:6px">Cuando lo tenga apalabrado te deja la carpeta en el celúlar para que firmes. Si en ${ENCARGO_VENCE} semanas no encuentra nada, cierra la búsqueda.</div>
+      </div>
+      <button class="btn" style="width:100%" onclick="encargoCancelar()">❌ Cancelar el encargo</button>`);
+    return;
+  }
+  const B=encargoBanda();
+  const tope=Math.round((G.budget||0)*0.5*10)/10;
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🤝 Encargar fichaje al Consejo</div>
+    <div class="mpanel">
+      <div class="mpanel-t">Qué puesto necesitás</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px">
+        ${ENCARGO_POS.map(x=>`<button class="fchip${x===_encPos?' on':''}" id="encP_${x}"
+          onclick="_encPos='${x}';document.querySelectorAll('[id^=encP_]').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${x}</button>`).join('')}
+      </div>
+    </div>
+    <div class="mpanel">
+      <div class="mpanel-t">Hasta cuánto podés poner</div>
+      ${nPair('encTope',0,Math.round((G.budget||0)*10)/10,tope,0.5,'',' M',1)}
+      <div style="font-size:9.5px;color:var(--t3);margin-top:5px">Incluye la ficha <b>y</b> el contrato. Caja disponible: <b>${fv(G.budget)}</b>.</div>
+    </div>
+    <div class="mpanel">
+      <div style="font-size:9.5px;color:var(--t3)">${dir.name} (gestión <b>${dir.nivel}</b>) va a buscar en la banda de nivel <b>${B.min}-${B.max}</b>, que es la que le corresponde a un club como el tuyo. Cuanto mejor sea, mejor apunta y más descuento saca.</div>
+    </div>
+    <button class="btn bg" style="width:100%" onclick="encargoPedir(_encPos)">🤝 Salió a buscar</button>`);
+}
+// ⚠️ LA CADUCIDAD CORRE TODAS LAS SEMANAS, no con el resto del encargo.
+// La búsqueda vive detrás del portón mensual de `weeklyJunta`
+// (`week % DELEG_SEMANAS`), así que con la caducidad ahí adentro un encargo
+// podía quedar abierto tres semanas de más. Medido: en la semana 11 seguía
+// vivo uno que venía de la 1 con tope de 8.
+function encargoVencer(){
+  if(!G)return;
+  const e=encargo(); if(!e)return;
+  if((G.week||1)-(e.desde||0)<=ENCARGO_VENCE)return;
+  const dir=dirDeportivo();
+  if(dir)addPhoneMsg('board',dir.name,
+    `😕 Presidente, no encontré ningún <b>${e.pos}</b> que valga la pena por ${fv(e.tope)}. Cierro la búsqueda.`,'🤝');
+  lg('🤝','Se cerró sin éxito la búsqueda de un '+e.pos);
+  G.marketRequest=null;
+}
+function encargoCancelar(){
+  if(!G||!encargo())return;
+  lg('❌','Cancelaste el encargo de '+encargo().pos);
+  G.marketRequest=null; closeMod(); updateUI();
+}
+// El Consejo sale a buscar. Corre desde `weeklyJunta`.
+function encargoBuscar(dir){
+  if(!G||!dir)return;
+  const e=encargo(); if(!e)return;
+  if(aprobaciones().some(a=>a.k==='fichaje'))return;      // uno por vez
+  if((G.squad||[]).length>=PLANTEL_MAX)return;
+  const B=encargoBanda();
+  const n=Math.max(40,Math.min(90,dir.nivel||55));
+  const cand=(G.market||[]).filter(p=>{
+    if(!p||p.pos!==e.pos)return false;
+    if((p.rat||0)<B.min||(p.rat||0)>B.max)return false;
+    // el precio TOTAL tiene que entrar en el tope: ficha + contrato
+    const price=askingPrice(p);
+    const wage=_negWageExpect(p);
+    const total=Math.round((price+wage*3*4/1000)*10)/10;
+    if(total>e.tope)return false;
+    // ⚠️ LOS PORTEROS DE SIEMPRE, o el Consejo sería la quinta vía que
+    // esquiva las reglas: el clásico, la jerarquía y el cupo de extranjeros.
+    if(typeof jerarquiaBloquea==='function'&&jerarquiaBloquea(p))return false;
+    p._encTotal=total; p._encPrice=price; p._encWage=wage;
+    return true;
+  });
+  if(!cand.length)return;
+  // El mejor que entra; un director flojo no siempre ve al mejor
+  cand.sort((a,b)=>(b.rat||0)-(a.rat||0));
+  const top=Math.max(1,Math.round(cand.length*(1-(n-40)/50*0.85)));
+  const p=cand[~~(Math.random()*Math.min(top,cand.length))];
+  // Negocia: el bueno le saca un descuento a la ficha
+  const desc=1-((n-40)/50)*0.18;
+  const price=Math.max(0.05,Math.round(p._encPrice*desc*100)/100);
+  const wage=Math.round(p._encWage*(1+(1-(n-40)/50)*0.12));
+  const years=n>=70?4:3;
+  // ⚠️ LA MISMA CUENTA QUE `firmasTick`, redondeo incluido. Acá estaba
+  // `Math.round((price+wage*years*4/1000)*10)/10` — una sola redondeada — y
+  // el embudo cobra `price` más el sueldo redondeado APARTE, así que la
+  // Carpeta podía mostrar 5,5 y salir 5,6 de la caja. Medido: fallaba 1 de
+  // cada 3 corridas, según los decimales que tocaran.
+  const wageCost=Math.round(wage*years*4/1000*10)/10;
+  const cost=Math.round((price+wageCost)*10)/10;
+  _aprobPush({k:'fichaje', pid:p.id, nombre:p.name, price, wage, years, cost,
+    titulo:'Fichaje de '+p.name,
+    detalle:`${p.pos} · ${p.age} años · media ${rbK?'':''}${p.rat} · ${p.club} — `+
+            `ficha ${fv(price)} + ${fv(wage/1000)}/sem por ${years} años`});
+  addPhoneMsg('board',dir.name,
+    `🤝 Cerramos de palabra a <b>${p.name}</b> (${p.pos}, ${p.age} años, ${p.club}). `+
+    `Logré sacarlo por <b style="color:var(--gold)">${fv(price)}</b> y un sueldo de `+
+    `<b>${fv(wage/1000)}/sem</b>. Si usted pone la firma, se suma mañana a entrenar.`,'🗂️');
+  lg('🤝',`${dir.name} apalabró a ${p.name} por ${fv(price)}`);
+  G.marketRequest=null;                // encargo cumplido: la pelota es tuya
+}
 // ═══ FIRMAR / RECHAZAR ═══
 function aprobFirmar(aid){
   if(!G)return;
@@ -13538,6 +13689,19 @@ function aprobFirmar(aid){
     p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+6);
     lg('✍️',`Firmaste la renovación de ${p.name}: ${fv(a.cost)} por ${a.years} año(s)`);
     flash('✍️ '+p.name+' renovado hasta '+p.contract,'win');
+  } else if(a.k==='fichaje'){
+    // ⚠️ PASA POR `firmaProgramar`, EL EMBUDO DE SIEMPRE. El pedido decía
+    // "el jugador pasa a G.squad", pero en este juego **ninguna firma es
+    // instantánea**: el embudo lo saca del mercado, revalida plantel y plata
+    // el día de la firma y cobra en `firmasTick`. Meterlo a mano en `G.squad`
+    // sería el décimo camino que esquiva el embudo.
+    const p=(G.market||[]).find(x=>x.id===a.pid);
+    if(!p){ flash('❌ '+a.nombre+' ya no está disponible','loss');
+            G.boardApprovals.splice(i,1); rPhone(); return; }
+    if((G.squad||[]).length>=PLANTEL_MAX){ flash('❌ Plantel lleno (máx '+PLANTEL_MAX+')','loss'); return; }
+    firmaProgramar(p,{price:a.price,wage:a.wage,years:a.years,
+                      motivo:'encargo al Consejo'});
+    lg('✍️',`Firmaste el fichaje de ${p.name}: ${fv(a.price)} + ${fv(a.wage/1000)}/sem`);
   } else if(a.k==='obra'){
     const arr=a.tipo==='youth'?(G.youth&&G.youth.upgrades):(G.stadium&&G.stadium.upgrades);
     const u=(arr||[]).find(x=>x.id===a.id);
@@ -13565,6 +13729,9 @@ function aprobRechazar(aid){
     if(p){ p._delegNo=true; p.morale=Math.max(0,(p.morale===undefined?60:p.morale)-4); }
     if(dir)addPhoneMsg('board',dir.name,
       `😕 Entendido, presidente. Le aviso a <b>${a.nombre}</b> que la renovación no va. No le va a caer bien.`,'🏛️');
+  } else if(a.k==='fichaje'&&dir){
+    addPhoneMsg('board',dir.name,
+      `😕 Le aviso al club de <b>${a.nombre}</b> que la operación se caía. Quedamos mal, pero usted manda.`,'🏛️');
   } else if(dir){
     addPhoneMsg('board',dir.name,
       `👍 Como diga, presidente. Guardo la carpeta de <b>${a.nombre}</b> por si más adelante.`,'🏛️');
