@@ -5186,6 +5186,149 @@ la categoría que en este motor falló las ocho veces (Fase 32).
   umbral estaba pegado a la cola. Lo que se afirma es "antes 40, ahora ~130",
   y 70 lo prueba igual sin ser una moneda.
 
+## Fases 59-62 (roadmap V8, parte 2)
+
+⚠️ **El documento las volvió a numerar 55-58 y esos números ya estaban usados**
+(curva de edad, bombos derivados, centros, checks). Van como 59-62.
+
+## Fase 59: la cantera hablaba en argentino en TRES lugares más
+
+La Fase 27 dejó escrito que los nombres de los juveniles salen de la liga vía
+`_youthNames(lg)`. **Era cierto sólo para `promOne`.** Había otros tres
+generadores con listas argentinas escritas a mano:
+
+| | qué genera |
+|---|---|
+| `buildYouth()` | el plantel INICIAL de la academia (12 pibes) |
+| `weeklyYouth()` | la camada de cada 12 semanas |
+| `nuevasCamadas()` (`_JUV_FN`/`_JUV_LN`) | los pibes que debutan en los **611 clubes del mercado** |
+
+⚠️ **`_youthNames` no había que escribirla: ya existía y ya hacía lo correcto**
+(pool sacado de los jugadores reales de la liga, cacheado). Lo que faltaba era
+llamarla. Medido después, academia inicial por liga:
+
+| liga | camada |
+|---|---|
+| Premier | Christian Burgess · Kyrell Wilson · Max Dean |
+| Bélgica | Davy Roef · Kjell Peersman · Tom Vandenberghe |
+| Alemania | Leonhard Unnerstall · Nicolò Tresoldi |
+| Liga ARG | Lautaro Petruchi · César Rigamonti |
+
+⚠️ **`natsLocales()` tuvo que aceptar la liga por argumento** (opcional, como el
+tercer parámetro de `isForeign`), por dos razones distintas:
+- `buildYouth()` corre **dentro del literal que crea `G`**, así que `ligaMia()`
+  todavía devuelve `'Liga ARG'`. Es la misma trampa que `squadFromDB`, `P()` y
+  `anioBase()`; el accesor nuevo es `_ligaActual()`.
+- `nuevasCamadas()` genera pibes para clubes de **otras** ligas, así que el
+  nombre tiene que salir de la liga de SU club y no de la tuya. Verificado: el
+  que debuta en el Flamengo se llama Mateus Evangelista y el del Ajax, Espen
+  Oosting.
+
+## Fase 60: la IA también se cansa — pero la superficie es chica
+
+`arSimPair` miraba sólo `clubPower`, así que el desgaste castigaba únicamente
+al jugador. Ahora el club que juega dos veces en la misma semana pierde fuerza,
+y lo leen **las dos varas**: la IA contra la IA (`arSimPair`) y el rival que
+enfrentás vos (`matchStrengths`), que es donde de verdad se siente.
+
+⚠️ **No se guarda nada.** La congestión se **deriva** del fixture (`G.arFix`,
+`G.calendar`, `G.intGrp.fix`), que es donde ya está la verdad. Un contador en
+`G` sería la sexta vez que este proyecto se hace el mismo daño (`G.members`,
+`G.captainId`, `_DIL_LOCK`, `DT_ARCHETYPES`, `G.approval`, `sellOnPct`), y de
+paso es retro-compatible sin migrar: un save viejo ya trae los tres arrays.
+
+### ⚠️ El "−7%" del pedido, aplicado a `clubPower`, habría sido brutal
+
+`clubPower` devuelve ~70, así que un 7% son **4,9 puntos** sobre un clamp total
+de ±8 — más de medio rango. En este motor **1 punto de `clubPower` mueve el xG
+un 7%** (`d=(pa−pb)/26`, `xg=1.35+d*2.6`), que es lo que el pedido quería
+decir. Por eso `CONGEST_PEN` es **1 punto**, que además es del orden de lo que
+sufre el jugador (su fuerza cae 2,6% viniendo al 75% de físico).
+
+### ⚠️ Y el primer número delató un bug: 30 de 55 rivales "cansados"
+
+Tu partido de liga vive en `G.calendar` **y** espejado en `G.arFix`, así que
+sin deduplicar **todo** rival que te enfrentaba contaba dos partidos y llegaba
+fundido. Con la deduplicación por `(semana, local, visitante)`:
+
+| | antes de deduplicar | real |
+|---|---|---|
+| partidos de liga con un lado cansado | 40 de 450 (8,9%) | **14 de 450 (3,1%)** |
+| clubes afectados | 18 | **4** |
+| rivales míos marcados | 30 de 55 | 0 en esa temporada |
+
+⚠️ **Conviene no venderlo como el arreglo de balance que parece.** En este
+juego sólo juegan entre semana **tu club y los 0-2 de tu liga que caen en el
+grupo continental** — el resto de los 30 tiene una fecha por semana y nada
+más. El mecanismo es correcto y está blindado, pero toca el 3% de los partidos.
+Para que pesara de verdad habría que modelar las copas de los otros clubes, que
+es un motor nuevo y no un parámetro.
+
+## Fase 61: los córners por rebote — medido, negativo, y con la causa
+
+El pedido: que el remate bloqueado salga propulsado a la línea de fondo para
+que se cobre el córner que falta.
+
+⚠️ **El mecanismo ya existía entero**: al bloquear, si el defensor está a menos
+del 20% del ancho de cancha de su arco, `fmMandarAfuera` la manda al córner con
+80% de probabilidad — y esa función ya está calibrada para cruzar la línea el
+100% de las veces (cubre el trayecto por el aire). Lo único que se podía tocar
+era **la zona**, que es geometría, la categoría que en este motor sí funciona.
+
+Se probó abrirla de 0,20 a 0,38. **450 minutos por escenario, dos corridas de
+cada uno:**
+
+| zonaBloq | córner /90 | cBloq /90 | blocks /90 |
+|---|---|---|---|
+| 0,20 | 1,8 · 2,8 | **0,2** | 1,2 · 0,4 |
+| 0,38 | 1,4 · 2,8 | **0,2** | 1,2 · 1,0 |
+
+**`cBloq` da 0,2 por 90 con las dos zonas.** El cuello de botella no es dónde
+se bloquea: es que **se bloquea 1 vez por partido** (en el fútbol real son
+6-8). Con un bloqueo por partido ningún parámetro de zona puede producir los 7
+córners que faltan.
+
+**REVERTIDO a 0,20**, o sea idéntico a como estaba. Es el quinto intento
+documentado de comprar córners con una constante, y el primero que además deja
+anotada **cuál es la variable que falta**: la cantidad de remates que llegan a
+tener un defensor en la trayectoria. La constante queda extraída en `FM59` para
+que el próximo arnés pueda medirla sin volver a tocar el motor.
+
+⚠️ **Y una lección del método, no del juego**: la primera tanda de esta
+medición salió toda torcida (pases 202-420, goles 3,2-6,5) porque **edité
+`director-tecnico.html` mientras las corridas 3 y 4 lo cargaban**. El arnés lee
+el archivo en cada `page.goto`. Si vas a medir, no toques el archivo hasta que
+termine.
+
+## Fase 62: el naming del estadio vale lo que vale la cancha
+
+Las dos marcas de `cat:'Naming Estadio'` tenían un `income` fijo, así que un
+recién ascendido con 10.000 localidades cobraba por el nombre de su estadio
+**exactamente lo mismo** que un club con 80.000.
+
+`namingFactor(cap)` ancla en **40.000 = ×1,00**:
+
+| capacidad | 500 | 10.000 | 40.000 | 80.000 | 400.000 |
+|---|---|---|---|---|---|
+| factor | 0,35 (piso) | **0,35** | **1,00** | **1,74** | 1,80 (techo) |
+
+- ⚠️ **Sublineal a propósito** (exponente 0,80): duplicar la cancha no duplica
+  el contrato — una marca paga por alcance, y el alcance crece más despacio que
+  el hormigón. Con exponente 1 el Bernabéu sacaba ×2,03 y las ampliaciones se
+  pagaban solas.
+- ⚠️ **Acotado por los dos lados**, por la misma razón que `escalaEstructura`
+  tiene tope: sin piso un club de 7.000 cobraría 0,03 y la categoría quedaría
+  muerta (filtrar sin rellenar, el error que este archivo ya documenta tres
+  veces); sin techo, cuatro bandejas rompen la economía.
+- ⚠️ **Un solo portero, `sponIncome(s)`.** El `income` lo leían **cuatro**
+  lugares por separado (la oferta semanal, la prima, el bonus por título y
+  `signSponsor`): aplicarlo en uno solo dejaba la prima calculada sobre otro
+  número. Es la regla de las cuatro vías de la Fase 16.
+- ⚠️ Y el contrato firmado guarda el `income` **ya escalado** (`{...sp,
+  income:_inc}`, el override DESPUÉS del spread): `G.sponsors` es una COPIA y es
+  lo que cobra el balance semanal, así que si no, el naming se firmaría
+  escalado y se cobraría plano.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

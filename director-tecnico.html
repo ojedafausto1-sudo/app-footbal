@@ -1532,9 +1532,20 @@ const LIGA_NAT={
   'Arabia':['ARB'], 'Rusia':['RUS'], 'Grecia':['GRE'],
 };
 // Las nacionalidades que NO ocupan cupo en la liga que estás dirigiendo.
-function natsLocales(){
-  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
-  return LIGA_NAT[lg]||['ARG'];
+// ⚠️ El argumento es OPCIONAL, igual que el tercero de `isForeign`: sin él
+// sigue siendo la liga que dirigías. Hace falta porque `nuevasCamadas` genera
+// pibes para clubes de OTRAS ligas, y porque `buildYouth` corre dentro del
+// literal que crea `G`, cuando `ligaMia()` todavía devuelve 'Liga ARG'.
+function natsLocales(lg){
+  const L=lg||_ligaActual();
+  return LIGA_NAT[L]||['ARG'];
+}
+// La liga vigente durante la CREACIÓN de la partida: misma cascada que
+// `squadFromDB`, porque `G` todavía no existe (ver el comentario de loadGame).
+function _ligaActual(){
+  return (typeof G==='object'&&G&&G.miLiga)
+      || (typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)
+      || 'Liga ARG';
 }
 // ═══════════════════════════════════════════════════════════════════════
 // EXTRACOMUNITARIOS: EN EUROPA EL CUPO NO ES DE "EXTRANJEROS"
@@ -2300,9 +2311,41 @@ let _SPN=null;                // estado del modal (fuera de G, no se serializa)
 
 function ofertasSponsor(){ return (G&&G.sponsorOffers)||[]; }
 // La prima por firmar: proporcional a lo que vale el contrato entero.
-function spnUpfront(s){ return Math.round(s.income*s.weeks*0.35*10)/10; }
+// ═══ EL NAMING VALE LO QUE VALE LA CANCHA ═══
+// Las dos marcas de `cat:'Naming Estadio'` tenían un `income` fijo, así que un
+// recién ascendido con 10.000 localidades cobraba por el nombre de su estadio
+// exactamente lo mismo que un club con 80.000. El mercado real no funciona
+// así: lo que se compra es la cantidad de gente que ve el cartel.
+// ⚠️ El ancla son 40.000 (factor 1,00) y la curva es **sublineal**
+// (exponente 0,80): duplicar la cancha no duplica el contrato — una marca
+// paga por alcance, y el alcance crece más despacio que el hormigón. Con
+// exponente 1 el Bernabéu sacaba ×2,03 y las ampliaciones se pagaban solas.
+// ⚠️ Va acotado (0,35–1,80) por la misma razón que `escalaEstructura` tiene
+// tope: sin piso, un club de 7.000 cobraría 0,03 y la categoría quedaría
+// muerta (filtrar sin rellenar, el error que este archivo documenta tres
+// veces); sin techo, cuatro bandejas rompían la economía.
+const NAMING_ANCLA=40000, NAMING_EXP=0.80, NAMING_MIN=0.35, NAMING_MAX=1.80;
+function namingFactor(cap){
+  const c=(cap===undefined||cap===null)
+    ? ((typeof G==='object'&&G&&G.stadium&&G.stadium.capacity)||NAMING_ANCLA)
+    : cap;
+  if(!(c>0))return 1;
+  const f=Math.pow(c/NAMING_ANCLA,NAMING_EXP);
+  return Math.round(Math.max(NAMING_MIN,Math.min(NAMING_MAX,f))*1000)/1000;
+}
+// ⚠️ UN SOLO PORTERO. El `income` lo leían cuatro lugares por separado (la
+// oferta semanal, la prima, el bonus y `signSponsor`); si el factor se
+// aplicara en uno solo, la prima y el bonus quedarían calculados sobre otro
+// número. Es la regla de las cuatro vías de la Fase 16.
+function sponIncome(s){
+  if(!s)return 0;
+  const base=s.income||0;
+  if(s.dyn!=='stad')return base;
+  return Math.round(base*namingFactor()*1000)/1000;
+}
+function spnUpfront(s){ return Math.round(sponIncome(s)*s.weeks*0.35*10)/10; }
 // El bonus por título que ya usaba signSponsor.
-function spnBonus(s){ return Math.round(s.income*30*10)/10; }
+function spnBonus(s){ return Math.round(sponIncome(s)*30*10)/10; }
 // ⚠️ EL TECHO ES LO QUE HACE QUE NEGOCIAR SIGNIFIQUE ALGO.
 // Lo que la marca banca sale del valor del contrato ESCALADO POR CUÁNTO LA
 // SUPERÁS EN REPUTACIÓN: si estás justo en el mínimo que pide, no tenés nada
@@ -2344,8 +2387,8 @@ function weeklySponsors(){
     oid:'so'+Date.now()+~~(Math.random()*999),
     id:s.id, cat:s.cat, name:s.name, icon:s.icon, region:s.region, dyn:s.dyn,
     weeks:s.weeks, reqRep:s.reqRep,
-    baseWeekly:s.income, baseUpfront:spnUpfront(s), baseBonus:spnBonus(s),
-    weekly:s.income, upfront:spnUpfront(s), bonus:spnBonus(s),
+    baseWeekly:sponIncome(s), baseUpfront:spnUpfront(s), baseBonus:spnBonus(s),
+    weekly:sponIncome(s), upfront:spnUpfront(s), bonus:spnBonus(s),
     intentos:0, desde:G.week||1
   };
   G.sponsorOffers.push(o);
@@ -2559,15 +2602,20 @@ function signSponsor(id){
   const activeCats=new Set(G.sponsors.map(s=>s.cat));
   if(activeCats.has(sp.cat)){flash('❌ Ya tenés un contrato en '+sp.cat,'loss');return;}
   // Bonos por rendimiento: cada sponsor paga por victoria y por cumplir un objetivo
-  const winBonus=Math.round(sp.income*3.5*100)/100;
+  // el naming ya viene escalado por la capacidad (ver sponIncome)
+  const _inc=sponIncome(sp);
+  const winBonus=Math.round(_inc*3.5*100)/100;
   const OBJS=[
-    {id:'champ',desc:'Salir campeón de la Liga',bonus:Math.round(sp.income*30*10)/10},
-    {id:'top4',desc:'Terminar en el Top 4',bonus:Math.round(sp.income*18*10)/10},
-    {id:'top8',desc:'Terminar en el Top 8',bonus:Math.round(sp.income*10*10)/10},
+    {id:'champ',desc:'Salir campeón de la Liga',bonus:Math.round(_inc*30*10)/10},
+    {id:'top4',desc:'Terminar en el Top 4',bonus:Math.round(_inc*18*10)/10},
+    {id:'top8',desc:'Terminar en el Top 8',bonus:Math.round(_inc*10*10)/10},
   ];
   const obj=OBJS[~~(Math.random()*OBJS.length)];
-  G.sponsors.push({...sp,weeksLeft:sp.weeks,weeksTotal:sp.weeks,winBonus,obj});
-  lg('✍️',`Patrocinio: ${sponName(sp)} (+$${sp.income}M/sem + $${winBonus}M/victoria)`);
+  // ⚠️ `income:_inc` va DESPUÉS del spread: el contrato guarda una COPIA y es
+  // lo que cobra el balance semanal, así que si quedara `sp.income` el naming
+  // se firmaría escalado y se cobraría plano.
+  G.sponsors.push({...sp,income:_inc,weeksLeft:sp.weeks,weeksTotal:sp.weeks,winBonus,obj});
+  lg('✍️',`Patrocinio: ${sponName(sp)} (+$${_inc}M/sem + $${winBonus}M/victoria)`);
   flash('✅ ¡'+sponName(sp)+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
   rSponsors();
   if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
@@ -2772,8 +2820,15 @@ const STAD_INIT = {
 
 function buildYouth(){
   const positions = ['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC','DFC','MI'];
-  const fnames = ['Thiago','Mateo','Luca','Agustín','Franco','Valentín','Ezequiel','Nicolás','Bruno','Ramiro','Federico','Santiago'];
-  const lnames = ['González','López','Fernández','Rodríguez','Martínez','García','Torres','Herrera','Pérez','Díaz','Suárez','Romero'];
+  // ⚠️ LA FASE 27 ARREGLÓ `promOne` Y DEJÓ TRES GENERADORES MÁS EN ARGENTINO.
+  // `_youthNames(lg)` ya existía y ya hacía lo correcto (pool sacado de los
+  // jugadores REALES de la liga, cacheado); lo que faltaba era usarlo acá, en
+  // `weeklyYouth` y en `nuevasCamadas`. Dirigiendo en Bélgica la cantera
+  // seguía produciendo "Thiago González".
+  // ⚠️ Esto corre DENTRO del literal que crea `G`, así que la liga sale de
+  // `_ligaActual()` y no de `ligaMia()`, que todavía devuelve 'Liga ARG'.
+  const _yn = _youthNames(_ligaActual());
+  const fnames = _yn.fn, lnames = _yn.ln;
   return {
     level: 2,
     upgrades:[
@@ -2838,8 +2893,8 @@ function weeklyYouth(){
   // Camada nueva cada 12 semanas (los ojeadores traen más y mejores)
   if(G.week%12===0&&y.players.length<18){
     const n=1+~~(Math.random()*(hasScouts?3:2))+_yfx.youthIntake;   // la academia trae más pibes
-    const fn=['Thiago','Mateo','Luca','Agustín','Franco','Valentín','Ezequiel','Nicolás','Bruno','Ramiro','Benjamín','Bautista','Joaquín','Lautaro'];
-    const ln=['González','López','Fernández','Rodríguez','Martínez','García','Torres','Herrera','Pérez','Díaz','Acosta','Molina','Cabrera','Ojeda'];
+    // mismo pool derivado que usa `promOne` (ver buildYouth)
+    const _yn2=_youthNames(ligaMia()), fn=_yn2.fn, ln=_yn2.ln;
     const poss=['ARQ','DFC','DFI','DFD','MCD','MC','MCO','EI','ED','DC'];
     let joya=null;
     for(let i=0;i<n&&y.players.length<18;i++){
@@ -9899,9 +9954,12 @@ function promBest(){ if(!G) return; const b=G.youth.players.sort((a,b)=>b.pot-a.
 // los datos. Cacheado por liga porque recorre los 17.000 de `PLAYERS_DB`.
 let _ynCache={};
 function _youthNames(lg){
-  const L=lg||ligaMia();
+  const L=lg||_ligaActual();
   if(_ynCache[L]) return _ynCache[L];
-  const locales=(typeof natsLocales==='function')?natsLocales():['ARG'];
+  // ⚠️ con la liga EXPLÍCITA: sin el argumento, `nuevasCamadas` le ponía
+  //    nombres de TU liga a los pibes de los otros 611 clubes, y `buildYouth`
+  //    (que corre antes de que exista `G`) se los ponía argentinos a todos.
+  const locales=(typeof natsLocales==='function')?natsLocales(L):['ARG'];
   const fn=[], ln=[];
   (window.PLAYERS_DB||[]).forEach(r=>{
     if(locales.indexOf(r[4])<0) return;
@@ -9916,7 +9974,7 @@ function _youthNames(lg){
   _ynCache[L]=out; return out;
 }
 function _youthName(lg){
-  const n=_youthNames(lg);
+  const n=_youthNames(lg||_ligaActual());
   return n.fn[~~(Math.random()*n.fn.length)]+' '+n.ln[~~(Math.random()*n.ln.length)];
 }
 // El techo de potencial lo pone la academia: nivel 1 → 66, nivel 5 → 90.
@@ -12280,9 +12338,54 @@ function creditCleanSheet(club,golesRecibidos){
 // Antes se emparejaba a los otros clubes AL AZAR cada fecha: no seguían un
 // fixture, podían enfrentarse dos veces seguidas y la tabla no era coherente.
 // Ahora cada club tiene sus partidos reales y se juegan los de ESTA fecha.
-function arSimPair(A,B){
+// ══════════════════════════════════════════════════════════════════════
+// LA IA TAMBIÉN SE CANSA — PERO LA SUPERFICIE ES CHICA, Y HAY QUE DECIRLO
+// ══════════════════════════════════════════════════════════════════════
+// `arSimPair` miraba sólo `clubPower`, así que la condición física castigaba
+// únicamente al jugador. Ahora el club que juega dos veces en la misma semana
+// llega cansado al de la liga.
+//
+// ⚠️ NO SE GUARDA NADA: la congestión se DERIVA del fixture (`G.arFix`,
+// `G.calendar` y `G.intGrp.fix`), que es donde ya está la verdad. Un contador
+// aparte en `G` es la sexta vez que este proyecto se hace el mismo daño
+// (`G.members`, `G.captainId`, `_DIL_LOCK`, `DT_ARCHETYPES`, `G.approval`,
+// `sellOnPct`). Y de paso es retro-compatible sin migrar: un save viejo ya
+// trae los tres arrays.
+//
+// ⚠️ EL "−7%" DEL PEDIDO, APLICADO A `clubPower`, SERÍA BRUTAL. `clubPower`
+// devuelve ~70, así que un 7% son **4,9 puntos** sobre un clamp total de ±8:
+// más de medio rango. En este motor 1 punto de `clubPower` mueve el xG un 7%
+// (`d=(pa−pb)/26`, `xg=1.35+d*2.6`), y eso es justo lo que el pedido quería
+// decir. Por eso el castigo es **1 punto**, que además es del orden de lo que
+// sufre el jugador (su fuerza cae 2,6% viniendo al 75% de físico).
+const CONGEST_PEN=1.0;          // en puntos de clubPower, no en %
+let _congCache={k:'',m:null};
+function _congMapa(week){
+  const k=week+'|'+((typeof G==='object'&&G&&G.calendar&&G.calendar.length)||0);
+  if(_congCache.k===k&&_congCache.m)return _congCache.m;
+  // ⚠️ HAY QUE DEDUPLICAR, Y EL NÚMERO LO DELATÓ. Tu partido de liga vive en
+  // `G.calendar` **y** en `G.arFix` (el fixture global lo tiene espejado), así
+  // que sin deduplicar TODO rival que te enfrentaba contaba dos partidos y
+  // llegaba cansado: medido, **30 de mis 55 rivales** marcados por error.
+  const m={}, vistos=new Set();
+  const add=(c)=>{ if(c)m[c]=(m[c]||0)+1; };
+  const ver=(arr)=>{ (arr||[]).forEach(f=>{
+    if((f.week|0)!==week)return;
+    const k2=week+'|'+(f.home||'')+'|'+(f.away||'');
+    if(vistos.has(k2))return;
+    vistos.add(k2); add(f.home); add(f.away); }); };
+  if(typeof G==='object'&&G){ ver(G.arFix); ver(G.calendar); ver(G.intGrp&&G.intGrp.fix); }
+  _congCache={k,m}; return m;
+}
+// Cuántos puntos de fuerza pierde un club por jugar dos veces esta semana.
+function congestPen(club,week){
+  if(!club)return 0;
+  const w=(week===undefined||week===null)?((typeof G==='object'&&G&&G.week)||1):week;
+  return (_congMapa(w)[club]||0)>=2 ? CONGEST_PEN : 0;
+}
+function arSimPair(A,B,week){
   // Marcador por goles esperados según la fuerza real de cada plantel
-  const pa=clubPower(A)+2.0, pb=clubPower(B);      // +2 de localía
+  const pa=clubPower(A)+2.0-congestPen(A,week), pb=clubPower(B)-congestPen(B,week);  // +2 de localía
   // ═══ LA MISMA VARA QUE MIS PARTIDOS ═══
   // Este multiplicador (3,2) era 2,4 veces más extremo que el de mis propios
   // partidos: los grandes de la IA se comían a los chicos mucho más de lo que
@@ -12306,7 +12409,7 @@ function simLeagueRound(rivalPlayed,weekOverride){
     // Juega la fecha completa de las dos zonas (menos tu partido, que ya jugaste)
     G.arFix.filter(f=>!f.played&&f.week<=wk&&f.home!==G.teamName&&f.away!==G.teamName)
       .forEach(f=>{
-        const [ga,gb]=arSimPair(f.home,f.away);
+        const [ga,gb]=arSimPair(f.home,f.away,f.week);
         f.played=true;f.score=ga+'-'+gb;
         f.result=ga>gb?'H':ga===gb?'D':'A';
         tallyLeague(f.home,f.away,ga,gb);
@@ -12327,7 +12430,7 @@ function simLeagueRound(rivalPlayed,weekOverride){
     const sh=[...others].sort(()=>Math.random()-0.5);
     for(let i=0;i+1<sh.length;i+=2){
       const A=sh[i],B=sh[i+1];
-      const [ga,gb]=arSimPair(A,B);
+      const [ga,gb]=arSimPair(A,B,wk);
       tallyLeague(A,B,ga,gb);
       creditScorers(A,ga);creditScorers(B,gb);
       creditCleanSheet(A,gb);creditCleanSheet(B,ga);
@@ -14218,8 +14321,9 @@ const EDAD_RETIRO_TOPE=41;     // acá se retira sí o sí
 // Los clubes de la base también hacen debutar juveniles. Se generan con el club
 // y la liga del que se retiró, así cada liga se repone a sí misma en lugar de
 // secarse temporada a temporada.
-const _JUV_FN=['Thiago','Mateo','Luca','Agustín','Franco','Valentín','Ezequiel','Nicolás','Bruno','Ramiro','Benjamín','Bautista','Joaquín','Lautaro','Santino','Dylan','Ian','Tobías'];
-const _JUV_LN=['González','López','Fernández','Rodríguez','Martínez','García','Torres','Herrera','Pérez','Díaz','Acosta','Molina','Cabrera','Ojeda','Sosa','Romero','Benítez','Aguirre'];
+// ⚠️ Las dos listas a mano se fueron: el pibe que debuta en el Feyenoord
+// salía "Thiago González". El nombre lo da `_youthName(h.lg)`, o sea la liga
+// del club donde debuta — no la que dirigís vos.
 function nuevasCamadas(cuantos){
   if(!G||!G.market||!cuantos) return 0;
   // De qué clubes se fue gente: ahí es donde suben los pibes
@@ -14233,7 +14337,7 @@ function nuevasCamadas(cuantos){
     const pot=68+~~(Math.random()*20);
     const rat=Math.min(pot,56+~~(Math.random()*12));
     const np=P(~~(Math.random()*40)+15,
-      _JUV_FN[~~(Math.random()*_JUV_FN.length)]+' '+_JUV_LN[~~(Math.random()*_JUV_LN.length)],
+      _youthName(h.lg),                        // el nombre, de la liga de SU club
       poss[~~(Math.random()*poss.length)], 17+~~(Math.random()*3),
       h.nat||'ARG', h.club, h.lg, 0.3, rat, ~~(rat*0.3), pot, (G.season||2026)+3);
     np.pot=Math.max(np.pot,pot);
@@ -14838,6 +14942,11 @@ function matchStrengths(m){
   else if(MID.includes(oppName))   oppRat = 70;
   else if(m.comp.includes('Copa Argentina')) oppRat = 62;
   // Difficulty raises/lowers rival quality (affects sim AND live 11v11)
+  // ⚠️ Y EL RIVAL QUE ENFRENTÁS VOS TAMPOCO LLEGA SIEMPRE ENTERO. Acá está
+  // la asimetría que de verdad se siente: son ~55 partidos por temporada
+  // contra los ~12 de liga en los que un club de la IA viene de jugar entre
+  // semana. Tu físico ya pesaba vía `avgFit`; el del rival, nunca.
+  oppRat -= congestPen(oppName,m.week);
   oppRat += G.diff===2 ? 7 : G.diff===0 ? -7 : 0;
 
   // Home advantage
@@ -21042,11 +21151,18 @@ function fmBodyBall(p,b,team){
     // único que mandaba al córner era el arquero, y al arquero le llegaba el
     // 17% de los remates. En un partido de verdad la mayoría de los córners
     // nacen del defensor que mete la pierna y la manda afuera.
+    // ⚠️ LA ZONA ERA EL CUELLO DE BOTELLA, NO LA PROBABILIDAD.
+    // Medido con los contadores del motor: **1,5-3,3 bloqueos por 90' y sólo
+    // 0,3-0,5 córners de bloqueo** — o sea que el 80% de adentro ya dispara
+    // casi siempre y lo que dejaba afuera al resto era el `0.20` de ancho de
+    // cancha. Un remate se bloquea también desde el borde del área y esos
+    // rebotes también se van al córner. `FM59` vive fuera de la función para
+    // poder hacer ablación medida, igual que `FM13` y `FM52`.
     if(rival&&FM&&!p.isGK){
       const f2=FM,fw2=f2.rightGL-f2.leftGL;
       // el arco que defiende EL QUE BLOQUEA, no la línea que le queda cerca
       const gx=((team==='my')===f2.myAttRight)?f2.leftGL:f2.rightGL;
-      if(Math.abs(p.x-gx)<fw2*0.20&&!fmDespejeReciente()&&Math.random()<0.80){
+      if(Math.abs(p.x-gx)<fw2*FM59.zonaBloq&&!fmDespejeReciente()&&Math.random()<FM59.probBloq){
         fmMandarAfuera(team,gx);
         if(f2.learn)f2.learn.cBloq=(f2.learn.cBloq||0)+1;
         return true;
@@ -21942,6 +22058,30 @@ const FM13={
 // ═══ EL CENTRO DESDE LA BANDA (ver fmTeamPass) ═══
 // Mutable y fuera de la función para poder hacer ablación medida, igual que
 // FM13. `centro` en 0 apaga el mecanismo entero sin tocar el código.
+// ═══ EL REBOTE DEL BLOQUEO QUE SE VA AL CÓRNER (ver hasBall) ═══
+// Mutable y fuera de la función para poder medir por ablación, como FM13/FM52.
+// ⚠️ QUEDA EN 0.20, O SEA EXACTAMENTE COMO ESTABA. Se probó abrir la zona a
+// 0.38 y **no cambia nada**, y la medición dice por qué: 450 minutos por
+// escenario, dos corridas de cada uno.
+//
+// | zonaBloq | córner/90 | cBloq/90 | blocks/90 |
+// |---|---|---|---|
+// | 0.20 | 1,8 · 2,8 | 0,2 | 1,2 · 0,4 |
+// | 0.38 | 1,4 · 2,8 | 0,2 | 1,2 · 1,0 |
+//
+// `cBloq` da **0,2 por 90 con las dos zonas**. El cuello de botella no es
+// dónde se bloquea: es que **se bloquea 1 vez por partido** (en el fútbol real
+// son 6-8). Con un bloqueo por partido ningún parámetro de zona puede
+// producir los 7 córners que faltan — es el quinto intento documentado de
+// comprar córners con una constante, y el primero que además deja anotado
+// **cuál es la variable que falta**: la cantidad de remates que llegan a
+// tener un defensor en la trayectoria.
+// La constante queda extraída igual, para que el próximo arnés pueda medirla
+// sin volver a tocar el motor.
+const FM59={
+  zonaBloq:0.20,   // × ancho de cancha: hasta dónde del arco propio cuenta
+  probBloq:0.80,   // y con qué chance el rebote termina afuera
+};
 const FM52={
   // ⚠️ ENCENDIDO EN LA FASE 57, a pedido explícito del presidente después de
   // haberle reportado que no se podía verificar. Lo que SÍ se puede medir es
