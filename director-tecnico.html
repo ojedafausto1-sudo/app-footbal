@@ -1171,8 +1171,16 @@ function ratValPts(val,year){
     year||(typeof anioBase==='function'?anioBase():2026))));
   return 36*(Math.log(v)-RAT_LN0)/RAT_LNR;
 }
+// ⚠️ LOS SEIS NÚMEROS SON LOS DEL EXCEL DEL PRESIDENTE (calculadora V2.2).
+// El código tenía (-3,-2,0,1,5,7) y el modelo dice (-5,-3,0,1,5,8): el pibe
+// está MÁS castigado (su precio es proyección pura) y el veterano más
+// premiado (su precio ya descontó los años que le quedan).
+// Medido sobre las 17.108 fichas: cambian 3.933 (23%) y la media global se
+// mueve de 67,24 a 67,08 — el reparto queda igual, se corren las dos puntas.
+// ⚠️ `ratToVal` es la INVERSA y resta esta misma función, así que se ajusta
+// sola: no hay una segunda tabla que se pueda desincronizar.
 function ageAdj(age){
-  return age<=18?-3:age<=21?-2:age<=24?0:age<=29?1:age<=34?5:7;
+  return age<=18?-5:age<=21?-3:age<=24?0:age<=29?1:age<=34?5:8;
 }
 function ratPosMod(pos){
   if(pos==='ARQ')return 3;
@@ -3298,6 +3306,9 @@ function _copaNacArmar(teamName,lg,clubsLiga,sch,semana,poolChicos,poolGrandes){
   const pref=copaNacNombre(lg);
   buildCal._caPref=pref;
   if(typeof G==='object'&&G)G.copaNac=pref;
+  // ⚠️ LLENA SÓLO LO QUE FALTA. Antes el `if` era uno solo para las dos
+  // variables, así que pasar un bombo y dejar el otro en null PISABA el que
+  // sí venía. La Liga ARG pasa sus grandes a mano y deriva los chicos.
   let chicos=poolChicos, grandes=poolGrandes;
   if(!chicos||!grandes){
     const enLiga=(clubsLiga||[]).filter(c=>c&&c!==teamName);
@@ -3305,13 +3316,19 @@ function _copaNacArmar(teamName,lg,clubsLiga,sch,semana,poolChicos,poolGrandes){
     try{
       if(typeof nivelClub==='function') orden=enLiga.slice().sort((a,b)=>nivelClub(b)-nivelClub(a));
     }catch(e){}
-    grandes=orden.slice(0,Math.max(3,Math.min(6,orden.length)));
-    // Los chicos: los de abajo de tu liga más, si existe, la categoría de abajo
-    chicos=orden.slice(Math.max(3,Math.floor(orden.length/2)));
-    try{
-      const seg=(typeof clubesDeLiga==='function'&&lg==='Liga ARG')?clubesDeLiga('Primera Nacional'):[];
-      if(seg&&seg.length)chicos=seg.filter(c=>c!==teamName).concat(chicos);
-    }catch(e){}
+    if(!grandes) grandes=orden.slice(0,Math.max(3,Math.min(6,orden.length)));
+    if(!chicos){
+      // Los chicos: los de abajo de tu liga más, si existe, la categoría de abajo
+      chicos=orden.slice(Math.max(3,Math.floor(orden.length/2)));
+      try{
+        // ⚠️ `clubesDeCategoria`, no `clubesDeLiga`: es la que resuelve el AÑO
+        // cargado (Fase 40). Con la otra, la copa de 2011 se jugaba contra el
+        // ascenso de 2026.
+        const seg=(typeof clubesDeCategoria==='function'&&lg==='Liga ARG')
+          ?clubesDeCategoria('Primera Nacional'):[];
+        if(seg&&seg.length)chicos=seg.filter(c=>c!==teamName).concat(chicos);
+      }catch(e){}
+    }
     if(!chicos.length)chicos=grandes.slice();
   }
   buildCal._caPool=chicos.slice();
@@ -3335,22 +3352,21 @@ function buildCal(teamName, teamId){
   // Si hubo descensos/ascensos, la liga usa la lista actualizada
   const base=(typeof G==='object'&&G&&G.leagueClubs&&G.leagueClubs.length>=18)?[...G.leagueClubs]:all18;
   const lr = shuf(base.filter(t => t !== teamName).slice(0, 18));
-  const libPool=[
-    ['Flamengo','BRA'],['Palmeiras','BRA'],['Atlético Mineiro','BRA'],['Botafogo','BRA'],
-    ['Nacional (URU)','URU'],['Peñarol','URU'],['LDU Quito','ECU'],['Olimpia','PAR'],
-    ['Cerro Porteño','PAR'],['Colo-Colo','CHI'],['U. Católica','CHI'],['Alianza Lima','PER'],
-    ['Millonarios','COL'],['Dep. Cali','COL'],['The Strongest','BOL'],['Sporting Cristal','PER']
+  // ═══ EL SORTEO POR BOMBOS SALE DE `clubRank()`, NO DE UNA LISTA ═══
+  // Hay 4 bombos por jerarquía y sale UN rival de cada uno (antes la fase
+  // final tenía siempre los mismos 5 rivales). Lo que cambia acá es de dónde
+  // salen: `intPots('lib',…)` parte en cuatro el bombo que ya deriva
+  // `intBombo` del nivel real de cada club, así que los cuatro grandes de
+  // Brasil caen en el Bombo 1 solos y ningún club fantasma entra al sorteo.
+  // ⚠️ La lista de red queda para el año histórico, donde la base es
+  // argentina sola y la derivación se apaga por la guarda de los 3 países.
+  const LIB_RED=[
+    ['Flamengo','Palmeiras','River Plate','Boca Juniors','Internacional'],
+    ['Botafogo','Fluminense','São Paulo','Peñarol','Racing Club'],
+    ['LDU Quito','Olimpia','Cerro Porteño','Colo-Colo','Alianza Lima','Millonarios','Estudiantes LP'],
+    ['U. Católica','The Strongest','Bolívar','Always Ready','Libertad','CA Talleres']
   ];
-  // ═══ SORTEO REAL DE LA LIBERTADORES (por bombos) ═══
-  // Antes el grupo salía de una lista mezclada y la fase final tenía siempre
-  // los mismos 5 rivales: te cruzabas con los mismos todas las temporadas.
-  // Ahora hay 4 bombos por jerarquía y sale UN rival de cada uno.
-  const LIB_POTS=[
-    [['Flamengo','BRA'],['Palmeiras','BRA'],['River Plate','ARG'],['Boca Juniors','ARG'],['Atlético Mineiro','BRA']],
-    [['Botafogo','BRA'],['Internacional','BRA'],['Nacional (URU)','URU'],['Peñarol','URU'],['Racing Club','ARG'],['Fluminense','BRA'],['São Paulo','BRA']],
-    [['LDU Quito','ECU'],['Olimpia','PAR'],['Cerro Porteño','PAR'],['Colo-Colo','CHI'],['Alianza Lima','PER'],['Millonarios','COL'],['Atlético Nacional','COL'],['Estudiantes LP','ARG']],
-    [['U. Católica','CHI'],['Dep. Cali','COL'],['The Strongest','BOL'],['Sporting Cristal','PER'],['Bolívar','BOL'],['Always Ready','BOL'],['Talleres','ARG'],['Libertad','PAR']]
-  ];
+  const LIB_POTS=intPots('lib',teamName,4)||LIB_RED.map(p=>p.slice());
   const libDraw=()=>{
     const used=new Set([teamName]);
     return LIB_POTS.map(pot=>{
@@ -3358,21 +3374,32 @@ function buildCal(teamName, teamId){
       // contra la base de ese año (ver histFiltraBombo): en 2000 no puede
       // salir Talleres, que ese año no estaba en Primera.
       const _vivos=(typeof histFiltraBombo==='function')
-        ? new Set(histFiltraBombo(pot.map(([n])=>n))) : null;
-      const opts=shuf(pot.filter(([n])=>!used.has(n)&&(!_vivos||_vivos.has(n))));
+        ? new Set(histFiltraBombo(pot.slice())) : null;
+      const opts=shuf(pot.filter(n=>!used.has(n)&&(!_vivos||_vivos.has(n))));
       const pick=opts[0]||pot[0];
-      used.add(pick[0]);
+      used.add(pick);
       return pick;
     });
   };
   const drawn=libDraw();
   const libG = drawn.slice(1);                    // 3 rivales de grupo (bombos 2-4)
-  buildCal._libPotRivals=drawn.map(d=>d[0]);      // guardado para el sorteo de octavos
+  buildCal._libPotRivals=drawn.slice();           // guardado para el sorteo de octavos
   const caFinalRivals = shuf(['Racing Club','River Plate','Independiente','San Lorenzo','Boca Juniors'].filter(t=>t!==teamName));
-  const caFinalRival = caFinalRivals[0] || 'Racing Club';
-  const caPool=['Almagro','Tigre','Quilmes','Atlanta','Chacarita','Brown de Adrogué','All Boys','Villa Dálmine','Temperley','Tristán Suárez','Sacachispas','Comunicaciones','Deportivo Morón','Los Andes','Almirante Brown'];
-  const caOpps = shuf(caPool).slice(0,3).concat([caFinalRivals[1]||'San Lorenzo']);
-  const caRnds = ['Copa Argentina R32','Copa Argentina R16','Copa Argentina QF','Copa Argentina SF'];
+  // ⚠️ LA LISTA DEL ASCENSO ERA A MANO Y ESTABA PODRIDA.
+  // Medido contra `players-db.js`: de los 15 nombres, **7 no existen** como
+  // club de la base (Chacarita —que ahí se llama 'Chacarita Jrs.'—, Brown de
+  // Adrogué, Villa Dálmine, Temperley, Sacachispas, Comunicaciones y
+  // Deportivo Morón). A un club que no existe `squadFromDB` le inventa el
+  // plantel entero, así que la mitad de la Copa Argentina se jugaba contra
+  // equipos fantasma. Es el mismo patrón de `bigClubs`/`midClubs` (Fase 18) y
+  // de `STADIUMS_DB` (Fase 23): una lista escrita a mano se desincroniza de la
+  // extracción siguiente.
+  // Ahora el bombo lo deriva `_copaNacArmar` de `clubesDeCategoria('Primera
+  // Nacional')`, que sale de la base del AÑO cargado: 20 clubes reales, y en
+  // 2011 el ascenso de 2011.
+  // (`caOpps`/`caRnds` eran código muerto del sistema viejo, que metía las
+  // cinco rondas de una: desde que la copa se sortea ronda a ronda no los
+  // leía nadie.)
   const sch = [];
   // ═══ SI DIRIGÍS AFUERA, LA LIGA ES UN TODOS CONTRA TODOS ═══
   // El formato de zonas + Apertura/Clausura es argentino. El resto del mundo
@@ -3442,14 +3469,18 @@ function buildCal(teamName, teamId){
   if(qualifiesLib){
     const libWeeks=[2,4,6,8,11,13].map(w=>w+PRE_SEMANAS);
     // libG son los bombos 2, 3 y 4 del sorteo: el índice es la jerarquía
-    const {mios,grupo}=intBuildGroup('lib',teamName,libG.map(([r],i)=>[r,i+1]),libWeeks);
+    const {mios,grupo}=intBuildGroup('lib',teamName,libG.map((r,i)=>[r,i+1]),libWeeks);
     mios.forEach(m=>sch.push(m));
     buildCal._intGrp=grupo;
   } else {
     const sudWeeks=[3,5,7,9,12,14].map(w=>w+PRE_SEMANAS);
-    const sudPool=[['Peñarol','URU'],['Ind. Medellín','COL'],['Emelec','ECU'],['Cerro Porteño','PAR'],['Deportivo Cali','COL'],['Liga de Quito','ECU'],['Defensor Sporting','URU'],['Sol de América','PAR']];
-    const sudRivals=shuf(sudPool).slice(0,3);
-    const {mios,grupo}=intBuildGroup('sud',teamName,sudRivals.map(([r],i)=>[r,i]),sudWeeks);
+    // Mismo derivador que la Libertadores, un bombo por jerarquía
+    const SUD_RED=[['Independiente del Valle','Fortaleza','Corinthians'],
+                   ['Lanús','Ind. Medellín','Emelec','Cruzeiro'],
+                   ['Guaraní','Danubio','Junior FC','Deportes Tolima']];
+    const sudPots=intPots('sud',teamName,3)||SUD_RED.map(p=>p.slice());
+    const sudRivals=sudPots.map(p=>shuf(p.filter(c=>c!==teamName))[0]||p[0]);
+    const {mios,grupo}=intBuildGroup('sud',teamName,sudRivals.map((r,i)=>[r,i]),sudWeeks);
     mios.forEach(m=>sch.push(m));
     buildCal._intGrp=grupo;
   }
@@ -3460,7 +3491,8 @@ function buildCal(teamName, teamId){
   // recién cuando ganás (ver caProximaRonda, llamada desde resolveKO).
   // La Liga ARG pasa sus DOS bombos curados a mano (los clubes reales del
   // ascenso y los cinco grandes); el resto de las ligas los deriva.
-  _copaNacArmar(teamName,'Liga ARG',null,sch,3+PRE_SEMANAS,caPool.slice(),caFinalRivals.slice());
+  _copaNacArmar(teamName,'Liga ARG',clubesDeCategoria('Liga ARG'),sch,3+PRE_SEMANAS,
+                null,caFinalRivals.slice());
   // arAttachLeague corrió más arriba, cuando el grupo todavía no estaba armado
   if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
   return sch.sort((a,b)=>a.week-b.week);
@@ -3475,12 +3507,20 @@ function buildCal(teamName, teamId){
 // en marzo ya sabías contra quién era la final. Ahora las dos copas usan el
 // mismo motor, con semis, y se sortea una ronda por vez.
 const INT_COPAS={
-  lib:{nombre:'Copa Libertadores',pref:'Copa Libertadores',emoji:'🏆',
+  // ⚠️ `ligas` (y con ella la derivación por `clubRank`) faltaba justo en
+  // las dos sudamericanas: eran las únicas dos copas cuyo bombo seguía siendo
+  // una lista escrita a mano. Medido: de los 28 nombres de `LIB_POTS`, **6 no
+  // existían como club de la base** (Atlético Mineiro, Nacional (URU),
+  // Atlético Nacional, Dep. Cali, Sporting Cristal y Talleres — el club es
+  // 'CA Talleres'). La lista queda de red, igual que en las otras cuatro.
+  lib:{nombre:'Copa Libertadores',pref:'Copa Libertadores',emoji:'🏆',tier:1,
+    ligas:['Liga ARG','Brasil','Uruguay','Chile','Colombia','Paraguay','Perú','Ecuador','Bolivia','Venezuela'],
     bombo:['Flamengo','Palmeiras','Atlético Mineiro','Botafogo','Internacional','Fluminense',
       'São Paulo','River Plate','Racing Club','Estudiantes LP','Nacional (URU)','Peñarol',
       'LDU Quito','Olimpia','Cerro Porteño','Colo-Colo','Alianza Lima','Millonarios',
       'Atlético Nacional','Bolívar','Libertad','Sporting Cristal']},
-  sud:{nombre:'Copa Sudamericana',pref:'Copa Sudamericana',emoji:'🥈',
+  sud:{nombre:'Copa Sudamericana',pref:'Copa Sudamericana',emoji:'🥈',tier:2,
+    ligas:['Liga ARG','Brasil','Uruguay','Chile','Colombia','Paraguay','Perú','Ecuador','Bolivia','Venezuela'],
     bombo:['Independiente del Valle','Fortaleza','Corinthians','Lanús','Defensa y Justicia',
       'Ind. Medellín','Emelec','Deportivo Cali','Defensor Sporting','Sol de América',
       'Universidad Católica','Always Ready','Guaraní','Danubio','Junior FC',
@@ -3553,15 +3593,43 @@ function intBombo(copa){
     try{
       const set=new Set(C.ligas);
       const rk=clubRank().filter(x=>set.has(x.lg)&&x.club!==mio);
-      if(rk.length>=12){
+      // ⚠️ Y TIENE QUE HABER MÁS DE UN PAÍS. Jugando un año histórico la base
+      // trae sólo fútbol argentino (medido en los 26 archivos), así que filtrar
+      // por las diez ligas sudamericanas devolvía los ~30 clubes de la Liga ARG
+      // y la Libertadores quedaba siendo un torneo argentino. Con menos de 3
+      // ligas representadas cae a la lista de red, que es lo honesto.
+      const _paises=new Set(rk.map(x=>x.lg)).size;
+      if(rk.length>=12&&_paises>=3){
+        // ⚠️ TOPE POR PAÍS, O LA COPA SE CONVIERTE EN EL BRASILEIRÃO.
+        // Sin esto, medido, el bombo de la Libertadores salía con 12 clubes de
+        // Brasil sobre 24 — incluida media segunda división (Coritiba,
+        // Londrina, Mirassol, Remo) — porque la base trae esas ligas enteras y
+        // el orden es por nivel a secas. En la copa de verdad ningún país
+        // mete más de 5. Se respeta el orden por nivel dentro de cada país.
+        const porPais={}, cap=5, filt=[];
+        rk.forEach(x=>{ const k=x.lg;
+          if((porPais[k]=(porPais[k]||0)+1)<=cap) filt.push(x); });
+        const base2=filt.length>=12?filt:rk;
         // tier 1 se lleva la elite; tier 2, la banda de abajo
-        const n=Math.min(24,Math.max(12,Math.round(rk.length*0.35)));
-        const pool=(C.tier===2)?rk.slice(n,n*2+8):rk.slice(0,n);
+        const n=Math.min(24,Math.max(12,Math.round(base2.length*0.55)));
+        const pool=(C.tier===2)?base2.slice(n):base2.slice(0,n);
         if(pool.length>=8)return pool.map(x=>x.club);
       }
     }catch(e){}
   }
   return histFiltraBombo((C.bombo||[]).filter(c=>c!==mio));
+}
+// ⚠️ UN SOLO DERIVADOR PARA LOS BOMBOS. `intBombo` ya ordena los clubes de la
+// confederación por `clubRank()`; partirlo en N bombos es reparto, no una
+// segunda fuente de verdad. Devuelve null cuando no hay material y el que
+// llama decide (la Liga ARG cae a su lista de red).
+function intPots(copa,excluir,nPots){
+  const n=Math.max(2,nPots||4);
+  const lista=(intBombo(copa)||[]).filter(c=>c&&c!==excluir);
+  if(lista.length<n*2)return null;
+  const por=Math.floor(lista.length/n), pots=[];
+  for(let i=0;i<n;i++)pots.push(lista.slice(i*por,i===n-1?lista.length:(i+1)*por));
+  return pots.every(p=>p.length)?pots:null;
 }
 // ═══════════════════════════════════════════════════════════════════════
 // UNA COPA DE 2006 NO SE JUEGA CONTRA LOS CLUBES DE 2026
@@ -3655,15 +3723,24 @@ function clubPowerAny(club){
 // ⚠️ La Libertadores y la Sudamericana NO se tocan: su balance está calibrado
 // desde la Fase 18 y cambiarle el rating a los clubes que no están en la
 // tabla movería una dificultad que ya está medida.
+// ⚠️ EL ORDEN IMPORTA, Y ES EL BUG DEL "73 FIJO" OTRA VEZ.
+// `clubPowerAny` estaba DESPUÉS del fallback por competencia, así que todo
+// club que no estuviera en la tabla `INT_RAT` escrita a mano valía 73 en la
+// Libertadores y 67 en la Sudamericana, tuviera el plantel que tuviera. Con
+// los bombos derivados eso pasa de ser raro a ser la norma: medido, 10 de los
+// 24 del bombo no están en `INT_RAT` y su nivel real va de 71 a 80.
+// Ahora: la tabla curada manda (su balance está calibrado), y el que no está
+// vale lo que vale su plantel. El fallback por competencia queda para el club
+// del que no hay ni plantel.
 function intRatDe(nombre,comp){
   if(INT_RAT[nombre])return INT_RAT[nombre];
+  const real=clubPowerAny(nombre);
+  if(real>0)return Math.round(real);
   const c=comp||'';
   if(/Mundial de Clubes/.test(c))return 80;
   if(/Recopa/.test(c))return 73;
   if(/Sudamericana/.test(c))return /Final|Semis/.test(c)?70:67;
   if(/Libertadores/.test(c))return /Final|Semis/.test(c)?76:73;
-  const real=clubPowerAny(nombre);
-  if(real>0)return Math.round(real);
   return 70;
 }
 
@@ -15015,11 +15092,21 @@ function caProximaRonda(rndActual){
   if(idx>=RON.length)return null;
   const comp=RON[idx];
   if(G.calendar.some(x=>x.comp===comp))return null;   // ya estaba sorteada
-  const chicos=(typeof buildCal!=='undefined'&&buildCal._caPool)||
-    ['Almagro','Quilmes','Atlanta','Chacarita','All Boys','Temperley','Tristán Suárez',
-     'Sacachispas','Comunicaciones','Deportivo Morón','Los Andes','Almirante Brown'];
+  // ⚠️ El fallback también era una lista a mano con clubes que no existen en
+  // la base. Sólo se usa si `buildCal` no dejó los bombos (un save viejo),
+  // pero entonces la copa se jugaba contra fantasmas. Ahora se deriva igual
+  // que el bombo de verdad.
+  const _caDeriv=()=>{ try{
+      const seg=(ligaMia()==='Liga ARG')?clubesDeCategoria('Primera Nacional'):[];
+      if(seg&&seg.length)return seg.slice();
+      const en=(clubesDeCategoria(ligaMia())||[]).filter(c=>c!==G.teamName);
+      return en.slice(Math.floor(en.length/2));
+    }catch(e){ return []; } };
+  const chicos=(typeof buildCal!=='undefined'&&buildCal._caPool)||_caDeriv();
   const grandes=(typeof buildCal!=='undefined'&&buildCal._caGrandes)||
-    ['Racing Club','River Plate','Independiente','San Lorenzo','Vélez Sarsfield'];
+    (()=>{ try{ const en=(clubesDeCategoria(ligaMia())||[]).filter(c=>c!==G.teamName);
+      return en.slice().sort((a,b)=>nivelClub(b)-nivelClub(a)).slice(0,6);
+    }catch(e){ return []; } })();
   // De cuartos en adelante aparecen los grandes
   const bombo=(idx>=2?grandes:chicos).filter(c=>c!==G.teamName);
   const yaJugados=new Set(G.calendar.filter(x=>esCopaNac(x.comp))
@@ -21856,14 +21943,29 @@ const FM13={
 // Mutable y fuera de la función para poder hacer ablación medida, igual que
 // FM13. `centro` en 0 apaga el mecanismo entero sin tocar el código.
 const FM52={
-  // ⚠️ APAGADO (0) A PROPÓSITO — ver la Fase 52 en CLAUDE.md.
-  // El mecanismo está implementado y dispara bien, pero **0,5 veces por 90'**,
-  // y las métricas del motor se mueven 15,5 → 22,5 remates entre corridas del
-  // MISMO código. O sea: no se puede verificar que sirva ni que moleste, y la
-  // regla del proyecto es que lo inverificable no se shippea encendido.
-  // Poniéndolo en 0.42 se enciende sin tocar una línea más.
-  centro:0,                  // prob. de centrar cuando se dan las condiciones
-  tercio:0.34,               // qué tan cerca del fondo (× ancho de cancha)
+  // ⚠️ ENCENDIDO EN LA FASE 57, a pedido explícito del presidente después de
+  // haberle reportado que no se podía verificar. Lo que SÍ se puede medir es
+  // el saque de arco, que es el objetivo del pedido: venía clavado en 0,3 por
+  // 90' contra los 14-18 reales, y un número tan bajo no se confunde con el
+  // ruido del motor (los remates sí: se mueven 15,5 → 22,5 con el mismo
+  // código). Los números medidos están en la Fase 57 de CLAUDE.md.
+  centro:0.28,               // prob. de centrar cuando se dan las condiciones
+  // ⚠️ EL CENTRO PASADO ES EL QUE GENERA EL SAQUE DE ARCO.
+  // Un centro que SIEMPRE encuentra el área no produce ni una reanudación: la
+  // pelota se queda adentro. En el fútbol real una parte de los centros se va
+  // larga y cruza la línea de fondo, y ése es justamente el saque de arco que
+  // falta. Se apunta AFUERA a propósito, no se le suma ruido al vector: el
+  // ruido gaussiano sobre un vector ya corto casi nunca cruza la línea (es la
+  // misma lección de la guarda del aire — lo que decide es la geometría, no
+  // la probabilidad).
+  pasado:0.20,               // fracción de centros que se van por el fondo
+  largo:0.10,                // cuánto se pasa (× ancho de cancha) al irse
+  // ⚠️ 0.45, Y NO SE ELIGIÓ A OJO. Sonda dentro de `fmTeamPass` sobre 1.426
+  // pases: el portador **nunca** se acerca a menos de 288px de la línea de
+  // fondo, así que con 0.34 la condición se daba 15 veces (1%) y con `banda`
+  // encima, 3. Con 0.45 se da 129 veces (9%), que a 0.28 de probabilidad son
+  // los ~18 centros por 90' del fútbol real.
+  tercio:0.45,               // qué tan cerca del fondo (× ancho de cancha)
   presion:150,               // px: un rival más cerca que esto = está apretado
   // ⚠️ QUIÉN CENTRA SE DERIVA DEL DIBUJO, NO DE `p.pos`.
   // Medido: `p.pos` es **undefined en los 22 jugadores** del 11v11 — el motor
@@ -24123,17 +24225,24 @@ function fmTeamPass(team,fromIdx){
   // (Fase 30), y "centrar o tocar atrás" es exactamente eso. El carrilero que
   // llega al fondo con un rival encima no la juega para atrás: la tira al área.
   //
-  // ⚠️ VA APAGADA (`FM52.centro` = 0): dispara 0,5 veces por 90' y el motor
-  // se mueve 15,5 → 22,5 remates entre corridas del MISMO código, así que no
-  // se puede verificar ni que sirva ni que moleste. Con 0, `Math.random()<0`
-  // nunca es true y el motor queda idéntico al de antes.
+  // ⚠️ Y EL CENTRO PASADO ES LO QUE TRAE EL SAQUE DE ARCO (Fase 57): una
+  // fracción se va por el fondo a propósito, que es de dónde sale la
+  // reanudación que al motor le faltaba por completo.
   //
   // Los coeficientes viven FUERA de la función y son mutables para poder hacer
   // ablación medida, igual que `FM13`.
+  // ⚠️ NO SE PIDE QUE ESTÉ ABIERTO **AHORA**, Y ES LO QUE HACÍA QUE LA RAMA
+  // NO DISPARARA NUNCA. Medído con una sonda dentro de `fmTeamPass` sobre
+  // 1.426 pases: el jugador juega en un carril abierto (por el DIBUJO) el 60%
+  // de las veces y está abierto de verdad (por su `y`) el 32%, pero las dos
+  // cosas J U N T A S cerca del fondo se dieron **3 veces**. No es mala
+  // suerte: es la ley de este motor que ya está documentada desde la Fase 32
+  // — "el bloque se ancla a la PELOTA, no a la formación" —, así que el que
+  // llega al fondo ya se cerró hacia el área. Quien centra es el que JUEGA de
+  // carrilero (`hy`), esté donde esté parado en ese tick.
   const _cx=fromP?(attRight?(f.rightGL-fromP.x):(fromP.x-f.leftGL)):1e9;
-  const _cbanda=fromP&&Math.abs(fromP.y-mid5)>f.VH*0.24;
   const _ccarril=fromP&&!fromP.isGK&&Math.abs((fromP.hy===undefined?mid5:fromP.hy)-mid5)>f.VH*FM52.bandaDibujo;
-  if(fromP&&_ccarril&&_cbanda&&_cx<fieldW*FM52.tercio&&!holding){
+  if(fromP&&_ccarril&&_cx<fieldW*FM52.tercio&&!holding){
     // presionado: sin nadie encima puede seguir conduciendo, como en la cancha
     const _cpres=rivals.reduce((a,o)=>a+(!o.isGK&&Math.hypot(o.x-fromP.x,o.y-fromP.y)<FM52.presion?1:0),0);
     if(_cpres>=1&&Math.random()<FM52.centro){
@@ -24160,16 +24269,29 @@ function fmTeamPass(team,fromIdx){
         if(sc>_tgS){_tgS=sc;_tg=t;}
       });
       if(_tg){ _tx=_tg.x; _ty=_tg.y; }
+      // ⚠️ El centro que se va largo: el destino se pone DETRÁS de la línea de
+      // fondo, del lado opuesto al que centró (que es como se pasa un centro
+      // de verdad). `fmBall` lo resuelve solo: último toque del que ataca →
+      // saque de arco. No hace falta tocar `fmBall`.
+      const _pas=Math.random()<FM52.pasado;
+      if(_pas){
+        _tx=_gx+(attRight?1:-1)*fieldW*FM52.largo;
+        _ty=mid5+(fromP.y<mid5?1:-1)*f.GH*(1.6+Math.random()*1.2);
+        _tg=null;
+      }
       const dx=_tx-b.x, dy=_ty-b.y, dd=Math.hypot(dx,dy)||1;
       const pwr=5.4+dd*0.0052;
       b.vx=dx/dd*pwr; b.vy=dy/dd*pwr;
-      b.air=Math.min(46,dd/pwr*0.80);          // centro alto: se disputa de cabeza
+      // El pasado va con MENOS aire que el buscado: tiene que cruzar la línea
+      // por arriba pero sin quedarse flotando media cancha.
+      b.air=Math.min(46,dd/pwr*(_pas?0.55:0.80));
       b.isShot=null;
       f._lastTouch=team; f._lastPasser={team,i:fromIdx};
       fromP._kickT=9; if(_tg)_tg._recvTick=f.ticks+~~(dd/pwr);
       fmSndKick(0.6);
       if(f.learn){ f.learn.centros=(f.learn.centros||0)+1;
-                   if(!_tg)f.learn.centrosAlEspacio=(f.learn.centrosAlEspacio||0)+1; }
+                   if(_pas)f.learn.centrosPasados=(f.learn.centrosPasados||0)+1;
+                   else if(!_tg)f.learn.centrosAlEspacio=(f.learn.centrosAlEspacio||0)+1; }
       return;
     }
   }

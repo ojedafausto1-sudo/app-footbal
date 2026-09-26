@@ -4965,6 +4965,227 @@ proyecto, sólo que atrapado antes de shippear.
 o por el dado, no por el producto.** Antes de tocar el juego porque un check se
 puso rojo, verificá el mecanismo aislado.
 
+## Fases 55-58 (el roadmap V8 del presidente)
+
+⚠️ **El documento las numeraba 51-54 y esos números ya estaban usados** (copas
+universales, centro por la banda, bombos históricos, libres iniciales). Se
+renumeran 55-58 para no pisar la historia de este archivo.
+
+## Fase 55: la curva de edad es la del Excel
+
+`ageAdj` tenía `(-3,-2,0,1,5,7)` y el modelo de la calculadora V2.2 dice
+`(-5,-3,0,1,5,8)`: el pibe está **más** castigado (su precio es proyección
+pura, no rendimiento) y el veterano más premiado (su precio ya descontó los
+años que le quedan).
+
+Medido sobre las 17.108 fichas: **cambian 3.933 (23%)** y la media global se
+mueve de **67,24 a 67,08**. Sólo se corren las dos puntas —≤18 baja 2, 19-21
+baja 1, 35+ sube 1— y las tres bandas del medio (9.689 jugadores) no se tocan.
+
+⚠️ **No hay una segunda tabla que se pueda desincronizar**: `ratToVal` es la
+inversa y RESTA esta misma función, así que se ajusta sola. La regresión lo
+verifica con ida y vuelta sobre 24 combinaciones de edad y precio (desvío peor:
+0 puntos).
+
+## Fase 56: los bombos de copa salen de la base, no de una lista a mano
+
+### La Copa Argentina se jugaba contra clubes que no existen
+
+Medido contra `players-db.js`: de los **15 nombres** del `caPool` escrito a
+mano, **7 no existen como club de la base** — Chacarita (que ahí se llama
+`Chacarita Jrs.`), Brown de Adrogué, Villa Dálmine, Temperley, Sacachispas,
+Comunicaciones y Deportivo Morón. A un club que no existe `squadFromDB` le
+inventa el plantel entero, así que media copa se jugaba contra equipos
+fantasma. Es el patrón de `bigClubs`/`midClubs` (Fase 18) y de `STADIUMS_DB`
+(Fase 23): una lista a mano se desincroniza de la extracción siguiente.
+
+Ahora el bombo lo deriva `_copaNacArmar` de **`clubesDeCategoria('Primera
+Nacional')`**, que sale de la base del AÑO cargado. Verificado: 2026 sortea
+contra Gimnasia (M), Ciudad Bolívar, Midland, Nueva Chicago… y **2016 contra el
+ascenso de 2016** (Guillermo Brown, Boca Unidos, Ferro), los dos con 0
+fantasmas.
+
+⚠️ **Hubo que partir el `if` del derivador.** Era uno solo para los dos bombos
+(`if(!chicos||!grandes)`), así que pasar los grandes a mano y dejar los chicos
+en null **pisaba los grandes que sí venían**. Ahora llena sólo lo que falta.
+
+⚠️ Y el fallback de `caProximaRonda` tenía la MISMA lista podrida. También
+deriva.
+
+### La Libertadores: 4 bombos de `clubRank()`, no 28 nombres
+
+`intBombo` ya derivaba el bombo del nivel real de cada club **para las cuatro
+copas nuevas de la Fase 51 — pero no para las dos sudamericanas**, que eran las
+únicas que seguían con lista a mano. De sus 28 nombres, **6 no existen en la
+base** (Atlético Mineiro, Nacional (URU), Atlético Nacional, Dep. Cali,
+Sporting Cristal y Talleres — el club es `CA Talleres`).
+
+Se les agregó `ligas` y `tier`, y `intPots(copa,excluir,n)` parte el bombo ya
+ordenado en N. **No es una segunda tabla: es reparto.** La lista escrita queda
+de red.
+
+| | antes | ahora |
+|---|---|---|
+| clubes fantasma en el bombo | 6 de 28 | **0 de 24** |
+| Bombo 1 | lista fija | Palmeiras · Flamengo · Cruzeiro · Corinthians · River · Bahia |
+| países representados | — | **8** |
+
+⚠️ **Tope de 5 por país, y no es decorativo.** Sin él, medido, el bombo salía
+con **12 clubes de Brasil sobre 24**, incluida media segunda división
+(Coritiba, Londrina, Mirassol, Remo): la base trae esas ligas enteras y el
+orden es por nivel a secas. En la copa de verdad ningún país mete más de 5.
+
+⚠️ **Y una guarda de 3 países, o el año histórico rompe todo.** Jugando 2016 la
+base es argentina sola, así que filtrar por las diez ligas sudamericanas
+devolvía los ~30 clubes de la Liga ARG y **la Libertadores quedaba siendo un
+torneo argentino**. Con menos de 3 ligas representadas cae a la lista de red.
+Verificado con 2016: sortea la lista curada, no 4 bombos de argentinos.
+
+### ⚠️ Y apareció el "73 fijo" otra vez
+
+`intRatDe` tenía `clubPowerAny` **después** del fallback por competencia, así
+que todo club fuera de la tabla `INT_RAT` valía **73 en la Libertadores y 67 en
+la Sudamericana**, tuviera el plantel que tuviera. Con los bombos derivados eso
+pasa de raro a norma: medido, **9 de los 24** del bombo no están en `INT_RAT` y
+su nivel real va de 67 a 80 (Bahia vale 76, no 73).
+
+Ahora el orden es: tabla curada → plantel real → fallback por competencia. La
+tabla manda porque su balance está calibrado; el que no está vale lo que vale.
+El nivel medio del bombo casi no se mueve (**71,75**), así que la dificultad de
+la copa queda donde estaba.
+
+### Lo que NO se hizo, y por qué
+
+El pedido decía usar **`esLigaUE`** para separar Europa de LATAM. **Esa función
+no significa "Europa"**: `LIGA_UE` son sólo `['España','Italia','Francia']` —
+es la regla de EXTRACOMUNITARIOS de la Fase 14. Medido: `esLigaUE('Premier')` y
+`esLigaUE('Alemania')` dan **false**, así que la Champions se habría quedado sin
+ingleses ni alemanes. El continente sale de `INT_COPAS[copa].ligas`, que ya
+existe desde la Fase 51 y es la fuente de verdad.
+
+Y **las copas de las otras 24 ligas ya estaban** (Fase 51): `_copaIntArmar` y
+`_copaNacArmar` las arman desde `intBombo`. Lo único que quedaba con lista a
+mano era la rama argentina.
+
+## Fase 57: los centros y el saque de arco que no existía
+
+El mecanismo del centro se había construido en la Fase 52 y quedó **apagado por
+inverificable**. El presidente lo volvió a pedir, así que se encendió — pero
+buscando la métrica que **sí** se puede medir.
+
+### ⚠️ Encendido no alcanzaba: la rama no disparaba NUNCA
+
+Con `centro:0.42` puesto, el contador `centros` seguía en **0**. Sonda dentro
+de `fmTeamPass` sobre 1.426 pases:
+
+| condición | se cumple |
+|---|---|
+| juega de carrilero (por el DIBUJO, `hy`) | 853 (60%) |
+| está abierto AHORA (por su `y`) | 458 (32%) |
+| está cerca del fondo | 24 (1,7%) |
+| **las tres juntas** | **3** |
+
+Y el dato que lo explica: **el portador nunca se acerca a menos de 288px de la
+línea de fondo**. Las dos condiciones de banda están **anti-correlacionadas**:
+el que llega al fondo ya se cerró hacia el área. No es mala suerte, es la ley
+de este motor documentada desde la Fase 32 — *"el bloque se ancla a la PELOTA,
+no a la formación"*.
+
+Se sacó la condición de "estar abierto ahora" (quien centra es el que JUEGA de
+carrilero) y `tercio` pasó de 0,34 a **0,45**, que sube las oportunidades de 15
+a 129 sobre 1.426 pases. **Los dos números salen de esa tabla, no de probar a
+ojo** — que es lo que este archivo prohíbe seis veces.
+
+### El saque de arco: la única métrica que escapa al ruido
+
+Los remates de este motor se mueven **15,5 · 16,5 · 20,3 · 22,5 · 30,0** entre
+corridas del MISMO código, así que no sirven para decidir nada. El saque de
+arco sí: venía clavado en **0,3 por 90'** contra los 14-18 reales, y un número
+tan bajo no se confunde con ruido.
+
+| saque de arco /90 | corridas (360 min c/u) |
+|---|---|
+| **apagado** | 0,3 · 0,5 · 0,5 · 1,3 |
+| **encendido** | **2,0 · 3,0 · 4,3** |
+
+**Los dos rangos no se tocan** en 4 contra 3 corridas independientes. Es la
+primera vez en este proyecto que un cambio del 11v11 se puede afirmar.
+
+Y lo que el archivo exige mirar siempre: **pases 307 → 376 y goles 3,50 →
+3,25**. El mecanismo no cuesta juego.
+
+⚠️ **`pasado:0.20` apunta AFUERA a propósito, no le suma ruido al vector.** Un
+centro con dispersión gaussiana casi nunca cruza la línea: el vector ya es
+corto. El destino del centro pasado se pone DETRÁS de la línea de fondo y
+`fmBall` lo resuelve solo (último toque del que ataca → saque de arco). No hubo
+que tocar `fmBall`.
+
+⚠️ **`centro` se quedó en 0,28 y NO en 0,55, y también por medición.** Con 0,55
+hay el doble de centros (10,8 contra 5,8 por 90) y **los mismos saques de arco**
+(2,8 contra 3,0 — ruido), pero se pierden laterales (13,5 contra 18,0) y tiros
+libres (17,8 contra 24,5). Pagar el doble por nada es exactamente el error que
+este archivo documenta seis veces.
+
+⚠️ **Sigue lejos de lo real y conviene decirlo**: 6 centros por 90 contra 16-20,
+y 3,4 saques de arco contra 14-18. Lo que falta es lo que ya está anotado desde
+la Fase 13: los ~9 **remates desviados** por partido que deberían cruzar la
+línea y no la cruzan. Ése sigue siendo el hilo con más rendimiento.
+
+### ⚠️ El pedido mandaba a `fmAI` y el mecanismo va en `fmTeamPass`
+
+`fmAI` decide **moverse**; la elección de qué hacer con la pelota vive en
+`fmTeamPass`. Meter el centro en `fmAI` habría sido un objetivo de posición —
+la categoría que en este motor falló las ocho veces (Fase 32).
+
+## Fase 58: siete checks de la regresión que envejecieron solos
+
+- **`deflación histórica`** guardaba la suma y el hash de las 17.108 medias de
+  2026 **escritos a mano** (1.150.306) y se puso rojo al cambiar la curva de
+  edad — un cambio legítimo que no tiene nada que ver con la deflación. Lo que
+  importa es que ir a un año viejo y volver no deje restos, así que ahora la
+  huella se compara **contra sí misma** (antes de irse contra después de
+  volver). Un número congelado ahí es la misma trampa que una lista de clubes
+  a mano: envejece sola.
+  ⚠️ Y encima la huella inicial se tomaba **con la base de otro año**: el
+  check de `temporadas reales` corre antes y deja un año histórico cargado
+  (medido, 166.493 contra 1.147.665). Ahora fuerza 2026 antes de medir.
+- **`línea de fondo`** afirmaba `FM52.centro===0`. Ahora verifica la GEOMETRÍA
+  del centro pasado, que es lo determinista: que el destino caiga detrás de la
+  línea de fondo por los dos lados.
+- **`personalidades`** volvió a caer, ahora en `recargo` (rojo 1 de 3 sobre el
+  mismo código) y por **dos** causas del instrumento a la vez: el `find` del
+  mercenario dependía del salt, así que medía un jugador distinto cada corrida,
+  y el cociente de dos sueldos **ya redondeados a entero** se desvía hasta ±2%
+  cuando el sueldo es chico — justo el umbral del assert. Ahora fija el
+  jugador (el de mayor media, o sea el de sueldo más grande) y compara contra
+  el entero esperado en vez de contra un cociente.
+- **`copas en las 25 ligas`** exigía `nacRondas>=3`, o sea **ganar dos llaves
+  seguidas de la Copa del Rey**: una moneda. Medido sobre el mismo código, la
+  Copa del Rey del Real Madrid dio **5, 2 y 1 rondas** según cómo salieran los
+  partidos. Bajarlo a 2 no alcanzaba —seguía pidiendo ganar una llave—, así
+  que ahora el assert es el MECANISMO: hubo una segunda ronda **o** el último
+  partido de copa se perdió. Si te eliminaron en la primera, que no haya
+  segunda es lo correcto; el bug de la Fase 51 era que no había segunda ni
+  ganando. Es el séptimo check de este proyecto que probaba la suerte en vez
+  del mecanismo.
+- **`inmersión`** (`figura`) costó **tres intentos** y la causa de verdad
+  estaba en el producto, no en el check — que es justo lo que este archivo
+  repite: **verificá el mecanismo aislado antes de tocar nada**. En orden:
+  buscaba al de mejor nota dentro de `G.slots` (el once de AHORA, que puede
+  haber cambiado desde el partido) y comparaba por NOMBRE en vez de por nota,
+  así que un empate arriba lo decidía el `sort`; después, se medía **después**
+  de que el propio check re-dibujara el resumen con un 2-1 inventado, que
+  vuelve a elegir la figura con datos que no son los del partido. Los dos se
+  arreglaron y **seguía cayendo 1 de cada 5**. La causa final:
+  `showMatchSummary` pone **`G._lastMVP=null` en una derrota sin goles**, a
+  propósito — no hay figura en un 0-2. El rojo dependía de cómo saliera el
+  último partido de la muestra. Un `null` ahí es la respuesta correcta y el
+  check ahora lo acepta.
+- **`mercado de la IA`** pedía `movidos>=90` sobre un contador estocástico que
+  mide 126 · 129 · 130 · 131 · 133 · 135 · 140 · 150 **y una cola en 85**: el
+  umbral estaba pegado a la cola. Lo que se afirma es "antes 40, ahora ~130",
+  y 70 lo prueba igual sin ser una moneda.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
