@@ -5530,6 +5530,91 @@ y a los pocos días entra al plantel y se cobra.
 con un rango de 0 a 400 el slider obliga a cazar el pixel, y la regla de la
 Fase 45 es que todo monto negociable se pueda escribir. Se lee con `nRead`.
 
+## Fase 66: el amontonamiento de la captura — medido, y no era lo que parecía
+
+El usuario mandó una captura de Juventus-Real Madrid al minuto 22: **18 de los
+20 jugadores de campo apilados en un tercio** y la mitad derecha vacía salvo
+el arquero. "El mismo error de siempre."
+
+### ⚠️ La medición vieja que decía "no hay amontonamiento" medía lo que SÍ funcionaba
+
+Está anotado desde la Fase 25: *"177px al compañero más cercano, no hay
+amontonamiento"*. Es cierto — y es irrelevante. **Esa métrica mira
+compañeros**, y la separación del motor también:
+
+```js
+for(const q of players){ ... }     // `players` es TU equipo
+```
+
+Los 22 se separan de los suyos y se meten encima de los otros. Medido con una
+sonda dentro de `fmTick`, 27.000 ticks de juego:
+
+| | medido |
+|---|---|
+| distancia al COMPAÑERO más cercano | **288px** (sana) |
+| cluster más grande contando los DOS equipos | **8 jugadores dentro de 120px** |
+| ticks con un cluster de 8+ | **52%** |
+| jugadores en el mismo tercio que la pelota (de 20) | **mediana 12-13** |
+| ticks en que el que ataca no tiene NADIE en campo rival | **19%** |
+
+O sea: la captura es real y reproducible, y la medición que la desmentía
+estaba mirando al lado.
+
+### La separación entre rivales: escrita, medida y APAGADA
+
+Se agregó el bucle que faltaba (`FM66`, radio más chico y **sin la disputa** —
+el que va a la pelota tiene que poder llegar o no habría ni quites ni marca).
+Ablación, 3 partidos por escenario, dos veces cada uno:
+
+| | cluster 8+ | pases |
+|---|---|---|
+| apagado | **5,8% · 30,6%** | 434 · 374 |
+| encendido | 23,6% · 25,8% | **318 · 292** |
+
+**El baseline salta 5× entre corridas idénticas**, así que la métrica no
+resuelve nada a este tamaño de muestra — la misma trampa de la Fase 32. Lo
+único consistente en las cuatro corridas es que **cuesta un 20% de los pases**
+(los cuatro valores ordenados). Pagar eso por algo que no se puede demostrar
+es exactamente lo que este archivo prohíbe. Queda en `FM66.sepRiv=0`; con 62
+se enciende sin tocar una línea.
+
+⚠️ Se probó también que fuera cosa de la pelota parada (ahí no corre `fmAI` ni
+la separación). **No lo es**: el cluster mediano es 6 en juego y 6 parado.
+
+### Lo que SÍ apareció, y es el hallazgo grande
+
+Contando ticks por fase: **27.000 de juego contra 17.000-23.000 de pelota
+parada**. El partido estaba **congelado el 38-43% del tiempo**, con los 22
+plantados. Con ~25 tiros libres por 90' a 230 ticks cada uno, las faltas solas
+se comían el 21% del partido.
+
+Eso explica la captura mejor que cualquier teoría del amontonamiento: hay casi
+un 40% de probabilidad de que cualquier frame que mires sea uno congelado.
+
+`SETPIECE_T` pasa de `{goalkick:150, corner:260, freekick:230}` a
+`{goalkick:80, corner:140, freekick:120}`. Medido, dos corridas por escenario:
+
+| | parado | pases | remates | goles |
+|---|---|---|---|---|
+| antes | **42,7% · 37,6%** | 467 · 546 | 25,5 · 29,5 | 4,0 · 1,5 |
+| ahora | **21,8% · 27,7%** | 427 · 734 | 22,5 · 22,5 | 2,5 · 4,0 |
+
+**Los dos rangos no se superponen** (37,6-42,7 contra 21,8-27,7), que es el
+mismo estándar con el que se aceptó el saque de arco en la Fase 57. Y el
+partido no pierde juego: los pases no bajan y los goles siguen en rango.
+
+⚠️ `throw` queda en **45** (ya estaba calibrado: bajó de 80 por este mismo
+motivo) y el **penal en 150**, que es el único momento donde la espera ES la
+gracia.
+
+### Lo que queda abierto, con nombre
+
+El amontonamiento **existe** y ahora está cuantificado, pero **no se puede
+arreglar con este arnés**: ninguna métrica de aglomeración resiste dos
+corridas. Si se retoma, lo primero no es tocar el motor sino lo que la Fase 32
+dejó escrito — **fijar la semilla del `Math.random` del motor y comparar el
+mismo partido tick a tick**. Hasta entonces, `FM66` está listo y apagado.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
