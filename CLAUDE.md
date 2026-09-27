@@ -866,8 +866,22 @@ await page.evaluate(() => { startGame('boca'); autoFill(); });
 ```
 
 - Usar `startGame('boca')` (NO `initGame`) + `autoFill()`
-- `G`, `FM`, `SIT` son globales (no `window.FM`)
-- `fmInit` corre dentro de un `requestAnimationFrame`: esperá ~1s antes de leer `FM`
+- ⚠️ `G`, `FM`, `SIT`, `FM66`, `FM67`… son globales **léxicas**: están
+  declaradas con `let`/`const` en el tope de un `<script>`, y eso **no crea una
+  propiedad de `window`**. Se leen por nombre pelado (`FM.phase`), y para
+  ESCRIBIRLAS desde un arnés hace falta **eval indirecto**
+  (`(0,eval)('FM67.lon=0.5')`). `window.FM67.lon=0.5` tira y, adentro de un
+  `try/catch`, **falla en silencio**: ya hizo que una A/B corriera dos veces el
+  mismo escenario. Las `function` sí están en `window` (por eso se las puede
+  envolver).
+- ⚠️ **Nunca pongas `FM.watch=false` en un arnés.** El motor no le corre la IA
+  al jugador `f.ctrl` porque ése lo maneja el humano: sin humano queda clavado
+  y el partido se puede morir con la pelota parada 76 minutos (Fase 67).
+  `startFullMatch(true)` ya deja `watch=true`.
+- `fmInit` corre dentro de un `requestAnimationFrame`: esperá ~1s antes de leer
+  `FM` — o, mejor, reemplazá `requestAnimationFrame` por una ejecución en el
+  acto mientras se arma, que además saca el ruido del reloj de pared
+  (`scratchpad/det.js`).
 - Verificar sintaxis extrayendo los bloques `<script>` y corriendo `node --check`
 
 **Siempre correr la regresión antes de commitear**: las 6 jugadas clave, una
@@ -2435,6 +2449,16 @@ con y sin el cambio, comparando tick a tick en vez de por promedios.
 Y lo que **sí** funciona y ya está entregado sigue siendo lo mismo: las palancas
 de **decisión** (`prof.direct` en el pase: 51% → 74% de pases hacia adelante y
 1,0% → 9,5% de pelotazos, monótono y medido).
+
+✅ **EL ARNÉS SE CONSTRUYÓ (Fase 67) Y EL TEMA SE DESTRABÓ.** Este párrafo tenía
+razón en todo menos en el pronóstico: el arnés era lo que faltaba, y con él el
+amontonamiento se arregló a la primera (tercio 12,7 → 11,4 bajando en **los 20**
+partidos pareados). De los ocho intentos de arriba, al menos uno estaba
+**bien y se descartó por un instrumento roto**: la mitad LONGITUDINAL del
+`FM_FASE` de la Fase 32 es exactamente `FM67.lon`, que funciona. La lateral
+estaba bien descartada. Antes de volver a leer esta lista como una prohibición,
+leé la Fase 67 — y sobre todo los cuatro bugs del arnés, que explican de dónde
+salía el "factor 5 sobre el mismo código".
 
 ## Fase 33: aprobación presidencial y destitución
 
@@ -5614,6 +5638,165 @@ arreglar con este arnés**: ninguna métrica de aglomeración resiste dos
 corridas. Si se retoma, lo primero no es tocar el motor sino lo que la Fase 32
 dejó escrito — **fijar la semilla del `Math.random` del motor y comparar el
 mismo partido tick a tick**. Hasta entonces, `FM66` está listo y apagado.
+
+✅ **Resuelto en la Fase 67**: se construyó ese arnés y el amontonamiento se
+arregló. Lo de arriba queda como está porque describe correctamente el estado
+de la Fase 66, pero **ya no es lo último que se sabe del tema**.
+
+## Fase 67: el arnés determinista — y el amontonamiento, por fin
+
+Diez fases venían diciendo lo mismo: "el baseline se mueve ±120px entre
+corridas idénticas, así que cualquier resultado es una moneda". La Fase 32
+cerró el tema con un 🛑 y dejó escrita la única salida: **fijar la semilla y
+comparar el mismo partido tick a tick**. Eso es lo que se hizo, y el
+amontonamiento cayó a la primera. **El problema nunca fue el motor: era el
+instrumento.**
+
+### Los cuatro bugs del arnés, y por qué invalidan mediciones viejas
+
+Ninguno estaba en el juego. Los cuatro estaban en cómo se lo medía.
+
+1. **⚠️ `FM` NO vive en `window`.** Está declarado `let FM=null;` en el tope de
+   un `<script>` clásico, y un `let`/`const` de tope de script **no crea una
+   propiedad de `window`** (a diferencia de `function` y `var`). Todo arnés que
+   esperaba con `while(!window.FM)` **esperaba el timeout completo** — 1,5
+   segundos de reloj de pared con los timers del juego corriendo y consumiendo
+   números del PRNG entre la semilla y el primer tick. Lo mismo vale para
+   `FM66`, `FM13`, `FM52`: `window.FM66.sepRiv=62` fallaba en silencio adentro
+   de un `try/catch` y **la A/B corría dos veces el mismo escenario** (los seis
+   partidos daban delta exactamente 0). Se lee y se escribe con **eval
+   indirecto** (`(0,eval)('FM66.sepRiv=62')`), que sí ve el ámbito léxico
+   global.
+2. **⚠️ `FM.watch=false` congela el partido, y esto es lo gordo.** `fmTick`
+   hace `f.my.forEach((p,i)=>{ if(f.watch||i!==f.ctrl) fmAI(...) })`: fuera del
+   modo espectador, el jugador `f.ctrl` **no tiene IA porque lo maneja el
+   humano**. Sin humano queda clavado, y cuando la pelota le muere al lado
+   nadie la va a buscar. Reproducido determinista con la semilla 12345: la
+   pelota **quieta 11.403 ticks seguidos —76 de los 90 minutos— con la fase en
+   `play`**, los pases congelados en 40 desde el minuto 17 y el arquero propio
+   a 15px de la pelota sin levantarla. Con el arnés arreglado el mismo partido
+   da **516 pases**. Ésa es, casi seguro, la fuente del "factor 5 sobre el
+   mismo código" que cerró el tema: unas corridas se trababan y otras no.
+   `startFullMatch(true)` ya deja `watch=true`. **No lo toques.**
+3. **El rAF hace falta síncrono.** `startFullMatch` arma `FM` adentro de un
+   `requestAnimationFrame`, así que esperarlo obliga a un `await` y en ese
+   hueco corren los timers del juego. Se reemplaza `requestAnimationFrame` por
+   una ejecución en el acto **sólo durante el armado**: así la corrida entera
+   —restaurar, armar, 20.000 ticks, cerrar— es un solo bloque síncrono y, como
+   JS es de un hilo, no se puede colar nada.
+4. **⚠️ La semilla hay que anclarla EN LA ENTRADA de `fmInit`.** Entre
+   `loadGame()` y `fmInit` el juego gasta ~88.000 números del PRNG (renders,
+   mercado, tabla) y dos corridas del MISMO save gastaban **88.278 y 88.277**:
+   uno de diferencia. Con eso el once RIVAL —que `fmInit` sortea— salía
+   distinto (Ruiz 63 contra Ruiz 70). Se envuelve `fmInit` y se re-siembra ahí.
+   Lo mismo con la CARRERA: `initGame` sortea el fixture y `preseasonSaltear`
+   los amistosos, los dos sin semilla, así que cada proceso jugaba otro partido
+   (el mismo brazo A daba 429 pases en un proceso y 511 en otro).
+
+Con los cuatro arreglados, `scratchpad/det.js` da **hash idéntico sobre 20.000
+ticks y entre procesos distintos**, y una A/B con A=B devuelve **exactamente 0
+en las doce métricas**. Eso último es la prueba de que la máquina de comparar
+no aporta ruido propio.
+
+⚠️ **El pareado por semilla NO elimina la varianza**, y conviene saberlo: un
+cambio de comportamiento hace divergir las trayectorias a los pocos ticks, así
+que los pases de un partido igual se mueven ±200. Lo que el arnés compra es que
+**el brazo A sea exactamente el mismo partido en los dos escenarios**, y con
+eso el **signo** del delta partido por partido pasa a ser una medida honesta:
+20 partidos pareados y 19 en la misma dirección no es una moneda.
+
+### El amontonamiento, cuantificado
+
+Con el arnés sano, la captura del presidente se vuelve un número. De los **20
+jugadores de campo**, cuántos están en el MISMO tercio que la pelota:
+
+| | baseline |
+|---|---|
+| media | **12,7 de 20** |
+| % del partido con 15 o más | **38%** |
+| % con 17 o más | 15% |
+| largo de cancha ocupado (`span`) | 36% |
+
+### Lo que lo arregla es `lon`, y es una palanca de DECISIÓN
+
+La causa ya estaba escrita desde la Fase 32: el bloque se ancla a la pelota
+(`bCen=b.x+…`) y **la profundidad de cada jugador también**. `FM67.lon` hace
+que el que está LEJOS de la pelota ancle su profundidad al **dibujo** (`p.hx`)
+en vez de a la pelota. `_libre=(myRank-2)/4` vale 0 para los tres más cercanos
+y 1 del séptimo en adelante: o sea que **no cambia quién va a la pelota**, sólo
+qué hace el resto. Es un cambio de decisión, que es la única categoría que
+alguna vez funcionó en este motor.
+
+Barrido de `lon`, 16 partidos pareados por valor, misma base
+(tercio 12,65 · t15 37,0 · span 36,0 · pases 443 · goles 2,63):
+
+| `lon` | tercio | t15 | span | pases | goles |
+|---|---|---|---|---|---|
+| 0,20 | 12,30 | 31,5 | 38,9 | 407 | 1,63 |
+| 0,30 | 12,03 | 29,2 | 43,7 | 369 | 1,88 |
+| 0,40 | 11,74 | 29,5 | 45,0 | 376 | 2,00 |
+| **0,50** | **11,28** | **23,6** | **46,6** | 314 | 1,81 |
+
+**Monótono en las tres columnas de la izquierda** — el primer resultado
+posicional monótono en la historia de este motor. Y el costo en goles es casi
+CONSTANTE (~−0,7) en los cuatro valores: si se paga igual, conviene pagar por
+el máximo.
+
+### El gol se recupera adelantando el bloque que ataca
+
+`lon` solo dejaba los goles en 1,90. Subiendo `bCenAtq` de 0,12 a 0,24 vuelven,
+y los remates entran en el rango real. **Van juntas: separadas, cada una es
+peor.** Elegido sobre 20 partidos pareados contra el mismo baseline:
+
+| config | tercio | t15 | span | pases | remates | goles |
+|---|---|---|---|---|---|---|
+| base | 12,72 | 37,9% | 35,7 | 473 | 18,4 | 2,45 |
+| `lon` ,50 solo | 11,31 (1↑19↓) | 24,6 | 46,7 (20↑0↓) | 311 | 22,5 | **1,90 (6↑11↓)** |
+| ,50 + atq ,18 | 11,87 | 32,5 | 46,5 | 355 | **14,9** | 2,70 |
+| **,50 + atq ,24** | **11,35 (0↑20↓)** | **23,9 (2↑18↓)** | **46,0 (20↑0↓)** | 360 | **21,3 (12↑8↓)** | **2,15 (10↑10↓)** |
+| ,35 + atq ,20 | 11,95 | 30,0 | 42,9 | 393 | 23,6 | 1,75 |
+| ,45 + atq ,22 | 11,84 | 32,2 | 45,7 | 347 | 18,1 | 2,10 |
+
+Shippeado **`lon:0.50` + `bCenAtq:0.24`**: el tercio baja en **los 20 partidos**
+y el span sube en **los 20**, los remates van de 18,4 a 21,3 (el rango real es
+22-26) y los goles quedan **empatados, 10↑ 10↓**.
+
+⚠️ **El precio son los pases: 473 → 360 (7↑ 13↓), un 24%.** Es real y no se
+compensó con nada. El motor ya estaba lejos de los 800-900 reales y ahora está
+más lejos. Si algún día hay que recuperarlos, el lugar es `lon` — pero perdés
+la separación en la misma proporción, que es lo que muestra la tabla del
+barrido.
+
+### Las dos perillas que se midieron y quedaron apagadas
+
+- **⚠️ `lat` va AL REVÉS de lo que pedía la intuición.** Cortarle el arrastre
+  LATERAL hacia la pelota al que está lejos (0,7) **empeora** el
+  amontonamiento: `t17` sube 5,5 puntos en **13 de 16** partidos. Queda en 0.
+  Era exactamente la mitad del `FM_FASE` que la Fase 32 probó y descartó: la
+  parte lateral estaba bien descartada, la longitudinal no.
+- **⚠️ `bCenDef`** (replegar al bloque que NO tiene la pelota, 0,09 → 0,20)
+  mueve `span` (13↑ 3↓) pero **no mueve `tercio`** (5↑ 11↓, dentro del ruido) y
+  cuesta goles (2,63 → 1,25, 2↑ 9↓). Queda como estaba. Tiene sentido: separar
+  los centros de los dos bloques 11% de la cancha es menos que un tercio.
+- **`FM66.sepRiv`** (la repulsión entre rivales de la Fase 66) se volvió a
+  medir con el arnés bueno, 20 partidos: `tercio` −0,11 (10↑ 9↓). **No hace
+  nada**, ahora medido en serio. Sigue en 0.
+
+### Cómo se usa el arnés
+
+```
+node det.js <ticks> <partidos>                         → prueba que sea determinista
+node det.js 20000 20 FM67.lon 0 0.5                    → A/B pareado
+node det.js 20000 20 FM67.lon,FM67.bCenAtq 0,0.12 0.5,0.24   → dos perillas a la vez
+```
+
+- **20.000 ticks** es un partido entero (`tpm:150`, y el minuto llega a 90).
+- Antes de creerle a un resultado, mirá la línea **"¿ES DETERMINISTA?"**: si
+  el hash no es idéntico, algo del arnés se rompió y el A/B no vale nada.
+- Y antes de creerle a un efecto, mirá el **conteo de signos**, no el promedio:
+  con 20 partidos, `(20↑ 0↓)` es p≈1e-6 y `(11↑ 9↓)` es una moneda.
+- ⚠️ **No edites `director-tecnico.html` mientras corre un arnés**: cada
+  corrida hace `page.goto` del archivo y se llevaría una versión a medias.
 
 ## Deploy
 

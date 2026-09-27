@@ -22492,6 +22492,42 @@ const FM59={
   zonaBloq:0.20,   // × ancho de cancha: hasta dónde del arco propio cuenta
   probBloq:0.80,   // y con qué chance el rebote termina afuera
 };
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 67 · EL AMONTONAMIENTO, MEDIDO CON UN ARNÉS DETERMINISTA
+// ═══════════════════════════════════════════════════════════════════════
+// Los DOS equipos anclaban su bloque a la MISMA pelota (`bCen=b.x+...`) y
+// además cada jugador anclaba su PROFUNDIDAD a ella, no al dibujo. Resultado
+// medido: 12,7 de los 20 jugadores de campo en el tercio de la pelota y el
+// 38% del partido con 15 o más. Eso es la captura que mandó el presidente.
+//
+// ⚠️ ESTO SE PUDO ARREGLAR PORQUE PRIMERO SE ARREGLÓ EL INSTRUMENTO. Nueve
+// intentos anteriores se dieron por fallidos con un arnés que no era
+// determinista (ver la nota de la Fase 32: "el baseline se mueve ±120px entre
+// corridas idénticas"). `scratchpad/det.js` corre el MISMO partido con la
+// misma semilla y da hash idéntico incluso entre procesos distintos, así que
+// un A/B pareado de 20 partidos ya distingue señal de ruido.
+//
+// Medido, 20 partidos pareados, contra `lon:0 / bCenAtq:0.12`:
+//   tercio  12,72 → 11,35   (bajó en LOS 20 partidos)
+//   t15     37,9% → 23,9%   (18 de 20)
+//   span    35,7  → 46,0    (subió en LOS 20)
+//   remates 18,4  → 21,3    (12↑ 8↓; el rango real es 22-26)
+//   goles    2,45 →  2,15   (10↑ 10↓: empate, no hay costo)
+//   pases     473 →   360   (7↑ 13↓) ← ÉSTE ES EL PRECIO, y es real
+//
+// ⚠️ `lat` (cortar el arrastre LATERAL hacia la pelota) se probó y va AL
+// REVÉS: con 0,7 el t17 sube 5,5 puntos en 13 de 16 partidos. Queda en 0.
+// ⚠️ `bCenDef` (replegar al que no la tiene) mueve `span` (13↑3↓) pero NO
+// mueve `tercio` (5↑11↓) y cuesta goles (2,63→1,25). Queda como estaba.
+// ⚠️ `bCenAtq` sube a 0,24 porque `lon` solo dejaba los goles en 1,90
+// (6↑11↓); con el bloque que ataca más adelantado vuelven a 2,15 y los
+// remates de 14,9 a 21,3. Las dos van JUNTAS: separadas, cada una es peor.
+const FM67={
+  bCenAtq:0.24,    // × ancho de cancha: se adelanta el bloque del que la tiene
+  bCenDef:0.09,    // × ancho de cancha: se repliega el del que no la tiene
+  lat:0,           // 0 = apagado. Medido al revés de lo buscado, no lo enciendas
+  lon:0.50,        // cuánto ancla su profundidad al DIBUJO el que está lejos
+};
 const FM52={
   // ⚠️ ENCENDIDO EN LA FASE 57, a pedido explícito del presidente después de
   // haberle reportado que no se podía verificar. Lo que SÍ se puede medir es
@@ -24119,19 +24155,26 @@ function fmAI(p,team,idx,dt){
   // pelota estaba en el último tercio el 5,1% del juego, y con un jugador
   // ABIERTO ahí sólo 21 ticks de los 13.500 (0,2%) — por eso salían 3 centros
   // por partido en vez de 18, y sin centros no hay córners.
-  let bCen=b.x+dirF*((weHave||iHave)?fieldW*0.12:theyHave?-fieldW*0.09:-fieldW*0.02);
+  let bCen=b.x+dirF*((weHave||iHave)?fieldW*FM67.bCenAtq:theyHave?-fieldW*FM67.bCenDef:-fieldW*0.02);
   bCen=Math.max(f.leftGL+blockLen*0.45+26,Math.min(f.rightGL-blockLen*0.45-26,bCen));
   let hx2=bCen+dirF*(depth01-0.5)*blockLen;
   // Los delanteros pican por delante del bloque cuando la tenemos
   if((weHave||iHave)&&depth01>0.58)hx2+=dirF*fieldW*0.20*(depth01-0.58)/0.42;
   if(p.roleStyle==='Lateral ofensivo'&&(weHave||iHave))hx2+=dirF*fieldW*0.05;
   if(p.roleStyle==='Box-to-box')hx2+=dirF*(depth01-0.5)*blockLen*0.35;
+  // ═══ ¿QUIÉN PERSIGUE LA PELOTA? (Fase 67, apagado por defecto) ═══
+  // `_libre` vale 0 para los tres más cercanos a la pelota y 1 del séptimo en
+  // adelante. Con `lon>0` el que está lejos ancla su profundidad al DIBUJO en
+  // vez de a la pelota.
+  const _libre=Math.max(0,Math.min(1,(myRank-2)/4));
+  if(FM67.lon>0)hx2=hx2+(p.hx-hx2)*FM67.lon*_libre;
   let homeX=Math.max(f.leftGL+34,Math.min(f.rightGL-34,hx2));
   // Y los de afuera se pegan más a la raya: un extremo ataca desde la línea
   let spread=(p.hy-mid)*(0.70+prof.width*0.5*(weHave?1.1:0.8));
   if((weHave||iHave)&&Math.abs(p.hy-mid)>f.VH*0.22)spread*=1.22;
   spread=Math.max(-f.VH*0.43,Math.min(f.VH*0.43,spread));
-  let homeY=mid+spread+(b.y-mid)*(theyHave?0.22:0.10);
+  // con `lat>0` el que está lejos deja de correrse lateralmente hacia la pelota
+  let homeY=mid+spread+(b.y-mid)*(theyHave?0.22:0.10)*(1-FM67.lat*_libre);
   homeY=Math.max(40,Math.min(f.VH-40,homeY));
   // ═══ CUANDO LA PELOTA SE VA A LA BANDA, SE ATACA EL ÁREA ═══
   // Nadie entraba nunca al área rival: al pedir que hubiera un compañero
