@@ -936,7 +936,139 @@ Medido con Real Madrid, Man City y Boca: **0 rastros argentinos** en la UI de lo
 dos primeros (el único que quedaba era "Atl. **Rafa**ela" en el filtro de clubes
 del mercado, un falso positivo de la búsqueda) y Boca conserva todo lo suyo.
 
-## La base de datos de julio 2026
+## La base de datos de septiembre 2026 (la actualización que NO se pudo pisar)
+
+**17.243 jugadores · 619 clubes · 24 ligas** (antes 17.108 / 618).
+
+⚠️ **La extracción nueva venía con 15.172 filas: 1.936 MENOS que la base que
+estaba puesta.** Pisar el archivo habría sido un retroceso en casi todo, y el
+número lo dijo antes de tocar nada:
+
+| | base anterior | extracción nueva | ahora (fusionado) |
+|---|---|---|---|
+| jugadores | 17.108 | **15.172** | **17.243** |
+| clubes | 618 | **548** | **619** |
+| ligas | 24 | **23** | **24** |
+| sin nacionalidad | 246 (1,4%) | **2.112 (14%)** | **86 (0,5%)** |
+| sin pie | 0 | **912** | **0** |
+| sin edad | 0 | 5 | **0** |
+
+La extracción **sí es una actualización real** —1.486 valores cambiados, 481
+altas, 202 bajas sobre los clubes que sí trajo— así que lo correcto no era
+descartarla ni aplicarla: era **fusionarla**, igual que se hace con los DTs.
+
+### Lo que la extracción perdió: 71 clubes, y una liga entera
+
+Es el patrón que este archivo ya documenta ("el extractor puede perder clubes
+en silencio"), pero de un tamaño que no se había visto:
+
+| liga | clubes perdidos |
+|---|---|
+| **Arabia** | **18 — la liga COMPLETA** |
+| Brasil | 20 (toda la primera: Flamengo, Palmeiras, Corinthians, São Paulo…) |
+| Italia | 20 |
+| Alemania | 3 (Werder Bremen, Heidenheim, E. Braunschweig) |
+| Liga ARG | 3 (Belgrano, Unión Santa Fe, Colegiales) |
+| Bolivia, Uruguay | 2 cada una |
+| España, Liga MX, Premier | 1 (Celta Fortuna · Chivas · Brentford) |
+
+⚠️ **23 de esos clubes tienen estadio curado en `STADIUMS_DB`**, y la regresión
+verifica que toda clave exista como club: pisar la base la habría puesto en
+rojo en 20 claves. Y perder Arabia no es perder clubes de mercado — es que
+`ligasJugables()` devuelve 23 y **desaparece una liga del selector**, con su
+`CUPO_LIGA`, su King's Cup y su Champions Asiática.
+
+Los 71 se **rescatan de la base anterior**, que es el precedente de Stade
+Brestois. Verificado club por club que ninguna liga quede con menos clubes que
+antes.
+
+⚠️ **El arreglo de verdad es volver a correr esas ligas en el extractor.** El
+rescate deja esos 2.071 jugadores con los valores de la extracción ANTERIOR: no
+están rotos, están viejos.
+
+### Cinco clubes no se perdieron: se RENOMBRARON
+
+Antes de dar un club por perdido hay que buscar el nombre parecido (la lección
+de Volos NFC). Verificado comparando plantel contra plantel, que es lo único
+que lo prueba:
+
+| nombre viejo | nombre nuevo | coincidencia de plantel |
+|---|---|---|
+| RSC Anderlecht | **Anderlecht** | 33/33 = 100% |
+| Celta de Vigo | **Celta** | 24/24 = 100% |
+| Stade Rennais | **Rennes** | 25/26 = 96% |
+| NEC Nijmegen | **N.E.C.** | 30/30 = 100% |
+| Besiktas | **Beşiktaş** | 31/31 = 100% |
+
+⚠️ **Si no se los excluye del rescate, el club entra DOS VECES** con los dos
+nombres y el plantel queda duplicado.
+
+Se adoptan los nombres NUEVOS (es lo que produce el extractor ahora;
+renormalizar a mano cada extracción es el problema de `HIST_CLUB_NOM` otra vez)
+y se corrigieron las **5 referencias escritas a mano** en el juego: tres claves
+de `STADIUMS_DB` (Balaídos, Roazhon Park, Tüpraş) y dos parejas de
+`CLASICOS_MUNDO`. De paso se arregló solo un fallo viejo: el bombo de la Europa
+League ya decía `'Anderlecht'` cuando el club se llamaba `RSC Anderlecht`, o
+sea que **nunca había matcheado**.
+
+⚠️ **Un guardado en uno de esos 5 clubes no explota, pero pierde el escudo.**
+Medido en los cinco: carga, el día avanza, la UI dibuja y el partido se simula
+con el plantel intacto — sólo que `G.teamName` ya no está en `TEAMS`, así que
+se van los colores. **No se migra el save** (es la regla del proyecto) y no se
+agrega una tabla de alias, que sería otra lista a mano que se desincroniza en
+la extracción siguiente.
+
+### La nacionalidad se recupera por nombre, y es el 97%
+
+`deepNats` cuesta 1 crédito por jugador, y esta corrida volvió con **2.112 sin
+nacionalidad (14%) contra las 246 de la anterior (1,4%)** — repartido parejo
+por liga (10-21% en las 23), así que no es un club puntual: es la corrida.
+Contarlos como están no es neutro: **`UNK` no ocupa cupo de extranjero**
+(Fase 14), así que 2.112 fichas se le colaban gratis al cupo de cualquier liga.
+
+Se recuperan del jugador con el mismo nombre en la base anterior —primero el
+del mismo club, después por nombre— y sale el **97%** (2.061 de 2.112, 0
+ambiguas). Lo mismo con el pie (865 de 912) y la edad (5 de 5). Resultado: la
+base queda **mejor que antes** en nacionalidad, 86 sin dato contra 246.
+
+### Los DTs, fusionados como siempre
+
+La extracción trae 547 nombres con **cero edades, cero nacionalidades y ningún
+técnico libre**. Fusionado: **662 DTs · 618 de 619 clubes cubiertos · 128 con
+edad y nacionalidad · 44 libres · 0 clubes con dos técnicos**.
+
+- Manda la extracción nueva (es quién dirige HOY), y la edad y la nacionalidad
+  se recuperan por nombre de la base curada.
+- Los **71 clubes que la extracción no cubrió conservan su DT** — el mismo
+  rescate que los planteles.
+- ⚠️ **El que perdió el banco pero tiene datos curados NO se tira**: queda como
+  técnico libre, que además es lo que pasa en la realidad cuando echan a
+  alguien. Sin eso se perdían 7 fichas curadas a mano.
+- ⚠️ **Los 134 curados están los 134.** El conteo baja a 128 porque seis
+  estaban **duplicados** en la base vieja (De Felippe, Amorim, Runjaić, Vanoli,
+  Costas, Íñigo Pérez aparecían dos veces) y la fusión los deduplicó. Antes de
+  dar por perdida una ficha curada, contá los duplicados.
+- El único club sin DT es **Wilstermann**, que es el único club realmente NUEVO
+  de toda la extracción (Bolivia; los dos Potosí que reemplaza fueron
+  rescatados, así que Bolivia queda con 17 en la base y 15 jugables por
+  `LIGA_TAM`).
+
+### Verificado jugando, no leyendo
+
+83 checks de la regresión en verde, y una partida arrancada en las dos ligas
+rescatadas más un renombre y el control:
+
+| club | plantel | inventados | estadio | copas |
+|---|---|---|---|---|
+| Al-Hilal (Arabia) | 28 | **0** | Kingdom Arena | Champions Asiática + King's Cup |
+| Flamengo (Brasil) | 28 | **0** | Maracanã | Libertadores + Copa do Brasil |
+| Celta (España) | 24 | **0** | Balaídos | Champions + Copa del Rey |
+| Boca (control) | 30 | **0** | La Bombonera | Libertadores + Copa Argentina |
+
+Los valores del top quedaron al día y sin disparos: Haaland 220M, Yamal 220M,
+Mbappé 200M, Olise 170M.
+
+## La base de datos de julio 2026 (la anterior)
 
 **17.108 jugadores · 617 clubes · 24 ligas** (antes 15.582 / 557). Lo que suma
 son segundas divisiones: Alemania y Portugal pasan de 18 a 36 clubes en la base,
