@@ -56,6 +56,35 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <div id="leagueChecks" class="check-group"></div>
   <br>
   <button onclick="extractAll()">3. Extraer jugadores de ligas seleccionadas</button>
+  <button class="secondary" onclick="extractAll(true)">3b. Extraer SÓLO los DTs (rápido, sin planteles)</button>
+</div>
+
+<div class="panel">
+  <label>🕰️ Planteles históricos — fútbol argentino</label>
+  <div style="font-size:11px;color:#8faed4;margin:-4px 0 10px">
+    SportDB sólo tiene el plantel <b>de hoy</b>. Los años viejos salen del HTML de Transfermarkt
+    (<b style="color:#0fb866">gratis, sin créditos</b>), que guarda todas las temporadas desde los 90.
+    Se baja <b>una temporada por vez</b> y cada una queda en su propio archivo
+    <code>players-hist-AÑO.js</code>, que el juego carga solo si está en la carpeta.
+    <br><b style="color:#f6d318">⚠️ Esta parte no se pudo probar contra el sitio real</b> (se programó sin
+    salida a transfermarkt.com). Si una temporada vuelve vacía, apretá
+    <b>🩺 Diagnosticar</b>: te dice cuántas filas encontró y te muestra el HTML crudo, que es lo que
+    hace falta para arreglar el parser de una.
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <div><label style="font-size:11px">Desde</label><input id="histDesde" value="2024" style="width:90px"></div>
+    <div><label style="font-size:11px">Hasta</label><input id="histHasta" value="2026" style="width:90px"></div>
+    <div><label style="font-size:11px">ID Primera (TM)</label><input id="histComp1" value="AR1N" style="width:90px"></div>
+    <div><label style="font-size:11px">ID Ascenso (TM)</label><input id="histComp2" value="ARG2" style="width:90px"></div>
+  </div>
+  <div style="font-size:10px;color:#5a7aaa;margin:6px 0 10px">
+    Los IDs son los de la URL de Transfermarkt: <code>/wettbewerb/<b>AR1N</b></code>. Si cambiaron,
+    corregilos acá — no hay nada escrito a mano en el código. Dejá el de Ascenso vacío para bajar
+    sólo Primera. En Transfermarkt la temporada <b>2015</b> es la que arranca en 2015.
+  </div>
+  <button onclick="extraerHistorico()">🕰️ Extraer temporadas</button>
+  <button class="secondary" onclick="diagHistorico()">🩺 Diagnosticar una temporada</button>
+  <button class="secondary" onclick="probarWorker()">🔌 ¿Mi Worker está actualizado?</button>
 </div>
 
 <div class="panel">
@@ -94,7 +123,10 @@ const TARGET_COUNTRIES_TM = {
   'United States':true,'England':true,'Spain':true,'France':true,
   'Germany':true,'Italy':true,'Netherlands':true,'Russia':true,
   'Belgium':true,'Portugal':true,'Turkey':true,
-  'Türkiye':true,'Turkiye':true,'Greece':true
+  'Türkiye':true,'Turkiye':true,'Greece':true,
+  // 'Saudi' cubre "Saudi Arabia" y el alemán "Saudi-Arabien"; 'Arabia' cubre
+  // "Arabia Saudita" si la fuente devuelve el país en español.
+  'Saudi':true,'Arabia':true
 };
 
 function log(msg) {
@@ -124,9 +156,14 @@ let cacheHits = 0;
 // las nacionalidades y los DTs, se detecta una vez y a partir de ahí esas dos
 // consultas van por la función de Netlify (que sí las soporta).
 let workerLacksFree = false;
+// La TM-API libre (tmapi) se cae seguido. Se consultaba una vez POR CLUB: con
+// 500 clubes son 500 pedidos perdidos, cada uno con su espera. Se detecta la
+// caída una vez y no se la vuelve a consultar en toda la corrida.
+let tmapiDown = false;
 async function apiGet(path, apiType) {
   apiType = apiType || getApiChoice();
   const isFree = (apiType === 'tmapi' || apiType === 'tmcoach');
+  if (apiType === 'tmapi' && tmapiDown) return null;
   reqCount++;
   document.getElementById('sReqs').textContent = reqCount + (cacheHits ? ` (${cacheHits} de caché)` : '');
   let cfW = (document.getElementById('cfWorker')||{value:''}).value.trim();
@@ -161,12 +198,41 @@ async function apiGet(path, apiType) {
         fnUrl = mkUrl('');
         continue;               // reintento por Netlify
       }
+      // ═══ REINTENTAR ANTE CUALQUIER ERROR, NO SÓLO 429/503 ═══
+      // Un 500 o un 502 pasajero devolvía null en el acto, el club se salteaba
+      // en silencio y el equipo desaparecía de la base. Así fue como se
+      // perdieron Santos (Brasil) y Porto (Portugal): están en el sitio, pero
+      // ese día el pedido falló y nadie se enteró.
+      if (!res.ok && res.status >= 500 && intento < 2) {
+        log(`  ⏳ ${res.status} en ${path} — reintento ${intento+1}/2`);
+        await sleep(2500 * (intento + 1));
+        continue;
+      }
       if (!res.ok) {
-        log(`ERROR ${res.status} en ${path}`);
+        // Sin el nombre de la fuente, un 500 de la API libre parecía un 500 del
+        // plantel y daba la impresión de que no andaba nada.
+        log(`ERROR ${res.status} en ${path}  (fuente: ${apiType}, por ${cfW ? 'el Worker' : 'Netlify'})`);
+        // ⚠️ EL CUERPO TAMBIÉN, que es donde el proxy EXPLICA el error.
+        // Sin esto, un 400 de "esta fuente sólo está en el Worker" llegaba a
+        // la pantalla como un número pelado: la extracción histórica corrió 12
+        // temporadas y 24 pedidos repitiendo `ERROR 400` sin decir nunca por qué.
+        try { const _b = await res.text(); if (_b && _b.length < 400) log(`   → ${_b}`); } catch (e) {}
+        if (apiType === 'tmapi' && !tmapiDown) {
+          tmapiDown = true;
+          log('   → La API libre de nacionalidades está caída. No la consulto más en esta corrida.');
+          log('   → Los planteles y los DTs NO dependen de ella: siguen andando.');
+          log('   → Para tener nacionalidades, tildá "Nacionalidades desde el perfil" (1 crédito por jugador).');
+        }
         return null;
       }
       return await res.json();
     } catch (e) {
+      // Un corte de red devolvía null sin reintentar ni una vez
+      if (intento < 2) {
+        log(`  ⏳ Se cortó la conexión en ${path} — reintento ${intento+1}/2`);
+        await sleep(2500 * (intento + 1));
+        continue;
+      }
       log(`FETCH ERROR: ${e.message} — ${path}`);
       return null;
     }
@@ -235,6 +301,21 @@ function getLeagueTier(name, country) {
   const n = name.toLowerCase();
   const c = (country||'').toLowerCase();
 
+  // ═══ DESCALIFICADORES DUROS ═══
+  // Van antes que las reglas por país porque ninguna primera ni segunda división
+  // masculina de mayores se llama así. Sin esto, "Saudi Womens Premier League"
+  // matcheaba la regla de Arabia y entraba como Div 1 (y lo mismo pasaba con las
+  // femeninas de Argentina, México, Turquía...).
+  // Ojo: acá NO va 'league 2' — la Super League 2 griega es una segunda de verdad.
+  const hardBlacklist = [
+    'women','femen','feminin','féminin','damen','vrouwen',
+    'youth','juvenil','juniores','sub-','sub ','u17','u18','u19','u20','u21','u23',
+    'reserve','reserva','riserv','academy','primavera',
+    'cup','copa','pokal','coupe','coppa','taca','taça',
+    'futsal','beach','playa','friendly','amistoso'
+  ];
+  if (hardBlacklist.some(b => n.includes(b))) return 0;
+
   // ═══ REGLAS POR PAÍS (corren ANTES de la blacklist): sponsors y nombres locales ═══
   if (c.includes('argentin')) {
     if (/(betano|binance|liga profesional|torneo apertura|torneo clausura|torneo de la liga|superliga|primera divisi)/.test(n)) return 1;
@@ -269,6 +350,12 @@ function getLeagueTier(name, country) {
   if (c.includes('russia')) {
     if (/premier|premjer/.test(n)) return 1;
     if (/(fnl|first league|pervaja|1 division)/.test(n)) return 2;
+  }
+  if (c.includes('saudi') || c.includes('arabia')) {
+    // Ojo: la segunda va PRIMERO. "Saudi First Division League" tiene "first",
+    // y el patrón genérico de más abajo la marcaría como primera división.
+    if (/(first division|1st division|division one|yelo)/.test(n)) return 2;
+    if (/(pro league|professional league|roshn|saudi league|premier league|dawri)/.test(n)) return 1;
   }
 
   // Blacklist: cups, youth, women, reserves, amateur, regional, etc.
@@ -323,7 +410,13 @@ function getLeagueTier(name, country) {
     'liga portugal','primeira liga','liga nos',
     'süper lig','super lig turkey'
   ];
-  if (tier1.some(t => n.includes(t) || n === t)) return 1;
+  // OJO: la segunda se chequea ANTES que la primera. Las dos listas matchean
+  // por substring y casi todas las segundas contienen el nombre de su primera:
+  // "2. Bundesliga" contiene "bundesliga", "LaLiga 2" contiene "laliga",
+  // "Liga Portugal 2" contiene "liga portugal", "Challenger Pro League"
+  // contiene "pro league" y "LigaPro Serie B" contiene "ligapro". Con el orden
+  // viejo las cinco entraban como primera división.
+  // Al revés no pasa: ningún nombre de primera contiene el de una segunda.
 
   // Known second divisions (tier 2)
   const tier2 = [
@@ -351,6 +444,7 @@ function getLeagueTier(name, country) {
     '1. lig','tff 1. lig','first league turkey'
   ];
   if (tier2.some(t => n.includes(t) || n === t)) return 2;
+  if (tier1.some(t => n.includes(t) || n === t)) return 1;
 
   // Generic pattern matching for "primera" / "first" / "1st" → tier 1
   if (/\b(primera|first|1st|1a|1ère)\b/.test(n) && !/\b(b|nacional)\b/.test(n)) return 1;
@@ -515,7 +609,7 @@ async function discoverFS() {
 }
 
 // ========== EXTRACT PLAYERS ==========
-async function extractAll() {
+async function extractAll(soloDTs) {
   API_KEY = document.getElementById('apiKey').value.trim();
   allPlayers = [];
 
@@ -524,6 +618,15 @@ async function extractAll() {
   if (selected.length === 0) { alert('Seleccioná al menos una liga'); return; }
 
   const api = selected[0].api || getApiChoice();
+
+  // ═══ SÓLO DTs ═══ un pedido por club, sin bajar un solo plantel
+  if (soloDTs) {
+    if (api !== 'transfermarkt') { alert('Los DTs sólo se pueden sacar por TransferMarkt.'); return; }
+    log(`\nSólo DTs: ${selected.length} liga(s). No se baja ningún plantel.`);
+    await extractDTsOnly(selected);
+    return;
+  }
+
   log(`\nExtrayendo ${selected.length} ligas via ${api}...`);
 
   if (api === 'transfermarkt') {
@@ -534,29 +637,34 @@ async function extractAll() {
 
   setProgress(100);
   log(`\n=== RESULTADO: ${allPlayers.length} jugadores extraídos ===`);
+  // ═══ QUÉ CLUBES FALTAN, DICHO CON NOMBRE Y APELLIDO ═══
+  // Antes un club que fallaba se perdía entre cientos de líneas de log y te
+  // enterabas meses después, jugando, de que no estaba Santos o el Porto.
+  const fall = window._clubesFallados || [];
+  if (fall.length) {
+    log(`\n⚠️ ${fall.length} CLUB(ES) SE QUEDARON SIN PLANTEL:`);
+    fall.forEach(f => log(`   · ${f.clubName} (${f.pais} — ${f.liga}, id ${f.clubId})`));
+    log('   Volvé a correr la extracción de esas ligas: casi siempre es un fallo pasajero.');
+  } else {
+    log('✓ Ningún club se quedó sin plantel.');
+  }
+  // Y un control por liga: si una liga trae muy pocos clubes, algo salió mal
+  const porLiga = {};
+  allPlayers.forEach(p => { (porLiga[p.league] = porLiga[p.league] || new Set()).add(p.club); });
+  log('\nClubes por liga:');
+  Object.entries(porLiga).sort((a,b)=>b[1].size-a[1].size)
+    .forEach(([l,set]) => log(`   ${l}: ${set.size} clubes`));
   generateOutput();
 }
 
-// TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
-async function extractTM(selected) {
-  let totalTeams = 0, totalPlayers = 0;
-  if(!Object.keys(window._tmCountries||{}).length){
-    const cs=await apiGet('/countries','transfermarkt');
-    if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
-    log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
-  }
-  const wantNats = (document.getElementById('fillNats')||{}).checked;
-  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
-  allCoaches = [];
-
-  for (let li = 0; li < selected.length; li++) {
-    const lg = selected[li];
-    setProgress((li / selected.length) * 95);
-    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
-
+// ═══ DE UNA LIGA A SU LISTA DE CLUBES ═══
+// Estaba embebido dentro de extractTM, así que para sacar los DTs había que
+// bajar TODOS los planteles. Acá afuera lo puede usar también el modo
+// "sólo DTs", que no toca los planteles.
+async function clubsDeLiga(lg, li) {
     // Step 1: Get competition details (has seasons array)
     const comp = await apiGet(`/competitions/${lg.id}`, 'transfermarkt');
-    if (!comp) { log('  ✗ No se pudo obtener la competición'); continue; }
+    if (!comp) { log('  ✗ No se pudo obtener la competición'); return []; }
 
     if (li < 3) {
       log('  Competición keys: ' + JSON.stringify(Object.keys(comp)));
@@ -588,7 +696,7 @@ async function extractTM(selected) {
       if (directStandings) {
         currentSeason = { standingsUrl: `/competitions/${lg.id}/standings` };
       } else {
-        continue;
+        return [];
       }
     }
 
@@ -621,7 +729,7 @@ async function extractTM(selected) {
       }
     }
 
-    if (!standingsData) { log('  ✗ Sin standings'); continue; }
+    if (!standingsData) { log('  ✗ Sin standings'); return []; }
 
     if (li < 3) {
       log('  Standings keys: ' + JSON.stringify(Object.keys(standingsData)));
@@ -658,6 +766,76 @@ async function extractTM(selected) {
       log('  Club keys: ' + JSON.stringify(Object.keys(clubs[0])));
     }
 
+    return clubs;
+}
+
+// ═══ SÓLO DTs ═══
+// El DT se bajaba dentro del bucle que recorre club por club trayendo el
+// plantel completo: para actualizar los técnicos había que volver a bajar
+// todos los jugadores (y pagar los créditos que eso cuesta). Este modo llega
+// a la lista de clubes por el mismo camino (competición → temporada →
+// standings, que es gratis y son pocos pedidos) y de ahí hace UNA consulta
+// por club a tmcoach. Ni un plantel de por medio.
+async function extractDTsOnly(selected) {
+  allCoaches = [];
+  let clubesVistos = 0;
+  for (let li = 0; li < selected.length; li++) {
+    const lg = selected[li];
+    setProgress((li / selected.length) * 95);
+    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
+    const clubs = await clubsDeLiga(lg, li);
+    if (!clubs.length) continue;
+    log(`  ${clubs.length} clubes — buscando sus DTs`);
+    for (let ci = 0; ci < clubs.length; ci++) {
+      const club = clubs[ci];
+      const clubName = String(club.name || club.clubName || club.club || club.teamName || '');
+      const clubId = club.id || club.clubId || club.ID || '';
+      if (!clubId) continue;
+      clubesVistos++;
+      const dtRes = await apiGet(`/verein/${clubId}`, 'tmcoach');
+      if (dtRes && dtRes.coach && dtRes.coach.name) {
+        allCoaches.push({ name: dtRes.coach.name, club: clubName, league: lg.name, country: lg.country });
+        log(`  🎩 ${clubName}: ${dtRes.coach.name}`);
+      } else {
+        log(`  — ${clubName}: sin DT`);
+      }
+    }
+  }
+  setProgress(100);
+  log(`\n=== ${allCoaches.length} DTs de ${clubesVistos} clubes ===`);
+  if (!allCoaches.length) {
+    log('Ningún DT. Si el log dice ERROR 400 en /verein/..., tu proxy no soporta tmcoach.');
+    return;
+  }
+  log('Listo. Apretá "Descargar DTs (dts-db.js)" — respeta las edades y');
+  log('nacionalidades que ya tengas curadas a mano en dts-db.js.');
+}
+
+// TransferMarkt extraction: /competitions/{id} → seasons → standings → clubs → /clubs/{id}/players
+async function extractTM(selected) {
+  let totalTeams = 0, totalPlayers = 0;
+  if(!Object.keys(window._tmCountries||{}).length){
+    const cs=await apiGet('/countries','transfermarkt');
+    if(cs)storeCountries(Array.isArray(cs)?cs:Object.values(cs).find(v=>Array.isArray(v))||[]);
+    log('Mapa de países: '+Object.keys(window._tmCountries).length+' cargados');
+  }
+  const wantNats = (document.getElementById('fillNats')||{}).checked;
+  const wantDTs = (document.getElementById('extractDTs')||{}).checked;
+  allCoaches = [];
+  // ═══ LOS CLUBES QUE FALLAN NO SE PIERDEN MÁS ═══
+  // Un club cuyo plantel no bajaba se salteaba con un '✗ Sin datos' perdido
+  // entre cientos de líneas y desaparecía de la base sin que nadie lo notara:
+  // así se perdieron Santos y Porto. Ahora quedan anotados, se reintentan al
+  // final y, si igual no bajan, el resumen los nombra uno por uno.
+  window._clubesFallados = [];
+
+  for (let li = 0; li < selected.length; li++) {
+    const lg = selected[li];
+    setProgress((li / selected.length) * 95);
+    log(`\n[${li+1}/${selected.length}] ${lg.country} - ${lg.name} (${lg.id})...`);
+
+    const clubs = await clubsDeLiga(lg, li);
+    if (!clubs.length) continue;
     log(`  ${clubs.length} clubs reales encontrados`);
     totalTeams += clubs.length;
 
@@ -670,8 +848,20 @@ async function extractTM(selected) {
       if (!clubId) continue;
       log(`  [${ci+1}/${clubs.length}] ${clubName} (${clubId})...`);
 
-      const playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
-      if (!playersData) { log(`    ✗ Sin datos`); continue; }
+      let playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
+      if (!playersData) {
+        // Segunda oportunidad con una pausa larga: casi todos estos fallos son
+        // pasajeros (la API se satura un momento) y perder el plantel entero
+        // de un club por eso sale carísimo — el equipo desaparece del juego.
+        log(`    ⏳ ${clubName}: sin datos, espero 6s y lo reintento`);
+        await sleep(6000);
+        playersData = await apiGet(`/clubs/${clubId}/players`, 'transfermarkt');
+      }
+      if (!playersData) {
+        log(`    ✗ ${clubName} SIGUE sin datos — va al resumen del final`);
+        window._clubesFallados.push({ liga: lg.name, pais: lg.country, clubName, clubId });
+        continue;
+      }
 
       // NACIONALIDADES: SportDB las devuelve vacías, pero la TM-API libre
       // (transfermarkt-api.fly.dev, gratis vía Worker api=tmapi) sí las trae.
@@ -957,14 +1147,22 @@ function mapPos(pos) {
 // exactamente lo que pasaba. Este botón te dice cuál de las dos falla.
 // Pide una URL cruda y devuelve status + cuerpo, sin interpretar nada.
 // Sirve para ver EXACTAMENTE qué contesta cada fuente cuando algo falla.
-async function rawGet(apiType, path) {
-  const url = '/.netlify/functions/sportdb?api=' + apiType +
-    '&key=' + encodeURIComponent(API_KEY) + '&path=' + encodeURIComponent(path);
+// ⚠️ Esto ignoraba el Worker de Cloudflare y pegaba SIEMPRE en Netlify, así
+// que un diagnóstico podía decir "400, tu proxy no lo soporta" cuando el
+// Worker que estás usando sí lo soporta. Y cortaba el cuerpo en 400
+// caracteres, que para un diagnóstico que tiene que mostrar HTML crudo es
+// exactamente lo que no se quiere ver.
+async function rawGet(apiType, path, opts) {
+  opts = opts || {};
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  const base = cfW ? cfW.replace(/\/+$/, '') + '/?api=' : '/.netlify/functions/sportdb?api=';
+  const url = base + apiType + '&key=' + encodeURIComponent(API_KEY)
+    + '&path=' + encodeURIComponent(path) + (opts.extra || '');
   try {
     const r = await fetch(url);
     const t = await r.text();
-    return { status: r.status, body: t.slice(0, 400) };
-  } catch (e) { return { status: 0, body: 'FETCH ERROR: ' + e.message }; }
+    return { status: r.status, body: t.slice(0, opts.max || 400), proxy: cfW ? 'worker' : 'netlify' };
+  } catch (e) { return { status: 0, body: 'FETCH ERROR: ' + e.message, proxy: cfW ? 'worker' : 'netlify' }; }
 }
 
 // ═══ SONDA: prueba varias formas de endpoint hasta encontrar una que sirva ═══
@@ -1000,17 +1198,31 @@ function natFromProfile(prof) {
 // ═══ SEGUNDA NACIONALIDAD ═══
 // En el fútbol argentino, un extranjero nacionalizado NO ocupa cupo. Si el
 // jugador tiene doble ciudadanía hay que saberlo, o contamos mal el cupo.
+// ═══════════════════════════════════════════════════════════════════════
+// OJO: EL REGEX DE DOS PALABRAS PARTÍA LOS PAÍSES EN DOS
+// ═══════════════════════════════════════════════════════════════════════
+// El regex viejo buscaba "from <País1> <País2>" y capturaba el segundo grupo.
+// Con un país de UNA palabra andaba, pero con uno de dos partía el único país
+// del jugador y guardaba la segunda mitad como si fuera otra nacionalidad:
+//   "from United States"  → nat USA + nat2 "States" → STA   (167 casos)
+//   "from Saudi Arabia"   → nat ARB + nat2 "Arabia" → ARA   (293 casos)
+//   "from Costa Rica"     → nat CRC + nat2 "Rica"   → RIC
+//   "from Burkina Faso"   → nat BFA + nat2 "Faso"   → FAS
+// Más 487 casos de "RET", que ni país era. En total 1.069 nat2 basura en la
+// base, todos borrados. No llegaban a dar cupo de más (un código inventado
+// nunca coincide con la nacionalidad local), pero tapaban la segunda
+// nacionalidad de verdad y ensuciaban la ficha del jugador.
+// Ahora sólo se acepta un segundo país si viene en la LISTA de nacionalidades
+// del perfil, que es un dato estructurado y no texto libre. Y como red final,
+// se descarta lo que no se pueda mapear a un código conocido o sea igual al
+// primero.
 function nat2FromProfile(prof) {
   if (!prof) return '';
-  let arr = prof.nationalities || prof.citizenship || prof.nationality;
+  const arr = prof.nationalities || prof.citizenship || prof.nationality;
   if (Array.isArray(arr) && arr.length > 1) {
     const b = arr[1];
     return String((b && (b.name || b.country)) || b || '').trim();
   }
-  // La descripción a veces lista las dos: "from Brazil Italy ➤"
-  const d = String(prof.description || '');
-  const m = d.match(/\bfrom\s+([A-ZÁÉÍÓÚÑ][^➤|,]*?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)\s*(?:➤|$)/);
-  if (m) return m[2].trim();
   return '';
 }
 async function probeNats() {
@@ -1040,13 +1252,32 @@ async function probeNats() {
     if (ok) { win = [api, p]; break; }
     await sleep(700);
   }
-  if (win) log(`  ✅ SIRVE: ${win[0]} ${win[1]} — pasame esta línea y la conecto al extractor.`);
+  // Rutas que el extractor YA usa. Sin esto, la sonda encontraba la ruta buena
+  // —la misma que ya está cableada— y pedía que se la pasaran para conectarla,
+  // mandando a dar una vuelta al pedo.
+  const YA_CONECTADAS = {
+    'transfermarkt /players/{id}/profile': 'el checkbox "Nacionalidades desde el perfil"',
+    'transfermarkt /clubs/{id}/players':   'la bajada de planteles',
+    'tmcoach /verein/{id}':                'la bajada de DTs',
+  };
+  if (win) {
+    const generica = win[1].replace(/\/\d+\//g, '/{id}/').replace(/\/\d+$/, '/{id}');
+    const yaEsta = YA_CONECTADAS[win[0] + ' ' + generica];
+    log(`  ✅ SIRVE: ${win[0]} ${win[1]}`);
+    if (yaEsta) {
+      log(`     Esta ruta YA ESTÁ CONECTADA: es la que usa ${yaEsta}.`);
+      log('     No hay nada que conectar. Tildá el checkbox amarillo y dale a extraer.');
+    } else {
+      log('     Esta ruta NO está conectada todavía → copiame esta línea.');
+    }
+  }
   else log('  ❌ Ninguna trae nacionalidad con datos. Copiame el bloque y busco otra fuente.');
 }
 
 async function testExtras() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const cfW = (document.getElementById('cfWorker') || {value:''}).value.trim();
+  let _plantelOk = null;                 // lo llena la primera consulta que lo pruebe
   log('══════════════════════════════════════');
   log('Proxy en uso: ' + (cfW ? 'Worker de Cloudflare (' + cfW + ')' : 'Función de Netlify (/.netlify/functions/sportdb)'));
 
@@ -1066,6 +1297,7 @@ async function testExtras() {
       // jugador en SportDB, que trae la nacionalidad en la descripción).
       log('ℹ️ La API libre está caída. Probando la ruta por perfil de SportDB...');
       const club = await rawGet('transfermarkt', '/clubs/189/players');
+      _plantelOk = club.status === 200;
       const mid = club.body.match(/"id"\s*:\s*"(\d+)"\s*,\s*"name"\s*:\s*"([^"]+)"/);
       if (mid) {
         const prof = await apiGet(`/players/${mid[1]}/profile`, 'transfermarkt');
@@ -1101,7 +1333,17 @@ async function testExtras() {
   const r2 = await rawGet('tmcoach', '/verein/189');
   log(`  tmcoach HTTP ${r2.status} → ${r2.body.slice(0,250)}`);
   if (r1.status !== 200 || !/nationalit/i.test(r1.body)) await probeNats();
-  log('Copiame TODO este bloque y conecto la fuente que haya respondido bien.');
+  // No lo volvemos a pedir si alguna consulta de más arriba ya lo probó: cada
+  // pedido al plantel cuesta un crédito.
+  if (_plantelOk === null) _plantelOk = (await rawGet('transfermarkt', '/clubs/189/players')).status === 200;
+  const _dtOk = r2.status === 200;
+  if (_plantelOk && _dtOk) {
+    log('── RESUMEN ──');
+    log('✅ Planteles y DTs andan. La única caída es la API libre de nacionalidades (tmapi),');
+    log('   que tiene reemplazo: tildá "Nacionalidades desde el perfil". No falta conectar nada.');
+  } else {
+    log('Copiame TODO este bloque y conecto la fuente que haya respondido bien.');
+  }
   log('══════════════════════════════════════');
 }
 
@@ -1137,7 +1379,10 @@ function parseHeight(v) {
   return n < 3 ? Math.round(n * 100) : Math.round(n);
 }
 
-function mapNat(nat) {
+// estricto=true: si el país no se reconoce, devuelve '' en vez de inventar un
+// código con las tres primeras letras. Lo usa la SEGUNDA nacionalidad, que es
+// la que decide el cupo de extranjeros.
+function mapNat(nat, estricto) {
   const n = String(nat || '').toLowerCase();
   const map = {
     'argentina':'ARG','brazil':'BRA','brasil':'BRA','chile':'CHI','paraguay':'PAR',
@@ -1161,6 +1406,21 @@ function mapNat(nat) {
     'bosnia and herzegovina':'BIH','bosnia-herzegovina':'BIH','kosovo':'KOS',
     'finland':'FIN','iceland':'ISL','israel':'ISR','jamaica':'JAM',
     'cuba':'CUB','dominican republic':'DOM','panama':'PAN','el salvador':'SLV',
+    // Golfo y alrededores: hacen falta para la Saudi Pro League, si no caían
+    // en el fallback nat.slice(0,3) y salían códigos inventados.
+    // Alias que faltaban y dejaban códigos rotos: 327 turcos habían quedado
+    // como 'TÜR' porque el mapa sólo conocía turkey/türkei, y 87 marfileños
+    // como 'COT' por "Cote d'Ivoire".
+    'türkiye':'TUR','turkiye':'TUR','turquía':'TUR','turquia':'TUR',
+    "cote d'ivoire":'CIV',"côte d'ivoire":'CIV','cote divoire':'CIV',
+    'korea, south':'COR','korea republic':'COR','republic of korea':'COR',
+    'the gambia':'GAM','gambia':'GAM','puerto rico':'PUR',
+    'central african republic':'CTA','sierra leone':'SLE',
+    'st. lucia':'LCA','saint lucia':'LCA',
+    'saudi arabia':'ARB','arabia saudita':'ARB','qatar':'QAT','catar':'QAT',
+    'united arab emirates':'UAE','iraq':'IRQ','jordan':'JOR','oman':'OMA',
+    'bahrain':'BRN','kuwait':'KUW','syria':'SIR','lebanon':'LIB',
+    'palestine':'PAL','yemen':'YEM',
     // ═══ Alias en ALEMÁN (Transfermarkt resuelve los IDs de bandera en alemán) ═══
     'argentinien':'ARG','brasilien':'BRA','spanien':'ESP','frankreich':'FRA',
     'italien':'ITA','deutschland':'ALE','niederlande':'HOL','russland':'RUS',
@@ -1193,7 +1453,10 @@ function mapNat(nat) {
     'congo':'CGO','dr congo':'COD','uzbekistan':'UZB','armenia':'ARM',
     'algeria':'ALG','algerien':'ALG','argelia':'ALG',
     'south africa':'RSA','südafrika':'RSA','zambia':'ZAM','zimbabwe':'ZIM',
-    'burkina faso':'BFA','togo':'TOG','benin':'BEN','niger':'NIG_NE',
+    // ⚠️ Níger va NER: NIG ya es Nigeria y el juego exige 3 letras. Con
+    // 'NIG_NE' (largo 6) el código quedaba inventado, que es justo lo que
+    // ensucia el cupo de extranjeros.
+    'burkina faso':'BFA','togo':'TOG','benin':'BEN','niger':'NER',
     'new caledonia':'NCL','curacao':'CUW','curaçao':'CUW','suriname':'SUR',
     'trinidad and tobago':'TRI','haiti':'HAI','guatemala':'GUA',
     'nicaragua':'NCA','bulgaria':'BUL','belarus':'BLR','lithuania':'LTU',
@@ -1205,6 +1468,7 @@ function mapNat(nat) {
   for (const [key, val] of Object.entries(map)) {
     if (new RegExp('(^|[^a-z])' + key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '([^a-z]|$)').test(n)) return val;
   }
+  if (estricto) return '';
   return nat ? nat.slice(0, 3).toUpperCase() : 'UNK';
 }
 
@@ -1233,6 +1497,7 @@ function mapLeague(country, league) {
   if (c.includes('portugal')) return 'Portugal';
   if (c.includes('turkey') || c.includes('türkiye') || c.includes('turkiye')) return 'Turquía';
   if (c.includes('greece') || c.includes('hellas')) return 'Grecia';
+  if (c.includes('saudi') || c.includes('arabia')) return 'Arabia';
   return league || country || 'Otro';
 }
 
@@ -1253,7 +1518,11 @@ function generateOutput() {
       }
     }
 
-    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Nacionalidad2,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm,Pos2,Clausula\n';
+    // La cabecera tiene que coincidir con el ORDEN REAL de la fila de abajo.
+    // Decía Nacionalidad2 en la 5ª columna cuando ahí va el Pie, y la 2ª
+    // nacionalidad se escribe última: todo lo que leyera este CSV por nombre de
+    // columna quedaba corrido un lugar de la 5ª en adelante.
+    let csv = 'Nombre,Posicion,Edad,Nacionalidad,Pie,Club,Liga,Goles,Asistencias,Partidos,ValorMercado,ContratoHasta,AlturaCm,Pos2,Clausula,Nacionalidad2\n';
     let js = '  // === JUGADORES EXTRAIDOS DE SPORTDB ===\n';
 
     for (const p of unique) {
@@ -1273,7 +1542,12 @@ function generateOutput() {
       const cUntil = p.contractUntil || 0;
       const hCm = p.heightCm || 0;
       const p2 = p.pos2 ? mapPos(p.pos2) : '';
-      const nat2 = p.nat2 ? mapNat(p.nat2) : '';
+      // La segunda nacionalidad es la que decide el CUPO DE EXTRANJEROS, así
+      // que acá no vale el fallback slice(0,3) que inventa códigos: si no se
+      // reconoce el país, es mejor no saber que saber mal. Y si da lo mismo
+      // que la primera, no es una segunda nacionalidad.
+      let nat2 = p.nat2 ? mapNat(p.nat2, true) : '';
+      if (nat2 === nat) nat2 = '';
       const cl = p.clauseM || 0;
       const gl = p.goals || 0, as = p.assists || 0, ap = p.apps || 0;
       js += `[${num},'${pName.replace(/'/g,"\\'")}','${pos}',${p.age||25},'${nat}','${pClub.replace(/'/g,"\\'")}','${lg}',${val},'${foot}',${cUntil},${hCm},'${p2}',${cl},${gl},${as},${ap},'${nat2}'],\n`;
@@ -1305,6 +1579,369 @@ function copyOutput() {
   el.select();
   document.execCommand('copy');
   alert('Copiado al portapapeles');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PLANTELES HISTÓRICOS (sólo Argentina, una temporada por archivo)
+// ═══════════════════════════════════════════════════════════════
+// ⚠️ NO VERIFICADO CONTRA TRANSFERMARKT. Se escribió sin poder hacer un solo
+// pedido al sitio (el entorno donde se programó sólo tiene salida a GitHub).
+// El parser vive en el Worker (api=tmkader / api=tmclubs) y siempre devuelve
+// un bloque `diag`; acá se lo MUESTRA en el log en vez de tragárselo, que es
+// la diferencia entre arreglarlo en una vuelta y arreglarlo a ciegas.
+//
+// Por qué una temporada por archivo y no todo junto: son ~170 KB por año de
+// fútbol argentino. Treinta años en un solo archivo son 5 MB que el juego
+// tendría que cargar siempre, aunque juegues 2026.
+
+async function histClubes(compId, year) {
+  const r = await apiGet(`/wettbewerb/${compId}/saison/${year}`, 'tmclubs');
+  if (!r) { log(`    ✗ no contestó la lista de clubes de ${compId} ${year}`); return []; }
+  if (r.diag) log(`    (clubes: ${JSON.stringify(r.diag)})`);
+  return r.clubs || [];
+}
+
+async function histPlantel(clubId, year) {
+  let r = await apiGet(`/verein/${clubId}/saison/${year}`, 'tmkader');
+  if (!r || !(r.players || []).length) {
+    // Segunda oportunidad con pausa larga: el mismo patrón que ya salvó a
+    // Santos y al Porto en la extracción normal. Un club que falla una vez y
+    // se saltea desaparece de esa temporada sin que nadie se entere.
+    await sleep(5000);
+    r = await apiGet(`/verein/${clubId}/saison/${year}`, 'tmkader');
+  }
+  return r;
+}
+
+// ═══ ¿EL WORKER TIENE EL CÓDIGO NUEVO? ═══
+// ⚠️ Entrar a la URL pelada del Worker devuelve {"error":"Missing API key"} en
+// TODAS las versiones, vieja y nueva, así que mirando eso NO se puede saber si
+// el deploy tomó — y eso ya costó una vuelta entera. `?api=ping` es lo único
+// que los distingue: la versión nueva contesta su versión y qué fuentes tiene.
+async function probarWorker() {
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log('\n🔌 Probando el Worker…');
+  if (!cfW) {
+    log('   ✗ El campo "Worker de Cloudflare" está vacío.');
+    log('   → Pegá ahí la URL de tu Worker (https://NOMBRE.TUCUENTA.workers.dev) y probá de nuevo.');
+    log('   Los planteles históricos SÓLO salen por el Worker: Netlify no los tiene.');
+    return;
+  }
+  log(`   ${cfW}`);
+  const r = await rawGet('ping', '/', { max: 400 });
+  if (r.status === 0) {
+    log('   ✗ NO RESPONDE. ' + r.body);
+    log('   → Revisá que la URL esté bien escrita y que el Worker esté desplegado.');
+    return;
+  }
+  let j = null; try { j = JSON.parse(r.body); } catch (e) {}
+  if (j && j.ok && j.historicos) {
+    log(`   ✅ ACTUALIZADO — versión ${j.version}`);
+    log(`   Fuentes: ${(j.apis || []).join(', ')}`);
+    log(j.cacheKV
+      ? '   Caché KV conectado: re-bajar una temporada sale gratis.'
+      : '   ⚠️ SIN caché KV. Anda igual, pero cada temporada se vuelve a bajar entera.\n      Cloudflare → tu Worker → Settings → Bindings → KV Namespace, variable CACHE.');
+    log('   → Ya podés extraer. Probá primero UNA temporada (Desde y Hasta iguales).');
+    return;
+  }
+  log(`   ✗ WORKER VIEJO (status ${r.status}): ${String(r.body).slice(0, 200)}`);
+  log('   → No tiene los planteles históricos. Actualizalo:');
+  log('     Cloudflare → Workers & Pages → tu Worker → Edit code → borrar TODO');
+  log('     → pegar cloudflare-worker/sportdb-cache.js del repo → Deploy.');
+  log('   Después volvé a apretar este botón: tiene que decir ACTUALIZADO.');
+}
+
+async function extraerHistorico() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const d = parseInt(document.getElementById('histDesde').value, 10);
+  const h = parseInt(document.getElementById('histHasta').value, 10);
+  const c1 = (document.getElementById('histComp1').value || '').trim();
+  const c2 = (document.getElementById('histComp2').value || '').trim();
+  if (!d || !h || h < d) { alert('Revisá el rango de años'); return; }
+  if (!c1) { alert('Falta el ID de competición de Primera'); return; }
+  if (h - d > 40) { alert('Máximo 40 temporadas por corrida'); return; }
+
+  // ═══ PREFLIGHT: ¿el proxy conoce las fuentes históricas? ═══
+  // ⚠️ Sin esto la corrida seguía igual año por año: 12 temporadas × 2
+  // competiciones = 24 pedidos para terminar con 12 temporadas vacías y el
+  // mismo ERROR 400 repetido. Un fallo de configuración se detecta UNA vez y
+  // se corta; sólo un fallo de DATOS (ese año no existe) justifica seguir.
+  const cfW0 = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log(`\n🕰️ Histórico ${d}-${h} · proxy: ${cfW0 ? 'Worker de Cloudflare' : 'función de Netlify'}`);
+  {
+    const pre = await rawGet('tmclubs', `/wettbewerb/${c1}/saison/${h}`, { max: 300 });
+    // ⚠️ Cortar SÓLO con 400 no alcanza. Medido con un Worker inalcanzable:
+    // `rawGet` devuelve status 0 (el fetch ni sale) y la corrida seguía las 24
+    // vueltas igual. 400 = "no conoce la fuente" y 0 = "no se llega al proxy"
+    // son las dos un problema de CONFIGURACIÓN: no los arregla reintentar.
+    // Un 500/502 sí puede ser pasajero, así que ese avisa y sigue.
+    if (pre.status === 400 || pre.status === 0) {
+      const noLlega = pre.status === 0;
+      log(noLlega ? '\n❌ NO SE LLEGA AL PROXY — no se baja nada.'
+                  : '\n❌ EL PROXY NO CONOCE api=tmclubs — no se baja nada.');
+      log(`   ${String(pre.body).slice(0, 300)}`);
+      log(cfW0
+        ? (noLlega
+            ? `   → No responde ${cfW0}\n     Revisá que la URL esté bien escrita y que el Worker esté desplegado.`
+            : '   → Tu Worker es una versión vieja. Actualizalo con cloudflare-worker/sportdb-cache.js\n     (Cloudflare → Workers & Pages → tu Worker → Edit code → pegar todo → Deploy)\n     y confirmalo con el botón 🔌 ¿Mi Worker está actualizado?')
+        : '   → Los planteles históricos SÓLO salen por el Worker de Cloudflare (Netlify no los tiene).\n     Pegá la URL de tu Worker en el campo "Worker de Cloudflare" de arriba y volvé a probar.');
+      setProgress(0);
+      return;
+    }
+    if (pre.status !== 200) {
+      log(`\n⚠️ El proxy contestó ${pre.status} en la prueba inicial. Sigo igual, pero ojo:`);
+      log(`   ${String(pre.body).slice(0, 300)}`);
+    }
+  }
+
+  window._histVacias = [];
+  window._histSinTabla = [];
+  for (let y = h; y >= d; y--) {                    // de 2026 para atrás, como se pidió
+    setProgress(((h - y) / (h - d + 1)) * 100);
+    log(`\n═══ TEMPORADA ${y} ═══`);
+    const filas = [];
+    const comps = [[c1, 'Liga ARG'], ...(c2 ? [[c2, 'Primera Nacional']] : [])];
+    let clubesOK = 0, fallados = [], yaBajado = {}, dupFilas = 0;
+
+    for (const [cid, liga] of comps) {
+      const clubs = await histClubes(cid, y);
+      if (!clubs.length) { log(`  ✗ ${liga} ${y}: 0 clubes`); continue; }
+      log(`  ${liga} ${y}: ${clubs.length} clubes`);
+      for (let i = 0; i < clubs.length; i++) {
+        const cl = clubs[i];
+        // ⚠️ Un club puede salir en las DOS competiciones del año, y gana la
+        // SEGUNDA. No es capricho: la página de Primera devuelve la lista de
+        // HOY para los años viejos (medido: la de 2011 y 2012 es IDÉNTICA a la
+        // de 2025), mientras que la del ascenso sí es del año. Con "gana
+        // Primera", River jugaba la A en 2011 —ese año estaba en la B— e
+        // Independiente la A en 2013, cuando descendió. Verificado en los 14
+        // casos que hay: los 8 de 2011, los 9 de 2012, los 10 de 2013,
+        // Belgrano 2019-2021 y Godoy Cruz 2025, todos correctos con esta regla.
+        // El plantel NO se vuelve a bajar (es el mismo, verificado 36/36,
+        // 55/55 y 31/31 nombres): sólo se le cambia la etiqueta.
+        if (yaBajado[cl.id]) {
+          const nom0 = histClubNombre(cl.name);
+          let n = 0;
+          filas.forEach(f => { if (f[5] === nom0 && f[6] !== liga) { f[6] = liga; n++; } });
+          log(`    ↩︎ ${nom0} ya vino en la otra competición → queda en ${liga} (${n} filas)`);
+          continue;
+        }
+        yaBajado[cl.id] = 1;
+        const r = await histPlantel(cl.id, y);
+        const ps = (r && r.players) || [];
+        if (!ps.length) {
+          log(`    ✗ ${cl.name}: sin plantel${r && r.diag ? ' — ' + JSON.stringify(r.diag) : ''}`);
+          fallados.push(cl.name);
+          continue;
+        }
+        if (clubesOK === 0) log(`    (primer club OK — ${cl.name}: ${JSON.stringify(r.diag)})`);
+        clubesOK++;
+        const nom = histClubNombre(cl.name);
+        log(`    [${i + 1}/${clubs.length}] ${nom}: ${ps.length} jugadores`);
+        const vistos = {};
+        ps.forEach(p => {
+          const k = String(p.name || '') + '|' + nom;
+          if (vistos[k]) { dupFilas++; return; }   // el mismo tipo dos veces en el kader
+          vistos[k] = 1;
+          filas.push(histFila(p, nom, liga));
+        });
+      }
+    }
+    if (dupFilas) log(`  (${dupFilas} filas repetidas descartadas)`);
+
+    if (!filas.length) {
+      log(`  ⚠️ ${y} quedó VACÍA — no se descarga nada. Usá 🩺 Diagnosticar para ver por qué.`);
+      window._histVacias.push(y);
+      continue;
+    }
+    // ⚠️ Los clubes que fallaron se NOMBRAN. Es el bug de los 12 clubes
+    // perdidos en silencio, que acá sería peor: una temporada vieja no se
+    // vuelve a mirar nunca.
+    if (fallados.length) log(`  ⚠️ ${fallados.length} club(es) sin plantel en ${y}: ${fallados.join(', ')}`);
+    else log(`  ✓ ningún club se quedó sin plantel`);
+    log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes`);
+    histDescargar(y, filas, clubesOK);
+  }
+  setProgress(100);
+  if (window._histVacias.length) {
+    log(`\n⚠️ Temporadas vacías: ${window._histVacias.join(', ')}`);
+    const total = h - d + 1;
+    if (window._histVacias.length === total) {
+      log('   TODAS las temporadas salieron vacías, así que no es un problema de un año:');
+      log('   o los IDs de competición cambiaron, o Transfermarkt cambió el HTML.');
+      log('   → Apretá 🩺 Diagnosticar una temporada: muestra el HTML crudo, que es lo que');
+      log('     hace falta para arreglar el parser. Sin eso no se puede saber cuál de los dos es.');
+    }
+  }
+  if (window._histSinTabla.length) {
+    log(`\n⚠️ ${window._histSinTabla.length} club(es) sin entrada en HIST_CLUB_NOM (van capitalizados,`);
+    log('   pero sin escudo ni estadio propio). Agregalos a la tabla del extractor:');
+    log('   ' + window._histSinTabla.join(' · '));
+  }
+  log('\n=== HISTÓRICO TERMINADO ===');
+}
+
+// ═══ EL NOMBRE DEL CLUB SALE DEL SLUG DE LA URL, Y ASÍ NO SIRVE ═══
+// `parseClubes` cae al slug cuando el <a> no trae title ni texto, así que la
+// primera corrida real trajo "club atletico boca juniors", "cd riestra" y
+// "club atletico central cordoba sde " (con espacio al final). Eso no es sólo
+// feo: el juego indexa los clubes POR NOMBRE — TEAMS (los 5 curados con
+// escudo, colores y borderó a mano), STADIUMS_DB y los clásicos. Con el slug,
+// Boca 1994 juega sin escudo y en un estadio genérico.
+// La clave es el slug NORMALIZADO (sin acentos, sin mayúsculas, sin espacios
+// de más), así que la misma entrada sirve venga el nombre del title o del slug.
+const HIST_CLUB_NOM = {
+  'ca river plate':'River Plate','club atletico river plate':'River Plate',
+  'club atletico boca juniors':'Boca Juniors','racing club':'Racing Club',
+  'club atletico independiente':'Independiente',
+  'club atletico san lorenzo de almagro':'San Lorenzo',
+  'club atletico velez sarsfield':'Vélez Sarsfield',
+  'club estudiantes de la plata':'Estudiantes LP',
+  'club atletico rosario central':'Rosario Central',
+  'club atletico talleres':'CA Talleres','club atletico lanus':'Lanús',
+  'club atletico huracan':'Huracán','argentinos juniors':'Argentinos Jrs.',
+  'club atletico banfield':'Banfield','club atletico newells old boys':"Newell's",
+  'club atletico belgrano':'Belgrano','ca belgrano':'Belgrano',
+  'instituto ac cordoba':'Instituto ACC',
+  'club atletico central cordoba sde':'Central Córdoba',
+  'club atletico barracas central':'Barracas C.','defensa y justicia':'Defensa',
+  'club atletico tigre':'Tigre','club atletico platense':'Platense',
+  'club atletico union':'Unión Santa Fe','club atletico tucuman':'Atl. Tucumán',
+  'club atletico sarmiento junin':'Sarmiento Junin','club atletico aldosivi':'Aldosivi',
+  'independiente rivadavia':'Ind. Rivadavia','cd riestra':'Dep. Riestra',
+  'club deportivo godoy cruz antonio tomba':'Godoy Cruz',
+  'club de gimnasia y esgrima la plata':'Gimnasia',
+  'club atletico san martin sj':'San Martín (SJ)',
+  'ca san martin tucuman':'San Martín (T)',
+  'club atletico colon':'Colon','club atletico patronato':'Patronato',
+  'club ferro carril oeste':'Ferro','quilmes atletico club':'Quilmes',
+  'ca chacarita juniors':'Chacarita Jrs.','nueva chicago':'Nueva Chicago',
+  'club atletico atlanta':'Atlanta','club atletico temperley':'CA Temperley',
+  'club atletico colegiales':'Colegiales','club almagro':'Almagro',
+  'club almirante brown':'Almirante Brown','defensores de belgrano':'Def. Belgrano',
+  'atletico de rafaela':'Atl. Rafaela','atletico racing cordoba':'Racing (Cba)',
+  'club atletico central norte':'Central Norte','club atletico guemes':'CA Güemes',
+  'club atletico mitre':'Mitre (SdE)','csd madryn':'Dep. Madryn',
+  'csd tristan suarez':'Tristán Suárez','cd moron':'Dep. Morón',
+  'cd maipu mendoza':'Dep. Maipú','ca all boys buenos aires':'All Boys',
+  'ca los andes':'Los Andes','ca san miguel':'San Miguel','ca san telmo':'San Telmo',
+  'acassuso cf':'Acassuso','argentino agropecuario':'Agropecuario',
+  'chaco for ever':'Chaco For Ever','ferrocarril midland':'Midland',
+  'club ciudad de bolivar':'Ciudad Bolívar',
+  'gimnasia y esgrima de jujuy':'Gimnasia (J)','gimnasia y esgrima de mendoza':'Gimnasia (M)',
+  'gimnasia y tiro salta':'Gimnasia y Tiro',
+  'aa estudiantes de rio cuarto':'Estudiantes RC','ca estudiantes buenos aires':'Estudiantes',
+  'ca talleres remedios de escalada':'Talleres (RE)',
+  // los del ascenso de 2000-2005 (⚠️ 'Alte. Brown (Arr.)' es el de Arrecifes,
+  // NO el Almirante Brown de Isidro Casanova que ya está más abajo)
+  'almirante brown de arrecifes':'Alte. Brown (Arr.)','gimnasia cdu':'Gimnasia (CdU)',
+  // los del ascenso de 2006-2010
+  'ca tiro federal':'Tiro Federal','club sportivo ben hur':'Sp. Ben Hur',
+  'club sportivo italiano':'Sp. Italiano','comision de actividades infantiles':'CAI',
+  // los del ascenso de 2011-2015, que no vuelven a aparecer después
+  'csd merlo':'Dep. Merlo','sportivo desamparados':'Sp. Desamparados',
+  'sportivo belgrano san francisco':'Sp. Belgrano (SF)',
+  'club atletico villa san carlos':'Villa San Carlos',
+  'cd guarani antonio franco':'Guaraní A. Franco','ca union mar del plata':'Unión (MdP)',
+  'club atletico juventud unida universitario':'Juventud Unida (SL)',
+  // los que aparecen recién al bajar 2016-2020 (el log los nombró uno por uno)
+  'club olimpo':'Olimpo','club mutual crucero del norte':'Crucero del Norte',
+  'atletico parana':'Atl. Paraná','ca boca unidos':'Boca Unidos',
+  'ca douglas haig':'Douglas Haig','estudiantes de san luis':'Estudiantes SL',
+  'cd juventud unida gualeguaychu':'Juventud Unida (G)',
+  // los que no están en la base de hoy porque hace años que no juegan arriba
+  'arsenal futbol club':'Arsenal','ca alvarado':'Alvarado','club sd flandria':'Flandria',
+  'club villa dalmine':'Villa Dálmine','defensores unidos zarate':'Defensores Unidos',
+  'deportivo santamarina':'Santamarina','sacachispas futbol club':'Sacachispas',
+  'brown de adrogue':'Brown (A)','club social y atletico guillermo brown':'Guillermo Brown',
+};
+function histNorm(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// Si el club no está en la tabla NO se lo tira ni se lo deja en minúscula: se
+// lo capitaliza y se lo NOMBRA en el log, que es la diferencia entre agregar
+// una línea y descubrir dentro de seis meses que a un club le falta el escudo.
+function histClubNombre(raw) {
+  const k = histNorm(raw);
+  if (HIST_CLUB_NOM[k]) return HIST_CLUB_NOM[k];
+  if (window._histSinTabla && window._histSinTabla.indexOf(k) < 0) window._histSinTabla.push(k);
+  return k.replace(/\b[a-z]/g, c => c.toUpperCase());
+}
+
+// Una fila con el MISMO formato de players-db.js. Las columnas nuevas van al
+// final, igual que siempre, así que el juego lee estos archivos sin cambios.
+// [num,nombre,pos,edad,nac,club,liga,valorM,pie,contratoHasta,alturaCm,
+//  pos2,clausulaM,goles,asistencias,partidos,nat2]
+function histFila(p, club, liga) {
+  const pos = mapPos(p.pos);
+  const nat = mapNat(p.nat);
+  let nat2 = p.nat2 ? mapNat(p.nat2, true) : '';
+  if (nat2 === nat) nat2 = '';
+  const pie = /left|links/.test(p.foot || '') ? 'izq' : /both|beid/.test(p.foot || '') ? 'amb' : 'der';
+  const num = parseInt(p.num, 10) || (pos === 'ARQ' ? 1 : pos.indexOf('DF') === 0 ? 4 : pos.indexOf('MC') === 0 ? 8 : 9);
+  const cUntil = parseContractYear(p.contract) || 0;
+  return [num, String(p.name || ''), pos, p.age || 25, nat, club, liga,
+    p.value || 0.1, pie, cUntil, p.height || 0, '', 0, 0, 0, 0, nat2];
+}
+
+function histDescargar(year, filas, clubes) {
+  // El archivo se ENCHUFA solo: declara su temporada dentro de PLAYERS_DB_HIST
+  // sin pisar PLAYERS_DB. El juego lo carga con un <script> y, si no está, no
+  // pasa nada (el onerror lo ignora) — igual que players-db.js.
+  const js = `// Planteles del fútbol argentino — temporada ${year}\n`
+    + `// ${filas.length} jugadores · ${clubes} clubes · generado por extractor.html\n`
+    + `(window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{})[${year}]=[\n`
+    + filas.map(r => JSON.stringify(r)).join(',\n')
+    + `\n];\n`;
+  const blob = new Blob([js], { type: 'text/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `players-hist-${year}.js`;
+  a.click();
+}
+
+// ═══ DIAGNÓSTICO: una temporada, un club, y el HTML crudo en pantalla ═══
+// Sin esto, "vino vacío" no dice si falló el fetch, si TM bloqueó el pedido o
+// si cambió el layout de la tabla. Con esto se ve exactamente cuál de las tres.
+async function diagHistorico() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const y = parseInt(document.getElementById('histHasta').value, 10);
+  const c1 = (document.getElementById('histComp1').value || '').trim();
+  log(`\n🩺 Diagnóstico de la temporada ${y} (competición ${c1})`);
+  const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
+  log(`   Proxy: ${cfW ? 'Worker de Cloudflare' : 'función de Netlify'}`);
+
+  const lc = await rawGet('tmclubs', `/wettbewerb/${c1}/saison/${y}`, { max: 900 });
+  log(`   1) lista de clubes → status ${lc.status} (por ${lc.proxy})`);
+  log(`      ${String(lc.body)}`);
+  if (lc.status === 400) {
+    log('   ⚠️ 400 = el proxy no conoce api=tmclubs.');
+    log(lc.proxy === 'worker'
+      ? '      → Actualizá el Worker con cloudflare-worker/sportdb-cache.js del repo.'
+      : '      → Las fuentes históricas SÓLO están en el Worker de Cloudflare. Pegá su URL arriba.');
+    return;
+  }
+  let clubId = '';
+  try { clubId = (JSON.parse(lc.body).clubs || [])[0].id; } catch (e) {}
+  if (!clubId) { log('   ✗ no salió ningún club: el parser de la tabla de clubes no encontró links /startseite/verein/'); return; }
+
+  // debug=1 va como parámetro SUELTO, no adentro de `path`: si va adentro se
+  // lo come el encodeURIComponent y el Worker nunca lo ve.
+  const lp = await rawGet('tmkader', `/verein/${clubId}/saison/${y}`, { max: 4000, extra: '&debug=1&fresh=1' });
+  log(`   2) plantel del club ${clubId} → status ${lp.status}`);
+  log(`      ${String(lp.body)}`);
+  try {
+    const j = JSON.parse(lp.body);
+    const n = (j.players || []).length;
+    if (n) log(`   ✅ ${n} jugadores parseados. Ejemplo: ${JSON.stringify(j.players[0])}`);
+    else {
+      log(`   ✗ 0 jugadores. diag = ${JSON.stringify(j.diag)}`);
+      log('   → Si `filas` es 0, cambió el contenedor de la tabla (ya no es <tr class="odd">).');
+      log('   → Si `filas` > 0 y `parseados` es 0, cambió la fila (el link /profil/spieler/).');
+      log('   → Arriba está el HTML crudo de la primera fila: pasámelo y lo arreglo de una.');
+    }
+  } catch (e) { log('   ✗ la respuesta no era JSON: ' + e.message); }
 }
 
 function downloadOutput() {
