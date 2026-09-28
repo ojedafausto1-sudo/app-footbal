@@ -938,7 +938,7 @@ del mercado, un falso positivo de la búsqueda) y Boca conserva todo lo suyo.
 
 ## La base de datos de septiembre 2026 (la actualización que NO se pudo pisar)
 
-**17.243 jugadores · 619 clubes · 24 ligas** (antes 17.108 / 618).
+**17.388 jugadores · 619 clubes · 24 ligas** (antes 17.108 / 618).
 
 ⚠️ **La extracción nueva venía con 15.172 filas: 1.936 MENOS que la base que
 estaba puesta.** Pisar el archivo habría sido un retroceso en casi todo, y el
@@ -946,7 +946,7 @@ número lo dijo antes de tocar nada:
 
 | | base anterior | extracción nueva | ahora (fusionado) |
 |---|---|---|---|
-| jugadores | 17.108 | **15.172** | **17.243** |
+| jugadores | 17.108 | **15.172** | **17.388** |
 | clubes | 618 | **548** | **619** |
 | ligas | 24 | **23** | **24** |
 | sin nacionalidad | 246 (1,4%) | **2.112 (14%)** | **86 (0,5%)** |
@@ -1030,6 +1030,50 @@ Se recuperan del jugador con el mismo nombre en la base anterior —primero el
 del mismo club, después por nombre— y sale el **97%** (2.061 de 2.112, 0
 ambiguas). Lo mismo con el pie (865 de 912) y la edad (5 de 5). Resultado: la
 base queda **mejor que antes** en nacionalidad, 86 sin dato contra 246.
+
+### ⚠️ Rescatar CLUBES no alcanza: también se caen jugadores sueltos
+
+El presidente lo reportó al día siguiente — *"faltan un montón de jugadores,
+por ejemplo Maher Carrizo y Alan Lescano"* — y tenía razón, pero por dos
+motivos distintos que conviene no mezclar.
+
+**Alan Lescano lo perdió el merge.** El rescate recuperaba los 71 clubes que
+desaparecieron ENTEROS, pero para un club que sobrevivió la extracción nueva
+mandaba sin más. Los jugadores que se cayeron de esos clubes se iban con ella:
+**145 fichas que estaban en la base anterior y no aparecían en NINGÚN club de
+la nueva**.
+
+Se podría discutir si son bajas reales (alguien que se fue a una liga que la
+base no cubre) o huecos de extracción. **El perfil de edad lo decide:**
+
+| edad | cuántos |
+|---|---|
+| ≤23 | **90** |
+| 24-29 | 46 |
+| 30-33 | 7 |
+| 34+ | **2** |
+
+Una ventana de pases de verdad se lleva veteranos; una lista con 90 pibes de
+23 o menos y dos de 34+ es la firma de un **hueco en la lista de plantel de la
+fuente**, que es donde primero se caen los juveniles. Se restauran los 145 (el
+club de todos existe en la base, así que no se inventa ninguno). La base pasa
+de 17.243 a **17.388**, con 0 duplicados.
+
+⚠️ **La regla completa del merge son DOS rescates, no uno**: los clubes que
+desaparecen enteros, y los jugadores que desaparecen de clubes que siguen. El
+segundo es el que se olvida.
+
+**Maher Carrizo no lo perdió nadie: nunca estuvo.** Verificado en las dos
+extracciones — ni en la de julio ni en la de septiembre. Eso no se arregla
+fusionando, porque no hay de dónde sacarlo: hay que **volver a correr esa liga
+en el extractor**. Y no se puede comprobar contra Transfermarkt desde acá (el
+proxy devuelve 403 en el CONNECT para `transfermarkt.com`), así que lo único
+honesto es decirlo.
+
+⚠️ **Los planteles NO están truncados**, y eso descarta la explicación fácil:
+mediana 28 fichas por club, p90 32, y sólo 9 clubes de 619 por debajo de 22.
+Vélez con 25 está flojo pero dentro del rango. Lo que falta son fichas
+sueltas, no un tope.
 
 ### Los DTs, fusionados como siempre
 
