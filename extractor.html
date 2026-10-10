@@ -28,6 +28,11 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
 .api-select label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;color:#e8edf5}
 .api-select input[type=radio]{accent-color:#F6D318}
 </style>
+<!-- La base actual, SÓLO para sugerir nombres de club (histSugerencia).
+     Es opcional a propósito: el extractor se abre desde Netlify y ahí no
+     está, así que el onerror la deja vacía y las sugerencias no salen. El
+     extractor no la lee para nada más — lo que genera no depende de ella. -->
+<script src="players-db.js" onerror="window.PLAYERS_DB=window.PLAYERS_DB||[]"></script>
 </head>
 <body>
 <h1>&#9917; SportDB Player Extractor v3</h1>
@@ -74,17 +79,42 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
     <div><label style="font-size:11px">Desde</label><input id="histDesde" value="2024" style="width:90px"></div>
     <div><label style="font-size:11px">Hasta</label><input id="histHasta" value="2026" style="width:90px"></div>
-    <div><label style="font-size:11px">ID Primera (TM)</label><input id="histComp1" value="AR1N" style="width:90px"></div>
-    <div><label style="font-size:11px">ID Ascenso (TM)</label><input id="histComp2" value="ARG2" style="width:90px"></div>
   </div>
-  <div style="font-size:10px;color:#5a7aaa;margin:6px 0 10px">
+  <div style="font-size:10px;color:#5a7aaa;margin:8px 0 6px">
     Los IDs son los de la URL de Transfermarkt: <code>/wettbewerb/<b>AR1N</b></code>. Si cambiaron,
-    corregilos acá — no hay nada escrito a mano en el código. Dejá el de Ascenso vacío para bajar
+    corregilos acá — no hay nada escrito a mano en el código. Vaciá el de 2ª para bajar
     sólo Primera. En Transfermarkt la temporada <b>2015</b> es la que arranca en 2015.
+    <br><b style="color:#f6d318">⚠️ Los IDs marcados con ?</b> no se pudieron verificar contra el sitio:
+    usá <b>🔎 Probar los IDs</b> antes de largar la corrida larga — hace UN pedido por liga y te dice
+    cuáles andan.
   </div>
+  <div style="display:flex;gap:8px;margin:0 0 8px">
+    <button class="secondary" style="font-size:11px;padding:4px 10px" onclick="histMarcar(1)">Marcar todas</button>
+    <button class="secondary" style="font-size:11px;padding:4px 10px" onclick="histMarcar(0)">Ninguna</button>
+    <button class="secondary" style="font-size:11px;padding:4px 10px" onclick="histMarcar('ar')">Sólo Argentina</button>
+    <button class="secondary" style="font-size:11px;padding:4px 10px" onclick="histMarcar('ok')">Sólo IDs verificables</button>
+    <span id="histCuenta" style="font-size:11px;color:#8faed4;align-self:center"></span>
+  </div>
+  <div id="histLigas" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 10px;
+       max-height:260px;overflow:auto;padding:8px;background:#0b1626;border:1px solid #1d3356;border-radius:8px"></div>
+  <div style="margin-top:10px">
   <button onclick="extraerHistorico()">🕰️ Extraer temporadas</button>
+  <button class="secondary" onclick="histProbarIDs()">🔎 Probar los IDs</button>
   <button class="secondary" onclick="diagHistorico()">🩺 Diagnosticar una temporada</button>
   <button class="secondary" onclick="probarWorker()">🔌 ¿Mi Worker está actualizado?</button>
+  </div>
+  <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1d3356">
+    <div style="font-size:11px;color:#8faed4;margin-bottom:6px">
+      📑 <b>El índice</b> (<code>players-hist-index.js</code>) es lo único que el juego carga al
+      arrancar: dice qué años hay en la carpeta para que el selector los muestre sin bajar
+      ningún plantel. Se baja solo al terminar una extracción.
+      <br><span id="histIdxEstado" style="color:#5a7aaa"></span>
+    </div>
+    <button class="secondary" onclick="histIdxDescargar()">📑 Bajar el índice</button>
+    <button class="secondary" onclick="document.getElementById('histIdxFiles').click()">🔧 Reconstruirlo desde mis archivos</button>
+    <input type="file" id="histIdxFiles" multiple accept=".js" style="display:none"
+           onchange="histIdxDesdeArchivos(this)">
+  </div>
 </div>
 
 <div class="panel">
@@ -243,6 +273,13 @@ async function apiGet(path, apiType) {
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('cf_worker');
   if (saved) document.getElementById('cfWorker').value = saved;
+  // La grilla de ligas sale de HIST_LIGAS, no del HTML: agregar una liga a la
+  // tabla la hace aparecer acá sola, igual que el selector del juego.
+  try { histLigasRender(); histIdxEstado(); } catch (e) {}
+  ['histDesde', 'histHasta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => { try { histContar(); } catch (e) {} });
+  });
 });
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1651,15 +1688,137 @@ async function probarWorker() {
   log('   Después volvé a apretar este botón: tiene que decir ACTUALIZADO.');
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// LAS 25 LIGAS DEL JUEGO, CON SU ID DE COMPETICIÓN EN TRANSFERMARKT
+// ═══════════════════════════════════════════════════════════════════════
+// `lg` es la ETIQUETA que usa el juego (la columna r[6] de players-db.js), no
+// un nombre lindo: de ahí cuelgan LIGA_TAM, LIGA_NAT, CUPO_LIGA, COPA_NAC,
+// INT_COPAS y el selector. Si no coincide exactamente, el año baja bien y el
+// juego no lo puede jugar.
+// `c1`/`c2` son los IDs de la URL de TM (/wettbewerb/ES1). `ok:false` marca
+// los que NO se pudieron verificar contra el sitio —el proxy de desarrollo
+// devuelve 403 en el CONNECT para transfermarkt.com— y por eso existe
+// `histProbarIDs()`: hace UN pedido por liga y dice cuáles contestan.
+// ⚠️ Esto NO son datos escritos a mano que se desincronizan como `caPool` o
+// `bigClubs`: son identificadores externos que el usuario puede corregir en
+// la pantalla, y la corrida valida los 25 antes de bajar nada.
+const HIST_LIGAS = [
+  { lg: 'Liga ARG',  nom: 'Liga Profesional',  c1: 'AR1N', c2: 'ARG2', ok: true },
+  { lg: 'Premier',   nom: 'Premier League',    c1: 'GB1',  c2: 'GB2',  ok: true },
+  { lg: 'España',    nom: 'LaLiga',            c1: 'ES1',  c2: 'ES2',  ok: true },
+  { lg: 'Italia',    nom: 'Serie A',           c1: 'IT1',  c2: 'IT2',  ok: true },
+  { lg: 'Alemania',  nom: 'Bundesliga',        c1: 'L1',   c2: 'L2',   ok: true },
+  { lg: 'Francia',   nom: 'Ligue 1',           c1: 'FR1',  c2: 'FR2',  ok: true },
+  { lg: 'Portugal',  nom: 'Primeira Liga',     c1: 'PO1',  c2: 'PO2',  ok: true },
+  { lg: 'Holanda',   nom: 'Eredivisie',        c1: 'NL1',  c2: 'NL2',  ok: true },
+  { lg: 'Bélgica',   nom: 'Pro League',        c1: 'BE1',  c2: 'BE2',  ok: true },
+  { lg: 'Turquía',   nom: 'Süper Lig',         c1: 'TR1',  c2: 'TR2',  ok: true },
+  { lg: 'Rusia',     nom: 'Premier Liga',      c1: 'RU1',  c2: '',     ok: true },
+  { lg: 'Grecia',    nom: 'Super League',      c1: 'GR1',  c2: '',     ok: true },
+  { lg: 'Brasil',    nom: 'Brasileirão',       c1: 'BRA1', c2: 'BRA2', ok: true },
+  { lg: 'Liga MX',   nom: 'Liga MX',           c1: 'MEX1', c2: '',     ok: true },
+  { lg: 'MLS',       nom: 'MLS',               c1: 'MLS1', c2: '',     ok: true },
+  { lg: 'Arabia',    nom: 'Saudi Pro League',  c1: 'SA1',  c2: '',     ok: true },
+  // ─── los que NO se pudieron verificar: el preflight los confirma ───
+  { lg: 'Colombia',  nom: 'Liga BetPlay',      c1: 'COL1', c2: '',     ok: false },
+  { lg: 'Chile',     nom: 'Primera División',  c1: 'CLPD', c2: '',     ok: false },
+  { lg: 'Perú',      nom: 'Liga 1',            c1: 'TDeC', c2: '',     ok: false },
+  { lg: 'Uruguay',   nom: 'Primera División',  c1: 'URU1', c2: '',     ok: false },
+  { lg: 'Paraguay',  nom: 'División Prof.',    c1: 'PRMP', c2: '',     ok: false },
+  { lg: 'Ecuador',   nom: 'LigaPro',           c1: 'EUA1', c2: '',     ok: false },
+  { lg: 'Bolivia',   nom: 'División Prof.',    c1: 'BOLP', c2: '',     ok: false },
+  { lg: 'Venezuela', nom: 'Liga FUTVE',        c1: 'VZ1P', c2: '',     ok: false },
+];
+// La 2ª división argentina es una liga JUGABLE aparte (no un mercado), así que
+// baja con su etiqueta propia. En el resto, la 2ª son clubes de mercado y
+// comparten la etiqueta de su país, igual que en players-db.js.
+const HIST_LIGA2 = { 'Liga ARG': 'Primera Nacional' };
+
+function histLigasRender() {
+  const c = document.getElementById('histLigas');
+  if (!c) return;
+  c.innerHTML = HIST_LIGAS.map((L, i) => `<label style="display:flex;gap:5px;align-items:center;font-size:11px;cursor:pointer">
+      <input type="checkbox" id="hl${i}" ${L.lg === 'Liga ARG' ? 'checked' : ''} onchange="histContar()" style="margin:0">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${L.nom}">${L.lg}${L.ok ? '' : ' <b style="color:#f6d318">?</b>'}</span>
+      <input id="hc1${i}" value="${L.c1}" style="width:48px;padding:2px 4px;font-size:10px" title="ID de 1ª">
+      <input id="hc2${i}" value="${L.c2}" style="width:48px;padding:2px 4px;font-size:10px" title="ID de 2ª (vacío = no bajar)">
+    </label>`).join('');
+  histContar();
+}
+function histMarcar(modo) {
+  HIST_LIGAS.forEach((L, i) => {
+    const el = document.getElementById('hl' + i); if (!el) return;
+    el.checked = modo === 1 ? true : modo === 0 ? false
+      : modo === 'ar' ? (L.lg === 'Liga ARG') : !!L.ok;
+  });
+  histContar();
+}
+// Lo que se va a bajar, en pedidos, ANTES de apretar el botón. Una corrida de
+// 25 ligas × 26 años son ~12.000 pedidos y 2-4 horas: eso se tiene que ver.
+function histContar() {
+  const sel = histSeleccion();
+  const d = parseInt((document.getElementById('histDesde') || {}).value, 10) || 0;
+  const h = parseInt((document.getElementById('histHasta') || {}).value, 10) || 0;
+  const anios = (d && h && h >= d) ? (h - d + 1) : 0;
+  const comps = sel.reduce((a, L) => a + 1 + (L.c2 ? 1 : 0), 0);
+  // ~22 clubes por competición es la media de la base; sirve de orden de magnitud.
+  const ped = anios * (comps + comps * 22);
+  const el = document.getElementById('histCuenta');
+  if (el) el.textContent = sel.length
+    ? `${sel.length} liga(s) × ${anios} año(s) ≈ ${ped.toLocaleString('es')} pedidos · ~${Math.round(ped * 0.55 / 60)} min`
+    : 'ninguna liga marcada';
+}
+function histSeleccion() {
+  return HIST_LIGAS.map((L, i) => {
+    const el = document.getElementById('hl' + i);
+    if (!el || !el.checked) return null;
+    const c1 = ((document.getElementById('hc1' + i) || {}).value || '').trim();
+    const c2 = ((document.getElementById('hc2' + i) || {}).value || '').trim();
+    return c1 ? { lg: L.lg, nom: L.nom, c1, c2, ok: L.ok } : null;
+  }).filter(Boolean);
+}
+// ═══ PROBAR LOS IDs: un pedido por liga, antes de las tres horas ═══
+// ⚠️ Es el mismo principio que el preflight del proxy (Fase 41): un fallo de
+// CONFIGURACIÓN se detecta una vez y se dice, no se descubre 12.000 pedidos
+// más tarde. Acá es más importante todavía, porque 8 de los 24 IDs no se
+// pudieron verificar contra el sitio y es la única forma de saber cuáles son.
+async function histProbarIDs() {
+  API_KEY = (document.getElementById('apiKey').value || '').trim();
+  const sel = histSeleccion();
+  if (!sel.length) { alert('Marcá al menos una liga'); return; }
+  const y = parseInt(document.getElementById('histHasta').value, 10) || 2025;
+  log(`\n🔎 Probando ${sel.length} ID(s) de competición contra la temporada ${y}…`);
+  const malos = [];
+  for (let i = 0; i < sel.length; i++) {
+    const L = sel[i];
+    setProgress((i / sel.length) * 100);
+    const cl = await histClubes(L.c1, y);
+    if (cl.length) log(`  ✓ ${L.lg.padEnd(11)} ${L.c1.padEnd(5)} → ${cl.length} clubes (${cl.slice(0, 3).map(c => histClubNombre(c.name)).join(', ')}…)`);
+    else { log(`  ✗ ${L.lg.padEnd(11)} ${L.c1.padEnd(5)} → 0 clubes`); malos.push(L.lg + ' (' + L.c1 + ')'); }
+    if (L.c2) {
+      const c2 = await histClubes(L.c2, y);
+      if (c2.length) log(`    ✓ 2ª ${L.c2} → ${c2.length} clubes`);
+      else { log(`    ✗ 2ª ${L.c2} → 0 clubes`); malos.push(L.lg + ' 2ª (' + L.c2 + ')'); }
+    }
+  }
+  setProgress(100);
+  if (!malos.length) { log('\n✅ Todos los IDs contestan. Ya podés largar la extracción.'); return; }
+  log(`\n⚠️ ${malos.length} ID(s) sin clubes: ${malos.join(' · ')}`);
+  log('   Buscá la liga en Transfermarkt y mirá la URL: /wettbewerb/<b>ESTO</b>/…');
+  log('   Corregilo en el campo de al lado y volvé a probar. Si NINGUNO anda,');
+  log('   el problema es el proxy, no los IDs → 🔌 ¿Mi Worker está actualizado?');
+}
+
 async function extraerHistorico() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const d = parseInt(document.getElementById('histDesde').value, 10);
   const h = parseInt(document.getElementById('histHasta').value, 10);
-  const c1 = (document.getElementById('histComp1').value || '').trim();
-  const c2 = (document.getElementById('histComp2').value || '').trim();
+  const ligas = histSeleccion();
   if (!d || !h || h < d) { alert('Revisá el rango de años'); return; }
-  if (!c1) { alert('Falta el ID de competición de Primera'); return; }
+  if (!ligas.length) { alert('Marcá al menos una liga'); return; }
   if (h - d > 40) { alert('Máximo 40 temporadas por corrida'); return; }
+  const c1 = ligas[0].c1;
 
   // ═══ PREFLIGHT: ¿el proxy conoce las fuentes históricas? ═══
   // ⚠️ Sin esto la corrida seguía igual año por año: 12 temporadas × 2
@@ -1700,13 +1859,27 @@ async function extraerHistorico() {
     setProgress(((h - y) / (h - d + 1)) * 100);
     log(`\n═══ TEMPORADA ${y} ═══`);
     const filas = [];
-    const comps = [[c1, 'Liga ARG'], ...(c2 ? [[c2, 'Primera Nacional']] : [])];
+    // ⚠️ `yaBajado` es POR AÑO y es compartido por TODAS las ligas, no por
+    // competición: un club puede aparecer en dos competiciones (el caso
+    // argentino de abajo) y además el mismo id puede salir en dos ligas si un
+    // ID está mal puesto. Bajar su plantel dos veces lo duplicaría, que es el
+    // bug de las 77 filas repetidas de la Fase 43.
+    const comps = [];
+    ligas.forEach(L => {
+      comps.push([L.c1, L.lg]);
+      if (L.c2) comps.push([L.c2, HIST_LIGA2[L.lg] || L.lg]);
+    });
     let clubesOK = 0, fallados = [], yaBajado = {}, dupFilas = 0;
+    const porLiga = {};
 
     for (const [cid, liga] of comps) {
       const clubs = await histClubes(cid, y);
-      if (!clubs.length) { log(`  ✗ ${liga} ${y}: 0 clubes`); continue; }
-      log(`  ${liga} ${y}: ${clubs.length} clubes`);
+      // ⚠️ El id de competición va en el log. Sin él, la 1ª y la 2ª de un
+      // país se leen IGUAL —las dos dicen "Premier", porque la 2ª comparte
+      // la etiqueta del país igual que en players-db.js— y no hay forma de
+      // saber cuál de las dos falló.
+      if (!clubs.length) { log(`  ✗ ${liga} ${y} [${cid}]: 0 clubes`); continue; }
+      log(`  ${liga} ${y} [${cid}]: ${clubs.length} clubes`);
       for (let i = 0; i < clubs.length; i++) {
         const cl = clubs[i];
         // ⚠️ Un club puede salir en las DOS competiciones del año, y gana la
@@ -1745,6 +1918,7 @@ async function extraerHistorico() {
           vistos[k] = 1;
           filas.push(histFila(p, nom, liga));
         });
+        (porLiga[liga] = porLiga[liga] || {})[nom] = 1;
       }
     }
     if (dupFilas) log(`  (${dupFilas} filas repetidas descartadas)`);
@@ -1759,8 +1933,24 @@ async function extraerHistorico() {
     // vuelve a mirar nunca.
     if (fallados.length) log(`  ⚠️ ${fallados.length} club(es) sin plantel en ${y}: ${fallados.join(', ')}`);
     else log(`  ✓ ningún club se quedó sin plantel`);
-    log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes`);
-    histDescargar(y, filas, clubesOK);
+    // ⚠️ UNA LIGA CON POCOS CLUBES NO SE PUEDE JUGAR, Y HAY QUE DECIRLO ACÁ.
+    // El juego exige 10 clubes con 15+ fichas (LIGA_MIN_CLUBES /
+    // LIGA_MIN_PLANTEL) para ofrecer una liga en el selector: antes de 2008,
+    // TM no cubre el ascenso argentino y por eso esa categoría desaparece
+    // sola de esos años. Si no se avisa acá, el usuario baja la temporada,
+    // la elige en el juego y la liga no está — sin ninguna explicación.
+    const lgResumen = Object.keys(porLiga).sort();
+    const flacas = [];
+    lgResumen.forEach(l => {
+      const clubs = Object.keys(porLiga[l]);
+      const conPlantel = clubs.filter(c => filas.filter(f => f[5] === c && f[6] === l).length >= 15).length;
+      log(`    · ${l}: ${clubs.length} clubes (${conPlantel} con 15+ fichas)`);
+      if (conPlantel < 10) flacas.push(`${l} (${conPlantel})`);
+    });
+    if (flacas.length) log(`  ⚠️ No llegan a 10 clubes con plantel, así que el juego NO las va a ofrecer en ${y}: ${flacas.join(' · ')}`);
+    log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes · ${lgResumen.length} liga(s)`);
+    histDescargar(y, filas, clubesOK, porLiga);
+    histIdxGuardar(y, filas, porLiga);
   }
   setProgress(100);
   if (window._histVacias.length) {
@@ -1775,10 +1965,119 @@ async function extraerHistorico() {
   }
   if (window._histSinTabla.length) {
     log(`\n⚠️ ${window._histSinTabla.length} club(es) sin entrada en HIST_CLUB_NOM (van capitalizados,`);
-    log('   pero sin escudo ni estadio propio). Agregalos a la tabla del extractor:');
-    log('   ' + window._histSinTabla.join(' · '));
+    log('   pero sin escudo ni estadio propio). Agregalos a la tabla del extractor.');
+    log('   Las líneas salen listas para pegar; la de la derecha es una SUGERENCIA:');
+    window._histSinTabla.forEach(k => {
+      const s = histSugerencia(k);
+      log(`     '${k}':'${s || histClubNombre(k)}',${s ? '   // ← sugerido, verificalo' : ''}`);
+    });
+    log('   ⚠️ Las sugerencias se equivocan: medido sobre los 98 slugs ya resueltos a mano,');
+    log('   aciertan el 36%, no contestan el 63% y UNA la erró fuerte ("club atletico union"');
+    log('   → el Union SG belga en vez de Unión Santa Fe). Por eso se sugieren y no se aplican.');
   }
+  // ⚠️ EL ÍNDICE ES LO QUE HACE QUE EL JUEGO VEA LAS TEMPORADAS.
+  // Desde que la carga es a demanda, el juego NO abre los players-hist-AÑO.js
+  // al arrancar: lee `players-hist-index.js` (2 KB) para saber qué hay. Sin
+  // ese archivo en la carpeta, el juego cae al modo viejo y los carga todos,
+  // que con 25 ligas son 33-43 MB en cada apertura.
+  histIdxDescargar();
   log('\n=== HISTÓRICO TERMINADO ===');
+  log('Dejá en la carpeta del juego los players-hist-AÑO.js Y el players-hist-index.js.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EL ÍNDICE DE TEMPORADAS
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ Se ACUMULA en localStorage y no se arma sólo con lo de esta corrida.
+// Bajar 2015-2016 y después 2017 tiene que dar un índice con los TRES años:
+// si cada corrida lo reescribiera con lo suyo, la segunda borraría del
+// selector las temporadas de la primera y el usuario vería desaparecer
+// archivos que siguen en su carpeta. Es el mismo criterio que la fusión de
+// `dts-db.js`: lo nuevo manda sobre el año que toca, el resto se conserva.
+const HIST_IDX_KEY = 'dt_hist_idx';
+function histIdxLeer() {
+  try { return JSON.parse(localStorage.getItem(HIST_IDX_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function histIdxGuardar(y, filas, porLiga) {
+  const idx = histIdxLeer();
+  const lg = {};
+  Object.keys(porLiga || {}).sort().forEach(l => lg[l] = Object.keys(porLiga[l]).length);
+  idx[y] = { j: filas.length, lg };
+  try { localStorage.setItem(HIST_IDX_KEY, JSON.stringify(idx)); } catch (e) {}
+  histIdxEstado();
+}
+function histIdxJS(idx) {
+  const anios = Object.keys(idx).map(Number).sort((a, b) => a - b);
+  return '// ═══ ÍNDICE DE TEMPORADAS HISTÓRICAS ═══\n'
+    + '// Generado por extractor.html. Es lo ÚNICO que el juego carga al arrancar:\n'
+    + '// dice qué años hay en la carpeta y qué trae cada uno, para que el selector\n'
+    + '// los muestre SIN bajar los planteles. El archivo del año se carga recién\n'
+    + '// cuando elegís esa temporada.\n'
+    + '// ⚠️ Si borrás un players-hist-AÑO.js, ese año desaparece solo: el juego\n'
+    + '// falla con onerror al pedirlo y lo avisa en pantalla.\n'
+    + 'window.PLAYERS_DB_HIST_IDX={\n'
+    + anios.map(y => ' ' + y + ':{j:' + idx[y].j + ',lg:' + JSON.stringify(idx[y].lg || {}) + '}').join(',\n')
+    + '\n};\n';
+}
+function histIdxDescargar() {
+  const idx = histIdxLeer();
+  const anios = Object.keys(idx);
+  if (!anios.length) { log('⚠️ No hay ninguna temporada en el índice todavía.'); return; }
+  const blob = new Blob([histIdxJS(idx)], { type: 'text/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'players-hist-index.js';
+  a.click();
+  log(`📑 players-hist-index.js descargado — ${anios.length} temporada(s): ${anios.sort().join(', ')}`);
+}
+// ═══ RECONSTRUIR EL ÍNDICE DESDE LOS ARCHIVOS DE LA CARPETA ═══
+// El localStorage del extractor se puede perder (otro navegador, modo
+// privado, limpiar datos) o quedar desfasado de la carpeta si el usuario
+// borró un año a mano. Esto no depende de ningún estado: elegí los
+// players-hist-*.js que tenés y el índice sale EXACTO.
+function histIdxDesdeArchivos(input) {
+  const fs = Array.from(input.files || []);
+  input.value = '';
+  if (!fs.length) return;
+  const H = {};
+  let pend = fs.length, leidos = 0;
+  log(`\n📑 Reconstruyendo el índice desde ${fs.length} archivo(s)…`);
+  fs.forEach(f => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        // El archivo es `(window.PLAYERS_DB_HIST=…||{})[AÑO]=[…]`, así que se
+        // ejecuta con un window propio en vez de parsearlo con un regex.
+        const win = { PLAYERS_DB_HIST: H };
+        new Function('window', rd.result)(win);
+        Object.assign(H, win.PLAYERS_DB_HIST || {});
+        leidos++;
+      } catch (e) { log(`  ✗ ${f.name}: ${e.message}`); }
+      if (--pend === 0) {
+        const idx = {};
+        Object.keys(H).map(Number).sort((a, b) => a - b).forEach(y => {
+          const rows = H[y] || [], lg = {};
+          rows.forEach(r => { if (!r[6] || !r[5]) return; (lg[r[6]] = lg[r[6]] || {})[r[5]] = 1; });
+          const o = {}; Object.keys(lg).sort().forEach(k => o[k] = Object.keys(lg[k]).length);
+          idx[y] = { j: rows.length, lg: o };
+        });
+        try { localStorage.setItem(HIST_IDX_KEY, JSON.stringify(idx)); } catch (e) {}
+        log(`  ${leidos} archivo(s) leídos · ${Object.keys(idx).length} temporada(s)`);
+        Object.keys(idx).sort().forEach(y => log(`    ${y}: ${idx[y].j} jug · ${Object.keys(idx[y].lg).map(l => l + ' ' + idx[y].lg[l]).join(' · ')}`));
+        histIdxEstado();
+        histIdxDescargar();
+      }
+    };
+    rd.readAsText(f);
+  });
+}
+function histIdxEstado() {
+  const el = document.getElementById('histIdxEstado');
+  if (!el) return;
+  const anios = Object.keys(histIdxLeer()).sort();
+  el.textContent = anios.length
+    ? `${anios.length} temporada(s) en el índice: ${anios.join(', ')}`
+    : 'el índice está vacío';
 }
 
 // ═══ EL NOMBRE DEL CLUB SALE DEL SLUG DE LA URL, Y ASÍ NO SIRVE ═══
@@ -1868,6 +2167,47 @@ function histClubNombre(raw) {
   if (window._histSinTabla && window._histSinTabla.indexOf(k) < 0) window._histSinTabla.push(k);
   return k.replace(/\b[a-z]/g, c => c.toUpperCase());
 }
+// ═══ UNA SUGERENCIA, NO UNA RESPUESTA ═══
+// ⚠️ ESTO NO PUEDE DECIDIR EL NOMBRE, Y EL NÚMERO LO DICE.
+// Con 25 ligas la tabla de arriba pasa de 98 entradas a ~600, así que la
+// tentación es resolverlo solo. Se midió contra los 98 slugs reales que ya
+// están resueltos a mano, que son la respuesta correcta: **acierta 35 (36%),
+// no contesta 62 (63%) y se EQUIVOCA en 1** — 'club atletico union' devolvía
+// "Union SG" (el belga) cuando es Unión Santa Fe. Un club fusionado con otro
+// no es un escudo que falta: es un plantel entero en el club equivocado, el
+// mismo fallo que ya tuvo el emparejador que probó "defensores de belgrano"
+// → Belgrano. Así que el valor lo sigue poniendo la tabla a mano y esto sólo
+// ahorra tipear: imprime el candidato al lado, marcado como sugerencia.
+// Y donde la base tiene dos clubes con la misma clave (San Lorenzo / CS San
+// Lorenzo, Barcelona / Barcelona SC, Racing Club / Racing…) NO sugiere nada:
+// elegir uno sería el bug, no contestar es la respuesta.
+const HIST_AFIJOS = ['fc','cf','afc','ac','sc','cd','ca','ce','cs','sd','ud','rc','rcd','sv','sk','fk','bk','if',
+  'club','clube','atletico','athletic','deportivo','deportiva','sociedad','asociacion',
+  'futbol','football','fussball','calcio','sportive','sporting','sport','sports','esporte',
+  'de','del','la','el','los','las','y','e','and','the',
+  'ssc','as','ss','us','vfb','vfl','tsg','tsv','sg','rb','sad','kv','kaa','kvc','rsc','ogc','ssd'];
+let _histIdxBase = null;
+function histClaveClub(s) {
+  return histNorm(s).split(' ').filter(w => w && HIST_AFIJOS.indexOf(w) < 0).join(' ');
+}
+function histSugerencia(slug) {
+  // La base del juego sólo está si el extractor se abre al lado de
+  // players-db.js. Sin ella no hay sugerencia, y no pasa nada.
+  const db = (typeof window !== 'undefined' && window.PLAYERS_DB) || [];
+  if (!db.length) return null;
+  if (!_histIdxBase) {
+    _histIdxBase = {};
+    const vistos = {};
+    db.forEach(r => { if (r[5]) vistos[r[5]] = 1; });
+    Object.keys(vistos).forEach(c => {
+      const k = histClaveClub(c);
+      if (!k) return;
+      (_histIdxBase[k] = _histIdxBase[k] || []).push(c);
+    });
+  }
+  const hit = _histIdxBase[histClaveClub(slug)];
+  return (hit && hit.length === 1) ? hit[0] : null;   // ambigua → no se sugiere
+}
 
 // Una fila con el MISMO formato de players-db.js. Las columnas nuevas van al
 // final, igual que siempre, así que el juego lee estos archivos sin cambios.
@@ -1885,11 +2225,16 @@ function histFila(p, club, liga) {
     p.value || 0.1, pie, cUntil, p.height || 0, '', 0, 0, 0, 0, nat2];
 }
 
-function histDescargar(year, filas, clubes) {
+function histDescargar(year, filas, clubes, porLiga) {
   // El archivo se ENCHUFA solo: declara su temporada dentro de PLAYERS_DB_HIST
   // sin pisar PLAYERS_DB. El juego lo carga con un <script> y, si no está, no
   // pasa nada (el onerror lo ignora) — igual que players-db.js.
-  const js = `// Planteles del fútbol argentino — temporada ${year}\n`
+  // ⚠️ El encabezado dice QUÉ LIGAS trae. Decía "fútbol argentino" fijo, y
+  // con 25 ligas eso es mentira y además es el único lugar donde se puede
+  // mirar qué hay adentro sin abrir 1,3 MB de filas.
+  const lgs = Object.keys(porLiga || {}).sort();
+  const js = `// Planteles históricos — temporada ${year}\n`
+    + (lgs.length ? `// ${lgs.map(l => l + ' (' + Object.keys(porLiga[l]).length + ')').join(' · ')}\n` : '')
     + `// ${filas.length} jugadores · ${clubes} clubes · generado por extractor.html\n`
     + `(window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{})[${year}]=[\n`
     + filas.map(r => JSON.stringify(r)).join(',\n')
@@ -1907,8 +2252,12 @@ function histDescargar(year, filas, clubes) {
 async function diagHistorico() {
   API_KEY = (document.getElementById('apiKey').value || '').trim();
   const y = parseInt(document.getElementById('histHasta').value, 10);
-  const c1 = (document.getElementById('histComp1').value || '').trim();
-  log(`\n🩺 Diagnóstico de la temporada ${y} (competición ${c1})`);
+  // El diagnóstico es de UNA competición: la primera liga marcada. Probar las
+  // 25 acá sería `🔎 Probar los IDs`; esto existe para ver el HTML crudo.
+  const sel = histSeleccion();
+  if (!sel.length) { alert('Marcá al menos una liga'); return; }
+  const c1 = sel[0].c1;
+  log(`\n🩺 Diagnóstico de la temporada ${y} (${sel[0].lg}, competición ${c1})`);
   const cfW = (document.getElementById('cfWorker') || { value: '' }).value.trim();
   log(`   Proxy: ${cfW ? 'Worker de Cloudflare' : 'función de Netlify'}`);
 

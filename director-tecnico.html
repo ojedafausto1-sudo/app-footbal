@@ -602,10 +602,54 @@ tr:hover td{background:rgba(255,255,255,.025)}
 // ⚠️ Y tienen que ser `.js` con `window.PLAYERS_DB_HIST[año]=[...]`, no
 // `.json`: el usuario juega con file:// y un fetch de JSON ahí muere por CORS.
 // Es la misma razón por la que players-db.js es un .js.
+//
+// ⚠️ Y NO SE CARGAN TODOS AL ARRANCAR, QUE ES COMO EMPEZÓ ESTO.
+// Eran 35 etiquetas (1992-2026) y las 35 se bajaban en cada apertura: con
+// las 26 temporadas argentinas eso ya son **4,24 MB y 44.400 filas** antes
+// de ver la pantalla. Y el objetivo es el fútbol de TODAS las ligas de la
+// base: medido, un año con las 24 pesa **1,26 MB** (1,67 si incluye las
+// segundas divisiones), o sea **33-43 MB** por 26 años. En el celular eso
+// no abre.
+// Ahora se carga UN archivo de 2 KB —`players-hist-index.js`, el
+// manifiesto— y el año se baja recién cuando lo elegís (`cargarTemporada`).
+// Medido: un año a demanda entra en **14 ms** bajo file://.
+// ⚠️ El appendChild dinámico SÍ anda bajo file:// — la razón del
+// document.write era el ORDEN, no CORS. Verificado: onload dispara con el
+// año adentro y un año que no está en la carpeta da onerror limpio.
 window.PLAYERS_DB_HIST=window.PLAYERS_DB_HIST||{};
-(function(){ var t='';
-  for(var y=2026;y>=1992;y--) t+='<scr'+'ipt src="players-hist-'+y+'.js" onerror="void 0"></scr'+'ipt>';
-  document.write(t);
+document.write('<scr'+'ipt src="players-hist-index.js" onerror="void 0"></scr'+'ipt>');
+</script>
+<script>
+// ⚠️ ESTE BLOQUE TIENE QUE SER UN <script> APARTE DEL DE ARRIBA.
+// El manifiesto se pide con document.write durante el parseo: el parser lo
+// ejecuta antes de seguir, pero recién está visible en el script SIGUIENTE.
+// Verificado: acá `PLAYERS_DB_HIST_IDX` ya tiene los años.
+(function(){
+  var idx=window.PLAYERS_DB_HIST_IDX;
+  if(!idx){
+    // ═══ MODO VIEJO: hay archivos pero no hay manifiesto ═══
+    // Una carpeta con los players-hist-AÑO.js de una extracción anterior no
+    // se queda sin temporadas por no tener el índice: se cargan las 35 como
+    // antes. Es el mismo criterio que el resto del proyecto —el default va
+    // en el punto de LECTURA, no se migra nada—, sólo que acá el "save
+    // viejo" es la carpeta del usuario.
+    var t='';
+    for(var y=2026;y>=1992;y--) t+='<scr'+'ipt src="players-hist-'+y+'.js" onerror="void 0"></scr'+'ipt>';
+    document.write(t);
+    return;
+  }
+  // ═══ LA TEMPORADA DE LA PARTIDA GUARDADA, SÍ, Y ANTES DE TODO ═══
+  // `loadGame()` es SÍNCRONO y llama a `aplicarTemporada(saved.dbSeason)`:
+  // si ese año no está cargado, la función cae a la base moderna y la
+  // partida de 2015 vuelve con los planteles de hoy. Es el mismo bug que
+  // `_LIGA_ELEGIDA`, y un año a demanda no llega a tiempo para arreglarlo.
+  // Así que el año de la partida se decide ACÁ, en pleno parseo, leyendo el
+  // save: es un solo archivo y es el único que hace falta para arrancar.
+  var s=null;
+  try{ s=JSON.parse(localStorage.getItem('dtg_v7')||'null'); }catch(e){}
+  var y0=s&&s.dbSeason;
+  if(y0&&y0!==2026&&idx[y0])
+    document.write('<scr'+'ipt src="players-hist-'+y0+'.js" onerror="void 0"></scr'+'ipt>');
 })();
 </script>
 </head>
@@ -4316,6 +4360,16 @@ function importSave(input){
       // se restaura. Antes se pisaba la partida antes de saber si servía.
       const previo=localStorage.getItem(SAVE_KEY);
       localStorage.setItem(SAVE_KEY, rd.result);
+      // ⚠️ UNA PARTIDA DE UN AÑO VIEJO NO SE PUEDE CARGAR ACÁ Y AHORA.
+      // Con la carga a demanda, el año de la base lo decide el bloque de
+      // arranque leyendo este mismo save; pero `loadGame()` es SÍNCRONO y
+      // acá ya pasó el parseo, así que `aplicarTemporada` caería a la base
+      // moderna y la partida de 2015 volvería con los planteles de hoy —el
+      // bug de `_LIGA_ELEGIDA`, que es justo lo que ese bloque evita—.
+      // El save ya está escrito, así que recargar es la carga correcta.
+      if(d.dbSeason&&d.dbSeason!==2026&&typeof temporadaCargada==='function'&&!temporadaCargada(d.dbSeason)){
+        location.reload(); return;
+      }
       if(loadGame()){ try{document.getElementById('teamSelect').style.display='none';}catch(e){} }
       else {
         if(previo!==null) localStorage.setItem(SAVE_KEY, previo); else localStorage.removeItem(SAVE_KEY);
@@ -4647,9 +4701,51 @@ function tsLigas(){
 // `G.dbSeason` y `loadGame` llama a `aplicarTemporada` ANTES de reconstruir
 // nada, igual que hace con la liga.
 let _DB_SEASON=null, _PDB_ACTUAL=null;
+// ⚠️ LA LISTA DE AÑOS SALE DEL MANIFIESTO, NO DE LO QUE ESTÁ CARGADO.
+// Si saliera de `PLAYERS_DB_HIST`, con la carga a demanda el selector
+// mostraría UN año (el de tu partida) y el resto no existiría. El manifiesto
+// (`players-hist-index.js`, 2 KB) dice qué hay en la carpeta sin bajar un
+// solo plantel; la unión con lo ya cargado es para el modo viejo —carpeta sin
+// índice— y para un año inyectado a mano por un arnés.
+function temporadasIDX(){ return window.PLAYERS_DB_HIST_IDX||{}; }
 function temporadasDB(){
-  const h=window.PLAYERS_DB_HIST||{};
-  return Object.keys(h).map(Number).filter(y=>(h[y]||[]).length>200).sort((a,b)=>b-a);
+  const h=window.PLAYERS_DB_HIST||{}, idx=temporadasIDX(), s={};
+  Object.keys(idx).forEach(y=>{ if((idx[y]||{}).j>200)s[+y]=1; });
+  Object.keys(h).forEach(y=>{ if((h[y]||[]).length>200)s[+y]=1; });
+  return Object.keys(s).map(Number).sort((a,b)=>b-a);
+}
+// Qué trae un año, para el selector, sin cargarlo: del índice si está, y si
+// no, contado sobre el archivo ya cargado.
+function temporadaInfo(y){
+  const i=temporadasIDX()[y];
+  if(i)return i;
+  const rows=(window.PLAYERS_DB_HIST||{})[y];
+  if(!rows)return null;
+  const lg={}; rows.forEach(r=>{ if(!r[6]||!r[5])return; (lg[r[6]]=lg[r[6]]||{})[r[5]]=1; });
+  const o={}; Object.keys(lg).sort().forEach(k=>o[k]=Object.keys(lg[k]).length);
+  return {j:rows.length,lg:o};
+}
+function temporadaCargada(y){ return +y===2026 || ((window.PLAYERS_DB_HIST||{})[y]||[]).length>200; }
+// ═══ CARGAR UN AÑO A DEMANDA ═══
+// Un <script> agregado con appendChild SÍ anda bajo file:// (lo que obligaba
+// al document.write era el orden de arranque, no CORS). Medido: 781 filas en
+// 14 ms, `onload` con el año ya adentro y `onerror` limpio si el archivo no
+// está en la carpeta.
+// ⚠️ No se cachea el <script> ni se reintenta: si falló, falló, y el que
+// llama lo tiene que informar. Un fallo cacheado en silencio es el bug de
+// los 12 clubes perdidos otra vez.
+let _histPend={};
+function cargarTemporada(y,cb){
+  y=+y||2026;
+  if(temporadaCargada(y)){ cb&&cb(true); return; }
+  if(_histPend[y]){ _histPend[y].push(cb); return; }          // dos clicks seguidos
+  _histPend[y]=[cb];
+  const fin=ok=>{ const l=_histPend[y]||[]; delete _histPend[y]; l.forEach(f=>f&&f(ok)); };
+  const s=document.createElement('script');
+  s.src='players-hist-'+y+'.js';
+  s.onload=()=>fin(temporadaCargada(y));   // cargó el archivo, pero ¿trajo filas?
+  s.onerror=()=>fin(false);
+  document.head.appendChild(s);
 }
 function tempActual(){ return _DB_SEASON||2026; }
 function hayHistoricos(){ return temporadasDB().length>0; }
@@ -4911,21 +5007,55 @@ function tsValClub(name){
 }
 // La fila de temporadas del paso 1. No existe si no hay ningún archivo
 // histórico en la carpeta: un selector con una sola opción es ruido.
+let _tsTempCargando=null, _tsTempErr=null;
 function tsTemporadas(){
   if(!hayHistoricos()) return '';
   const ys=[2026].concat(temporadasDB().filter(y=>y!==2026));
   const act=tempActual();
+  // Qué ligas trae el año, sacado del manifiesto: se puede mostrar SIN bajar
+  // el archivo, que es justamente para lo que existe el índice.
+  const inf=temporadaInfo(act), lgs=inf?Object.keys(inf.lg||{}):[];
+  const nota=_tsTempErr
+    ? `<span class="ts-temp-n" style="color:var(--red)">No se pudo cargar ${_tsTempErr}: falta <code>players-hist-${_tsTempErr}.js</code> en la carpeta del juego.</span>`
+    : act!==2026
+      ? `<span class="ts-temp-n">Mundo cerrado: sólo los clubes y jugadores que existían en ${act}.${
+          lgs.length?` ${lgs.length===1?'Liga':'Ligas'}: ${lgs.map(l=>`${(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[l])||l} (${inf.lg[l]})`).join(' · ')}.`:''}</span>`
+      : '';
   return `<div class="ts-temp">
     <span class="ts-temp-t">🕰️ Temporada</span>
-    ${ys.map(y=>`<button class="ts-temp-b${y===act?' on':''}" onclick="tsSetTemporada(${y})">${y===2026?'Actual':y}</button>`).join('')}
-    ${act!==2026?`<span class="ts-temp-n">Mundo cerrado: sólo los clubes y jugadores que existían en ${act}.</span>`:''}
+    ${ys.map(y=>{
+      const cargando=_tsTempCargando===y;
+      const pesa=!temporadaCargada(y);        // todavía no está en memoria
+      return `<button class="ts-temp-b${y===act?' on':''}" ${_tsTempCargando?'disabled':''} onclick="tsSetTemporada(${y})"${
+        pesa?' title="Se baja al elegirla"':''}>${cargando?'⏳ ':''}${y===2026?'Actual':y}</button>`;
+    }).join('')}
+    ${nota}
   </div>`;
 }
+// ⚠️ ELEGIR UNA TEMPORADA AHORA ES ASÍNCRONO, y el botón tiene que decirlo.
+// Antes el año ya estaba en memoria y esto era instantáneo. Con la carga a
+// demanda hay una espera real (14 ms en la compu, más en el celular con un
+// archivo de 1,3 MB), así que se pinta el ⏳, se desactivan los botones para
+// que no se pisen dos cargas, y si el archivo no está **se dice** en vez de
+// quedarse jugando 2026 en silencio — que es lo que haría `aplicarTemporada`
+// sola, porque cae a la base moderna cuando el año no está.
 function tsSetTemporada(y){
-  aplicarTemporada(y);
-  // Volver al paso 1: el país que estabas mirando puede no existir en ese año.
-  _tsPaso=1;_tsPais=null;_tsLg=null;_tsFiltro='';
-  tsRender();
+  y=+y||2026;
+  if(_tsTempCargando) return;
+  _tsTempErr=null;
+  const aplicar=()=>{
+    aplicarTemporada(y);
+    // Volver al paso 1: el país que estabas mirando puede no existir en ese año.
+    _tsPaso=1;_tsPais=null;_tsLg=null;_tsFiltro='';
+    tsRender();
+  };
+  if(temporadaCargada(y)){ aplicar(); return; }
+  _tsTempCargando=y; tsRender();
+  cargarTemporada(y,ok=>{
+    _tsTempCargando=null;
+    if(!ok){ _tsTempErr=y; tsRender(); return; }
+    aplicar();
+  });
 }
 function tsPasos(){
   const p2=_tsPais||'País', p3=_tsLg?((typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[_tsLg])||_tsLg):'Liga';

@@ -5974,6 +5974,196 @@ node det.js 20000 20 FM67.lon,FM67.bCenAtq 0,0.12 0.5,0.24   → dos perillas a 
 - ⚠️ **No edites `director-tecnico.html` mientras corre un arnés**: cada
   corrida hace `page.goto` del archivo y se llevaría una versión a medias.
 
+## Fase 68: las temporadas se cargan a demanda (y el histórico de las 25 ligas)
+
+El pedido era el fútbol de cada año de **cada liga cargada**, no sólo la
+argentina. La parte sorprendente: **el juego ya lo soportaba** y lo que había
+que arreglar era el arranque.
+
+### El juego no tenía nada que cambiar, y se midió antes de tocar
+
+Se fabricó un año con **7 ligas** (España, Premier, Italia, Alemania, Brasil,
+Liga ARG, Primera Nacional) y se enchufó. **Cero líneas tocadas:**
+
+| | |
+|---|---|
+| ligas jugables | **7**, el selector las muestra solas |
+| Real Madrid en ese año | 27 fichas, **0 inventadas**, Santiago Bernabéu |
+| calendario | LaLiga 38 + Champions (grupos + octavos) + Copa del Rey R32→Final |
+| temporada completa | **54 partidos**, 0 errores de página |
+
+La razón es la Fase 40: `ligasJugables()` cuenta las etiquetas de la base
+CARGADA y `clubesDeCategoria` saca los clubes de ahí, así que un
+`players-hist-2012.js` con la Premier adentro la hace aparecer sola. Los
+metadatos (`LIGA_TAM`, `LIGA_NAT`, `CUPO_LIGA`, `COPA_NAC`, `INT_COPAS`,
+`LIGA_PAIS`) ya tienen entrada para las 25.
+
+### ⚠️ Lo que NO se podía es cargarlas: 43 MB en cada apertura
+
+El `document.write` escribía **35 etiquetas (1992-2026) y las 35 se bajaban al
+arrancar**. Con las 26 temporadas argentinas eso ya son **4,24 MB y 44.400
+filas** antes de ver la pantalla. Medido lo que costaría el objetivo:
+
+| | medido |
+|---|---|
+| un año con las 24 ligas (sólo primeras) | **1,26 MB** |
+| un año con las segundas, como la base de hoy | 1,67 MB |
+| **26 años** | **33-43 MB** |
+| filas en memoria si se cargan todas | **452.088** |
+
+⚠️ El heap no se pudo medir: `performance.memory` vuelve **cuantizado** en
+headless y dio delta 0 con 452k filas adentro, que es imposible. El peso de
+archivo sí es medición directa.
+
+### El manifiesto: 1.978 bytes es todo lo que se carga al arrancar
+
+`players-hist-index.js` declara `window.PLAYERS_DB_HIST_IDX={año:{j,lg}}` —
+cuántos jugadores y cuántos clubes por liga— y es **lo único** que el juego
+abre al arrancar. El archivo del año se baja cuando elegís esa temporada.
+
+| | antes | ahora |
+|---|---|---|
+| bytes de histórico al arrancar | 4,24 MB | **2 KB** |
+| años cargados al arrancar | 26 | **0** |
+| `domContentLoaded` (mediana de 7) | 519 ms | **406 ms** |
+| elegir un año | instantáneo (ya estaba) | **45 ms** |
+
+⚠️ **`appendChild` SÍ anda bajo `file://`** — la razón documentada del
+`document.write` era el ORDEN de arranque, no CORS. Verificado: 781 filas en
+14 ms, `onload` con el año ya adentro, `onerror` limpio en un año que no está
+en la carpeta.
+
+### ⚠️ Tres cosas que la carga perezosa rompía, y cómo se tapan
+
+1. **`temporadasDB()` no puede salir de lo cargado.** Si saliera, el selector
+   mostraría **un** año (el de tu partida) y el resto no existiría. Sale del
+   manifiesto, unido con lo cargado para el modo viejo y para un año inyectado
+   por un arnés.
+2. **`loadGame()` es SÍNCRONO** y llama a `aplicarTemporada(saved.dbSeason)`:
+   si el año no está cargado, esa función **cae a la base moderna** y la
+   partida de 2015 vuelve con los planteles de hoy — el bug de
+   `_LIGA_ELEGIDA` un escalón más abajo. Un año a demanda no llega a tiempo.
+   Por eso el año de la partida se decide **en pleno parseo**, leyendo
+   `localStorage['dtg_v7']` y escribiendo UN `document.write`. Verificado que
+   el orden se cumple: el manifiesto pedido por un `<script>` inline **ya está
+   visible en el script siguiente**, así que la decisión se puede tomar ahí.
+   ⚠️ Por eso son **dos bloques `<script>` separados** y no uno.
+3. **Importar una partida de un año que no está cargado.** Ese camino
+   (`loadGame()` directo, post-parseo) tenía el mismo problema y no se puede
+   arreglar igual. El save ya quedó escrito en `localStorage`, así que hace
+   `location.reload()` y lo levanta el bloque de arranque.
+
+⚠️ **Y el modo viejo sigue vivo**: una carpeta con los `players-hist-AÑO.js` de
+una extracción anterior y **sin** manifiesto carga las 35 como antes. Es el
+default en el punto de lectura de siempre, sólo que acá el "save viejo" es la
+carpeta del usuario. Verificado escondiendo el índice.
+
+### Elegir una temporada ahora es asíncrono, y el botón lo dice
+
+`⏳` mientras baja, botones desactivados para que no se pisen dos cargas, y si
+el archivo no está **se dice en rojo** con el nombre del archivo que falta —
+porque `aplicarTemporada` sola se quedaría jugando 2026 en silencio.
+
+### El extractor: 24 ligas con su ID de competición
+
+`HIST_LIGAS` reemplaza los dos campos a mano (`AR1N`/`ARG2`). La grilla de
+checkboxes sale de la tabla, no del HTML. Cada fila trae el ID de 1ª y el de
+2ª editables, y el contador dice **cuántos pedidos y cuántos minutos** antes
+de apretar: las 24 ligas × 26 años son **~20.900 pedidos (~3 h)**, sólo las
+primeras divisiones ~12.300.
+
+⚠️ **8 de los 24 IDs NO se pudieron verificar** (Colombia, Chile, Perú,
+Uruguay, Paraguay, Ecuador, Bolivia, Venezuela): el proxy de desarrollo
+devuelve **403 en el CONNECT** para transfermarkt.com. Van marcados con `?` y
+para eso existe **`🔎 Probar los IDs`**, que hace UN pedido por liga y nombra
+los que vuelven con 0 clubes — el mismo principio del preflight de la Fase 41:
+*un fallo de configuración se detecta una vez y se dice, no 12.000 pedidos
+después*.
+
+- **La 2ª división comparte la etiqueta del país** (`HIST_LIGA2` sólo tiene el
+  caso argentino, que es una liga jugable aparte), igual que en
+  `players-db.js`: Premier 44 = 20 + 24.
+- **`yaBajado` es por AÑO y compartido por todas las ligas**, no por
+  competición: si no, un club que sale en dos competiciones —o un ID mal
+  puesto— duplicaría su plantel. Es el bug de las 77 filas repetidas.
+- **El id de competición va en el log** (`Premier 2016 [GB1]` / `[GB2]`): sin
+  él las dos líneas se leen igual y no se sabe cuál falló.
+- **El encabezado del archivo dice qué ligas trae.** Decía "fútbol argentino"
+  fijo, y con 25 ligas eso es mentira.
+- **Se avisa qué liga no va a ser jugable**: el juego exige 10 clubes con 15+
+  fichas (`LIGA_MIN_CLUBES`), así que sin ese aviso bajás el año, lo elegís y
+  la liga no está, sin explicación.
+
+### ⚠️ El nombre del club NO se puede resolver solo, y el número lo dice
+
+Con 25 ligas, `HIST_CLUB_NOM` pasa de 98 entradas a ~600 y la tentación es
+automatizarlo. Se escribió el resolutor (normalizar, sacar afijos de TIPO de
+club —nunca "Real"—, match EXACTO contra la base, y negarse si hay ambigüedad)
+y se midió **contra los 98 slugs reales que ya están resueltos a mano**, que
+son la respuesta correcta:
+
+| | |
+|---|---|
+| acertó | **35 (36%)** |
+| no contestó | 62 (63%) |
+| **se equivocó** | **1** |
+
+El que erró es el que importa: `club atletico union` → **Union SG** (el belga)
+cuando es **Unión Santa Fe**. Un club fusionado con otro no es un escudo que
+falta: es **un plantel entero en el club equivocado**, el mismo fallo que ya
+tuvo el emparejador de "defensores de belgrano" → Belgrano.
+
+**El valor lo sigue poniendo la tabla a mano.** El resolutor quedó como
+**sugerencia en el reporte**: imprime la línea lista para pegar con el
+candidato al lado, marcado `// ← sugerido, verificalo`, y donde la base tiene
+dos clubes con la misma clave (San Lorenzo / CS San Lorenzo, Barcelona /
+Barcelona SC, Racing Club / Racing, Liverpool / Liverpool FC) **no sugiere
+nada** — elegir uno sería el bug, no contestar es la respuesta.
+
+### El índice se ACUMULA, no se reescribe
+
+Bajar 2015-2016 y después 2017 tiene que dar un índice con los **tres** años.
+Si cada corrida lo reescribiera con lo suyo, la segunda borraría del selector
+las temporadas de la primera y el usuario vería desaparecer archivos que
+siguen en su carpeta. Se acumula en `localStorage` del extractor, mismo
+criterio que la fusión de `dts-db.js`.
+
+⚠️ Y porque ese `localStorage` se puede perder o quedar desfasado de la
+carpeta, hay **`🔧 Reconstruirlo desde mis archivos`**: elegís los
+`players-hist-*.js` que tenés y el índice sale exacto, sin depender de ningún
+estado.
+
+### Lo que falta y es del usuario
+
+**La extracción.** No se puede correr desde acá: `transfermarkt.com`,
+`.es`, `transfermarkt-api.fly.dev` y `api.sportdb.dev` devuelven **403 en el
+CONNECT**. Son ~12.300 pedidos (primeras divisiones, 26 años), 2-4 horas de
+navegador abierto, **sin costo de créditos** (`tmkader`/`tmclubs` bajan HTML
+server-rendered). El camino es: 🔎 Probar los IDs → una temporada de prueba →
+la corrida larga.
+
+⚠️ **Dos cosas van a venir torcidas, por lo que ya pasó con Argentina:**
+- **La lista de clubes del año.** En ARG 2011-2013, TM devolvió la lista de
+  HOY (28/28 en común con 2025) porque `AR1N` es la Superliga, creada en 2017.
+  Los IDs europeos (`GB1`, `ES1`, `IT1`, `L1`, `FR1`) son viejos y estables,
+  así que **debería salir mejor que Argentina** — pero eso es inferencia, no
+  medición.
+- **`INFL_TABLA` está anclada en la liga argentina.** Con la Premier adentro
+  hay que volver a medir el ancla: los valores europeos crecieron distinto.
+
+### ⚠️ La verificación de esta fase está EN EL REPO
+
+`tests/hist-lazy.js`, **23 checks en verde**. Es la primera vez: la regresión
+grande (84 checks) vivía sólo en el scratchpad del contenedor y **se perdió
+dos veces** con un reinicio, sin poder reconstruirse. Un verificador que no
+está commiteado es un verificador que no existe — y el resto (`reg.js`,
+`det.js`, `m11.js`, `corner.js`…) **sigue sin estar**.
+
+⚠️ Trampa del arnés que costó una medición: **`browser.newPage()` abre un
+CONTEXTO nuevo**, así que el `localStorage` no viaja entre páginas y el check
+de "la partida guardada vuelve con su año" daba falso negativo (el precargado
+salía vacío). Hay que usar un `browser.newContext()` compartido.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
