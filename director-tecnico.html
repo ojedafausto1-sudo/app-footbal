@@ -4793,19 +4793,40 @@ function hayHistoricos(){ return temporadasDB().length>0; }
 // datos. Con ese factor puesto, las medianas seguían hundidas justo en el
 // medio de la serie: **2015 daba 58 y 2020 daba 57** contra los 63 de 2026.
 //
-// La tabla de abajo es monótona y es un índice de mercado, no una muestra:
-// ×5,0 en 2000 bajando hasta ×1,0 en 2022. Se aplica **sólo adentro de
-// `ratValPts`**, sobre una copia local del número — `p.val`, `r[7]` y todo
-// lo que la UI imprime quedan exactamente como vinieron del archivo.
+// ═══ Y AHORA SÍ SE PUDO DERIVAR, PORQUE HAY 21 LIGAS POR AÑO (Fase 69) ═══
+// El párrafo de arriba sigue siendo cierto para el dato que había entonces:
+// con sólo fútbol argentino en la carpeta, el ancla medía la COBERTURA de TM
+// en esa liga, no el mercado. Con la extracción multiliga la vara pasa a ser
+// la buena: la **mediana de los 100 valores más altos de las big-5 europeas**
+// de ese año contra la misma mediana de 2026 (€75M). Es la misma liga contra
+// sí misma, sobre 100 fichas y no 10, en el mercado que fija los precios.
+//
+// Y sale limpio: la serie es monótona con **1 ruptura de 25** (2002 contra
+// 2001, €17,6M vs €18M — ruido), de ×4,69 en 2000 a ×1,12 en 2025, sin un
+// solo acantilado. Comparada con la tabla escrita a mano que estaba acá:
+//
+//   2000-2008  →  la tabla acertaba (±7%)
+//   2010-2016  →  corregía DE MENOS un 15-40%
+//   2017-2025  →  de menos un 12-25%
+//
+// Los números de abajo son los derivados, con la única ruptura aplanada
+// (cumulative min) para que la serie no suba nunca al avanzar el año.
+// Se aplica **sólo adentro de `ratValPts`**, sobre una copia local del
+// número — `p.val`, `r[7]` y todo lo que la UI imprime quedan exactamente
+// como vinieron del archivo.
 const INFL_TABLA={
-  2000:5.0, 2001:4.7, 2002:4.4, 2003:4.1, 2004:3.9,
-  2005:3.7, 2006:3.5, 2007:3.3, 2008:3.0, 2009:2.7,
-  2010:2.4, 2011:2.2, 2012:2.0, 2013:1.85, 2014:1.7,
-  2015:1.55, 2016:1.45, 2017:1.35, 2018:1.25, 2019:1.15,
-  2020:1.1, 2021:1.05, 2022:1.0, 2023:1.0
+  2000:4.69, 2001:4.17, 2002:4.17, 2003:4.17, 2004:3.75,
+  2005:3.75, 2006:3.75, 2007:3.21, 2008:3.13, 2009:3.00,
+  2010:2.76, 2011:2.68, 2012:2.54, 2013:2.46, 2014:2.38,
+  2015:2.14, 2016:2.00, 2017:1.69, 2018:1.50, 2019:1.35,
+  2020:1.25, 2021:1.19, 2022:1.17, 2023:1.15, 2024:1.15,
+  2025:1.12
 };
 function getYearInflation(year){
-  if(!year||year>=2024)return 1.0;
+  // ⚠️ El corte es 2026, no 2024: 2024 y 2025 tienen factor propio (×1,15 y
+  // ×1,12) desde que se midió con las big-5. Antes `year>=2024` los dejaba
+  // en 1,0 y esos dos años quedaban 12-15% abajo.
+  if(!year||year>=2026)return 1.0;
   return INFL_TABLA[year]||1.0;
 }
 // ⚠️ EL AÑO ES EL DE LA BASE, NO EL DE LA TEMPORADA QUE ESTÁS JUGANDO.

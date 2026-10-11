@@ -83,14 +83,25 @@ const esperarCarga = pg => pg.evaluate(() => new Promise(r => {
   const y1 = r.sel.find(y => y !== 2026);
   const r3 = await pg.evaluate(y => { tsSetTemporada(y); return 1; }, y1);
   await esperarCarga(pg);
-  r = await pg.evaluate(() => ({
+  r = await pg.evaluate(y => ({
     temp: tempActual(), filas: window.PLAYERS_DB.length, err: _tsTempErr,
-    cargados: Object.keys(window.PLAYERS_DB_HIST).length, ligas: ligasJugables()
-  }));
-  chk('elegir un año lo carga y lo aplica', r.temp === y1 && r.filas > 200 && !r.err,
-    `${y1}: ${r.filas} filas, ligas ${r.ligas.join('+')}`);
+    cargados: Object.keys(window.PLAYERS_DB_HIST).length, ligas: ligasJugables(),
+    // ⚠️ Contra el ÍNDICE, no contra un número escrito a mano. La primera
+    // versión de este check pedía `filas>200 && ligas<=2`, porque cuando se
+    // escribió el histórico era argentino solo; con la extracción de 21
+    // ligas (22.417 filas) se puso rojo sin que nada estuviera mal. Es la
+    // misma trampa que el hash congelado de la Fase 58.
+    esperado: (window.PLAYERS_DB_HIST_IDX[y] || {}).j,
+    ligasIdx: Object.keys((window.PLAYERS_DB_HIST_IDX[y] || {}).lg || {}).length,
+    ligas2026: (window.PLAYERS_DB_HIST ? 0 : 0)
+  }), y1);
+  chk('elegir un año lo carga y lo aplica', r.temp === y1 && r.filas === r.esperado && !r.err,
+    `${y1}: ${r.filas} filas (el índice dice ${r.esperado}), ${r.ligas.length} ligas jugables`);
   chk('sólo ese año queda en memoria', r.cargados === 1, r.cargados + ' año(s)');
-  chk('mundo cerrado', r.ligas.length <= 2 && r.ligas.includes('Liga ARG'), r.ligas.join(', '));
+  // El mundo es cerrado si las ligas jugables son las que trae ESE archivo y
+  // nunca más que las que declara su índice.
+  chk('mundo cerrado: las ligas son las del archivo', r.ligas.length > 0 && r.ligas.length <= r.ligasIdx,
+    `${r.ligas.length} jugables de ${r.ligasIdx} en el archivo`);
 
   console.log('\n═══ 4) EL AÑO QUE FALTA SE AVISA ═══');
   await pg.evaluate(() => { window.PLAYERS_DB_HIST_IDX[1897] = { j: 500, lg: { 'Liga ARG': 20 } }; tsSetTemporada(1897); });
@@ -126,16 +137,22 @@ const esperarCarga = pg => pg.evaluate(() => new Promise(r => {
   await pg.close();
 
   pg = await nueva();
-  r = await pg.evaluate(() => {
+  r = await pg.evaluate(y => {
     const pre = Object.keys(window.PLAYERS_DB_HIST || {}).map(Number);
+    const modernas = window.PLAYERS_DB.length;      // antes de cargar, la base de 2026
     const cargo = loadGame();
     const riv = new Set(); (G && G.calendar || []).forEach(m => { riv.add(m.home); riv.add(m.away); });
     return { pre, cargo, db: G && G.dbSeason, temp: tempActual(), filas: window.PLAYERS_DB.length,
+             esperado: (window.PLAYERS_DB_HIST_IDX[y] || {}).j, modernas,
              plantel: G && G.squad.length, rivales: riv.size };
-  });
+  }, y1);
   chk('el bloque de arranque precarga el año del save', r.pre.length === 1 && r.pre[0] === y1, 'precargado: ' + r.pre.join(','));
-  chk('loadGame vuelve con el año puesto', r.cargo && r.db === y1 && r.temp === y1 && r.filas < 15000,
-    `dbSeason ${r.db}, ${r.filas} filas, ${r.rivales} rivales`);
+  // ⚠️ La base cargada tiene que ser la del AÑO, y eso se afirma contra el
+  // índice: con `filas < 15000` el check daba rojo en cuanto la extracción
+  // histórica pasó a tener más fichas que la base moderna.
+  chk('loadGame vuelve con el año puesto', r.cargo && r.db === y1 && r.temp === y1
+    && r.filas === r.esperado && r.filas !== r.modernas,
+    `dbSeason ${r.db}, ${r.filas} filas (índice ${r.esperado}, moderna ${r.modernas}), ${r.rivales} rivales`);
 
   console.log('\n═══ 6) MODO VIEJO: ARCHIVOS SIN MANIFIESTO ═══');
   // Se esconde el índice para que el onerror lo deje sin definir, que es

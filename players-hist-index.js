@@ -1,35 +1,35 @@
 // ═══ ÍNDICE DE TEMPORADAS HISTÓRICAS ═══
-// Lo genera el extractor al terminar una corrida. Es lo ÚNICO que el juego
-// carga al arrancar: dice qué años hay y qué trae cada uno, para que el
-// selector los muestre SIN bajar los planteles. El archivo del año se
-// carga recién cuando elegís esa temporada (ver cargarTemporada).
-// ⚠️ Si borrás un players-hist-AÑO.js de la carpeta, ese año desaparece
-// solo: `cargarTemporada` falla con onerror y el juego lo avisa.
+// Generado por extractor.html. Es lo ÚNICO que el juego carga al arrancar:
+// dice qué años hay en la carpeta y qué trae cada uno, para que el selector
+// los muestre SIN bajar los planteles. El archivo del año se carga recién
+// cuando elegís esa temporada.
+// ⚠️ Si borrás un players-hist-AÑO.js, ese año desaparece solo: el juego
+// falla con onerror al pedirlo y lo avisa en pantalla.
 window.PLAYERS_DB_HIST_IDX={
- 2000:{j:693,lg:{"Liga ARG":16,"Primera Nacional":12}},
- 2001:{j:723,lg:{"Liga ARG":20,"Primera Nacional":9}},
- 2002:{j:825,lg:{"Liga ARG":18,"Primera Nacional":11}},
- 2003:{j:853,lg:{"Liga ARG":17,"Primera Nacional":11}},
- 2004:{j:602,lg:{"Liga ARG":16}},
- 2005:{j:781,lg:{"Liga ARG":17,"Primera Nacional":8}},
- 2006:{j:955,lg:{"Liga ARG":22,"Primera Nacional":15}},
- 2007:{j:942,lg:{"Liga ARG":17,"Primera Nacional":20}},
- 2008:{j:1271,lg:{"Liga ARG":17,"Primera Nacional":20}},
- 2009:{j:1408,lg:{"Liga ARG":20,"Primera Nacional":20}},
- 2010:{j:1484,lg:{"Liga ARG":20,"Primera Nacional":20}},
- 2011:{j:1516,lg:{"Liga ARG":20,"Primera Nacional":20}},
- 2012:{j:1493,lg:{"Liga ARG":19,"Primera Nacional":20}},
- 2013:{j:1955,lg:{"Liga ARG":16,"Primera Nacional":22}},
- 2014:{j:2283,lg:{"Liga ARG":30,"Primera Nacional":22}},
- 2015:{j:1896,lg:{"Liga ARG":30,"Primera Nacional":22}},
- 2016:{j:2261,lg:{"Liga ARG":30,"Primera Nacional":23}},
- 2017:{j:2104,lg:{"Liga ARG":28,"Primera Nacional":25}},
- 2018:{j:2109,lg:{"Liga ARG":26,"Primera Nacional":25}},
- 2019:{j:2683,lg:{"Liga ARG":24,"Primera Nacional":32}},
- 2020:{j:2773,lg:{"Liga ARG":26,"Primera Nacional":35}},
- 2021:{j:2542,lg:{"Liga ARG":28,"Primera Nacional":37}},
- 2022:{j:2541,lg:{"Liga ARG":28,"Primera Nacional":37}},
- 2023:{j:3277,lg:{"Liga ARG":28,"Primera Nacional":38}},
- 2024:{j:2609,lg:{"Liga ARG":28,"Primera Nacional":36}},
- 2025:{j:1821,lg:{"Liga ARG":27,"Primera Nacional":36}}
+ 2000:{j:16175,lg:{"Alemania":36,"Arabia":12,"Brasil":32,"Bélgica":36,"Chile":13,"Colombia":4,"España":42,"Francia":38,"Grecia":16,"Holanda":36,"Italia":38,"Liga ARG":16,"Liga MX":18,"MLS":12,"Perú":4,"Portugal":22,"Premier":39,"Primera Nacional":12,"Rusia":16,"Turquía":68,"Uruguay":4}},
+ 2001:{j:14978,lg:{"Alemania":36,"Arabia":12,"Brasil":35,"Bélgica":36,"Chile":8,"Colombia":3,"España":42,"Francia":38,"Grecia":14,"Holanda":36,"Italia":38,"Liga ARG":20,"Liga MX":19,"MLS":10,"Perú":4,"Portugal":24,"Premier":37,"Primera Nacional":9,"Rusia":16,"Turquía":38,"Uruguay":4}},
+ 2002:{j:16289,lg:{"Alemania":36,"Arabia":12,"Brasil":48,"Bélgica":36,"Chile":9,"Colombia":5,"España":42,"Francia":40,"Grecia":16,"Holanda":36,"Italia":38,"Liga ARG":18,"Liga MX":20,"MLS":10,"Perú":4,"Portugal":36,"Premier":36,"Primera Nacional":11,"Rusia":16,"Turquía":36,"Uruguay":3}},
+ 2003:{j:16594,lg:{"Alemania":36,"Arabia":12,"Brasil":48,"Bélgica":36,"Chile":11,"Colombia":5,"España":42,"Francia":40,"Grecia":16,"Holanda":37,"Italia":42,"Liga ARG":17,"Liga MX":20,"MLS":10,"Perú":5,"Portugal":34,"Premier":36,"Primera Nacional":11,"Rusia":16,"Turquía":36,"Uruguay":3}},
+ 2004:{j:17061,lg:{"Alemania":36,"Arabia":12,"Brasil":44,"Bélgica":36,"Chile":13,"Colombia":6,"España":42,"Francia":40,"Grecia":16,"Holanda":37,"Italia":42,"Liga ARG":16,"Liga MX":18,"MLS":12,"Perú":5,"Portugal":36,"Premier":44,"Rusia":16,"Turquía":36,"Uruguay":4}},
+ 2005:{j:17910,lg:{"Alemania":36,"Arabia":12,"Brasil":40,"Bélgica":36,"Chile":12,"Colombia":5,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":17,"Liga MX":18,"MLS":12,"Perú":12,"Portugal":36,"Premier":44,"Primera Nacional":8,"Rusia":16,"Turquía":36,"Uruguay":18}},
+ 2006:{j:18864,lg:{"Alemania":36,"Arabia":12,"Brasil":40,"Bélgica":36,"Chile":14,"Colombia":10,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":22,"Liga MX":18,"MLS":13,"Perú":7,"Portugal":32,"Premier":44,"Primera Nacional":15,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2007:{j:19364,lg:{"Alemania":36,"Arabia":12,"Brasil":40,"Bélgica":37,"Chile":14,"Colombia":15,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":17,"Liga MX":18,"MLS":14,"Perú":7,"Portugal":32,"Premier":44,"Primera Nacional":20,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2008:{j:19958,lg:{"Alemania":36,"Arabia":12,"Brasil":40,"Bélgica":37,"Chile":15,"Colombia":18,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":17,"Liga MX":18,"MLS":15,"Perú":8,"Portugal":32,"Premier":44,"Primera Nacional":20,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2009:{j:20885,lg:{"Alemania":36,"Arabia":12,"Brasil":40,"Bélgica":35,"Chile":15,"Colombia":18,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":20,"Liga MX":18,"MLS":16,"Perú":9,"Portugal":32,"Premier":44,"Primera Nacional":20,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2010:{j:21387,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":34,"Chile":15,"Colombia":18,"España":42,"Francia":40,"Grecia":16,"Holanda":36,"Italia":42,"Liga ARG":20,"Liga MX":18,"MLS":18,"Perú":12,"Portugal":32,"Premier":44,"Primera Nacional":20,"Rusia":16,"Turquía":35,"Uruguay":16}},
+ 2011:{j:20850,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":34,"Chile":15,"Colombia":18,"España":42,"Francia":40,"Grecia":16,"Holanda":36,"Italia":42,"Liga ARG":20,"Liga MX":18,"MLS":19,"Perú":9,"Portugal":32,"Premier":44,"Primera Nacional":20,"Rusia":13,"Turquía":36,"Uruguay":16}},
+ 2012:{j:21963,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":34,"Chile":15,"Colombia":18,"España":42,"Francia":40,"Grecia":16,"Holanda":36,"Italia":42,"Liga ARG":19,"Liga MX":18,"MLS":19,"Perú":10,"Portugal":38,"Premier":44,"Primera Nacional":20,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2013:{j:23221,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":34,"Chile":13,"Colombia":18,"España":42,"Francia":40,"Grecia":19,"Holanda":38,"Italia":42,"Liga ARG":16,"Liga MX":18,"MLS":19,"Perú":16,"Portugal":38,"Premier":44,"Primera Nacional":22,"Rusia":16,"Turquía":37,"Uruguay":16}},
+ 2014:{j:23178,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":34,"Chile":15,"Colombia":20,"España":42,"Francia":40,"Grecia":19,"Holanda":38,"Italia":42,"Liga ARG":30,"Liga MX":18,"MLS":20,"Perú":17,"Portugal":42,"Premier":44,"Primera Nacional":22,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2015:{j:22233,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":33,"Chile":15,"Colombia":20,"España":42,"Francia":40,"Grecia":16,"Holanda":37,"Italia":42,"Liga ARG":30,"Liga MX":18,"MLS":20,"Perú":12,"Portugal":42,"Premier":44,"Primera Nacional":22,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2016:{j:23406,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":24,"Chile":15,"Colombia":20,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":30,"Liga MX":18,"MLS":22,"Perú":16,"Portugal":40,"Premier":44,"Primera Nacional":23,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2017:{j:22501,lg:{"Alemania":36,"Arabia":14,"Brasil":40,"Bélgica":24,"Chile":17,"Colombia":20,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":42,"Liga ARG":28,"Liga MX":18,"MLS":23,"Perú":16,"Portugal":38,"Premier":44,"Primera Nacional":25,"Rusia":16,"Turquía":36,"Uruguay":15}},
+ 2018:{j:23625,lg:{"Alemania":36,"Arabia":16,"Brasil":40,"Bélgica":24,"Chile":16,"Colombia":20,"España":42,"Francia":40,"Grecia":16,"Holanda":38,"Italia":39,"Liga ARG":26,"Liga MX":18,"MLS":25,"Perú":18,"Portugal":36,"Premier":44,"Primera Nacional":25,"Rusia":16,"Turquía":36,"Uruguay":16}},
+ 2019:{j:23261,lg:{"Alemania":36,"Arabia":16,"Brasil":40,"Bélgica":24,"Chile":18,"Colombia":20,"España":42,"Francia":40,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":24,"Liga MX":18,"MLS":26,"Perú":20,"Portugal":36,"Premier":44,"Primera Nacional":32,"Rusia":16,"Turquía":36,"Uruguay":17}},
+ 2020:{j:23931,lg:{"Alemania":36,"Arabia":16,"Brasil":40,"Bélgica":26,"Chile":18,"Colombia":20,"España":42,"Francia":40,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":26,"Liga MX":18,"MLS":27,"Perú":18,"Portugal":36,"Premier":44,"Primera Nacional":35,"Rusia":16,"Turquía":39,"Uruguay":17}},
+ 2021:{j:23982,lg:{"Alemania":36,"Arabia":16,"Brasil":40,"Bélgica":26,"Chile":16,"Colombia":20,"España":42,"Francia":40,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":28,"Liga MX":18,"MLS":28,"Perú":19,"Portugal":36,"Premier":44,"Primera Nacional":37,"Rusia":16,"Turquía":39,"Uruguay":17}},
+ 2022:{j:24220,lg:{"Alemania":36,"Arabia":16,"Brasil":40,"Bélgica":30,"Chile":16,"Colombia":20,"España":42,"Francia":40,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":28,"Liga MX":18,"MLS":29,"Perú":19,"Portugal":36,"Premier":44,"Primera Nacional":37,"Rusia":16,"Turquía":38,"Uruguay":16}},
+ 2023:{j:25620,lg:{"Alemania":36,"Arabia":18,"Brasil":40,"Bélgica":32,"Chile":16,"Colombia":20,"España":42,"Francia":38,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":28,"Liga MX":18,"MLS":29,"Perú":18,"Portugal":36,"Premier":44,"Primera Nacional":38,"Rusia":16,"Turquía":38,"Uruguay":16}},
+ 2024:{j:25270,lg:{"Alemania":36,"Arabia":18,"Brasil":40,"Bélgica":32,"Chile":16,"Colombia":20,"España":42,"Francia":36,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":28,"Liga MX":18,"MLS":30,"Perú":18,"Portugal":36,"Premier":44,"Primera Nacional":36,"Rusia":16,"Turquía":39,"Uruguay":16}},
+ 2025:{j:22417,lg:{"Alemania":36,"Arabia":18,"Brasil":40,"Bélgica":33,"Chile":16,"Colombia":20,"España":42,"Francia":36,"Grecia":14,"Holanda":38,"Italia":40,"Liga ARG":27,"Liga MX":18,"MLS":30,"Perú":18,"Portugal":36,"Premier":44,"Primera Nacional":36,"Rusia":16,"Turquía":38,"Uruguay":16}}
 };

@@ -346,7 +346,17 @@ function parseKader(html, year) {
     const fechas = f.match(/([A-Za-z]{3}\s+\d{1,2},\s*\d{4}|\d{1,2}[./]\d{1,2}[./]\d{4})/g) || [];
     const contract = fechas.length > 1 ? fechas[fechas.length - 1] : '';
     // valor de mercado: la celda de la derecha
-    const value = valorEnMillones((f.match(/(€\s*[\d.,]+\s*(?:bn|m|k|mil|th)?)/i) || [])[1]);
+    // ⚠️ LA UNIDAD SE CAPTURA ENTERA, con `[a-zäöü.]*` y no con una
+    // alternancia. Acá estaba la otra mitad del bug que la Fase 43 arregló a
+    // medias: `(?:bn|m|k|mil|th)?` prueba `m` antes que `mil`, así que
+    // "€500 mil" se capturaba como "€500 m" y `valorEnMillones` —que SÍ lee
+    // la unidad completa— recibía ya la palabra TRUNCADA y devolvía 500
+    // MILLONES en vez de 0,5. Medido sobre la extracción de 21 ligas: 120
+    // filas infladas ×1000 (Gianluca Curci, 17 años, a €500M). Y al revés,
+    // "€500 Tsd." perdía la unidad entera (Tsd no está en la lista) y daba
+    // 0,001. El `.es` escribe "mil" y el `.de` "Tsd.", y el Worker cae a
+    // esos dominios cuando el `.com` falla, así que no es un caso de borde.
+    const value = valorEnMillones((f.match(/(€\s*[\d.,]+\s*[a-zäöü.]*)/i) || [])[1]);
 
     players.push({ id: pid, name, num, pos, age, birth,
       nat: nats[0] || '', nat2: nats[1] || '',

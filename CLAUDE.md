@@ -6164,6 +6164,205 @@ CONTEXTO nuevo**, así que el `localStorage` no viaja entre páginas y el check
 de "la partida guardada vuelve con su año" daba falso negativo (el precargado
 salía vacío). Hay que usar un `browser.newContext()` compartido.
 
+## Fase 69: el histórico de 21 ligas, y el bug de valor que la Fase 43 dejó a medias
+
+El presidente corrió la extracción multiliga de la Fase 68 y trajo **26
+temporadas (2000-2025) con 21 ligas y 549.143 fichas** — 50 MB, contra los
+4,24 MB de las 26 argentinas. El pipeline funcionó: **0 nombres sacados del
+slug crudo, 0 posiciones UNK, 8 nacionalidades UNK sobre 549.143 (0,001%), 0
+`nat2` basura, 0 filas repetidas, 0 clubes en dos ligas el mismo año.**
+
+| | medido |
+|---|---|
+| ligas presentes | **21** de las 24 pedidas |
+| faltan | **Bolivia, Ecuador, Paraguay, Venezuela** — los 4 IDs que no se pudieron verificar |
+| ligas jugables por año | 16 (2000) a **21** (2010 en adelante) |
+| clubes por año | 514 (2000) → 612 (2025) |
+| planteles | mediana 31-38 fichas, 0 clubes bajo 15 de 2020 en adelante |
+
+Las cuatro que faltan son justo las que el preflight marcaba con `?`, así
+que el mecanismo de la Fase 68 hizo lo que tenía que hacer: avisó.
+
+### ⚠️ El bug del valor: la Fase 43 arregló la función y dejó la CAPTURA
+
+120 filas venían infladas **×1000** — Gianluca Curci, 17 años, a **€500M**.
+La causa no era `valorEnMillones`, que la Fase 43 dejó leyendo la unidad
+entera. Era el regex que la **alimenta**, una línea más arriba:
+
+```js
+f.match(/(€\s*[\d.,]+\s*(?:bn|m|k|mil|th)?)/i)    // ← la alternancia
+```
+
+Una alternancia de regex es leftmost-first: contra `€500 mil` prueba `bn`
+(no), prueba `m` (**sí**, la `m` de `mil`) y captura `€500 m`. O sea que
+`valorEnMillones` recibía la palabra **ya truncada** y leía 500 millones por
+los 0,5 que eran. Verificado contra la función real del Worker:
+
+| celda de TM | se capturaba | daba | correcto |
+|---|---|---|---|
+| `€500 mil` | `€500 m` | **500** | 0,5 |
+| `€75 mil` | `€75 m` | **75** | 0,075 |
+| `€500 Tsd.` | `€500` | **0,001** | 0,5 |
+| `€500,000` | `€500,000` | 0,5 ✓ | 0,5 |
+
+⚠️ **Y la segunda cara es INVISIBLE**: `Tsd.` no estaba en la lista, así que
+se perdía la unidad entera y el valor quedaba 500× **abajo**. Un número
+chico se confunde con el fallback de €0,1M y no se puede detectar en el dato.
+
+Arreglado capturando la unidad con `[a-zäöü.]*`, que es lo que
+`valorEnMillones` ya sabía leer. 15 formatos de TM verificados.
+
+⚠️ **Por qué no apareció antes**: el Worker pide `.com` y cae a `.es`, y es
+el `.es` el que escribe "mil". Las 26 temporadas argentinas resolvían por
+`.com` casi siempre; con 21 ligas el fallback se usa mucho más.
+
+### Las 120 filas ya bajadas: corregidas con dos criterios derivados
+
+Re-bajar son 3 horas, así que se corrigieron en el archivo. **No se estima
+nada: se divide por 1000, que es exactamente lo que el bug multiplicó.** Lo
+que había que resolver es a QUIÉN, y las bandas lo dicen:
+
+| banda | filas | veredicto |
+|---|---|---|
+| **≥250M** | **113** | **todas falsas** — el techo histórico de TM es Neymar 222 |
+| 200-250M | 8 | **todas reales** (Neymar ×6, Yamal ×2) |
+| 150-200M | 15 | reales (Messi 180, Mbappé 180, Kane 150) |
+| 100-150M | 107 | mezcladas |
+
+Los dos criterios: **≥250M** (113 filas), y **vale más de 10× el SEGUNDO de
+su propio club** ese año (7 más) — un €100M en un Genoa donde nadie pasa de
+3M es parseo, Messi en el Barcelona de Xavi e Iniesta no. Medido: **0 falsos
+positivos** sobre los cracks conocidos. Quedan 120 corregidas, 0 filas ≥250M
+y el máximo por año en 49,5-222.
+
+⚠️ **La prueba del "mismo jugador en otro año" NO sirve** y conviene saberlo:
+el misparseo es consistente (Curci es 500 en cinco temporadas seguidas), así
+que de 243 filas sospechosas sólo delata 16.
+
+### Los nombres de club: 1.180, de los que 106 coincidían
+
+El histórico trajo `Fc Barcelona`, `Ac Mailand`, `Gremio Porto Alegre`,
+`As Rom` — el title-case del slug, porque `HIST_CLUB_NOM` sólo tenía las 98
+entradas argentinas. No es cosmético: el juego indexa por NOMBRE, así que
+sólo **13 de las 135 claves de `STADIUMS_DB`** enganchaban.
+
+| | |
+|---|---|
+| a mano (verificadas) | **295** |
+| automáticas (clave exacta en la MISMA liga) | 74 |
+| **total renombrados** | **369** |
+| cobertura ponderada por fichas | **62,9%** |
+| claves de `STADIUMS_DB` enganchadas | **13 → 87** de 135 |
+
+⚠️ **El resolutor automático NO decide, y los números dicen por qué.** Se
+midió cada variante:
+
+- **clave exacta dentro de la misma liga**: 328 resueltos, pero **3 fusiones
+  MAL** — `Atletico Nacional`→`Nacional`, `Rc Mechelen`→`KV Mechelen`,
+  `Atletico De San Luis`→`San Luis`. Son clubes distintos.
+- **subconjunto de palabras** (para los brasileños con la ciudad al final):
+  54% de cobertura pero **81 colisiones**, incluido `Real Saragossa`,
+  `Real Jaen` y `Real Murcia` **todos a Real Sociedad** — porque `sociedad`
+  estaba en la lista de afijos y la dejaba en `real`. Descartado.
+
+Lo que se shippea es: **tabla a mano** + clave exacta dentro de la liga +
+**rechazo de TODA colisión** (dos nombres históricos al mismo destino, o un
+destino que ya es otro club del histórico). Con eso quedan 0 fusiones.
+
+⚠️ **El verificador de la tabla a mano atrapó 58 errores míos**: 57 claves
+que escribí de memoria y no existen en la extracción (`Ac Cesena` es
+`Cesena Fc`, `Spartak Moscow` es `Spartak Moskau`, `Al Ahli Sfc` es
+`Al Ahli Dschidda`) y **una fusión mal**: `Cd Guadalajara` está en **España**,
+no en México — mapearlo a Chivas habría mudado un plantel español a la Liga
+MX. Es el bug de `STADIUMS_DB` otra vez: **una clave mal escrita no dispara
+nunca**. Si agregás entradas, verificá que la clave exista en la extracción y
+que el destino exista **y esté en la misma liga**.
+
+⚠️ **Tres quedan sin resolver a propósito**: `Arsenal Fc`, `Club Nacional` y
+`Cd Nacional`. El destino ya es el nombre de OTRO club del histórico (Arsenal
+de Sarandí, el Nacional uruguayo) y renombrarlos fusionaría dos clubes
+distintos en la misma temporada. Es el problema de los nombres repetidos entre
+ligas que `STADIUMS_DB` resuelve con la clave `Liga|Nombre`.
+
+Las 369 van a **`HIST_CLUB_NOM` del extractor** (467 entradas en total), así
+que la próxima extracción sale con los nombres buenos de una.
+
+### ⚠️ `INFL_TABLA` ahora SÍ se puede derivar, y la de la Fase 50 corregía de menos
+
+La Fase 50 escribió la tabla a mano porque el ancla derivada medía la
+**cobertura** de TM en la liga argentina, no el mercado. Con 21 ligas por año
+la vara pasa a ser la correcta: la **mediana de los 100 valores más altos de
+las big-5 europeas** de ese año contra la de 2026 (**€75M**).
+
+Sale limpio: **monótona con 1 ruptura de 25** (2002 contra 2001, €17,6M vs
+€18M — ruido), de ×4,69 a ×1,12, sin un solo acantilado. Contra la tabla
+escrita a mano:
+
+| tramo | la tabla a mano |
+|---|---|
+| 2000-2008 | acertaba, ±7% |
+| 2010-2016 | **corregía DE MENOS un 15-40%** |
+| 2017-2025 | de menos un 12-25% |
+
+⚠️ **`getYearInflation` cortaba en 2024** (`year>=2024 → 1.0`), así que 2024
+y 2025 quedaban 12-15% abajo. Ahora corta en 2026, que es la base moderna.
+
+Medido después, con el único invariante que importa — la mediana de la base
+contra 2026:
+
+| año | 2000 | 2005 | 2010 | 2015 | 2020 | 2025 | **2026** |
+|---|---|---|---|---|---|---|---|
+| factor | 4,69 | 3,75 | 2,76 | 2,14 | 1,25 | 1,12 | 1,00 |
+| mediana | 64 | 64 | 67 | 66 | 64 | 65 | **66** |
+
+⚠️ **Lo que el factor NO explica, y no se tocó**: los años viejos tienen
+**44-63 jugadores de 90+ contra los 17 de 2026**. Antes de llamarlo bug se
+miró QUIÉNES son, y son los cracks de verdad: Zidane, Shevchenko, Henry,
+Nedved, Totti, Buffon, Nesta, Puyol, Ronaldinho / Messi, CR7, Kaká, Iniesta,
+Xavi, Casillas, Drogba. La diferencia está en la EDAD: **47 de los 63 de 2005
+tienen 30+** contra 3 de 17 en 2026, y `ageAdj` le da **+5 al de 30-34 y +8
+al de 35+**. El artefacto visible es Filippo Inzaghi a los 37 rateando 90+.
+**`ageAdj` no se toca**: son los seis números del Excel del presidente
+(Fase 55) y moverlos cambia el balance del juego entero.
+
+⚠️ Y del mismo tipo: **Van der Sar (€8,8M) ratea 91 y Trezeguet (€23,24M)
+88**, porque el arquero suma `ratPosMod` +3 y la edad +5. Es de siempre y
+pega igual en 2026; no lo trajo esta fase.
+
+### Verificado jugando, 12 ligas y 12 años
+
+| año | liga | club | plantel | inventados | estadio | competencias |
+|---|---|---|---|---|---|---|
+| 2000 | Italia | Juventus | 30 | **0** | Allianz Stadium | Serie A + Champions + Coppa Italia |
+| 2005 | Premier | Chelsea | 30 | **0** | Stamford Bridge | Premier + Champions + FA Cup |
+| 2008 | España | Barcelona | 30 | **0** | Spotify Camp Nou | LaLiga + Champions + Copa del Rey |
+| 2012 | Alemania | Dortmund | 30 | **0** | Signal Iduna Park | Bundesliga + Champions + DFB-Pokal |
+| 2016 | Francia | Monaco | 30 | **0** | Stade Louis II | Ligue 1 + Champions + Copa de Francia |
+| 2019 | Brasil | Flamengo | 30 | **0** | Maracanã | Brasileirão + Sudamericana + Copa do Brasil |
+| 2022 | Liga MX | América | 30 | **0** | Estadio Azteca | Liga MX + Concachampions + Copa MX |
+| 2024 | Portugal | Benfica | 30 | **0** | Estádio da Luz | Primeira + Champions + Taça |
+| 2010 | Holanda | Ajax | 30 | **0** | Johan Cruijff ArenA | Eredivisie + Europa League + KNVB |
+| 2003 | Turquía | Galatasaray | 30 | **0** | Rams Park | Süper Lig + Europa League + Copa |
+| 2020 | Chile | Colo-Colo | 30 | **0** | Monumental | Primera + Sudamericana + Copa Chile |
+| 2015 | Liga ARG | Boca | 30 | **0** | La Bombonera | Liga Prof. + Libertadores + Copa ARG |
+
+Y temporadas completas: **Juventus 2000** 54 partidos (Serie A 38 + Champions
+8 + Coppa 5), 5º con 77 puntos, 1 título; **Flamengo 2010** campeón con 104
+puntos en 59 partidos. Las dos pasan de temporada sin errores de página.
+
+⚠️ **Los estadios son los de HOY**, no los del año: Juventus 2000 juega en el
+Allianz Stadium (abrió en 2011) y no en el Delle Alpi. `STADIUMS_DB` es un
+diccionario actual y arreglarlo sería otra extracción.
+
+### ⚠️ Y dos checks de la regresión se pusieron rojos por números congelados
+
+`tests/hist-lazy.js` se escribió cuando el histórico era argentino solo, así
+que tenía `filas > 200 && ligas <= 2` y `filas < 15000` escritos a mano. Con
+22.417 filas y 21 ligas los dos dieron rojo **sin que nada estuviera mal** —
+es exactamente la trampa del hash congelado de la Fase 58. Ahora los dos
+afirman **contra el índice** (`PLAYERS_DB_HIST_IDX[y].j` y el conteo de ligas
+del archivo), que es lo que no envejece. 23 checks en verde.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
