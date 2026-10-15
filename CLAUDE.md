@@ -6363,6 +6363,72 @@ es exactamente la trampa del hash congelado de la Fase 58. Ahora los dos
 afirman **contra el índice** (`PLAYERS_DB_HIST_IDX[y].j` y el conteo de ligas
 del archivo), que es lo que no envejece. 23 checks en verde.
 
+## Fase 70: las 4 ligas que faltan, y si el juego puede tener 3D
+
+### Bolivia, Ecuador, Paraguay y Venezuela: el ID se elige de una lista
+
+Las cuatro volvieron con 0 clubes porque sus IDs de TM (`PRMP`, `EUA1`,
+`BOLP`, `VZ1P`) estaban mal, y desde acá el sitio sigue dando **403 en el
+CONNECT**, así que no hay forma de verificar el bueno. En vez de cambiar un
+ID adivinado por otro, el campo acepta **candidatos separados por `|`**
+(`PR1A|PRAP|PR1C|PAR1`, `EL1S|ECU1|EC1A`, `BO1A|BOL1|BOLP`, `VZ1L|VZ1A|VEN1`)
+y `histResolverID` se queda con el primero que devuelve clubes.
+
+- Se resuelve **una sola vez por corrida**, contra el año más nuevo, y el que
+  anduvo queda escrito en el campo. Resolverlo por año multiplicaría los
+  pedidos por cada candidato que falla.
+- **La liga cuyo ID no aparece se SACA de la corrida y se nombra**, en vez de
+  bajar 26 años vacíos.
+- Los candidatos son memoria, no medición: si ninguno anda, el log manda a
+  copiar el ID de la URL de TM (`/wettbewerb/ESTO/…`).
+
+### ⚠️ Bajar 4 ligas sueltas PISABA las 21 que ya estaban
+
+El archivo de cada año trae sólo las ligas marcadas, y se llama igual que el
+que ya está en la carpeta (`players-hist-2015.js`). Copiarlo encima habría
+borrado las otras 21. **➕ Sumar a mis archivos** carga los `players-hist-*.js`
+actuales y `histFusionar` arma cada año con lo viejo + lo nuevo, y el índice
+sale del archivo fusionado.
+
+⚠️ **Se reemplaza por LIGA, no por club**: hay nombres repetidos entre países
+('Nacional' en Uruguay y Paraguay, 'Racing Club' en Argentina y Uruguay) y
+borrar por nombre se llevaría al del otro país. Sin archivos cargados la
+corrida **lo avisa antes de bajar nada**.
+
+Verificado con TM simulado en `tests/extractor-sumar.js` (8 checks): elige el
+candidato bueno, deja afuera la liga sin ID, conserva Uruguay y Argentina,
+reemplaza la Bolivia vieja y el índice coincide con el archivo fusionado.
+
+### 3D: se puede, y el prototipo lee el partido de verdad
+
+`prototipos/estadio3d.js` (no está enchufado al juego) arma un estadio con
+three.js **desde los datos de la partida**:
+
+| | sale de |
+|---|---|
+| forma | `G.stadium.capacity`: <15k dos laterales, 15-40k cuatro tribunas, >40k bowl con bandejas |
+| filas y bandejas | la capacidad, a ~0,5 m por butaca |
+| colores de la tribuna | el color del club |
+| techo | la mejora `roof` construida (o >60k) |
+| gente | asistencia, muestreada hasta 14.000 (una sola `InstancedMesh`) |
+| los 22 y la pelota | **`FM.my` / `FM.opp` / `FM.ball` del 11v11**, con el kit de `kitFor` |
+
+Medido en Chromium headless (WebGL 2 por SwiftShader, o sea sin GPU): **armado
+255-330 ms, ~190.000 triángulos, 0 errores**. El rendimiento en un celular NO
+se midió.
+
+⚠️ **three.js tiene que ir LOCAL** (`three.min.js`, 670 KB, se define como
+`window.THREE`), igual que `players-db.js`: el juego no pide nada por red y
+anda con `file://`. Nada de CDN.
+
+⚠️ **El kit de Boca trae `c2:'var(--gold)'`** y WebGL no resuelve variables
+CSS, igual que el canvas: el prototipo las lee con `getComputedStyle` (la
+misma trampa que `GOLD()`).
+
+⚠️ Lo barato es la **cámara de TV sobre el 11v11 que ya existe**: el motor no
+cambia, sólo cambia cómo se dibuja. Hacer jugable el partido en 3D es otro
+juego: los controles, la cámara y la IA están pensados en 2D cenital.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

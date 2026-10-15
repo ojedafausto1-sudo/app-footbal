@@ -105,6 +105,17 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
   </div>
   <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1d3356">
     <div style="font-size:11px;color:#8faed4;margin-bottom:6px">
+      ➕ <b>Sumar ligas a lo que ya tenés</b>: cargá tus <code>players-hist-*.js</code> ANTES de extraer y
+      cada año se baja con tus ligas de siempre + las nuevas. Sin esto, el archivo trae sólo las ligas
+      marcadas y, puesto en la carpeta, pisa el que tenías.
+      <br><span id="histBaseEstado" style="color:#5a7aaa"></span>
+    </div>
+    <button class="secondary" onclick="document.getElementById('histBaseFiles').click()">➕ Sumar a mis archivos</button>
+    <input type="file" id="histBaseFiles" multiple accept=".js" style="display:none"
+           onchange="histBaseCargar(this)">
+  </div>
+  <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1d3356">
+    <div style="font-size:11px;color:#8faed4;margin-bottom:6px">
       📑 <b>El índice</b> (<code>players-hist-index.js</code>) es lo único que el juego carga al
       arrancar: dice qué años hay en la carpeta para que el selector los muestre sin bajar
       ningún plantel. Se baja solo al terminar una extracción.
@@ -275,7 +286,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (saved) document.getElementById('cfWorker').value = saved;
   // La grilla de ligas sale de HIST_LIGAS, no del HTML: agregar una liga a la
   // tabla la hace aparecer acá sola, igual que el selector del juego.
-  try { histLigasRender(); histIdxEstado(); } catch (e) {}
+  try { histLigasRender(); histIdxEstado(); histBaseEstado(); } catch (e) {}
   ['histDesde', 'histHasta'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', () => { try { histContar(); } catch (e) {} });
@@ -1724,11 +1735,26 @@ const HIST_LIGAS = [
   { lg: 'Chile',     nom: 'Primera División',  c1: 'CLPD', c2: '',     ok: false },
   { lg: 'Perú',      nom: 'Liga 1',            c1: 'TDeC', c2: '',     ok: false },
   { lg: 'Uruguay',   nom: 'Primera División',  c1: 'URU1', c2: '',     ok: false },
-  { lg: 'Paraguay',  nom: 'División Prof.',    c1: 'PRMP', c2: '',     ok: false },
-  { lg: 'Ecuador',   nom: 'LigaPro',           c1: 'EUA1', c2: '',     ok: false },
-  { lg: 'Bolivia',   nom: 'División Prof.',    c1: 'BOLP', c2: '',     ok: false },
-  { lg: 'Venezuela', nom: 'Liga FUTVE',        c1: 'VZ1P', c2: '',     ok: false },
+  // ⚠️ Estos cuatro volvieron con 0 clubes en la corrida de las 21 ligas: los
+  // IDs de antes (PRMP, EUA1, BOLP, VZ1P) estaban mal. Como desde acá no se
+  // puede consultar el sitio, van como LISTA DE CANDIDATOS separados por `|`:
+  // `histResolverID` prueba uno por uno, se queda con el primero que devuelve
+  // clubes y lo escribe en el campo. Un pedido por candidato, no por año.
+  { lg: 'Paraguay',  nom: 'División Prof.',    c1: 'PR1A|PRAP|PR1C|PAR1', c2: '', ok: false },
+  { lg: 'Ecuador',   nom: 'LigaPro',           c1: 'EL1S|ECU1|EC1A',      c2: '', ok: false },
+  { lg: 'Bolivia',   nom: 'División Prof.',    c1: 'BO1A|BOL1|BOLP',      c2: '', ok: false },
+  { lg: 'Venezuela', nom: 'Liga FUTVE',        c1: 'VZ1L|VZ1A|VEN1',      c2: '', ok: false },
 ];
+function histCandidatos(s) { return String(s || '').split('|').map(x => x.trim()).filter(Boolean); }
+// Devuelve el primer candidato que contesta con clubes, o id:null si ninguno.
+async function histResolverID(campo, y) {
+  const cs = histCandidatos(campo);
+  for (const c of cs) {
+    const clubs = await histClubes(c, y);
+    if (clubs.length) return { id: c, clubs, probados: cs };
+  }
+  return { id: null, clubs: [], probados: cs };
+}
 // La 2ª división argentina es una liga JUGABLE aparte (no un mercado), así que
 // baja con su etiqueta propia. En el resto, la 2ª son clubes de mercado y
 // comparten la etiqueta de su país, igual que en players-db.js.
@@ -1741,7 +1767,7 @@ function histLigasRender() {
       <input type="checkbox" id="hl${i}" ${L.lg === 'Liga ARG' ? 'checked' : ''} onchange="histContar()" style="margin:0">
       <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
             title="${L.nom}">${L.lg}${L.ok ? '' : ' <b style="color:#f6d318">?</b>'}</span>
-      <input id="hc1${i}" value="${L.c1}" style="width:48px;padding:2px 4px;font-size:10px" title="ID de 1ª">
+      <input id="hc1${i}" value="${L.c1}" style="width:${L.c1.includes('|') ? 92 : 48}px;padding:2px 4px;font-size:10px" title="ID de 1ª (varios separados por | = se prueba cada uno)">
       <input id="hc2${i}" value="${L.c2}" style="width:48px;padding:2px 4px;font-size:10px" title="ID de 2ª (vacío = no bajar)">
     </label>`).join('');
   histContar();
@@ -1775,7 +1801,7 @@ function histSeleccion() {
     if (!el || !el.checked) return null;
     const c1 = ((document.getElementById('hc1' + i) || {}).value || '').trim();
     const c2 = ((document.getElementById('hc2' + i) || {}).value || '').trim();
-    return c1 ? { lg: L.lg, nom: L.nom, c1, c2, ok: L.ok } : null;
+    return c1 ? { i, lg: L.lg, nom: L.nom, c1, c2, ok: L.ok } : null;
   }).filter(Boolean);
 }
 // ═══ PROBAR LOS IDs: un pedido por liga, antes de las tres horas ═══
@@ -1793,13 +1819,22 @@ async function histProbarIDs() {
   for (let i = 0; i < sel.length; i++) {
     const L = sel[i];
     setProgress((i / sel.length) * 100);
-    const cl = await histClubes(L.c1, y);
-    if (cl.length) log(`  ✓ ${L.lg.padEnd(11)} ${L.c1.padEnd(5)} → ${cl.length} clubes (${cl.slice(0, 3).map(c => histClubNombre(c.name)).join(', ')}…)`);
-    else { log(`  ✗ ${L.lg.padEnd(11)} ${L.c1.padEnd(5)} → 0 clubes`); malos.push(L.lg + ' (' + L.c1 + ')'); }
+    const r1 = await histResolverID(L.c1, y);
+    if (r1.id) {
+      log(`  ✓ ${L.lg.padEnd(11)} ${r1.id.padEnd(5)} → ${r1.clubs.length} clubes (${r1.clubs.slice(0, 3).map(c => histClubNombre(c.name)).join(', ')}…)`);
+      // Con varios candidatos, el que anduvo queda escrito en el campo: la
+      // corrida larga ya no vuelve a probar los que fallaron.
+      if (r1.probados.length > 1) {
+        const el = document.getElementById('hc1' + L.i); if (el) el.value = r1.id;
+        log(`      (de ${r1.probados.join(' · ')} anduvo ${r1.id} — quedó en el campo)`);
+      }
+    } else { log(`  ✗ ${L.lg.padEnd(11)} ${L.c1} → 0 clubes`); malos.push(L.lg + ' (' + L.c1 + ')'); }
     if (L.c2) {
-      const c2 = await histClubes(L.c2, y);
-      if (c2.length) log(`    ✓ 2ª ${L.c2} → ${c2.length} clubes`);
-      else { log(`    ✗ 2ª ${L.c2} → 0 clubes`); malos.push(L.lg + ' 2ª (' + L.c2 + ')'); }
+      const r2 = await histResolverID(L.c2, y);
+      if (r2.id) {
+        log(`    ✓ 2ª ${r2.id} → ${r2.clubs.length} clubes`);
+        if (r2.probados.length > 1) { const el = document.getElementById('hc2' + L.i); if (el) el.value = r2.id; }
+      } else { log(`    ✗ 2ª ${L.c2} → 0 clubes`); malos.push(L.lg + ' 2ª (' + L.c2 + ')'); }
     }
   }
   setProgress(100);
@@ -1818,7 +1853,7 @@ async function extraerHistorico() {
   if (!d || !h || h < d) { alert('Revisá el rango de años'); return; }
   if (!ligas.length) { alert('Marcá al menos una liga'); return; }
   if (h - d > 40) { alert('Máximo 40 temporadas por corrida'); return; }
-  const c1 = ligas[0].c1;
+  const c1 = histCandidatos(ligas[0].c1)[0];
 
   // ═══ PREFLIGHT: ¿el proxy conoce las fuentes históricas? ═══
   // ⚠️ Sin esto la corrida seguía igual año por año: 12 temporadas × 2
@@ -1852,6 +1887,40 @@ async function extraerHistorico() {
       log(`   ${String(pre.body).slice(0, 300)}`);
     }
   }
+
+  // ═══ LOS CAMPOS CON VARIOS CANDIDATOS SE RESUELVEN UNA VEZ ═══
+  // Si no, cada año probaría todos los candidatos (y una lista con el ID
+  // bueno al final multiplicaría los pedidos). Se resuelve contra el año más
+  // nuevo; la liga cuyo ID no aparece se SACA y se nombra, no se baja vacía.
+  for (let k = ligas.length - 1; k >= 0; k--) {
+    const L = ligas[k];
+    for (const campo of ['c1', 'c2']) {
+      if (!L[campo] || !L[campo].includes('|')) continue;
+      const r = await histResolverID(L[campo], h);
+      if (r.id) {
+        log(`  🔎 ${L.lg} ${campo === 'c1' ? '1ª' : '2ª'}: de ${r.probados.join(' · ')} anduvo ${r.id}`);
+        L[campo] = r.id;
+        const el = document.getElementById((campo === 'c1' ? 'hc1' : 'hc2') + L.i); if (el) el.value = r.id;
+      } else if (campo === 'c1') {
+        log(`  ✗ ${L.lg}: ningún ID anduvo (${r.probados.join(' · ')}) — la liga queda AFUERA de esta corrida.`);
+        log(`     Buscala en Transfermarkt y copiá el ID de la URL: /wettbewerb/<b>ESTO</b>/…`);
+        ligas.splice(k, 1);
+        break;
+      } else { log(`  ✗ ${L.lg} 2ª: ningún ID anduvo — se baja sólo la 1ª.`); L.c2 = ''; }
+    }
+  }
+  if (!ligas.length) { log('\n❌ No quedó ninguna liga con un ID que conteste.'); setProgress(0); return; }
+
+  // ⚠️ Una corrida con ALGUNAS ligas genera un players-hist-AÑO.js con SÓLO
+  // esas ligas. Copiado a la carpeta del juego PISA el archivo que ya está,
+  // con las otras 21 adentro. Para sumar ligas hay que cargar antes los
+  // archivos que ya tenés (➕ Sumar a mis archivos) y la corrida los fusiona.
+  const base = window._histBase || {};
+  if (!Object.keys(base).length) {
+    log('\n⚠️ No cargaste tus archivos actuales: los players-hist-AÑO.js que se bajen van a traer SÓLO');
+    log(`   ${ligas.map(L => L.lg).join(', ')}. Si ya tenés temporadas con otras ligas, NO los pongas`);
+    log('   encima: cargá primero tus archivos con ➕ Sumar a mis archivos y volvé a correr.');
+  } else log(`\n➕ Se fusiona con tus archivos: ${Object.keys(base).sort().join(', ')}`);
 
   window._histVacias = [];
   window._histSinTabla = [];
@@ -1949,8 +2018,9 @@ async function extraerHistorico() {
     });
     if (flacas.length) log(`  ⚠️ No llegan a 10 clubes con plantel, así que el juego NO las va a ofrecer en ${y}: ${flacas.join(' · ')}`);
     log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes · ${lgResumen.length} liga(s)`);
-    histDescargar(y, filas, clubesOK, porLiga);
-    histIdxGuardar(y, filas, porLiga);
+    const fus = histFusionar(y, filas);
+    histDescargar(y, fus.filas, fus.clubes, fus.porLiga);
+    histIdxGuardar(y, fus.filas, fus.porLiga);
   }
   setProgress(100);
   if (window._histVacias.length) {
@@ -2070,6 +2140,59 @@ function histIdxDesdeArchivos(input) {
     };
     rd.readAsText(f);
   });
+}
+// ═══ SUMAR LIGAS A LOS ARCHIVOS QUE YA TENÉS ═══
+// Lo nuevo manda sobre SUS ligas; las demás ligas del archivo se conservan
+// tal cual. Se reemplaza por LIGA y no por club a propósito: hay nombres
+// repetidos entre ligas ('Nacional' en Uruguay y en Paraguay, 'Racing Club'
+// en Argentina y Uruguay) y borrar por nombre se llevaría al del otro país.
+window._histBase = {};
+function histBaseCargar(input) {
+  const fs = Array.from(input.files || []);
+  input.value = '';
+  if (!fs.length) return;
+  const H = {};
+  let pend = fs.length;
+  log(`\n➕ Leyendo ${fs.length} archivo(s) para fusionar…`);
+  fs.forEach(f => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try { const win = { PLAYERS_DB_HIST: H }; new Function('window', rd.result)(win); }
+      catch (e) { log(`  ✗ ${f.name}: ${e.message}`); }
+      if (--pend === 0) {
+        window._histBase = H;
+        Object.keys(H).sort().forEach(y => {
+          const lgs = {}; (H[y] || []).forEach(r => lgs[r[6]] = 1);
+          log(`    ${y}: ${(H[y] || []).length} jug · ${Object.keys(lgs).length} ligas`);
+        });
+        histBaseEstado();
+      }
+    };
+    rd.readAsText(f);
+  });
+}
+function histBaseEstado() {
+  const el = document.getElementById('histBaseEstado');
+  if (!el) return;
+  const a = Object.keys(window._histBase || {}).sort();
+  el.textContent = a.length ? `se van a fusionar con: ${a.join(', ')}` : 'sin archivos cargados: lo que se baje trae sólo las ligas marcadas';
+}
+function histFusionar(y, filas) {
+  const base = (window._histBase || {})[y] || [];
+  const nuevas = {}; filas.forEach(r => nuevas[r[6]] = 1);
+  const quedan = base.filter(r => !nuevas[r[6]]);
+  const out = quedan.concat(filas);
+  const porLiga = {};
+  out.forEach(r => { if (r[6] && r[5]) (porLiga[r[6]] = porLiga[r[6]] || {})[r[5]] = 1; });
+  const clubes = Object.keys(porLiga).reduce((a, l) => a + Object.keys(porLiga[l]).length, 0);
+  if (base.length) {
+    const reempl = base.length - quedan.length;
+    log(`  ➕ fusionado con tu ${y}: ${quedan.length} filas conservadas${reempl ? ', ' + reempl + ' reemplazadas' : ''} → ${out.length} jugadores · ${Object.keys(porLiga).length} ligas`);
+  } else if (Object.keys(window._histBase || {}).length) {
+    log(`  ⚠️ ${y} no estaba en los archivos que cargaste: el archivo trae sólo lo de esta corrida.`);
+  }
+  window._histBase && window._histBase[y] && (window._histBase[y] = out);   // dos corridas seguidas acumulan
+  return { filas: out, porLiga, clubes };
 }
 function histIdxEstado() {
   const el = document.getElementById('histIdxEstado');
