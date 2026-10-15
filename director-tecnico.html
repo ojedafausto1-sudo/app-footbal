@@ -652,6 +652,136 @@ document.write('<scr'+'ipt src="players-hist-index.js" onerror="void 0"></scr'+'
     document.write('<scr'+'ipt src="players-hist-'+y0+'.js" onerror="void 0"></scr'+'ipt>');
 })();
 </script>
+<style>
+/* ═══ FASE 71: INTERFAZ ESTILO FIFA ═══
+   El fondo es tu estadio en 3D (#bg3d). Las tarjetas del tablero son claras
+   como las del menú del FIFA; las páginas de adentro siguen con el vidrio
+   oscuro de siempre (Tactical Dark Glassmorphism), que es donde hay
+   tablas y texto denso. */
+#bg3d{position:fixed;inset:0;z-index:0;pointer-events:none;display:none;transition:filter .45s ease}
+#bg3d canvas{display:block;width:100%;height:100%}
+#bg3d:not(.blur){filter:brightness(.78) saturate(1.05)}
+#bg3d.blur{filter:blur(4px) brightness(.42) saturate(1.1)}
+body.bg3d-on{background:#0b0e14 none}
+body.bg3d-on #game{position:relative;z-index:1;background:linear-gradient(180deg,rgba(8,12,20,.38),rgba(8,12,20,.08) 30%,rgba(8,12,20,.55))}
+body.bg3d-on .main{background:transparent}
+
+/* cabecera: dos "pastillas" claras, como el FIFA */
+.fhead{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:max(10px,env(safe-area-inset-top)) 16px 4px max(16px,env(safe-area-inset-left));position:sticky;top:0;z-index:100}
+.fpill{display:flex;align-items:center;gap:10px;min-width:0;
+  background:linear-gradient(180deg,rgba(250,251,253,.95),rgba(214,220,229,.92));color:#1f2733;
+  border-radius:12px 34px 34px 12px;padding:6px 18px 6px 8px;box-shadow:0 8px 26px rgba(0,0,0,.45),inset 0 1px 0 #fff}
+.fpill.r{border-radius:34px 12px 12px 34px;padding:6px 8px 6px 18px}
+.fpill .cbadge{width:42px!important;height:42px!important;border-radius:50%!important;font-size:13px!important;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.fp-n{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;line-height:1;color:#1f2733!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.fp-s{font-size:12px;color:#4b5563!important;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.fp-s3{font-size:9px!important;color:#7a5b10!important;font-family:'Rajdhani',sans-serif;letter-spacing:.06em}
+.fr-col{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fr-top{display:flex;align-items:center;gap:8px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;color:#374151;white-space:nowrap}
+.fr-row{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.fr-niv{background:#2b3442;color:#fff;font-family:'Chakra Petch';font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px}
+.fr-bar{position:relative;width:150px;height:18px;border-radius:3px;background:#2b3442;overflow:hidden}
+.fr-bar span{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1e6fd1,#3b9bf0)}
+.fr-bar b{position:relative;display:block;text-align:center;font-family:'Chakra Petch';font-size:11px;color:#fff;line-height:18px}
+.fr-money{display:flex;align-items:center;gap:4px;background:#2b3442;color:#fff;border-radius:3px;padding:0 8px;height:18px;font-family:'Chakra Petch';font-size:12px}
+.fr-money .pv,.fr-mini .pv{color:#fff!important;font-size:12px!important}
+.fr-mini{display:flex;gap:10px;font-size:10px;color:#4b5563;font-family:'Rajdhani',sans-serif;font-weight:600}
+.fr-mini b{font-family:'Chakra Petch';color:#1f2733}
+.fr-mini .pv{color:#1f2733!important;font-size:11px!important}
+.fhbtn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:50%;width:30px;height:30px;cursor:pointer;flex-shrink:0;font-size:13px}
+
+/* navegación: palabras grandes, la activa más grande y con subrayado */
+#fnav.fnav{display:flex;gap:30px;padding:8px 24px 10px;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;overflow-x:auto;align-items:flex-end}
+#fnav .fs{position:relative;background:none;border:0;cursor:pointer;color:rgba(255,255,255,.72);font-family:'Rajdhani',sans-serif;font-weight:600;
+  font-size:21px;letter-spacing:.06em;text-transform:uppercase;padding:2px 2px 6px;white-space:nowrap;text-shadow:0 2px 10px rgba(0,0,0,.6);transition:all .2s}
+#fnav .fs:hover{color:#fff}
+#fnav .fs.on{color:#fff;font-size:27px;font-weight:700}
+#fnav .fs.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:var(--gold);box-shadow:0 0 12px rgba(var(--gold-rgb),.6)}
+.fs-n{position:absolute;top:-4px;right:-16px;min-width:18px;height:18px;border-radius:9px;background:#d92d2d;color:#fff;font-size:11px;font-family:'Chakra Petch';
+  display:none;align-items:center;justify-content:center;padding:0 4px;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+
+/* migas de pan dentro de una página */
+.fcrumb{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-family:'Rajdhani',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.fcb{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer}
+.fc-s{color:rgba(255,255,255,.65);cursor:pointer}.fc-s:hover{color:#fff}
+.fc-x{color:rgba(255,255,255,.35)}.fc-p{color:var(--gold)}
+
+/* el tablero */
+.hubgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(150px,auto);gap:10px;margin-bottom:12px}
+.ht{position:relative;overflow:hidden;cursor:pointer;border-radius:3px;padding:12px 14px 10px;min-height:150px;
+  background:linear-gradient(165deg,rgba(240,243,247,.94),rgba(206,213,222,.9));color:#2a3340;
+  box-shadow:0 12px 30px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.9);transition:transform .22s ease,box-shadow .22s ease;will-change:transform}
+.ht:hover{box-shadow:0 18px 40px rgba(0,0,0,.55),0 0 0 2px rgba(var(--gold-rgb),.65)}
+.ht-t{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:25px;line-height:.92;text-transform:uppercase;color:#4a5361;max-width:80%;
+  padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12)}
+.ht-s{font-size:11.5px;color:#4b5563;margin-top:7px;max-width:72%;line-height:1.35}
+.ht-i{position:absolute;right:-4px;bottom:-12px;font-size:78px;line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));pointer-events:none;opacity:.92}
+.ht-badge{position:absolute;top:10px;right:10px;background:#d92d2d;color:#fff;border-radius:10px;font-family:'Chakra Petch';font-size:11px;padding:1px 7px}
+.ht.big{grid-column:span 2;grid-row:span 2;background:linear-gradient(170deg,rgba(14,22,34,.93),rgba(8,14,24,.9));color:#fff;padding:14px}
+.hb-t{font-family:'Rajdhani',sans-serif;font-weight:800;font-size:30px;text-transform:uppercase;line-height:1;color:#fff;margin-bottom:10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.hb-t span{font-size:13px;font-weight:600;color:rgba(255,255,255,.6);letter-spacing:.06em}
+.hb-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.hb-kpis div{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:9px 6px;text-align:center}
+.hb-kpis b{display:block;font-family:'Chakra Petch';font-size:19px;color:#fff}
+.hb-kpis i{font-style:normal;font-size:9.5px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em}
+.hb-note{font-size:12px;color:rgba(255,255,255,.8);margin:6px 0}
+.hb-list>div{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:6px 4px;border-top:1px solid rgba(255,255,255,.07);font-size:12px}
+.hb-list>div span:nth-child(2){color:rgba(255,255,255,.55);font-size:11px}
+.hb-empty{font-size:12px;color:rgba(255,255,255,.55);padding:10px 0}
+.hb-aprob{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.hb-aprob b{font-family:'Chakra Petch';font-size:42px;line-height:1}
+.hb-aprob i{font-style:normal;font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.1em}
+.hb-bar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}.hb-bar span{display:block;height:100%}
+.hb-btn{margin-top:10px;width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#0b0e14;border:0;border-radius:6px;padding:11px;
+  font-family:'Rajdhani',sans-serif;font-weight:800;font-size:15px;letter-spacing:.05em;cursor:pointer}
+.hb-tab{width:100%;border-collapse:collapse;font-size:13px}
+.hb-tab th{font-size:9.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;text-align:left;padding:4px}
+.hb-tab td{padding:6px 4px;border-top:1px solid rgba(255,255,255,.07)}
+.hb-tab tr.me td{background:rgba(var(--gold-rgb),.16);color:#fff;font-weight:700}
+/* el once en perspectiva */
+.fo-pitch{position:relative;height:360px;margin:0 -4px}
+.fo-grass{position:absolute;inset:0;clip-path:polygon(18% 0,82% 0,100% 100%,0 100%);
+  background:repeating-linear-gradient(180deg,#3d8a3a 0 9%,#357d33 9% 18%);box-shadow:inset 0 0 60px rgba(0,0,0,.45)}
+.fo-grass::before{content:'';position:absolute;left:0;right:0;top:46%;height:2px;background:rgba(255,255,255,.55)}
+.fo-grass::after{content:'';position:absolute;left:36%;right:36%;bottom:0;height:16%;border:2px solid rgba(255,255,255,.55);border-bottom:0}
+.fo-p{position:absolute;display:flex;flex-direction:column;align-items:center;width:84px}
+.fsh{width:40px;height:36px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+.fo-l{display:flex;gap:5px;align-items:center;background:rgba(10,14,22,.85);color:#fff;font-family:'Rajdhani';font-size:11.5px;padding:0 6px;border-radius:2px 2px 0 0;margin-top:-2px}
+.fo-l i{font-style:normal;font-size:11px}
+.fo-n{background:rgba(10,14,22,.85);color:#fff;font-size:11px;font-weight:700;padding:1px 7px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fo-f{width:58px;height:3px;background:rgba(0,0,0,.6)}.fo-f span{display:block;height:100%}
+/* la portada: el partido en la tarjeta grande */
+.ovbig{cursor:default!important;padding:0!important;background:transparent!important;box-shadow:none!important}
+.ovbig .hero-match{margin:0!important;height:100%}
+#tab-ov>.stitle{display:none}
+/* visor 3D */
+#e3dOv{position:fixed;inset:0;z-index:9000;background:#05070d;display:flex;flex-direction:column}
+.e3d-top{display:flex;align-items:center;gap:12px;padding:max(10px,env(safe-area-inset-top)) 14px 10px;background:rgba(0,0,0,.6);color:#fff;font-family:'Rajdhani',sans-serif}
+.e3d-top b{font-size:20px}.e3d-top span{font-size:12px;color:rgba(255,255,255,.6);flex:1}
+.e3d-bt{display:flex;gap:6px}.e3d-bt button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 11px;
+  font-family:'Rajdhani';font-weight:700;cursor:pointer}
+#e3dHost{flex:1;position:relative;touch-action:none;cursor:grab}
+.e3d-hint{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-size:11px;color:rgba(255,255,255,.5);pointer-events:none}
+
+@media(max-width:820px){
+  .hubgrid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(118px,auto);gap:8px}
+  .ht{min-height:118px;padding:10px 11px}
+  .ht-t{font-size:18px;overflow-wrap:anywhere}.ht-i{font-size:54px}
+  .hb-kpis{grid-template-columns:repeat(2,1fr)}
+  .fo-pitch{height:300px}
+  #fnav.fnav{gap:20px;padding:6px 12px 8px}
+  #fnav .fs{font-size:16px}#fnav .fs.on{font-size:21px}
+  .fr-bar{width:96px}.fr-mini{display:none}
+  .fpill{padding:5px 12px 5px 6px}.fpill.r{padding:5px 6px 5px 12px}
+  .fp-n{font-size:15px;max-width:34vw}.fp-s{max-width:34vw;font-size:10.5px}
+}
+@media(max-width:520px){
+  .fhead{flex-wrap:wrap}
+  .fpill.r{margin-left:auto}
+  .hb-t{font-size:23px}
+}
+</style>
 </head>
 <body>
 
@@ -707,73 +837,58 @@ document.write('<scr'+'ipt src="players-hist-index.js" onerror="void 0"></scr'+'
 </div>
 
 <!-- GAME -->
+<div id="bg3d"></div>
 <div id="game" class="scr">
-  <div class="topbar" style="padding:0;min-height:52px;flex-wrap:nowrap">
-    <!-- Team section -->
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,0,0,.3);min-width:0;flex-shrink:0">
-      <div class="cbadge" id="teamBadge" style="font-size:14px;width:36px;height:36px;border-radius:8px">BJ</div>
+  <!-- ═══ CABECERA ESTILO FIFA (Fase 71) ═══
+       Conserva TODOS los ids de la barra vieja (teamBadge, teamNameTop,
+       dtTop, winStatusTop, bTop, wTop, rTop, sPts, repTop, mktPill,
+       mktStatusTop, diffPill, diffTop): updateUI los sigue llenando igual. -->
+  <div class="fhead">
+    <div class="fpill">
+      <div class="cbadge" id="teamBadge">BJ</div>
       <div style="min-width:0">
-        <div class="cname" id="teamNameTop" style="font-size:13px">Boca Juniors</div>
-        <div style="font-size:9px;color:var(--t3)" id="dtTop">DT: Claudio Úbeda</div>
-        <div id="winStatusTop" style="font-size:8px;color:var(--gold);font-family:'Rajdhani',sans-serif">⭐ PRESIDENTE</div>
+        <div class="cname fp-n" id="teamNameTop">Boca Juniors</div>
+        <div class="fp-s" id="dtTop">DT: Claudio Úbeda</div>
+        <div class="fp-s fp-s3" id="winStatusTop">⭐ PRESIDENTE</div>
       </div>
     </div>
-    <!-- Stats pills -->
-    <div class="pills" style="flex:1;padding:0 6px;justify-content:center;gap:4px;flex-wrap:wrap">
-      <div class="pill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:40px;text-align:center">
-        <span style="font-size:8px;color:var(--t3);text-transform:uppercase">Presup</span>
-        <span class="pv" id="bTop" style="font-size:11px">$28M</span>
+    <div style="display:flex;align-items:center;gap:8px;min-width:0">
+      <button class="fhbtn" id="f3dBtn" onclick="fondo3DToggle()" title="Encender/apagar el estadio 3D de fondo">🎥</button>
+      <button class="fhbtn" onclick="newGame()" title="Volver al inicio" style="opacity:.6">↩</button>
+      <div class="fpill r">
+        <div class="fr-col">
+          <div class="fr-top"><span class="pv" id="wTop" style="color:#374151!important;font-size:13px!important">S1</span>
+            <span class="fr-mini">G·E·P <span class="pv" id="rTop">0-0-0</span></span>
+            <span class="fr-mini">PTS <span class="pv" id="sPts">0</span></span>
+            <span class="fr-mini">APROB <b id="fAprob">—</b></span>
+            <span class="fr-mini" id="mktPill">MERCADO <span id="mktStatusTop" style="font-weight:700">Abierto</span></span>
+            <span class="fr-mini" id="diffPill" style="display:none"><span class="pv" id="diffTop">NORMAL</span></span></div>
+          <div class="fr-row"><span class="fr-niv" id="fRepNiv">—</span>
+            <div class="fr-bar"><span id="fRepBar" style="width:50%"></span><b>REP <span id="repTop">78</span>/100</b></div>
+            <div class="fr-money">💰 <span class="pv" id="bTop">$28M</span></div></div>
+        </div>
+        <div class="cbadge" id="fBadge2">BJ</div>
       </div>
-      <div class="pill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:40px;text-align:center">
-        <span style="font-size:8px;color:var(--t3);text-transform:uppercase">Semana</span>
-        <span class="pv" id="wTop" style="font-size:11px">S1</span>
-      </div>
-      <div class="pill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:52px;text-align:center">
-        <span style="font-size:8px;color:var(--t3);text-transform:uppercase">G·E·P</span>
-        <span class="pv" id="rTop" style="font-size:11px">0-0-0</span>
-      </div>
-      <div class="pill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:40px;text-align:center">
-        <span style="font-size:8px;color:var(--t3);text-transform:uppercase">Pts</span>
-        <span class="pv" id="sPts" style="font-size:11px;color:var(--gold)">0</span>
-      </div>
-      <div class="pill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:40px;text-align:center">
-        <span style="font-size:8px;color:var(--t3);text-transform:uppercase">Rep</span>
-        <span class="pv" id="repTop" style="font-size:11px">78</span>
-      </div>
-      <div class="pill" id="mktPill" style="flex-direction:column;gap:0;padding:4px 8px;min-width:52px;text-align:center">
-        <span style="font-size:8px;color:var(--t3)">Mercado</span>
-        <span id="mktStatusTop" style="font-size:9px;color:#0fb866;font-weight:700">Abierto</span>
-      </div>
-      <div class="pill" id="diffPill" style="display:none;flex-direction:column;gap:0;padding:4px 8px">
-        <span style="font-size:8px;color:var(--t3)">Dif</span>
-        <span class="pv" id="diffTop" style="font-size:11px">NORMAL</span>
-      </div>
-    </div>
-    <div style="padding:6px 8px;flex-shrink:0">
-      <button class="btn bo bs" onclick="newGame()" style="font-size:9px;padding:3px 8px;opacity:.55">↩</button>
     </div>
   </div>
-  <div class="nav">
-    <button class="nb on" onclick="gTab('ov',this)"><span class="ni">🏠</span>INICIO</button>
-    <button class="nb" onclick="gTab('sq',this)"><span class="ni">👥</span>PLANTEL</button>
-    <button class="nb" onclick="gTab('tac',this);rTacticaTab()"><span class="ni">⚽</span>TÁCTICA</button>
-    <button class="nb" onclick="gTab('dt',this);rDtTab()"><span class="ni">🎯</span>MI DT</button>
-    <button class="nb" onclick="gTab('mkt',this)"><span class="ni">💰</span>MERCADO</button>
-    <button class="nb" onclick="gTab('stad',this)"><span class="ni">🏟️</span>ESTADIO</button>
-    <button class="nb" onclick="gTab('juv',this)"><span class="ni">🌱</span>JUVENILES</button>
-    <button class="nb" onclick="gTab('ct',this)"><span class="ni">🤝</span>CT</button>
-    <button class="nb" onclick="gTab('pat',this);rSponsors()"><span class="ni">📋</span>PATROC.</button>
-    <button class="nb" onclick="gTab('cal',this)"><span class="ni">📅</span>TEMPORADA</button>
-    <button class="nb" onclick="gTab('stats',this);rStats()"><span class="ni">📊</span>STATS</button>
-    <button class="nb" onclick="gTab('news',this);rNewsTab()"><span class="ni">📰</span>NOTICIAS</button>
-    <button class="nb" onclick="gTab('social',this);rSocial()"><span class="ni">📱</span>REDES</button>
-    <button class="nb" onclick="gTab('pres',this);rPresTab()"><span class="ni">🏛️</span>PRESIDENTE</button>
+  <!-- Cinco secciones, como el menú de carrera del FIFA. Cada una abre un
+       tablero de tarjetas que lleva a las 15 pestañas de siempre. -->
+  <div class="nav fnav" id="fnav">
+    <button class="fs on" data-sec="central" onclick="irSec('central')">Central<span class="fs-n"></span></button>
+    <button class="fs" data-sec="plantel" onclick="irSec('plantel')">Plantel<span class="fs-n"></span></button>
+    <button class="fs" data-sec="mercado" onclick="irSec('mercado')">Mercado<span class="fs-n"></span></button>
+    <button class="fs" data-sec="oficina" onclick="irSec('oficina')">Oficina<span class="fs-n"></span></button>
+    <button class="fs" data-sec="temporada" onclick="irSec('temporada')">Temporada<span class="fs-n"></span></button>
   </div>
   <div class="main">
+    <div id="fCrumb" class="fcrumb" style="display:none"></div>
+    <!-- TABLERO de una sección (Plantel, Mercado, Oficina, Temporada) -->
+    <div id="tab-hub" class="tc"><div class="hubgrid" id="hubGrid"></div></div>
 
     <!-- RESUMEN -->
     <div id="tab-ov" class="tc on">
       <div class="stitle">🏠 Inicio <span style="font-size:12px;color:var(--t3);font-weight:400" id="ovSeason"></span></div>
+      <div class="hubgrid" id="ovGrid"><div class="ht big notilt ovbig">
       <div class="hero-match" style="margin-bottom:10px">
         <div class="hm-comp" id="nComp">PRÓXIMO PARTIDO</div>
         <div class="hm-teams">
@@ -804,6 +919,7 @@ document.write('<scr'+'ipt src="players-hist-index.js" onerror="void 0"></scr'+'
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
       </div>
+      </div><div id="ovTiles" style="display:contents"></div></div>
       <div id="friendlyBox">
       </div>
       <div class="g3" style="margin-bottom:10px">
@@ -6579,6 +6695,11 @@ function updateUI(){
   // mira. La portada y la barra de arriba se dibujan siempre: están a la vista.
   tabsSucias();
   pintarTab(tabActiva());
+  // Cabecera y numeritos de la navegación (Fase 71). El fondo 3D se arma una
+  // sola vez por estadio: sólo se reconstruye si cambia el club, la capacidad
+  // o el techo.
+  try{ rFHead(); rFNav(); }catch(e){ console.error('cabecera',e); }
+  try{ if(_F3.on&&fondo3DKey()!==_F3.key) fondo3DInit(); }catch(e){}
   if($('diffPill')&&G.diff!==undefined){$('diffPill').style.display='flex';const dl=['😊 FÁCIL','⚽ NORMAL','💀 DIFÍCIL'];$('diffTop').textContent=dl[G.diff];}
   rDtPedidos();
   rPressDemands();
@@ -6854,8 +6975,10 @@ function openP(id, inSquad){
       ` : `
         ${esLibre(p)?`
         <button class="btn bg bs" onclick="negStartPlayer('${p.id}')">🆓 Arreglar contrato (llega sin ficha)</button>
+        <button class="btn bo bs" data-sigue="1" onclick="seguirToggle('${p.id}')">${sigo(p.id)?'★ Siguiendo':'☆ Seguir'}</button>
         ` : `
         <button class="btn bg bs" onclick="openNeg('${p.id}')">🤝 Negociar ficha</button>
+        <button class="btn bo bs" data-sigue="1" onclick="seguirToggle('${p.id}')">${sigo(p.id)?'★ Siguiendo':'☆ Seguir'}</button>
         ${clauseOf(p)>0?`<button class="btn bo bs" onclick="payClause('${p.id}')">💥 Cláusula</button>`:''}
         <button class="btn bo bs" onclick="buyHalfPass('${p.id}')">➗ % del pase</button>
         <button class="btn bo bs" onclick="openSwap('${p.id}')">🔄 Canje</button>
@@ -7928,7 +8051,8 @@ function renderMkt(){
     return `
     <div class="mkrow" onclick="openP('${p.id}',false)">
       <div style="position:relative">${rbK(p)}<span onclick="event.stopPropagation();cmpToggle('${p.id}')"
-        title="Comparar" style="position:absolute;top:-6px;left:-7px;font-size:11px;cursor:pointer;opacity:${(G._cmp||[]).includes(p.id)?1:.28}">⚖️</span></div>
+        title="Comparar" style="position:absolute;top:-6px;left:-7px;font-size:11px;cursor:pointer;opacity:${(G._cmp||[]).includes(p.id)?1:.28}">⚖️</span><span onclick="event.stopPropagation();seguirToggle('${p.id}')"
+        title="Seguir" style="position:absolute;bottom:-7px;left:-7px;font-size:11px;cursor:pointer;opacity:${sigo(p.id)?1:.28}">⭐</span></div>
       <div><div class="pn">${p.name}${tag}</div><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${ptag(p.pos)}${p.pos2?`<span style="font-size:8px;color:var(--t3);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:0 3px" title="También juega de ${p.pos2}">↔${p.pos2}</span>`:''} <span style="font-size:9px;color:var(--t3)">${p.nat}</span>${vb}</div></div>
       <div style="display:flex;align-items:center;gap:5px;font-size:9px;color:var(--t2)" title="${p.club}">${clubCrest(p.club,18)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.lg.split(' ')[0]}</span></div>
       <div class="ac" style="display:flex;flex-direction:column;align-items:center;gap:1px"><span>${p.age}</span>${ageLabel(p.age)}</div>
@@ -16428,6 +16552,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyIndisciplina();
   weeklyConflictivos(); // cierre mensual: el crack conflictivo que no juega
   weeklyJunta();        // el Director Deportivo renueva solo, si delegaste
+  weeklySeguimiento();  // el ojeador avisa qué pasó con tu lista
   weeklyDilema();
   eleccionAviso();
   weeklyYouth();
@@ -21885,6 +22010,8 @@ function startFullMatch(watch){
       <div style="display:flex;gap:5px;flex-shrink:0">
         <button onclick="fmToggleMute(this)" id="fm-mutebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔊</button>
         <button onclick="fmShowHelp()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">?</button>
+        <button onclick="fm3DToggle()" id="fm-3dbtn" title="Ver el partido en 3D" style="background:rgba(var(--gold-rgb),.15);border:1px solid rgba(var(--gold-rgb),.55);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">3D</button>
+        <button onclick="fm3DCamara()" title="Cambiar la cámara 3D" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">🎥</button>
         <button onclick="fmPause()" id="fm-pausebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">⏸</button>
         <button onclick="fmOpenSubs()" id="fm-subsbtn" title="Cambios" style="background:rgba(var(--gold-rgb),.15);border:1px solid rgba(var(--gold-rgb),.55);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔄</button>
         <button onclick="fmEnd()" style="background:rgba(var(--gold-rgb),.15);border:1px solid var(--gold);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
@@ -23170,7 +23297,9 @@ function fmLoop(ts){
   if(pasos>170)pasos=170;            // si el navegador se trabó, no recupera todo de golpe
   for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++)fmTick(1);
   if(FM)FM._dtLast=Math.max(0.3,Math.min(4,real/PASO_MS));   // cuánto avanza la lluvia este cuadro
-  if(FM&&FM.phase!=='done')fmDraw();
+  // Con la vista 3D puesta el canvas 2D está oculto: dibujarlo igual es tirar
+  // los cuadros que el 3D necesita (Fase 71).
+  if(FM&&FM.phase!=='done'&&!(typeof _FM3!=='undefined'&&_FM3.on))fmDraw();
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
@@ -26861,6 +26990,7 @@ function gTab(name, btn){
   // Se dibuja al ENTRAR, que es cuando se mira. Si la pestaña ya está limpia
   // no se toca: entrar y salir de una pestaña no puede costar 58 ms.
   if(_tabSucia[name]!==false) pintarTab(name);
+  try{ fUISync(name); }catch(e){ console.error('fUISync',e); }
 }
 // ═══ TEMAS DE COLOR (acento de la interfaz) ═══
 // OJO: esto es la fuente de verdad de --gold, no el :root. applyTheme() corre
@@ -28741,6 +28871,955 @@ function rejectDtReqPhone(id){
     if(tc) document.getElementById('teamSelect').style.borderTop = '4px solid ' + tc.color;
   } catch(e){}
 })();
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 71: LA INTERFAZ ESTILO FIFA, EL 3D Y TRES FUNCIONES DE GESTIÓN
+// ═══════════════════════════════════════════════════════════════════════
+// Las 15 pestañas NO se reescribieron: siguen siendo los mismos `.tc` con los
+// mismos ids y los mismos renders de `_TAB_R`. Lo que cambió es cómo se llega
+// a ellas: cinco secciones (Central · Plantel · Mercado · Oficina · Temporada)
+// con un tablero de tarjetas cada una, como el menú de carrera del FIFA.
+// ⚠️ Todo el estado de esta capa es de PANTALLA (`_hubSec`, la preferencia
+// del fondo 3D en localStorage) y vive fuera de `G`. Lo único que se guarda
+// en `G` son los datos de las funciones nuevas: `G.shortlist` (ids y club) y
+// `G.numsRetirados`, que ya existía.
+const FSEC=[
+  {id:'central',t:'Central'},
+  {id:'plantel',t:'Plantel'},
+  {id:'mercado',t:'Mercado'},
+  {id:'oficina',t:'Oficina'},
+  {id:'temporada',t:'Temporada'},
+];
+const TAB_SEC={ov:'central',news:'central',social:'central',sq:'plantel',tac:'plantel',dt:'plantel',
+  trn:'plantel',juv:'plantel',mkt:'mercado',ct:'mercado',pres:'oficina',pat:'oficina',stad:'oficina',
+  cal:'temporada',stats:'temporada'};
+const TAB_NOM={ov:'Inicio',news:'Noticias',social:'Redes',sq:'Plantel',tac:'Táctica',dt:'Mi DT',
+  trn:'Entrenamiento',juv:'Juveniles',mkt:'Mercado de pases',ct:'Cuerpo técnico',pres:'Presidencia',
+  pat:'Patrocinios',stad:'Estadio',cal:'Calendario',stats:'Estadísticas'};
+// Lo que el botón viejo de la barra llamaba además de gTab: se respeta tal cual.
+const TAB_EXTRA={tac:'rTacticaTab',dt:'rDtTab',pat:'rSponsors',stats:'rStats',news:'rNewsTab',social:'rSocial',pres:'rPresTab'};
+let _hubSec='central';
+
+function irTab(name){
+  gTab(name,null);
+  const f=TAB_EXTRA[name];
+  if(f&&typeof window[f]==='function'){ try{ window[f](); }catch(e){ console.error('irTab',name,e); } }
+  const m=document.querySelector('#game .main'); if(m) m.scrollTop=0;
+}
+function irSec(sec){
+  if(sec==='central'){ irTab('ov'); return; }
+  _hubSec=sec; _tabSucia.hub=true;
+  gTab('hub',null);
+  const m=document.querySelector('#game .main'); if(m) m.scrollTop=0;
+}
+// Lo llama gTab cada vez: resalta la sección, arma la miga y decide si el
+// fondo 3D se ve nítido (tablero) o desenfocado (adentro de una página).
+function fUISync(name){
+  const sec=name==='hub'?_hubSec:(TAB_SEC[name]||'central');
+  document.querySelectorAll('#fnav .fs').forEach(b=>{ const on=b.dataset.sec===sec; b.classList.toggle('on',on);
+    // En el celular la barra se desplaza: la sección activa tiene que quedar a la vista.
+    if(on&&b.parentNode&&b.parentNode.scrollWidth>b.parentNode.clientWidth) b.parentNode.scrollLeft=Math.max(0,b.offsetLeft-b.parentNode.clientWidth/2+b.offsetWidth/2); });
+  const cr=document.getElementById('fCrumb');
+  if(cr){
+    const enTablero=(name==='hub'||name==='ov');
+    cr.style.display=enTablero?'none':'flex';
+    if(!enTablero){
+      const st=FSEC.find(s=>s.id===sec)||FSEC[0];
+      cr.innerHTML=`<button class="fcb" onclick="irSec('${sec}')">◀</button>
+        <span class="fc-s" onclick="irSec('${sec}')">${st.t}</span><span class="fc-x">›</span><span class="fc-p">${TAB_NOM[name]||name}</span>`;
+    }
+  }
+  try{ fondo3DModo(name==='hub'||name==='ov'?'hub':'pag'); }catch(e){}
+}
+
+// ═══ LA CABECERA Y LA NAVEGACIÓN ═══
+// Los ids de la barra vieja (bTop, wTop, rTop, repTop, teamNameTop…) se
+// conservan adentro de la cabecera nueva: updateUI los sigue llenando igual.
+function rFHead(){
+  if(!G)return;
+  const rep=Math.round(G.rep||0);
+  const b=document.getElementById('fRepBar'); if(b) b.style.width=Math.max(2,Math.min(100,rep))+'%';
+  const nv=document.getElementById('fRepNiv');
+  if(nv) nv.textContent=rep>=90?'ÉLITE':rep>=78?'GRANDE':rep>=65?'MEDIANO':rep>=50?'MODESTO':'CHICO';
+  const ap=document.getElementById('fAprob');
+  if(ap&&typeof aprobacion==='function'){ const a=aprobacion(); ap.textContent=a+'%'; ap.style.color=a>=50?'#0f8f5c':a>=25?'#b7791f':'#c53030'; }
+  const sb=document.getElementById('fBadge2'), tb=document.getElementById('teamBadge');
+  if(sb&&tb){ sb.textContent=tb.textContent; sb.style.background=tb.style.background; sb.style.color=tb.style.color; }
+}
+// Cuántas cosas esperan una decisión en cada sección: el numerito rojo del
+// OFFICE del FIFA. Sale del estado, no se guarda.
+function fPendientes(){
+  if(!G)return{};
+  const ofi=(typeof aprobaciones==='function'?aprobaciones().length:0)+(typeof ofertasSponsor==='function'?ofertasSponsor().length:0);
+  const mer=(G.offers||[]).length;
+  const cen=(G.phoneMsgs||[]).filter(m=>!m.read).length;
+  const pla=(typeof informePlantel==='function')?informePlantel().alertas.filter(a=>a.grave).length:0;
+  return {oficina:ofi,mercado:mer,central:cen,plantel:pla};
+}
+function rFNav(){
+  const pend=fPendientes();
+  document.querySelectorAll('#fnav .fs').forEach(b=>{
+    const n=pend[b.dataset.sec]||0, bd=b.querySelector('.fs-n');
+    if(bd){ bd.textContent=n>9?'9+':n; bd.style.display=n?'flex':'none'; }
+  });
+}
+
+// ═══ LAS TARJETAS ═══
+const _esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fTile(T){
+  let sub='';
+  try{ sub=typeof T.s==='function'?T.s():(T.s||''); }catch(e){ sub=''; }
+  const act=T.tab?`irTab('${T.tab}')`:(T.fn||'');
+  return `<div class="ht${T.cls?' '+T.cls:''}" onclick="${act}">
+    <div class="ht-t">${T.t}</div>
+    <div class="ht-s">${sub}</div>
+    <div class="ht-i">${T.i}</div>
+    ${T.n?`<div class="ht-n">${T.n()||''}</div>`:''}
+  </div>`;
+}
+function _tilt(el){
+  // 3D en la interfaz: la tarjeta se inclina hacia el puntero, como una carta.
+  // Sólo transform: no toca el layout y no cuesta un repintado.
+  el.querySelectorAll('.ht:not(.notilt)').forEach(t=>{
+    if(t._tilt)return; t._tilt=1;
+    t.addEventListener('pointermove',e=>{
+      if(e.pointerType!=='mouse')return;
+      const r=t.getBoundingClientRect(), x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+      t.style.transform=`perspective(900px) rotateY(${x*7}deg) rotateX(${-y*7}deg) translateY(-3px)`;
+    });
+    t.addEventListener('pointerleave',()=>{ t.style.transform=''; });
+  });
+}
+
+// La camiseta del once, dibujada: un SVG con el color del club y el dorsal.
+function fShirt(num,c1,c2,gk){
+  const fill=gk?'#f2a33a':c1, tx=gk?'#3a2208':c2;
+  return `<svg viewBox="0 0 40 36" class="fsh"><path d="M13 2 L6 5 L1 12 L6 16 L9 13 L9 34 L31 34 L31 13 L34 16 L39 12 L34 5 L27 2 Q20 7 13 2Z"
+    fill="${fill}" stroke="rgba(0,0,0,.35)" stroke-width="1"/><text x="20" y="27" text-anchor="middle" font-family="Chakra Petch,sans-serif"
+    font-weight="700" font-size="13" fill="${tx}">${num||''}</text></svg>`;
+}
+function _colClub(){
+  const t=(typeof TEAMS!=='undefined'&&G)?TEAMS[G.teamId]:null;
+  return (t&&t.color)||'#1d4ed8';
+}
+function _cssVar(v,fb){
+  v=String(v||'');
+  const m=v.match(/var\((--[\w-]+)\)/);
+  return m?(getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim()||fb):(v||fb);
+}
+// El once en perspectiva, como la cancha del menú del FIFA: el arco propio
+// adelante y el rival al fondo. Las coordenadas son las del dibujo de la
+// formación (`getForm()`), proyectadas en un trapecio.
+function fOnceBig(){
+  const sl=getForm(), kit=(typeof kitFor==='function')?kitFor(G.teamName):{c1:_colClub(),c2:'#fff'};
+  const c1=_cssVar(kit.c1,_colClub()), c2=_cssVar(kit.c2,'#fff');
+  const fl=p=>{ const f=p.form||0; return f>=2?'⬆':f>=1?'⬈':f<=-2?'⬇':f<=-1?'⬊':'➡'; };
+  const flc=p=>{ const f=p.form||0; return f>=1?'#7ee2a8':f<=-1?'#ff8a8a':'#cfd8e3'; };
+  const pts=sl.map((s,i)=>{
+    const p=G.slots[i]?G.squad.find(x=>x.id===G.slots[i]):null;
+    const t=s.y/100, k=0.62+0.38*t;                 // más chico al fondo
+    const x=50+(s.x-50)*k, y=10+t*76;
+    const fit=p?fitOf(p):0;
+    return `<div class="fo-p" style="left:${x}%;top:${y}%;transform:translate(-50%,-50%) scale(${0.78+0.28*t})">
+      ${fShirt(p?p.num:'',c1,c2,s.pos==='ARQ')}
+      <div class="fo-l"><b>${s.lbl}</b>${p?`<i style="color:${flc(p)}">${fl(p)}</i>`:''}</div>
+      <div class="fo-n">${p?_esc(p.name.split(' ').pop()):'—'}</div>
+      ${p?`<div class="fo-f"><span style="width:${fit}%;background:${fit>=80?'#10b981':fit>=60?'#f59e0b':'#e84545'}"></span></div>`:''}
+    </div>`;
+  }).join('');
+  return `<div class="hb-t">Once inicial<span>${_esc(G.formation||'')}</span></div>
+    <div class="fo-pitch"><div class="fo-grass"></div>${pts}</div>`;
+}
+function fMercadoBig(){
+  const abierto=typeof isTransferWindowOpen==='function'&&isTransferWindowOpen();
+  const negs=(G.negs||[]).length, offs=(G.offers||[]).length, sg=seguidos();
+  const enc=(typeof encargo==='function')&&encargo();
+  return `<div class="hb-t">Mercado de pases<span style="color:${abierto?'#34d399':'#f87171'}">${abierto?'● ventana abierta':'● ventana cerrada'}</span></div>
+    <div class="hb-kpis">
+      <div><b>${fv(G.budget||0)}</b><i>presupuesto</i></div>
+      <div><b>${negs}</b><i>negociaciones</i></div>
+      <div><b>${offs}</b><i>ofertas recibidas</i></div>
+      <div><b>${sg.length}</b><i>en seguimiento</i></div>
+    </div>
+    ${enc?`<div class="hb-note">🤝 El Consejo está buscando un <b>${_esc(enc.pos)}</b> (tope ${fv(enc.tope)})</div>`:''}
+    <div class="hb-list">${sg.slice(0,4).map(p=>`<div onclick="event.stopPropagation();openP('${p.id}',false)">
+      <span>${_esc(p.name)}</span><span>${_esc(p.club||'')}</span><span>${rbK(p)}</span></div>`).join('')
+      ||'<div class="hb-empty">Marcá jugadores con ⭐ en el mercado y aparecen acá.</div>'}</div>`;
+}
+function fOficinaBig(){
+  const a=typeof aprobacion==='function'?aprobacion():50;
+  const carp=typeof aprobaciones==='function'?aprobaciones().length:0;
+  const socios=(typeof sociosActivos==='function'?sociosActivos():(G.socios||0));
+  return `<div class="hb-t">Presidencia<span>${_esc(G.stadium&&G.stadium.name||'')}</span></div>
+    <div class="hb-aprob"><b style="color:${a>=50?'#34d399':a>=25?'#fbbf24':'#f87171'}">${a}%</b><i>aprobación</i>
+      <div class="hb-bar"><span style="width:${a}%;background:${a>=50?'#10b981':a>=25?'#f59e0b':'#e84545'}"></span></div></div>
+    <div class="hb-kpis">
+      <div><b>${fv(G.budget||0)}</b><i>caja</i></div>
+      <div><b>${Math.round(socios/1000)}k</b><i>socios</i></div>
+      <div><b>${Math.round(G.fanMood||0)}</b><i>humor hinchada</i></div>
+      <div><b>${carp}</b><i>en la Carpeta</i></div>
+    </div>
+    <button class="hb-btn" onclick="event.stopPropagation();abrirEstadio3D()">🏟️ Recorrer el estadio en 3D</button>`;
+}
+function fTemporadaBig(){
+  let rows=[];
+  try{ ensureLeague(); rows=leagueSorted(); }catch(e){}
+  const mi=rows.findIndex(r=>r.club===G.teamName);
+  let vis=rows.slice(0,6);
+  if(mi>=6) vis=vis.slice(0,4).concat([null],rows.slice(Math.max(6,mi-1),mi+2));
+  return `<div class="hb-t">Tabla<span>${_esc((typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[ligaMia()])||ligaMia())} · ${G.season||''}</span></div>
+    <table class="hb-tab"><tr><th></th><th>Club</th><th>PJ</th><th>DIF</th><th>PTS</th></tr>
+    ${vis.map(r=>r?`<tr class="${r.club===G.teamName?'me':''}"><td>${rows.indexOf(r)+1}</td><td>${_esc(r.club)}</td><td>${r.pj}</td>
+      <td>${r.gf-r.gc>0?'+':''}${r.gf-r.gc}</td><td><b>${r.pts}</b></td></tr>`:'<tr><td colspan="5" style="text-align:center;opacity:.5">⋯</td></tr>').join('')}
+    </table>`;
+}
+const HUBS={
+  plantel:{big:fOnceBig,bigTab:'tac',tiles:[
+    {t:'Plantel',i:'👥',tab:'sq',s:()=>`${G.squad.length} jugadores`},
+    {t:'Táctica',i:'📋',tab:'tac',s:()=>G.formation||''},
+    {t:'Informe del plantel',i:'🩺',fn:'abrirInforme()',s:()=>{const a=informePlantel().alertas;return a.length?`${a.length} cosa${a.length===1?'':'s'} para mirar`:'Plantel equilibrado';},
+      n:()=>{const g=informePlantel().alertas.filter(a=>a.grave).length;return g?`<span class="ht-badge">${g}</span>`:'';}},
+    {t:'Dorsales',i:'🎽',fn:'abrirDorsales()',s:()=>{const c=dorsalesConflictos();return c.length?`${c.length} para resolver`:'Todo en orden';}},
+    {t:'Mi DT',i:'🎯',tab:'dt',s:()=>_esc(G.dt&&G.dt.name||'')},
+    {t:'Entrenamiento',i:'🏋️',tab:'trn',s:()=>G.trainFocus?_esc(G.trainFocus):''},
+    {t:'Juveniles',i:'🌱',tab:'juv',s:()=>'La cantera'},
+  ]},
+  mercado:{big:fMercadoBig,bigTab:'mkt',tiles:[
+    {t:'Buscar jugadores',i:'🔍',tab:'mkt',s:()=>`${(G.market||[]).length.toLocaleString('es')} en el mercado`},
+    {t:'Seguimiento',i:'⭐',fn:'abrirSeguimiento()',s:()=>`${seguidos().length} jugadores`},
+    {t:'Encargar al Consejo',i:'🤝',fn:'encargoModal()',s:()=>{const e=typeof encargo==='function'&&encargo();return e?'Búsqueda en curso':'El Mánager sale a buscar';}},
+    {t:'Cuerpo técnico',i:'👔',tab:'ct',s:()=>'Técnicos y staff'},
+  ]},
+  oficina:{big:fOficinaBig,bigTab:'pres',tiles:[
+    {t:'Estadio',i:'🏟️',tab:'stad',s:()=>`${_esc(G.stadium&&G.stadium.name||'')} · ${((G.stadium&&G.stadium.capacity)||0).toLocaleString('es')}`},
+    {t:'Sala de trofeos',i:'🏆',fn:'abrirTrofeos3D()',s:()=>{const n=_trofeosLista().reduce((a,t)=>a+t.n,0);return n?`${n} título${n===1?'':'s'} · en 3D`:'Vacía, por ahora';}},
+    {t:'Patrocinios',i:'🤝',tab:'pat',s:()=>`${(G.sponsors||[]).length} contratos · ${ofertasSponsor().length} ofertas`},
+    {t:'Redes',i:'📱',tab:'social',s:()=>'Lo que dice la gente'},
+  ]},
+  temporada:{big:fTemporadaBig,bigTab:'cal',tiles:[
+    {t:'Calendario',i:'📅',tab:'cal',s:()=>{const m=(G.calendar||[]).find(x=>!x.played);return m?`Próximo: ${_esc(m.home===G.teamName?m.away:m.home)}`:'';}},
+    {t:'Estadísticas',i:'📊',tab:'stats',s:()=>'Goleadores y números'},
+    {t:'Noticias',i:'📰',tab:'news',s:()=>'El diario'},
+  ]},
+};
+function rHub(){
+  const el=document.getElementById('hubGrid'); if(!el||!G)return;
+  const S=HUBS[_hubSec]; if(!S){ el.innerHTML=''; return; }
+  let big='';
+  try{ big=S.big(); }catch(e){ console.error('rHub',_hubSec,e); big='<div class="hb-empty">—</div>'; }
+  el.innerHTML=`<div class="ht big" onclick="irTab('${S.bigTab}')">${big}</div>`+S.tiles.map(fTile).join('');
+  _tilt(el);
+}
+// CENTRAL es la portada de siempre: el partido va en la tarjeta grande y al
+// lado las cuatro chicas. Se dibuja con la portada (`_TAB_R.ov`).
+function rOvTiles(){
+  const el=document.getElementById('ovTiles'); if(!el||!G)return;
+  const nl=(G.phoneMsgs||[]).filter(m=>!m.read).length;
+  el.innerHTML=[
+    {t:'Celular',i:'📲',fn:'openPhone()',s:()=>nl?`${nl} sin leer`:'Al día'},
+    {t:'Noticias',i:'📰',tab:'news',s:()=>'El diario'},
+    {t:'Tabla',i:'🏆',fn:"irSec('temporada')",s:()=>{try{return 'Vas '+myLeaguePos()+'º';}catch(e){return '';}}},
+    {t:'Redes',i:'📱',tab:'social',s:()=>'La hinchada'},
+  ].map(fTile).join('');
+  _tilt(document.getElementById('ovGrid')||el);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INFORME DEL PLANTEL — lo que un mánager mira antes de abrir el mercado
+// ═══════════════════════════════════════════════════════════════════════
+// Todo DERIVADO del plantel y de la formación: no guarda nada. Mira puesto
+// por puesto de TU dibujo (no una formación genérica) quién lo puede jugar,
+// y avisa lo que en la cancha se paga: un puesto sin recambio, un titular
+// veterano sin reemplazo, contratos que se van, la línea más floja.
+function _candidatos(pos){
+  return G.squad.filter(p=>!p.colgado&&(p.pos===pos||p.pos2===pos));
+}
+function informePlantel(){
+  const out={lineas:[],puestos:[],alertas:[]};
+  if(!G||!G.squad)return out;
+  const sl=getForm(), vistos={};
+  sl.forEach(s=>{
+    if(vistos[s.pos]){ vistos[s.pos].need++; return; }
+    const c=_candidatos(s.pos).sort((a,b)=>b.rat-a.rat);
+    vistos[s.pos]={pos:s.pos,lbl:s.lbl,need:1,c};
+  });
+  Object.values(vistos).forEach(v=>{
+    const tit=v.c.slice(0,v.need), sup=v.c.slice(v.need);
+    v.tit=tit; v.sup=sup;
+    out.puestos.push(v);
+    if(v.c.length<v.need) out.alertas.push({grave:true,txt:`No tenés quién juegue de <b>${v.pos}</b>: la formación pide ${v.need} y hay ${v.c.length}.`});
+    else if(!sup.length) out.alertas.push({grave:true,txt:`<b>${v.pos}</b> sin recambio: si se lesiona ${_esc(tit[tit.length-1].name)}, juega alguien fuera de puesto.`});
+    const vet=tit.find(p=>p.age>=33);
+    if(vet&&!v.c.some(p=>p!==vet&&p.age<=29&&p.rat>=vet.rat-6))
+      out.alertas.push({grave:false,txt:`El ${v.pos} titular, <b>${_esc(vet.name)}</b>, tiene ${vet.age} y no hay un reemplazo joven de su nivel.`});
+    if(tit.length&&sup.length&&sup[0].rat<tit[0].rat-12)
+      out.alertas.push({grave:false,txt:`En <b>${v.pos}</b> el suplente (${sup[0].rat}) está muy lejos del titular (${tit[0].rat}).`});
+  });
+  ['ARQ','DEF','MED','DEL'].forEach(g=>{
+    const ps=G.squad.filter(p=>pgr(p.pos)===g);
+    const top=ps.slice().sort((a,b)=>b.rat-a.rat).slice(0,g==='ARQ'?1:4);
+    const media=top.length?Math.round(top.reduce((a,p)=>a+p.rat,0)/top.length):0;
+    const edad=ps.length?(ps.reduce((a,p)=>a+p.age,0)/ps.length):0;
+    const vence=ps.filter(p=>contractMonths(p)<=12).length;
+    const les=ps.filter(p=>p.injured).length;
+    const pibes=ps.filter(p=>p.age<=21&&(p.pot||0)>=80).length;
+    out.lineas.push({g,n:ps.length,media,edad,vence,les,pibes});
+  });
+  const conMedia=out.lineas.filter(l=>l.n);
+  if(conMedia.length>1){
+    const fl=conMedia.slice().sort((a,b)=>a.media-b.media)[0], bu=conMedia.slice().sort((a,b)=>b.media-a.media)[0];
+    if(bu.media-fl.media>=5) out.alertas.push({grave:false,txt:`La línea más floja es <b>${({ARQ:'el arco',DEF:'la defensa',MED:'el medio',DEL:'el ataque'})[fl.g]}</b> (${fl.media} contra ${bu.media}): por ahí conviene reforzar.`});
+  }
+  const venc=G.squad.filter(p=>contractMonths(p)<=6&&p.rat>=Math.max(70,(conMedia[0]||{media:70}).media-4));
+  if(venc.length) out.alertas.push({grave:venc.length>=3,txt:`${venc.length} jugador${venc.length===1?'':'es'} importante${venc.length===1?'':'s'} con el contrato por vencer: ${venc.slice(0,3).map(p=>_esc(p.name)).join(', ')}${venc.length>3?'…':''}.`});
+  return out;
+}
+function abrirInforme(){
+  if(!G)return;
+  const I=informePlantel();
+  const nomL={ARQ:'Arco',DEF:'Defensa',MED:'Mediocampo',DEL:'Ataque'};
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🩺 Informe del plantel</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Puesto por puesto, contra el dibujo que usa hoy el técnico (${_esc(G.formation||'')}).</div>
+    ${I.alertas.length?I.alertas.map(a=>`<div class="mpanel" style="margin-bottom:5px;padding:8px 10px;border-left:3px solid ${a.grave?'var(--red)':'var(--gold)'}">
+      <span style="font-size:11.5px">${a.grave?'🔴':'🟡'} ${a.txt}</span></div>`).join('')
+      :'<div class="mpanel" style="padding:9px;margin-bottom:6px;border-left:3px solid var(--green)">🟢 El plantel está equilibrado: todos los puestos tienen recambio.</div>'}
+    <div class="g2" style="margin:10px 0">${I.lineas.map(l=>`<div class="mpanel" style="padding:9px">
+      <div style="font-family:'Rajdhani';font-weight:700;font-size:14px;margin-bottom:4px">${nomL[l.g]} <span style="color:var(--t3);font-size:11px">· ${l.n}</span></div>
+      <div class="sr"><span class="sl">Media de los titulares</span><span class="sv">${l.media||'—'}</span></div>
+      <div class="sr"><span class="sl">Edad media</span><span class="sv">${l.edad?l.edad.toFixed(1):'—'}</span></div>
+      <div class="sr"><span class="sl">Contratos ≤12 meses</span><span class="sv" style="color:${l.vence?'var(--gold)':'inherit'}">${l.vence}</span></div>
+      <div class="sr"><span class="sl">Lesionados</span><span class="sv" style="color:${l.les?'var(--red)':'inherit'}">${l.les}</span></div>
+      <div class="sr"><span class="sl">Promesas (sub-21, techo 80+)</span><span class="sv" style="color:${l.pibes?'var(--green)':'inherit'}">${l.pibes}</span></div>
+    </div>`).join('')}</div>
+    <div style="font-family:'Rajdhani';font-weight:700;font-size:13px;margin:4px 0 6px">Profundidad por puesto</div>
+    ${I.puestos.map(v=>`<div class="mpanel-row" style="display:flex;gap:8px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--bdr)">
+      <span style="width:38px;font-weight:700;font-family:'Rajdhani'">${v.pos}</span>
+      <span style="flex:1;font-size:11px">${v.c.slice(0,4).map((p,i)=>`<span style="opacity:${i<v.need?1:.6}">${_esc(p.name.split(' ').pop())} <b>${p.rat}</b>${p.age>=33?' ⏳':''}${p.injured?' 🤕':''}</span>`).join(' · ')||'<span style="color:var(--red)">nadie</span>'}</span>
+    </div>`).join('')}
+    <div style="text-align:center;margin-top:12px"><button class="btn bg" onclick="closeMod();irTab('mkt')">🔍 Ir al mercado</button></div>`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DORSALES — los números, y los que se retiran para siempre
+// ═══════════════════════════════════════════════════════════════════════
+// `G.numsRetirados` YA existía (lo llena el retiro de un ídolo, Fase 37) pero
+// nadie lo hacía cumplir: un refuerzo podía llegar con el 10 retirado. Acá se
+// hace cumplir y además el presidente puede retirar el número de una leyenda
+// que ya se fue. Un fichaje trae el número de su club anterior, así que dos
+// con el mismo dorsal es lo normal: eso es lo que esta pantalla resuelve.
+function numsRetirados(){ return (G&&G.numsRetirados)||[]; }
+function dorsalesConflictos(){
+  if(!G)return [];
+  const ret=new Set(numsRetirados().map(r=>+r.num)), visto={}, out=[];
+  G.squad.forEach(p=>{
+    const n=+p.num;
+    if(!n||n<1||n>99) out.push({p,mot:'sin número'});
+    else if(ret.has(n)) out.push({p,mot:`el ${n} está retirado`});
+    else if(visto[n]) out.push({p,mot:`el ${n} ya lo usa ${visto[n].name}`});
+    else visto[n]=p;
+  });
+  return out;
+}
+function dorsalLibre(pref){
+  const usados=new Set(G.squad.map(p=>+p.num)), ret=new Set(numsRetirados().map(r=>+r.num));
+  if(pref>=1&&pref<=99&&!usados.has(pref)&&!ret.has(pref))return pref;
+  for(let n=2;n<=99;n++) if(!usados.has(n)&&!ret.has(n)) return n;
+  return 0;
+}
+function dorsalCambiar(id,val){
+  const p=G.squad.find(x=>x.id===id); if(!p)return;
+  const n=Math.round(+val);
+  if(!(n>=1&&n<=99)){ flash('El dorsal va del 1 al 99','loss'); abrirDorsales(); return; }
+  const ret=numsRetirados().find(r=>+r.num===n);
+  if(ret){ flash(`🚫 El ${n} está retirado (${ret.name})`,'loss'); abrirDorsales(); return; }
+  const otro=G.squad.find(x=>x!==p&&+x.num===n);
+  if(otro){
+    // Se intercambian: es lo que pasa en un vestuario de verdad.
+    otro.num=p.num; p.num=n;
+    flash(`🔁 ${p.name} toma el ${n} y ${otro.name} pasa al ${otro.num}`,'draw');
+  } else { p.num=n; flash(`🎽 ${p.name} ahora usa el ${n}`,'win'); }
+  updateUI(); abrirDorsales();
+}
+function dorsalesAuto(){
+  const ret=new Set(numsRetirados().map(r=>+r.num)), visto={};
+  let k=0;
+  G.squad.slice().sort((a,b)=>b.rat-a.rat).forEach(p=>{
+    const n=+p.num;
+    if(n>=1&&n<=99&&!ret.has(n)&&!visto[n]){ visto[n]=1; return; }
+    p.num=0;
+  });
+  G.squad.forEach(p=>{ if(!p.num){ p.num=dorsalLibre(0); k++; } });
+  flash(`🎽 ${k} dorsal${k===1?'':'es'} reasignado${k===1?'':'s'}`,'win');
+  updateUI(); abrirDorsales();
+}
+// Retirar el número de una leyenda que ya no está: un gesto para la gente.
+// Una sola vez por leyenda y sólo si el número no lo usa nadie del plantel.
+function dorsalRetirar(lid){
+  const l=(G.legends||[]).find(x=>x.id===lid); if(!l||l.activo||!l.num)return;
+  if(numsRetirados().some(r=>+r.num===+l.num)){ flash('Ese número ya está retirado','loss'); return; }
+  const usa=G.squad.find(p=>+p.num===+l.num);
+  if(usa){ flash(`Primero sacale el ${l.num} a ${usa.name}`,'loss'); return; }
+  (G.numsRetirados=G.numsRetirados||[]).push({num:l.num,name:l.name,season:G.season});
+  G.fanMood=Math.min(100,(G.fanMood===undefined?55:G.fanMood)+4);
+  try{ addPhoneMsg('board','Secretaría del Club',`🎽 Se retiró la <b>${l.num}</b> de <b>${_esc(l.name)}</b>. La tribuna lo despidió de pie.`,'🎽'); }catch(e){}
+  try{ _pubRumor(`🎽 ${G.teamName} retira la ${l.num} de ${l.name}: nadie más la va a usar.`,'club'); }catch(e){}
+  flash(`🎽 Retirada la ${l.num} de ${l.name}`,'win');
+  updateUI(); abrirDorsales();
+}
+function abrirDorsales(){
+  if(!G)return;
+  const conf=dorsalesConflictos(), malos=new Set(conf.map(c=>c.p.id)), ret=numsRetirados();
+  const legs=(G.legends||[]).filter(l=>!l.activo&&l.num&&!ret.some(r=>+r.num===+l.num));
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🎽 Dorsales</div>
+    ${conf.length?`<div class="mpanel" style="padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--gold)">
+      ⚠️ ${conf.length} para resolver. <button class="btn bg bs" style="margin-left:6px" onclick="dorsalesAuto()">Asignar automático</button></div>`:''}
+    <div style="max-height:46vh;overflow-y:auto">${G.squad.slice().sort((a,b)=>(+a.num||99)-(+b.num||99)).map(p=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--bdr)">
+        <input type="number" min="1" max="99" value="${+p.num||''}" onchange="dorsalCambiar('${p.id}',this.value)"
+          style="width:52px;text-align:center;font-family:'Chakra Petch';font-weight:700;${malos.has(p.id)?'border-color:var(--red);color:var(--red)':''}">
+        <span style="flex:1;font-size:12px">${_esc(p.name)} <span style="color:var(--t3);font-size:10px">${p.pos} · ${p.rat}</span></span>
+        ${malos.has(p.id)?`<span style="font-size:9.5px;color:var(--red)">${conf.find(c=>c.p.id===p.id).mot}</span>`:''}
+      </div>`).join('')}</div>
+    <div style="font-family:'Rajdhani';font-weight:700;font-size:13px;margin:12px 0 5px">Números retirados</div>
+    ${ret.length?ret.map(r=>`<span class="chip gold">${r.num} · ${_esc(r.name)}</span>`).join(''):'<div class="note" style="margin:0">Ninguno todavía.</div>'}
+    ${legs.length?`<div style="font-family:'Rajdhani';font-weight:700;font-size:13px;margin:12px 0 5px">Retirar el número de una leyenda</div>
+      ${legs.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0"><span style="flex:1;font-size:12px">👑 ${_esc(l.name)} · el <b>${l.num}</b></span>
+        <button class="btn bo bs" onclick="dorsalRetirar('${l.id}')">Retirar la ${l.num}</button></div>`).join('')}`:''}
+  `);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LISTA DE SEGUIMIENTO — los jugadores que tenés en la mira
+// ═══════════════════════════════════════════════════════════════════════
+// `G.shortlist` guarda {id, club, m} planos: el club y los meses de contrato
+// de la última vez que se miró, para AVISAR cuando cambian (lo compró otro,
+// quedó libre, entró en zona de precontrato). Un save viejo no lo trae y eso
+// es exactamente "no seguís a nadie".
+function _sl(){ return (G&&G.shortlist)||[]; }
+function _jugadorPorId(id){ return (G.market||[]).find(x=>x.id===id)||null; }
+function seguidos(){ return _sl().map(s=>_jugadorPorId(s.id)).filter(Boolean); }
+function sigo(id){ return _sl().some(s=>s.id===id); }
+function seguirToggle(id){
+  if(!G)return;
+  G.shortlist=_sl().slice();
+  const i=G.shortlist.findIndex(s=>s.id===id);
+  const p=_jugadorPorId(id);
+  if(i>=0){ G.shortlist.splice(i,1); flash('Dejaste de seguirlo','draw'); }
+  else{
+    if(!p){ flash('Sólo se siguen jugadores del mercado','loss'); return; }
+    if(G.shortlist.length>=30){ flash('La lista llega hasta 30','loss'); return; }
+    G.shortlist.push({id,club:p.club,m:contractMonths(p)});
+    flash(`⭐ Seguís a ${p.name}`,'win');
+  }
+  try{ renderMktSafe(); }catch(e){}
+  try{ saveSoon(); }catch(e){}
+  const mb=document.getElementById('modBody');
+  if(mb&&mb.querySelector('[data-sigue]')) mb.querySelectorAll('[data-sigue]').forEach(b=>{ b.textContent=sigo(id)?'★ Siguiendo':'☆ Seguir'; });
+}
+function weeklySeguimiento(){
+  if(!G||!_sl().length)return;
+  const fuera=[];
+  G.shortlist.forEach(s=>{
+    const p=_jugadorPorId(s.id);
+    if(!p){ fuera.push(s); return; }                 // se fue a tu plantel o desapareció
+    const m=contractMonths(p);
+    if(p.club!==s.club){
+      const libre=(typeof esLibre==='function')&&esLibre(p);
+      addPhoneMsg('scout','Ojeador',libre?`🆓 <b>${_esc(p.name)}</b>, que tenías en la lista, quedó <b>libre</b>. Llega sin ficha.`
+        :`📣 <b>${_esc(p.name)}</b>, que tenías en la lista, firmó con <b>${_esc(p.club)}</b>.`,libre?'🆓':'📣');
+      s.club=p.club;
+    } else if(m<=6&&(s.m===undefined||s.m>6)){
+      addPhoneMsg('scout','Ojeador',`📝 A <b>${_esc(p.name)}</b> le quedan ${m} meses: ya le podés ofrecer un <b>precontrato</b>.`,'📝');
+    }
+    s.m=m;
+  });
+  if(fuera.length) G.shortlist=G.shortlist.filter(s=>!fuera.includes(s));
+}
+function abrirSeguimiento(){
+  if(!G)return;
+  const L=seguidos();
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">⭐ Lista de seguimiento</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">El ojeador te avisa al celular si a alguno lo compra otro club, si queda libre o si entra en zona de precontrato.</div>
+    ${L.length?L.map(p=>`<div class="mkrow" style="grid-template-columns:auto 1fr auto auto" onclick="closeMod();openP('${p.id}',false)">
+      <div>${rbK(p)}</div>
+      <div><div class="pn">${_esc(p.name)}</div><div style="font-size:10px;color:var(--t3)">${p.pos} · ${p.age} años · ${_esc(p.club||'')}</div></div>
+      <div class="vc">${fv(p.val)}<div style="font-size:9px;color:var(--t3)">${contractMonths(p)} meses</div></div>
+      <button class="btn bo bs" onclick="event.stopPropagation();seguirToggle('${p.id}');abrirSeguimiento()">✕</button>
+    </div>`).join(''):'<div class="note">Todavía no seguís a nadie. En el mercado, tocá la ⭐ de un jugador.</div>'}
+    <div style="text-align:center;margin-top:10px"><button class="btn bg" onclick="closeMod();irTab('mkt')">🔍 Ir al mercado</button></div>`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3D — three.js LOCAL (el juego no pide nada por red y anda con file://)
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️ three.min.js se carga RECIÉN cuando hace falta, con appendChild (anda
+// bajo file://, Fase 68): son 670 KB que no tienen por qué frenar el arranque.
+let _e3dEstado=0;      // 0 sin pedir · 1 cargando · 2 listo · -1 no hay
+const _e3dCola=[];
+function e3dCargar(cb){
+  if(window.THREE){ _e3dEstado=2; cb(true); return; }
+  if(_e3dEstado===-1){ cb(false); return; }
+  _e3dCola.push(cb);
+  if(_e3dEstado===1)return;
+  _e3dEstado=1;
+  const s=document.createElement('script');
+  s.src='three.min.js';
+  s.onload=()=>{ _e3dEstado=window.THREE?2:-1; _e3dCola.splice(0).forEach(f=>f(_e3dEstado===2)); };
+  s.onerror=()=>{ _e3dEstado=-1; _e3dCola.splice(0).forEach(f=>f(false)); };
+  document.head.appendChild(s);
+}
+function e3dSoporta(){
+  try{ const c=document.createElement('canvas'); return !!(c.getContext('webgl2')||c.getContext('webgl')); }catch(e){ return false; }
+}
+// El estadio sale de los datos: la FORMA de la capacidad, el color del club,
+// el techo de la mejora construida y la gente de la asistencia.
+function e3dEstadio(o){
+  const T=THREE, S=new T.Scene();
+  const cap=o.cap||20000, col=new T.Color(o.color||'#1d4ed8');
+  S.background=new T.Color(o.noche?'#05070d':'#9cc3ea');
+  S.fog=new T.Fog(S.background,280,620);
+  S.add(new T.HemisphereLight(o.noche?0x445577:0xddeeff,0x223311,o.noche?0.6:0.95));
+  const sol=new T.DirectionalLight(0xffffff,o.noche?0.35:1.35);
+  sol.position.set(-90,160,70);
+  if(o.sombras){ sol.castShadow=true; sol.shadow.mapSize.set(1024,1024);
+    Object.assign(sol.shadow.camera,{left:-140,right:140,top:110,bottom:-110,far:400}); }
+  S.add(sol);
+  const L=105,A=68,M=6;
+  // la cancha: franjas y cal dibujadas en un canvas
+  const tc=document.createElement('canvas'); tc.width=1024; tc.height=680;
+  const g=tc.getContext('2d'), sx=1024/(L+2*M), sy=680/(A+2*M);
+  for(let i=0;i<18;i++){ g.fillStyle=i%2?'#2f8a3a':'#3a9a44'; g.fillRect(i*1024/18,0,1024/18+1,680); }
+  g.strokeStyle='#f4f4f4'; g.lineWidth=2.2;
+  const X=x=>(x+M)*sx, Y=y=>(y+M)*sy;
+  g.strokeRect(X(0),Y(0),L*sx,A*sy);
+  g.beginPath(); g.moveTo(X(L/2),Y(0)); g.lineTo(X(L/2),Y(A)); g.stroke();
+  g.beginPath(); g.ellipse(X(L/2),Y(A/2),9.15*sx,9.15*sy,0,0,7); g.stroke();
+  [[0,1],[L,-1]].forEach(([x0,d])=>{
+    g.strokeRect(Math.min(X(x0),X(x0+d*16.5)),Y(A/2-20.16),16.5*sx,40.32*sy);
+    g.strokeRect(Math.min(X(x0),X(x0+d*5.5)),Y(A/2-9.16),5.5*sx,18.32*sy);
+  });
+  const tex=new T.CanvasTexture(tc);
+  const pitch=new T.Mesh(new T.PlaneGeometry(L+2*M,A+2*M),new T.MeshLambertMaterial({map:tex}));
+  pitch.rotation.x=-Math.PI/2; pitch.receiveShadow=!!o.sombras; S.add(pitch);
+  const blanco=new T.MeshLambertMaterial({color:0xffffff});
+  [-L/2,L/2].forEach(x=>{
+    const ar=new T.Group();
+    const palo=(w,h,d,px,py,pz)=>{ const m=new T.Mesh(new T.BoxGeometry(w,h,d),blanco); m.position.set(px,py,pz); ar.add(m); };
+    palo(.12,2.44,.12,0,1.22,-3.66); palo(.12,2.44,.12,0,1.22,3.66); palo(.12,.12,7.44,0,2.44,0);
+    const red=new T.Mesh(new T.BoxGeometry(2,2.44,7.32),new T.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.25}));
+    red.position.set(Math.sign(x)*1,1.22,0); ar.add(red);
+    ar.position.x=x; S.add(ar);
+  });
+  // tribunas: <15k dos laterales (cancha de ascenso), 15-40k cuatro, >40k bowl
+  const butFila=r=>2*((L+2*M+2*r)+(A+2*M+2*r))/0.5;
+  let filas=0,tot=0;
+  while(tot<cap&&filas<120){ tot+=butFila(filas*0.8)*(cap<15000?0.55:1); filas++; }
+  const porB=cap<15000?filas:cap<40000?filas:22;
+  const band=Math.ceil(filas/porB), radio=cap<15000?0:cap<40000?4:26;
+  const mA=new T.MeshLambertMaterial({color:col}), mB=new T.MeshLambertMaterial({color:0xe8e8e8}), mH=new T.MeshLambertMaterial({color:0x6d7480});
+  const rr=(w,h,r)=>{ const s=new T.Shape(),x=-w/2,y=-h/2; r=Math.min(r,w/2-.1,h/2-.1);
+    s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r); s.lineTo(x+w,y+h-r);
+    s.quadraticCurveTo(x+w,y+h,x+w-r,y+h); s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r);
+    s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y); return s; };
+  const meta=[]; let z0=0.6,off0=0;
+  for(let b=0;b<band;b++){
+    const n=Math.min(porB,filas-b*porB);
+    for(let i=0;i<n;i++){
+      const off=off0+i*0.8,h=z0+i*0.42,w=L+2*M+2*off,d=A+2*M+2*off;
+      if(cap<15000){
+        [-1,1].forEach(sg=>{ const m=new T.Mesh(new T.BoxGeometry(L*0.9,h,0.8),(i%6<3)?mA:mB);
+          m.position.set(0,h/2,sg*(A/2+M+off+0.4)); S.add(m); });
+        meta.push({off,h,lat:true});
+      } else {
+        const sh=rr(w+1.6,d+1.6,radio+off*0.4); sh.holes.push(rr(w,d,radio+off*0.4-0.1));
+        const geo=new T.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false,curveSegments:10}); geo.rotateX(-Math.PI/2);
+        S.add(new T.Mesh(geo,(Math.floor(i/3)+b)%2?mB:mA));
+        meta.push({off,h,w,d,r:radio+off*0.4});
+      }
+    }
+    z0+=n*0.42+4.5; off0+=n*0.8-6;
+    if(b<band-1){
+      const fr=rr(L+2*M+2*(off0+7),A+2*M+2*(off0+7),radio+off0*0.4);
+      fr.holes.push(rr(L+2*M+2*(off0+0.5),A+2*M+2*(off0+0.5),radio+off0*0.4-.1));
+      const g2=new T.ExtrudeGeometry(fr,{depth:1.2,bevelEnabled:false,curveSegments:10}); g2.rotateX(-Math.PI/2);
+      const mf=new T.Mesh(g2,mH); mf.position.y=z0-1.4; S.add(mf);
+    }
+  }
+  const alto=z0, offMax=off0+porB*0.8;
+  // la gente, muestreada: una sola InstancedMesh, un solo draw call
+  const vis=Math.max(0,Math.min(o.gente||14000,Math.round(cap*(o.asist==null?0.8:o.asist))));
+  if(vis&&meta.length){
+    const gente=new T.InstancedMesh(new T.BoxGeometry(0.42,0.75,0.42),new T.MeshLambertMaterial(),vis);
+    const dm=new T.Object3D(), c=new T.Color();
+    const pal=[col,col,col,new T.Color(0xffffff),new T.Color(0x222222),new T.Color(0xd9b38c)];
+    for(let k=0;k<vis;k++){
+      const f=meta[(Math.random()*meta.length)|0]; let x,z;
+      if(f.lat){ x=(Math.random()-.5)*L*0.88; z=(Math.random()<.5?-1:1)*(A/2+M+f.off+0.4); }
+      else{
+        let s=Math.random()*2*(f.w+f.d);
+        if(s<f.w){x=-f.w/2+s;z=-f.d/2;} else if((s-=f.w)<f.d){x=f.w/2;z=-f.d/2+s;}
+        else if((s-=f.d)<f.w){x=f.w/2-s;z=f.d/2;} else {s-=f.w;x=-f.w/2;z=f.d/2-s;}
+        const cx=Math.max(Math.abs(x)-(f.w/2-f.r),0),cz=Math.max(Math.abs(z)-(f.d/2-f.r),0);
+        if(cx>0&&cz>0){ const a=Math.atan2(cz,cx); x=Math.sign(x)*(f.w/2-f.r+Math.cos(a)*f.r); z=Math.sign(z)*(f.d/2-f.r+Math.sin(a)*f.r); }
+        const nn=Math.hypot(x,z); x+=x/nn*0.4; z+=z/nn*0.4;
+      }
+      dm.position.set(x,f.h+0.37,z); dm.updateMatrix();
+      gente.setMatrixAt(k,dm.matrix); gente.setColorAt(k,c.copy(pal[(Math.random()*pal.length)|0]));
+    }
+    S.add(gente);
+  }
+  const conTecho=o.techo||cap>60000;
+  if(conTecho&&cap>=15000){
+    const t=rr(L+2*M+2*(offMax+4),A+2*M+2*(offMax+4),radio+offMax*0.4);
+    t.holes.push(rr(L+2*M+2*(offMax*0.45),A+2*M+2*(offMax*0.45),radio+offMax*0.2));
+    const gt=new T.ExtrudeGeometry(t,{depth:0.6,bevelEnabled:false,curveSegments:12}); gt.rotateX(-Math.PI/2);
+    const mt=new T.Mesh(gt,new T.MeshLambertMaterial({color:0xdfe6ee,transparent:true,opacity:.55}));
+    mt.position.y=alto+6; S.add(mt);
+  } else {
+    [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([a,b])=>{
+      const tw=new T.Mesh(new T.CylinderGeometry(.5,.8,alto+22,6),mH);
+      tw.position.set(a*(L/2+M+offMax*.7),(alto+22)/2,b*(A/2+M+offMax*.7)); S.add(tw);
+      const pan=new T.Mesh(new T.BoxGeometry(6,4,.6),new T.MeshBasicMaterial({color:0xffffee}));
+      pan.position.set(tw.position.x,alto+22,tw.position.z); pan.lookAt(0,0,0); S.add(pan);
+    });
+  }
+  if(o.noche) [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([a,b])=>{
+    const sp=new T.SpotLight(0xfff6e0,2.2,0,Math.PI/4.2,0.5,0);
+    sp.position.set(a*(L/2+20),alto+30,b*(A/2+20)); sp.target.position.set(a*8,0,b*6); S.add(sp); S.add(sp.target);
+  });
+  return {S,alto,offMax,L,A,M,cap};
+}
+// Los 22 y la pelota del 11v11, leídos de FM: el motor no cambia, sólo cómo
+// se dibuja. ⚠️ El kit puede traer 'var(--gold)' y WebGL no resuelve
+// variables CSS (la misma trampa que GOLD() en el canvas 2D).
+function e3dJugadores(E){
+  const T=THREE, jugs=[];
+  const ficha=kit=>{ const gr=new T.Group();
+    const tor=new T.Mesh(new T.CapsuleGeometry(0.42,0.55,4,8),new T.MeshLambertMaterial({color:_cssVar(kit.c1,'#c0392b')})); tor.position.y=0.4;
+    const pie=new T.Mesh(new T.CylinderGeometry(0.34,0.3,0.8,8),new T.MeshLambertMaterial({color:_cssVar(kit.c2,'#ffffff')})); pie.position.y=-0.45;
+    const cab=new T.Mesh(new T.SphereGeometry(0.26,10,8),new T.MeshLambertMaterial({color:0xd9a77a})); cab.position.y=1.15;
+    gr.add(tor,pie,cab); E.S.add(gr); jugs.push(gr); return gr; };
+  const pel=new T.Mesh(new T.SphereGeometry(0.45,14,10),new T.MeshLambertMaterial({color:0xffffff})); E.S.add(pel);
+  const aro=new T.Mesh(new T.RingGeometry(0.9,1.2,24),new T.MeshBasicMaterial({color:0xffd34d,side:T.DoubleSide}));
+  aro.rotation.x=-Math.PI/2; aro.visible=false; E.S.add(aro);
+  return {pel,sync(){
+    if(typeof FM==='undefined'||!FM||!FM.my)return null;
+    const w=(FM.rightGL-FM.leftGL)||1;
+    const toW=p=>[((p.x-FM.leftGL)/w-.5)*E.L,(p.y/FM.VH-.5)*E.A];
+    if(!jugs.length){ FM.my.forEach(()=>ficha(FM.myKit||{c1:'#1d4ed8',c2:'#fff'})); FM.opp.forEach(()=>ficha(FM.oppKit||{c1:'#fff',c2:'#222'})); }
+    FM.my.concat(FM.opp).forEach((p,i)=>{ if(!jugs[i])return; const [x,z]=toW(p); jugs[i].position.set(x,0.85,z); });
+    const [bx,bz]=toW(FM.ball); pel.position.set(bx,0.45+(FM.ball.air||0)*0.12,bz);
+    const c=FM.my[FM.ctrl];
+    if(c&&!FM.watch){ const [cx,cz]=toW(c); aro.position.set(cx,0.03,cz); aro.visible=true; } else aro.visible=false;
+    return [bx,bz];
+  }};
+}
+
+// ═══ EL FONDO 3D: tu estadio detrás del menú ═══
+// Se renderiza sólo en el tablero, a ~24 fps y con la cámara dando vueltas
+// despacio. Adentro de una página queda quieto y desenfocado (0 fps: no gasta
+// batería). Se apaga con el partido abierto y con la pestaña oculta.
+// La preferencia es de este navegador (localStorage), no de la partida.
+const _F3={on:true,R:null,E:null,cam:null,key:'',modo:'hub',t0:0,last:0,raf:0};
+try{ const v=localStorage.getItem('dt_fondo3d'); if(v==='0')_F3.on=false; }catch(e){}
+function fondo3DKey(){ return G?[G.teamName,(G.stadium&&G.stadium.capacity)||0,
+  !!((G.stadium&&G.stadium.upgrades)||[]).find(u=>u.id==='roof'&&u.built)].join('|'):''; }
+function fondo3DInit(){
+  const host=document.getElementById('bg3d');
+  if(!host||!G)return;
+  if(!_F3.on||!e3dSoporta()){ host.style.display='none'; document.body.classList.remove('bg3d-on'); return; }
+  e3dCargar(ok=>{
+    if(!ok){ host.style.display='none'; return; }
+    const k=fondo3DKey();
+    if(!_F3.R){
+      _F3.R=new THREE.WebGLRenderer({antialias:false,powerPreference:'low-power'});
+      _F3.R.setPixelRatio(Math.min(1.25,window.devicePixelRatio||1));
+      host.appendChild(_F3.R.domElement);
+      window.addEventListener('resize',fondo3DResize);
+      document.addEventListener('visibilitychange',fondo3DLoop);
+    }
+    if(k!==_F3.key){
+      _F3.key=k;
+      const st=G.stadium||{};
+      _F3.E=e3dEstadio({cap:st.capacity||20000,color:_colClub(),gente:5000,asist:0.75,
+        techo:!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
+      _F3.cam=new THREE.PerspectiveCamera(40,1,0.5,900);
+    }
+    host.style.display='block'; document.body.classList.add('bg3d-on');
+    fondo3DResize(); fondo3DLoop();
+  });
+}
+function fondo3DResize(){
+  if(!_F3.R||!_F3.cam)return;
+  const w=window.innerWidth,h=window.innerHeight;
+  _F3.R.setSize(w,h,false); _F3.R.domElement.style.width='100%'; _F3.R.domElement.style.height='100%';
+  _F3.cam.aspect=w/h; _F3.cam.updateProjectionMatrix();
+  fondo3DFrame(performance.now());
+}
+function fondo3DFrame(t){
+  if(!_F3.R||!_F3.E)return;
+  const E=_F3.E, a=t*0.00004+0.6, r=150+E.offMax*1.2;
+  _F3.cam.position.set(Math.cos(a)*r,48+E.alto*0.9,Math.sin(a)*r*0.8);
+  _F3.cam.lookAt(0,4,0);
+  _F3.R.render(E.S,_F3.cam);
+}
+// ⚠️ ADAPTATIVO, y no es un lujo: medido en un Chromium sin placa de video,
+// renderizar el fondo a 25 fps dejaba CONGELADA la animación de entrada de
+// las pestañas (`tcIn` clavada en opacidad 0: la página se veía vacía). El
+// fondo es una cámara que gira despacio, así que no necesita más de 15 fps;
+// se pausa medio segundo en cada cambio de pestaña para que la interfaz tenga
+// los cuadros, y si los cuadros llegan tarde (equipo flojo) baja solo a 4 fps.
+_F3.iv=66; _F3.gaps=[]; _F3.pausa=0;
+function fondo3DLoop(){
+  cancelAnimationFrame(_F3.raf);
+  const vivo=()=>_F3.on&&_F3.modo==='hub'&&!document.hidden&&!document.getElementById('fm-ov')&&!document.getElementById('e3dOv');
+  if(!vivo())return;
+  let prev=0;
+  const tick=t=>{
+    if(!vivo())return;
+    if(prev){ _F3.gaps.push(t-prev); if(_F3.gaps.length>20)_F3.gaps.shift(); }
+    prev=t;
+    if(_F3.gaps.length>=20){
+      const g=_F3.gaps.slice().sort((a,b)=>a-b)[10];
+      if(g>45) _F3.iv=250; else if(g<20&&_F3.iv>66) _F3.iv=66;
+    }
+    if(t>_F3.pausa&&t-_F3.last>_F3.iv){ _F3.last=t; fondo3DFrame(t); }
+    _F3.raf=requestAnimationFrame(tick);
+  };
+  _F3.raf=requestAnimationFrame(tick);
+}
+function fondo3DModo(m){
+  _F3.modo=m; _F3.pausa=performance.now()+500;
+  const host=document.getElementById('bg3d'); if(host) host.classList.toggle('blur',m!=='hub');
+  fondo3DLoop();
+}
+function fondo3DToggle(){
+  _F3.on=!_F3.on;
+  try{ localStorage.setItem('dt_fondo3d',_F3.on?'1':'0'); }catch(e){}
+  const b=document.getElementById('f3dBtn'); if(b) b.style.opacity=_F3.on?1:.45;
+  if(_F3.on) fondo3DInit();
+  else{ cancelAnimationFrame(_F3.raf); const h=document.getElementById('bg3d'); if(h)h.style.display='none'; document.body.classList.remove('bg3d-on'); }
+  flash(_F3.on?'🎥 Fondo 3D encendido':'🎥 Fondo 3D apagado','draw');
+}
+
+// ═══ VISOR 3D A PANTALLA COMPLETA (estadio y sala de trofeos) ═══
+// Arrastrar = girar · rueda / pellizcar = acercar. La cámara orbita un punto.
+function e3dVisor(titulo,armar,opts){
+  e3dCargar(ok=>{
+    if(!ok||!e3dSoporta()){ flash('Este navegador no tiene 3D (WebGL)','loss'); return; }
+    document.getElementById('e3dOv')?.remove();
+    const ov=document.createElement('div'); ov.id='e3dOv';
+    ov.innerHTML=`<div class="e3d-top"><b>${titulo}</b><span id="e3dInfo"></span>
+      <div class="e3d-bt">${(opts.botones||[]).map((b,i)=>`<button onclick="_E3V.boton(${i})">${b.t}</button>`).join('')}
+      <button onclick="e3dCerrar()">✕</button></div></div><div id="e3dHost"></div>
+      <div class="e3d-hint">Arrastrá para girar · rueda o pellizco para acercar</div>`;
+    document.body.appendChild(ov);
+    const host=document.getElementById('e3dHost');
+    const R=new THREE.WebGLRenderer({antialias:true});
+    R.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    host.appendChild(R.domElement);
+    const cam=new THREE.PerspectiveCamera(42,1,0.3,1200);
+    const V={R,cam,az:opts.az||0.8,el:opts.el||0.55,dist:opts.dist||200,min:opts.min||40,max:opts.max||520,
+      look:opts.look||[0,4,0],escena:null,raf:0,auto:opts.auto!==false,info:''};
+    V.armar=()=>{ V.escena=armar(V); const i=document.getElementById('e3dInfo'); if(i) i.textContent=V.info||''; };
+    V.boton=i=>{ const b=(opts.botones||[])[i]; if(b){ b.fn(V); V.armar(); } };
+    window._E3V=V;
+    V.armar();
+    const fit=()=>{ const w=host.clientWidth,h=host.clientHeight; R.setSize(w,h,false); R.domElement.style.width='100%'; R.domElement.style.height='100%'; cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); };
+    fit(); window.addEventListener('resize',fit); V.fit=fit;
+    let drag=null, pinch=null; const pts={};
+    host.addEventListener('pointerdown',e=>{ host.setPointerCapture(e.pointerId); pts[e.pointerId]=[e.clientX,e.clientY]; V.auto=false;
+      const k=Object.keys(pts); if(k.length===1) drag=[e.clientX,e.clientY]; else if(k.length===2){ const [a,b]=k.map(x=>pts[x]); pinch=Math.hypot(a[0]-b[0],a[1]-b[1]); drag=null; } });
+    host.addEventListener('pointermove',e=>{ if(!pts[e.pointerId])return; pts[e.pointerId]=[e.clientX,e.clientY];
+      const k=Object.keys(pts);
+      if(k.length===2&&pinch){ const [a,b]=k.map(x=>pts[x]); const d=Math.hypot(a[0]-b[0],a[1]-b[1]); V.dist=Math.max(V.min,Math.min(V.max,V.dist*pinch/d)); pinch=d; }
+      else if(drag){ V.az-= (e.clientX-drag[0])*0.006; V.el=Math.max(0.08,Math.min(1.45,V.el+(e.clientY-drag[1])*0.004)); drag=[e.clientX,e.clientY]; } });
+    const up=e=>{ delete pts[e.pointerId]; if(Object.keys(pts).length<2)pinch=null; if(!Object.keys(pts).length)drag=null; };
+    host.addEventListener('pointerup',up); host.addEventListener('pointercancel',up);
+    host.addEventListener('wheel',e=>{ e.preventDefault(); V.dist=Math.max(V.min,Math.min(V.max,V.dist*(1+Math.sign(e.deltaY)*0.08))); },{passive:false});
+    const tick=()=>{
+      if(!document.getElementById('e3dOv'))return;
+      if(V.auto) V.az+=0.0016;
+      cam.position.set(V.look[0]+Math.cos(V.az)*Math.cos(V.el)*V.dist, V.look[1]+Math.sin(V.el)*V.dist, V.look[2]+Math.sin(V.az)*Math.cos(V.el)*V.dist);
+      cam.lookAt(V.look[0],V.look[1],V.look[2]);
+      if(V.escena&&V.escena.anim) V.escena.anim(performance.now());
+      if(V.escena) R.render(V.escena.S,cam);
+      V.raf=requestAnimationFrame(tick);
+    };
+    tick();
+    fondo3DLoop();
+  });
+}
+function e3dCerrar(){
+  const V=window._E3V;
+  if(V){ cancelAnimationFrame(V.raf); window.removeEventListener('resize',V.fit); try{ V.R.dispose(); }catch(e){} }
+  window._E3V=null;
+  document.getElementById('e3dOv')?.remove();
+  fondo3DLoop();
+}
+function abrirEstadio3D(){
+  if(!G)return;
+  const st=G.stadium||{};
+  const estado={noche:false,lleno:null};
+  // El juego no guarda la asistencia de cada partido: la cancha se llena según
+  // el humor de la gente, que es lo que la mueve.
+  const asistBase=Math.max(0.25,Math.min(1,0.45+(G.fanMood===undefined?55:G.fanMood)/180));
+  e3dVisor('🏟️ '+_esc(st.name||'Estadio'),V=>{
+    const cap=st.capacity||20000;
+    const E=e3dEstadio({cap,color:_colClub(),noche:estado.noche,sombras:true,gente:14000,
+      asist:estado.lleno===null?asistBase:estado.lleno,
+      techo:!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
+    V.dist=Math.max(V.dist,140+E.offMax); V.max=420+E.offMax;
+    V.info=`${cap.toLocaleString('es')} lugares · ${E.alto>20?'varias bandejas':'una bandeja'}`;
+    return E;
+  },{dist:230,el:0.42,botones:[
+    {t:'🌙 Noche',fn:()=>{ estado.noche=!estado.noche; }},
+    {t:'👥 Lleno',fn:()=>{ estado.lleno=estado.lleno===1?0.15:1; }},
+  ]});
+}
+// ═══ SALA DE TROFEOS 3D ═══
+// Las copas salen de la misma cuenta que la Vitrina (`rVitrina`): G.trophies
+// por nombre + las ligas largas que quedan en G.history[].champion.
+function _trofeosLista(){
+  if(!G)return [];
+  const cont={};
+  (G.trophies||[]).forEach(t=>{ const n=t.name||String(t); cont[n]=(cont[n]||0)+1; });
+  (G.history||[]).filter(x=>x.champion).forEach(()=>{
+    const n=(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[ligaMia()])||'Liga'; cont[n]=(cont[n]||0)+1; });
+  return Object.entries(cont).map(([n,c])=>({n:c,name:n})).sort((a,b)=>b.n-a.n);
+}
+function _copaForma(name){
+  const s=String(name).toLowerCase();
+  if(/libertadores|champions|concacaf|asi/.test(s)) return 'orejona';
+  if(/mundial|recopa|supercopa/.test(s)) return 'globo';
+  if(/copa|cup|pokal|coppa|taça|ta[cç]a|knvb/.test(s)) return 'copa';
+  return 'liga';
+}
+function e3dCopa(T,forma){
+  const oro=new T.MeshPhongMaterial({color:0xd4a531,specular:0xfff2b0,shininess:95});
+  const g=new T.Group();
+  const perf={liga:[[0,0],[1.1,0],[1.1,.35],[.45,.5],[.35,1.2],[.5,1.5],[1.25,2.2],[1.45,3.2],[1.4,3.3],[0,3.3]],
+    copa:[[0,0],[.9,0],[.9,.3],[.3,.45],[.25,1.3],[.9,1.8],[1.05,2.6],[1,2.7],[0,2.7]],
+    orejona:[[0,0],[1,0],[1,.4],[.4,.6],[.3,1.5],[.8,2.2],[1,3.4],[.95,3.5],[0,3.5]],
+    globo:[[0,0],[.9,0],[.9,.3],[.3,.5],[.25,1.6],[0,1.6]]}[forma];
+  const lathe=new T.LatheGeometry(perf.map(([x,y])=>new T.Vector2(x,y)),32);
+  g.add(new T.Mesh(lathe,oro));
+  if(forma==='orejona'||forma==='liga'){
+    [-1,1].forEach(sg=>{ const asa=new T.Mesh(new T.TorusGeometry(forma==='orejona'?0.75:0.5,0.09,8,24,Math.PI*1.3),oro);
+      asa.position.set(sg*(forma==='orejona'?1.25:1.35),forma==='orejona'?2.3:2.4,0); asa.rotation.z=sg>0?-1.0:Math.PI+1.0; g.add(asa); });
+  }
+  if(forma==='globo'){ const b=new T.Mesh(new T.SphereGeometry(0.85,24,16),oro); b.position.y=2.4; g.add(b); }
+  const base=new T.Mesh(new T.CylinderGeometry(1.15,1.25,0.5,24),new T.MeshPhongMaterial({color:0x1a1a1a,shininess:60}));
+  base.position.y=-0.25; g.add(base);
+  return g;
+}
+function _cartel(T,txt,sub){
+  const c=document.createElement('canvas'); c.width=512; c.height=160;
+  const x=c.getContext('2d');
+  x.fillStyle='rgba(10,14,22,.82)'; x.fillRect(0,0,512,160);
+  x.strokeStyle='rgba(212,165,49,.8)'; x.lineWidth=4; x.strokeRect(2,2,508,156);
+  x.fillStyle='#f4e3b0'; x.font='700 44px Rajdhani, sans-serif'; x.textAlign='center';
+  x.fillText(String(txt).slice(0,24),256,70);
+  x.fillStyle='#d4a531'; x.font='700 40px Chakra Petch, sans-serif'; x.fillText(sub,256,126);
+  const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true}));
+  sp.scale.set(4.6,1.44,1); return sp;
+}
+function abrirTrofeos3D(){
+  if(!G)return;
+  const lista=_trofeosLista();
+  e3dVisor('🏆 Sala de trofeos — '+_esc(G.teamName),V=>{
+    const T=THREE, S=new T.Scene();
+    S.background=new T.Color('#0c0f16');
+    S.add(new T.AmbientLight(0x8090a8,0.55));
+    const k=new T.DirectionalLight(0xffffff,0.9); k.position.set(6,14,10); S.add(k);
+    const piso=new T.Mesh(new T.PlaneGeometry(80,80),new T.MeshPhongMaterial({color:0x232a36,shininess:40}));
+    piso.rotation.x=-Math.PI/2; S.add(piso);
+    const pared=new T.Mesh(new T.PlaneGeometry(80,26),new T.MeshLambertMaterial({color:_colClub()}));
+    pared.position.set(0,13,-9); S.add(pared);
+    const copas=[];
+    const n=Math.max(1,lista.length), paso=6, ancho=(Math.min(n,6)-1)*paso;
+    (lista.length?lista:[{name:'Tu primer título',n:0}]).forEach((t,i)=>{
+      const fila=Math.floor(i/6), col=i%6;
+      const x=-ancho/2+col*paso, z=-fila*6.5;
+      const ped=new T.Mesh(new T.BoxGeometry(2.8,1.6,2.8),new T.MeshPhongMaterial({color:0x2f3846,shininess:30}));
+      ped.position.set(x,0.8,z); S.add(ped);
+      if(t.n){
+        const c=e3dCopa(T,_copaForma(t.name)); c.position.set(x,1.85,z); S.add(c); copas.push(c);
+        const sp=new T.SpotLight(0xfff1c8,1.6,24,0.42,0.6,1); sp.position.set(x,9,z+3); sp.target=c; S.add(sp);
+      }
+      const cart=_cartel(T,t.name,t.n?('×'+t.n):'—'); cart.position.set(x,t.n?6.6:3,z+1.6); S.add(cart);
+    });
+    V.look=[0,2.8,-((Math.ceil(n/6)-1)*6.5)/2]; V.min=8; V.max=60; V.dist=Math.max(16,ancho*1.15+8); V.el=0.28;
+    V.info=lista.length?`${lista.reduce((a,t)=>a+t.n,0)} títulos`:'La vitrina está vacía. Todavía hay tiempo.';
+    return {S,anim:t=>copas.forEach((c,i)=>{ c.rotation.y=t*0.0006+i; })};
+  },{auto:true,az:1.57});
+}
+
+// ═══ EL PARTIDO EN 3D (sobre el 11v11 que ya existe) ═══
+// Una capa WebGL encima del canvas 2D: el motor, los controles y el
+// joystick siguen iguales. Se inserta DESPUÉS del canvas en el DOM y con
+// pointer-events:none, así los botones táctiles siguen encima y el toque
+// pasa de largo.
+const _FM3={on:false,R:null,E:null,J:null,cam:null,raf:0,cx:0,modo:'tv'};
+function fm3DToggle(){
+  if(!document.getElementById('fm-ov'))return;
+  if(_FM3.on){ fm3DApagar(); return; }
+  e3dCargar(ok=>{
+    if(!ok||!e3dSoporta()){ flash('Este navegador no tiene 3D (WebGL)','loss'); return; }
+    const cv=document.getElementById('fm-cv'), gm=document.getElementById('fm-game'); if(!cv||!gm)return;
+    const host=document.createElement('div'); host.id='fm3d';
+    host.style.cssText='position:absolute;inset:0;pointer-events:none';
+    cv.insertAdjacentElement('afterend',host);
+    // Más liviano que el visor: corre AL MISMO TIEMPO que el motor del 11v11.
+    _FM3.R=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+    _FM3.R.setPixelRatio(1);
+    host.appendChild(_FM3.R.domElement);
+    const st=(G&&G.stadium)||{};
+    // Local: tu cancha. Visitante: una cancha neutra del tamaño del rival.
+    const m=FM&&FM.m, local=!m||m.home===G.teamName;
+    _FM3.E=e3dEstadio({cap:local?(st.capacity||30000):30000,color:local?_colClub():'#7a8494',gente:3500,asist:0.85,
+      techo:local&&!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
+    _FM3.J=e3dJugadores(_FM3.E);
+    _FM3.cam=new THREE.PerspectiveCamera(38,1,0.5,900);
+    _FM3.on=true; cv.style.visibility='hidden';
+    const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='2D';
+    const fit=()=>{ const w=gm.clientWidth,h=gm.clientHeight; _FM3.R.setSize(w,h,false);
+      _FM3.R.domElement.style.width='100%'; _FM3.R.domElement.style.height='100%'; _FM3.cam.aspect=w/Math.max(1,h); _FM3.cam.updateProjectionMatrix(); };
+    fit(); _FM3.fit=fit; window.addEventListener('resize',fit);
+    const tick=()=>{
+      if(!_FM3.on)return;
+      if(!document.getElementById('fm-ov')){ fm3DApagar(); return; }
+      const b=_FM3.J.sync();
+      if(b){
+        _FM3.cx+= (b[0]*0.85-_FM3.cx)*0.06;
+        // La cámara de TV va en el borde de la platea, alta: más atrás queda
+        // ADENTRO de la tribuna (medido: la primera versión sólo veía cemento).
+        if(_FM3.modo==='tv'){ _FM3.cam.position.set(_FM3.cx,23,_FM3.E.A/2+_FM3.E.M+3); _FM3.cam.lookAt(_FM3.cx,0,b[1]*0.25); }
+        else { _FM3.cam.position.set(_FM3.cx-38,22,b[1]*0.5); _FM3.cam.lookAt(_FM3.cx+10,0,b[1]*0.5); }
+        _FM3.R.render(_FM3.E.S,_FM3.cam);
+      }
+      _FM3.raf=requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+function fm3DCamara(){ _FM3.modo=_FM3.modo==='tv'?'detras':'tv'; flash(_FM3.modo==='tv'?'📺 Cámara de TV':'🎥 Cámara detrás de la jugada','draw'); }
+function fm3DApagar(){
+  _FM3.on=false; cancelAnimationFrame(_FM3.raf);
+  window.removeEventListener('resize',_FM3.fit||(()=>{}));
+  try{ _FM3.R&&_FM3.R.dispose(); }catch(e){}
+  document.getElementById('fm3d')?.remove();
+  const cv=document.getElementById('fm-cv'); if(cv) cv.style.visibility='';
+  const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='3D';
+  _FM3.R=null; _FM3.E=null; _FM3.J=null;
+}
+
+// ═══ ENGANCHES ═══
+_TAB_R.hub=['rHub'];
+_TAB_R.ov=(_TAB_R.ov||[]).concat(['rOvTiles']);
+
 </script>
 
 

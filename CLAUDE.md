@@ -15,6 +15,8 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
+| `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa` |
 
 ## Formato de `players-db.js`
 
@@ -6428,6 +6430,93 @@ misma trampa que `GOLD()`).
 ⚠️ Lo barato es la **cámara de TV sobre el 11v11 que ya existe**: el motor no
 cambia, sólo cambia cómo se dibuja. Hacer jugable el partido en 3D es otro
 juego: los controles, la cámara y la IA están pensados en 2D cenital.
+
+## Fase 71: la interfaz estilo FIFA, el 3D y tres funciones de gestión
+
+El presidente mandó una captura del menú de carrera del FIFA 14 y pidió "que
+todo sea 3D" y más funciones de mánager/presidente.
+
+### ⚠️ Las 15 pestañas NO se reescribieron
+
+Son los mismos `.tc`, los mismos ids y los mismos renders de `_TAB_R`. Lo que
+cambió es cómo se llega: la barra de 14 botones pasó a **cinco secciones**
+(Central · Plantel · Mercado · Oficina · Temporada) con un tablero de
+tarjetas cada una (`HUBS`, `rHub`, `#tab-hub`). Central es la portada de
+siempre, con el partido en la tarjeta grande. Reescribir 28.000 líneas de
+pantallas para cambiarles la piel habría sido romper cosas medidas.
+
+- **`TAB_SEC` dice a qué sección pertenece cada pestaña** y `fUISync` (lo llama
+  `gTab`) resalta la sección y arma la miga de pan. ⚠️ Si agregás una pestaña,
+  va en `TAB_SEC`, `TAB_NOM` y en una tarjeta de `HUBS`: `tests/ui-fifa.js`
+  falla si alguna de las 15 queda sin tarjeta (el bug de la Fase 49 por otro
+  camino).
+- **La cabecera nueva conserva TODOS los ids de la barra vieja** (`bTop`,
+  `wTop`, `rTop`, `sPts`, `repTop`, `mktStatusTop`…): `updateUI` los sigue
+  llenando sin enterarse.
+- `TAB_EXTRA` repite lo que el botón viejo llamaba además de `gTab`
+  (`rTacticaTab`, `rDtTab`…). Ojo: hay código que hacía
+  `querySelectorAll('.nb')[12]` para resaltar un botón; ahora da `undefined` y
+  `gTab` lo ignora — el resaltado sale de `TAB_SEC`.
+- Los numeritos rojos de la navegación (`fPendientes`) salen del estado:
+  Carpeta + ofertas de sponsor en Oficina, ofertas recibidas en Mercado,
+  mensajes sin leer en Central, alertas graves del informe en Plantel.
+
+### El 3D
+
+**three.js r160 va LOCAL** (`three.min.js`) y se carga con `appendChild`
+recién cuando hace falta (`e3dCargar`): son 670 KB que no tienen por qué
+frenar el arranque. `e3dEstadio(o)` arma el estadio desde los datos (la forma
+sale de la capacidad, los colores del club, el techo de la mejora `roof`, la
+gente de la asistencia) y lo usan los cuatro lugares:
+
+| | dónde |
+|---|---|
+| fondo del menú | `#bg3d`, tu estadio girando despacio; desenfocado dentro de una página |
+| recorrer el estadio | Oficina → Presidencia (`abrirEstadio3D`), arrastrar y pellizcar |
+| sala de trofeos | Oficina (`abrirTrofeos3D`), cuenta igual que `rVitrina` |
+| el partido | botón **3D** del 11v11 (`fm3DToggle`), cámara de TV o detrás de la jugada |
+
+- ⚠️ **El partido en 3D NO es un motor nuevo**: es otra forma de dibujar el
+  mismo `FM`. La capa WebGL va DESPUÉS del canvas en el DOM con
+  `pointer-events:none`, así el joystick y los botones siguen encima. Con el
+  3D puesto `fmLoop` deja de dibujar el canvas 2D oculto.
+- ⚠️ **El fondo es adaptativo**: 15 fps, pausa de 500 ms en cada cambio de
+  pestaña, y si los cuadros llegan tarde baja solo a 4 fps. Adentro de una
+  página no renderiza (0 fps) y con el partido o el visor abiertos tampoco.
+  El 🎥 de la cabecera lo apaga, y esa preferencia vive en `localStorage`
+  (`dt_fondo3d`), no en `G`: es del navegador, no de la partida.
+- 🛑 **El rendimiento en un celular NO se midió.** En Chromium sin placa de
+  video (WebGL por software) el partido en 3D va a ~9 fps contra 60 en 2D, y
+  como el motor avanza por cuadro, el partido se juega más lento. Con GPU de
+  verdad debería ir bien, pero eso es inferencia.
+- ⚠️ **No midas la interfaz con `--use-angle=swiftshader`.** Con esa bandera
+  Chromium compone la página entera por software y las animaciones de CSS se
+  congelan: la pestaña queda en opacidad 0 y parece que la interfaz está rota.
+  Pasa igual con la versión ANTERIOR del juego. Costó media hora descubrirlo.
+- `FM.ticks` **no es monótono** (se reinicia): para saber si el partido corre,
+  mirá `FM.minute` o la pelota.
+
+### Tres funciones nuevas (las tarjetas de la captura del FIFA)
+
+- **🩺 Informe del plantel** (`informePlantel`) — puesto por puesto contra el
+  dibujo que usa HOY el técnico: puestos sin recambio, titular de 33+ sin
+  reemplazo joven, suplente muy por debajo, la línea más floja, contratos que
+  se van. **Todo derivado, no guarda nada.**
+- **🎽 Dorsales** — `G.numsRetirados` YA existía (lo llena el retiro de un
+  ídolo) pero **nadie lo hacía cumplir**. Ahora un número retirado no se puede
+  usar, los duplicados (un fichaje trae el número de su club anterior) se
+  detectan y se resuelven solos, y el presidente puede retirar el número de
+  una leyenda que ya se fue (+4 de humor, una vez).
+- **⭐ Lista de seguimiento** — `G.shortlist` guarda `{id,club,m}` planos y
+  `weeklySeguimiento` avisa al celular si al jugador lo compra otro club, si
+  queda libre o si entra en zona de precontrato. Retro-compatible: un save
+  viejo no lo trae y eso es "no seguís a nadie". Tope 30.
+
+Verificado en `tests/ui-fifa.js` (24 checks): ninguna pestaña huérfana, cada
+una entra con contenido, el informe detecta un DFI sin recambio fabricado a
+propósito, dorsales, seguimiento sobrevive al guardado, 0 funciones en `G`,
+three.js local, los visores abren y cierran, el 11v11 sigue corriendo con el
+3D encima, y diez partidos simulados sin un error.
 
 ## Deploy
 
