@@ -149,7 +149,8 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     G.day = 7; startFullMatch(true);
     setTimeout(() => {
       try { fmCloseHelp(); } catch (e) {}
-      fm3DToggle();
+      // Fase 72: el 3D arranca PRENDIDO solo (preferencia `dt_fm3d`, que el
+      // localStorage.clear() del principio dejó en el default).
       setTimeout(() => {
         const on = !!document.querySelector('#fm3d canvas') && document.getElementById('fm-cv').style.visibility === 'hidden';
         // ⚠️ FM.ticks NO es monótono (se reinicia): se mide el minuto y la pelota.
@@ -161,7 +162,7 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
           try { fmQuit(); } catch (e) {}
           document.getElementById('fm-ov')?.remove(); closeMod();
           r({ on, corre, off });
-        }, 1500);
+        }, 4000);
       }, 900);
     }, 900);
   }));

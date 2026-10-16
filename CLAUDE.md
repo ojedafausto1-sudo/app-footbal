@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72` |
 
 ## Formato de `players-db.js`
 
@@ -6517,6 +6517,127 @@ una entra con contenido, el informe detecta un DFI sin recambio fabricado a
 propósito, dorsales, seguimiento sobrevive al guardado, 0 funciones en `G`,
 three.js local, los visores abren y cierran, el 11v11 sigue corriendo con el
 3D encima, y diez partidos simulados sin un error.
+
+## Fase 72: el partido jugable en 3D, la tienda, la TV y la reunión con la CD
+
+### El 11v11 jugable arranca en 3D
+
+Es la misma capa de la Fase 71 (otra forma de dibujar `FM`, el motor no se
+toca), con lo que le faltaba para jugarse y no sólo mirarse:
+
+- **Arranca prendido** (`fm3DAuto`, al final del armado de `startFullMatch`).
+  El botón 2D/3D guarda la preferencia en `localStorage` (`dt_fm3d`), igual
+  que el fondo: es del navegador, no de la partida.
+- **Lo dibuja `fmLoop`**, una vez por cuadro, en lugar de `fmDraw` — antes
+  tenía su propio `requestAnimationFrame`.
+- **Muñecos articulados** (`e3dJugadores`): cadera → rodilla → botín y hombro →
+  mano, la misma zancada que `drawP3`, miran hacia donde corren (o a la
+  pelota si están quietos), el arquero abre los brazos, la barrida y la
+  estirada los tiran al piso, sombra por jugador. 9 geometrías compartidas y
+  materiales cacheados por color. Van **×1,25 del tamaño real** (`E3_ESC`):
+  en una toma de 105 m un tipo de 1,8 m es un fósforo.
+- **Tres cámaras** (🎥): `cerca` (la de juego, sigue a TU jugador con la
+  pelota en cuadro, default), `tv` (la de la Fase 71) y `detras`.
+  ⚠️ `cerca` y `tv` miran desde la platea, así que arriba en la pantalla es
+  −y en el motor, igual que en 2D: el joystick no cambia. **`detras` da vuelta
+  los ejes**, y `fmCtrl` rota la entrada con `fm3DEntrada` (arriba = hacia el
+  arco rival, de los dos lados de la cancha según `FM.myAttRight`).
+- **HUD propio en HTML** (`fm3DHud`): marcador tipo transmisión, barra de
+  potencia proyectada sobre la cabeza de tu jugador (`Vector3.project`), chip
+  con su nombre, minimapa y el velo de pelota parada. El del canvas 2D se apaga
+  con el canvas. Aro amarillo en el tuyo y celeste en el próximo a controlar.
+- **Clima**: lluvia en trazos que acompañan a la cámara (como puntos se veían
+  cuadraditos) y barro pintado en el círculo central y las áreas.
+- **Resolución adaptativa**: si los cuadros llegan tarde baja el
+  `pixelRatio` hasta 0,5 (lo caro es pintar píxeles) y sólo con la mínima
+  avisa "tocá 2D".
+
+⚠️ **`_kickT` y `_diveT` los descontaba `drawP3` al dibujar.** Con el 2D
+apagado nadie los bajaba y el arquero quedaba tirado para siempre. El 3D los
+descuenta igual, una vez por cuadro.
+
+⚠️ **three.js usa `Math.random()` para el uuid de cada objeto**
+(`MathUtils.generateUUID`). Medido: armar el estadio eran **1.064 llamadas**,
+y el 3D se arma DESPUÉS de `fmInit`, o sea que prenderlo le corría el hilo de
+azar al partido entero (el mismo bug del desfasaje de la animación de
+`drawP3`). Todo lo que construye o renderiza escena durante el partido pasa
+por `_e3dSinAzar(fn)`, que presta un azar propio; la gente del estadio usa
+`_e3dRng(seed)`. La regresión cuenta **0 llamadas** armando y dibujando.
+
+🛑 **El rendimiento en un celular sigue sin medirse.** En Chromium sin placa
+de video va a ~5 fps (8 con la resolución al mínimo), y como `fmLoop` topea
+el cuadro en 100 ms, el motor corre a media velocidad. Con GPU debería ir
+bien, pero es inferencia.
+
+### 👕 Tienda oficial
+
+`G.merch` = `{precio, alt}`. Ganancia = camisetas × (precio − costo), cobrada
+en el **balance mensual** (rubro nuevo `merch`). La demanda sale de los
+socios, del humor y de los jugadores de 82+.
+
+- **El óptimo es el precio de lista (90 €) por construcción**: con
+  elasticidad `e` y costo `c`, `p* = e·c/(e−1)`; con e=3 y c=2/3 da 1.
+  ⚠️ **Con elasticidad 2 el techo era chato**: medido, entre 81 € y 108 € se
+  ganaba lo mismo (0,27M/mes) y el precio no era una decisión. Con 3, cobrar
+  un 20% de menos cuesta 22% de la ganancia y un 20% de más, 6%.
+- El precio **también se paga en humor**: arriba de 1,15× resta hasta 5 por
+  mes, abajo de 0,85× suma. Abajo de 60 € se vende a pérdida.
+- ⚠️ **`finAnota` guarda el valor ABSOLUTO**: una tienda a pérdida se anota
+  como `otros_out`, si no se leería como ingreso.
+- **Camiseta alternativa**: una por temporada, cuesta 0,4M × rep/78, la
+  demanda arranca +80% y se apaga en 16 semanas.
+- Medido en una temporada de Boca: **4-5M**. El primer valor daba 7,3M —
+  demasiado para un rubro nuevo en una economía calibrada— y se bajó.
+  ⚠️ No se tocaron las mejoras `store`/`megastore` del estadio, que ya pagan
+  un `inc` plano por "tienda, hotel e instalaciones".
+
+### 📺 Derechos de TV
+
+El cobro era `(1,15 + rep×0,017)` por mes. Ése es el contrato **mixto** y es
+el default: sin reunión se cobra **exactamente** lo de antes (verificado en 5
+reputaciones). Los otros dos son riesgo, no plata gratis:
+
+| contrato | cuánto |
+|---|---|
+| ⚖️ mixto | la cuenta de siempre, con la rep de cada mes |
+| 📄 fijo | congela la rep del día de la firma y cobra 0,95× |
+| 📈 por rendimiento | 0,70× a 1,30× según el puesto en la tabla |
+
+⚠️ El variable arrancó en 0,65-1,35 y con Boca primero cobraba **51,9M contra
+38,6M** del mixto: demasiado premio. El contrato dura UNA temporada
+(`G.tvDeal.season`).
+
+### 🏛️ Reunión de pretemporada
+
+`setBoardTarget` fijaba el objetivo solo. Ahora `reunionAbrir()` (en
+`initGame` y `nextSeason`, después del objetivo) deja una reunión pendiente en
+la Oficina (tarjeta **Directiva**, cuenta en el numerito de la sección):
+
+| ambición | objetivo | plata | al cerrar la temporada |
+|---|---|---|---|
+| 🛡️ prudente | 3 puestos más abajo | — | +2 / −8 de confianza |
+| 🤝 lo acordado | el de la CD | — | nada nuevo |
+| 🔥 ambiciosa | 2 puestos más arriba | (rep−30)×0,13 M, ya | +10 / −12 |
+
+- ⚠️ **NO frena el club.** Al arrancar la temporada ya caen la gira, los
+  dilemas y la conferencia; un cuarto modal bloqueante sería peaje. Si para la
+  semana 5 (`REUNION_VENCE`) no fuiste, la CD decide lo de siempre (−2 de
+  confianza) y eso no se cobra al cierre.
+- ⚠️ **El aporte escala con el club**: con un piso de 2M, un club de rep 39
+  DUPLICABA su caja de 3M de un saque. Boca recibe 6,2M.
+- `reunionCierre(pos)` corre en `nextSeason` **antes** de `checkFired`: pedir
+  plata y no cumplir te acerca al despido, que es el punto. Se cobra una sola
+  vez (`cerrada`).
+- El estado del modal vive en `window._reu`, fuera de `G`.
+
+Retro-compatible sin migrar: un save sin `merch`/`tvDeal`/`reunion` carga,
+cobra la TV de siempre, vende a precio de lista y no tiene reunión pendiente.
+Verificado borrando los tres campos del JSON guardado.
+
+`tests/fase72.js`, **33 checks**. 🔶 En ~10 corridas dio **un** rojo que no se
+volvió a reproducir; el candidato era la ventana de 1,5 s de "el partido
+corre" (a 5 fps un tiro libre puede durar más de 2 s quieto), que pasó a 4 s
+acá y en `ui-fifa`. Si lo ves rojo, corré de nuevo antes de creerle.
 
 ## Deploy
 

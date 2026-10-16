@@ -782,6 +782,26 @@ body.bg3d-on .main{background:transparent}
   .hb-t{font-size:23px}
 }
 </style>
+<style>
+/* ═══ Fase 72: HUD del partido en 3D (el del canvas 2D se apaga con él) ═══ */
+.f3h{position:absolute;inset:0;pointer-events:none;font-family:'Rajdhani',sans-serif}
+/* reunión de pretemporada: opciones elegibles */
+.reu-h{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;margin:10px 0 4px;color:var(--t1,#fff)}
+.reu-op{cursor:pointer;margin-bottom:6px;transition:border-color .15s}
+.reu-op.on{border-color:rgba(var(--gold-rgb),.75);box-shadow:inset 0 0 0 1px rgba(var(--gold-rgb),.45)}
+.f3-dim{position:absolute;inset:0;background:rgba(0,0,0,.38);opacity:0;transition:opacity .25s}
+.f3-sb{position:absolute;left:14px;top:12px;display:flex;align-items:stretch;height:25px;box-shadow:0 2px 0 rgba(var(--gold-rgb),.65),0 6px 18px rgba(0,0,0,.45)}
+.f3-sb>*{display:flex;align-items:center;justify-content:center}
+.f3-t{width:44px;background:rgba(6,8,14,.92);color:#e8e8e8;font-weight:600;font-size:12px;font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums}
+.f3-sb i{width:5px}
+.f3-sb b{width:44px;background:rgba(16,20,32,.92);color:#fff;font-size:12.5px;font-weight:700}
+.f3-sc{width:50px;background:rgba(240,240,240,.96);color:#0a0c14;font-weight:800;font-size:14px;font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums}
+.f3-pw{position:absolute;width:56px;height:8px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.5);border-radius:3px;display:none;overflow:hidden}
+.f3-pw div{height:100%;width:0;background:linear-gradient(90deg,#0fb866,var(--gold) 55%,#e84545)}
+.f3-chip{position:absolute;left:50%;bottom:152px;transform:translateX(-50%);background:rgba(8,10,18,.75);color:var(--gold);font-weight:700;font-size:11px;letter-spacing:.06em;padding:2px 12px;border-radius:9px;white-space:pre}
+.f3-mm{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:190px;height:99px;opacity:.88;border-radius:4px}
+@media (max-width:600px){ .f3-mm{width:150px;height:78px} .f3-chip{bottom:128px} }
+</style>
 </head>
 <body>
 
@@ -5372,6 +5392,7 @@ function initGame(teamId){
   autoFill();
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   setBoardTarget();
+  try{ reunionAbrir(); }catch(e){}
   document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
@@ -15289,6 +15310,7 @@ const FIN_RUBROS={
   borderó:{e:'🎟️',t:'Borderó (entradas)',in:true},
   tv:{e:'📺',t:'Derechos de TV',in:true},
   socios:{e:'👥',t:'Cuotas de socios',in:true},
+  merch:{e:'👕',t:'Tienda oficial (neto)',in:true},
   sponsors:{e:'🤝',t:'Sponsors',in:true},
   ventas:{e:'💸',t:'Ventas de jugadores',in:true},
   premios:{e:'🏆',t:'Premios y bonos',in:true},
@@ -15389,6 +15411,7 @@ function nextSeason(){
   try{ prensaTitulos(); }catch(e){}
   try{ juntaTick(); }catch(e){}   // el ídolo que se fue vuelve de traje
   endSeasonMarket();
+  try{ reunionCierre(finalPos); }catch(e){}   // lo firmado en la reunión se cobra ANTES del veredicto
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   // Las elecciones van DESPUÉS del checkFired: si terminaste en zona de
   // descenso ya te fuiste antes de que los socios voten.
@@ -15556,6 +15579,7 @@ function nextSeason(){
   if(dtIsMine()) refillKeeping(); else autoFill();
   G.league=null;ensureLeague();
   setBoardTarget();
+  reunionAbrir();
   lg('🏁', 'Temporada '+G.season+' iniciada!');
   closeMod();
   updateUI();
@@ -16553,6 +16577,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyConflictivos(); // cierre mensual: el crack conflictivo que no juega
   weeklyJunta();        // el Director Deportivo renueva solo, si delegaste
   weeklySeguimiento();  // el ojeador avisa qué pasó con tu lista
+  try{ reunionVencer(); }catch(e){}   // si no fuiste a la reunión, decide la CD
   weeklyDilema();
   eleccionAviso();
   weeklyYouth();
@@ -16687,7 +16712,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // agrega otro cobro de cuotas, se duplica el ingreso y se rompe la
     // calibración del neto anual.
     const socInc=ingresoSocios();
-    const tv=Math.round((1.15+(G.rep||50)*0.017)*10)/10;   // derechos de TV solos
+    // Derechos de TV solos. El contrato se elige en la reunión de pretemporada
+    // (Fase 72); sin reunión es el mixto, que es exactamente la cuenta de antes.
+    const tv=tvMensual();
+    // Tienda oficial: ganancia neta de las camisetas (Fase 72)
+    const merch=merchCobrar();
     // Gastos operativos del club: cuerpo técnico, inferiores, estadio, logística.
     // Sin esto el presupuesto sólo subía y la plata dejaba de ser un problema.
     const staffLv=Object.values(G.staffLevels||{}).reduce((a,v)=>a+(v||0),0);
@@ -16716,15 +16745,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // arriba ya la cubre `_estructura`, que está calibrada (Fase 23), así que
     // de Boca para arriba no se mueve un peso.
     const ops=Math.max(0.4,Math.round((( 1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035)*escalaEstructura()+_estructura-_wfx.opsCut)*10)/10);
-    G.budget=Math.round((G.budget-wages+tv+socInc-ops)*10)/10;
+    G.budget=Math.round((G.budget-wages+tv+socInc+merch-ops)*10)/10;
     finAnota('sueldos',wages,'Sueldos del plantel');
     finAnota('tv',tv,'Derechos de TV');
     finAnota('socios',socInc,`Cuotas de ${sociosActivos().toLocaleString('es')} socios`);
     finAnota('operativo',ops,'Gastos operativos');
-    const neto=Math.round((tv+socInc-wages-ops)*10)/10;
+    // ⚠️ finAnota guarda el valor ABSOLUTO: una tienda a pérdida (camiseta
+    // abajo del costo) va como gasto, si no se leería como ingreso.
+    if(merch>=0) finAnota('merch',merch,`Tienda oficial: ${merchMes().camisetas.toLocaleString('es')} camisetas`);
+    else finAnota('otros_out',-merch,'Tienda oficial: camisetas abajo del costo');
+    const neto=Math.round((tv+socInc+merch-wages-ops)*10)/10;
     // `tv` de finLast queda como el ingreso institucional completo: lo lee la
     // tarjeta de Finanzas de Estadísticas, que muestra un solo renglón.
-    G.finLast={wages,tv:Math.round((tv+socInc)*10)/10,socios:socInc,neto,wk,ops};
+    G.finLast={wages,tv:Math.round((tv+socInc)*10)/10,socios:socInc,merch,neto,wk,ops};
     // ═══ LA JUNTA MIRA LA CAJA, NO SÓLO LA TABLA ═══
     // Medido: el presupuesto en rojo NO tocaba la confianza de la CD — sólo el
     // embargo (−5M durante 4 semanas), que es otra cosa y mucho más tarde. Se
@@ -22094,6 +22127,7 @@ function startFullMatch(watch){
     if(mb)mb.textContent=FMS.muted?'🔇':'🔊';
     if(window._fmWatch)fmSetupWatch();
     FM.raf=requestAnimationFrame(fmLoop);
+    try{ fm3DAuto(); }catch(e){ console.error('3D',e); }
   });
 }
 
@@ -23299,7 +23333,7 @@ function fmLoop(ts){
   if(FM)FM._dtLast=Math.max(0.3,Math.min(4,real/PASO_MS));   // cuánto avanza la lluvia este cuadro
   // Con la vista 3D puesta el canvas 2D está oculto: dibujarlo igual es tirar
   // los cuadros que el 3D necesita (Fase 71).
-  if(FM&&FM.phase!=='done'&&!(typeof _FM3!=='undefined'&&_FM3.on))fmDraw();
+  if(FM&&FM.phase!=='done'){ if(typeof _FM3!=='undefined'&&_FM3.on) fm3DFrame(); else fmDraw(); }
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
@@ -23592,6 +23626,7 @@ function fmCtrl(dt){
   // === INPUT: joystick analógico (dirección + magnitud) o teclado ===
   let ix=k.rt-k.lf,iy=k.dn-k.up,mag=(ix||iy)?1:0;
   if(f.joyVec){ix=f.joyVec.x;iy=f.joyVec.y;mag=f.joyVec.mag;}
+  if(typeof _FM3!=='undefined'&&_FM3.on){ const r3=fm3DEntrada(ix,iy); if(r3){ix=r3[0];iy=r3[1];} }
   const moving=mag>0.06;
   const chargingNow=f.chargeA>0||f.chargeC>0;
 
@@ -28949,7 +28984,7 @@ function rFHead(){
 // OFFICE del FIFA. Sale del estado, no se guarda.
 function fPendientes(){
   if(!G)return{};
-  const ofi=(typeof aprobaciones==='function'?aprobaciones().length:0)+(typeof ofertasSponsor==='function'?ofertasSponsor().length:0);
+  const ofi=(typeof aprobaciones==='function'?aprobaciones().length:0)+(typeof ofertasSponsor==='function'?ofertasSponsor().length:0)+(typeof reunionPendiente==='function'&&reunionPendiente()?1:0);
   const mer=(G.offers||[]).length;
   const cen=(G.phoneMsgs||[]).filter(m=>!m.read).length;
   const pla=(typeof informePlantel==='function')?informePlantel().alertas.filter(a=>a.grave).length:0;
@@ -29092,6 +29127,8 @@ const HUBS={
   oficina:{big:fOficinaBig,bigTab:'pres',tiles:[
     {t:'Estadio',i:'🏟️',tab:'stad',s:()=>`${_esc(G.stadium&&G.stadium.name||'')} · ${((G.stadium&&G.stadium.capacity)||0).toLocaleString('es')}`},
     {t:'Sala de trofeos',i:'🏆',fn:'abrirTrofeos3D()',s:()=>{const n=_trofeosLista().reduce((a,t)=>a+t.n,0);return n?`${n} título${n===1?'':'s'} · en 3D`:'Vacía, por ahora';}},
+    {t:'Directiva',i:'🏛️',fn:'abrirReunion()',s:()=>reunionPendiente()?`⚠️ Reunión pendiente · vence en la semana ${REUNION_VENCE}`:`TV: ${TV_DEALS[tvTipo()].n} · ${fv(tvMensual())}/mes`},
+    {t:'Tienda oficial',i:'👕',fn:'abrirTienda()',s:()=>{const m=merchMes();return `${m.precio} € · ${fv(m.neto)}/mes`;}},
     {t:'Patrocinios',i:'🤝',tab:'pat',s:()=>`${(G.sponsors||[]).length} contratos · ${ofertasSponsor().length} ofertas`},
     {t:'Redes',i:'📱',tab:'social',s:()=>'Lo que dice la gente'},
   ]},
@@ -29375,13 +29412,29 @@ function e3dSoporta(){
 }
 // El estadio sale de los datos: la FORMA de la capacidad, el color del club,
 // el techo de la mejora construida y la gente de la asistencia.
+// ⚠️ La gente sale de un azar PROPIO (`_e3dRng`), no de Math.random(): el 3D
+// del partido se arma DESPUÉS de fmInit, y cada número que se tomara de la
+// fuente del motor le correría el hilo de azar al partido entero — el mismo
+// bug del desfasaje de la animación que ya está documentado en drawP3.
+function _e3dRng(seed){ let a=(seed>>>0)||1;
+  return ()=>{ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+// ⚠️ Y no alcanza con eso: THREE le pone un uuid a CADA objeto, geometría,
+// material y textura con MathUtils.generateUUID(), que usa Math.random().
+// Medido: armar el estadio solo eran 1.064 llamadas. Todo lo que construye
+// escena mientras corre un partido pasa por acá, que presta un azar propio.
+const _e3dAzar=_e3dRng(424242);
+function _e3dSinAzar(fn){
+  const orig=Math.random; Math.random=_e3dAzar;
+  try{ return fn(); } finally{ Math.random=orig; }
+}
 function e3dEstadio(o){
   const T=THREE, S=new T.Scene();
   const cap=o.cap||20000, col=new T.Color(o.color||'#1d4ed8');
-  S.background=new T.Color(o.noche?'#05070d':'#9cc3ea');
-  S.fog=new T.Fog(S.background,280,620);
-  S.add(new T.HemisphereLight(o.noche?0x445577:0xddeeff,0x223311,o.noche?0.6:0.95));
-  const sol=new T.DirectionalLight(0xffffff,o.noche?0.35:1.35);
+  const rnd=_e3dRng(cap*7+13), llueve=o.clima==='lluvia', barro=o.clima==='barro';
+  S.background=new T.Color(o.noche?'#05070d':llueve?'#6f7c8a':'#9cc3ea');
+  S.fog=new T.Fog(S.background,llueve?150:280,llueve?420:620);
+  S.add(new T.HemisphereLight(o.noche?0x445577:0xddeeff,0x223311,o.noche?0.6:llueve?0.8:0.95));
+  const sol=new T.DirectionalLight(0xffffff,o.noche?0.35:llueve?0.55:1.35);
   sol.position.set(-90,160,70);
   if(o.sombras){ sol.castShadow=true; sol.shadow.mapSize.set(1024,1024);
     Object.assign(sol.shadow.camera,{left:-140,right:140,top:110,bottom:-110,far:400}); }
@@ -29391,8 +29444,13 @@ function e3dEstadio(o){
   const tc=document.createElement('canvas'); tc.width=1024; tc.height=680;
   const g=tc.getContext('2d'), sx=1024/(L+2*M), sy=680/(A+2*M);
   for(let i=0;i<18;i++){ g.fillStyle=i%2?'#2f8a3a':'#3a9a44'; g.fillRect(i*1024/18,0,1024/18+1,680); }
-  g.strokeStyle='#f4f4f4'; g.lineWidth=2.2;
   const X=x=>(x+M)*sx, Y=y=>(y+M)*sy;
+  // El barro va donde se pisa: el círculo central y las dos áreas.
+  if(barro) [[L/2,A/2,9],[6,A/2,8],[L-6,A/2,8]].forEach(([cx,cy,r])=>{
+    for(let k=0;k<14;k++){ const a=rnd()*6.3, d=rnd()*r;
+      g.fillStyle=`rgba(${96+rnd()*30|0},${70+rnd()*20|0},40,${0.35+rnd()*0.3})`;
+      g.beginPath(); g.ellipse(X(cx+Math.cos(a)*d),Y(cy+Math.sin(a)*d*0.8),(2+rnd()*4)*sx,(1.5+rnd()*3)*sy,rnd()*3,0,7); g.fill(); } });
+  g.strokeStyle='#f4f4f4'; g.lineWidth=2.2;
   g.strokeRect(X(0),Y(0),L*sx,A*sy);
   g.beginPath(); g.moveTo(X(L/2),Y(0)); g.lineTo(X(L/2),Y(A)); g.stroke();
   g.beginPath(); g.ellipse(X(L/2),Y(A/2),9.15*sx,9.15*sy,0,0,7); g.stroke();
@@ -29455,10 +29513,10 @@ function e3dEstadio(o){
     const dm=new T.Object3D(), c=new T.Color();
     const pal=[col,col,col,new T.Color(0xffffff),new T.Color(0x222222),new T.Color(0xd9b38c)];
     for(let k=0;k<vis;k++){
-      const f=meta[(Math.random()*meta.length)|0]; let x,z;
-      if(f.lat){ x=(Math.random()-.5)*L*0.88; z=(Math.random()<.5?-1:1)*(A/2+M+f.off+0.4); }
+      const f=meta[(rnd()*meta.length)|0]; let x,z;
+      if(f.lat){ x=(rnd()-.5)*L*0.88; z=(rnd()<.5?-1:1)*(A/2+M+f.off+0.4); }
       else{
-        let s=Math.random()*2*(f.w+f.d);
+        let s=rnd()*2*(f.w+f.d);
         if(s<f.w){x=-f.w/2+s;z=-f.d/2;} else if((s-=f.w)<f.d){x=f.w/2;z=-f.d/2+s;}
         else if((s-=f.d)<f.w){x=f.w/2-s;z=f.d/2;} else {s-=f.w;x=-f.w/2;z=f.d/2-s;}
         const cx=Math.max(Math.abs(x)-(f.w/2-f.r),0),cz=Math.max(Math.abs(z)-(f.d/2-f.r),0);
@@ -29466,7 +29524,7 @@ function e3dEstadio(o){
         const nn=Math.hypot(x,z); x+=x/nn*0.4; z+=z/nn*0.4;
       }
       dm.position.set(x,f.h+0.37,z); dm.updateMatrix();
-      gente.setMatrixAt(k,dm.matrix); gente.setColorAt(k,c.copy(pal[(Math.random()*pal.length)|0]));
+      gente.setMatrixAt(k,dm.matrix); gente.setColorAt(k,c.copy(pal[(rnd()*pal.length)|0]));
     }
     S.add(gente);
   }
@@ -29494,27 +29552,103 @@ function e3dEstadio(o){
 // Los 22 y la pelota del 11v11, leídos de FM: el motor no cambia, sólo cómo
 // se dibuja. ⚠️ El kit puede traer 'var(--gold)' y WebGL no resuelve
 // variables CSS (la misma trampa que GOLD() en el canvas 2D).
+// Cada jugador es un muñeco articulado (Fase 72): cadera → rodilla → botín y
+// hombro → mano, con la misma zancada que dibuja drawP3 en 2D, y mira hacia
+// donde corre. Las piezas comparten geometría y los colores se cachean por
+// kit: 22 jugadores son ~260 mallas pero sólo 9 geometrías.
+const E3_ESC=1.25;        // los jugadores van un 25% más grandes que lo real: en una
+                          // toma de TV de 105 m un tipo de 1,8 m es un fósforo
 function e3dJugadores(E){
-  const T=THREE, jugs=[];
-  const ficha=kit=>{ const gr=new T.Group();
-    const tor=new T.Mesh(new T.CapsuleGeometry(0.42,0.55,4,8),new T.MeshLambertMaterial({color:_cssVar(kit.c1,'#c0392b')})); tor.position.y=0.4;
-    const pie=new T.Mesh(new T.CylinderGeometry(0.34,0.3,0.8,8),new T.MeshLambertMaterial({color:_cssVar(kit.c2,'#ffffff')})); pie.position.y=-0.45;
-    const cab=new T.Mesh(new T.SphereGeometry(0.26,10,8),new T.MeshLambertMaterial({color:0xd9a77a})); cab.position.y=1.15;
-    gr.add(tor,pie,cab); E.S.add(gr); jugs.push(gr); return gr; };
-  const pel=new T.Mesh(new T.SphereGeometry(0.45,14,10),new T.MeshLambertMaterial({color:0xffffff})); E.S.add(pel);
-  const aro=new T.Mesh(new T.RingGeometry(0.9,1.2,24),new T.MeshBasicMaterial({color:0xffd34d,side:T.DoubleSide}));
-  aro.rotation.x=-Math.PI/2; aro.visible=false; E.S.add(aro);
-  return {pel,sync(){
+  const T=THREE, S=E.S, jugs=[];
+  const mats={}, mat=c=>{ const k=_cssVar(c,'#888888'); return mats[k]||(mats[k]=new T.MeshLambertMaterial({color:k})); };
+  const gTor=new T.BoxGeometry(0.46,0.52,0.25), gSho=new T.BoxGeometry(0.44,0.24,0.27),
+    gMus=new T.BoxGeometry(0.17,0.42,0.18), gPie=new T.BoxGeometry(0.14,0.42,0.15), gBot=new T.BoxGeometry(0.15,0.09,0.28),
+    gBra=new T.BoxGeometry(0.11,0.5,0.11), gCab=new T.SphereGeometry(0.15,10,8),
+    gPel=new T.SphereGeometry(0.157,10,6,0,Math.PI*2,0,Math.PI*0.5);
+  const PIEL=[0xe8b481,0xd9a06b,0xb07a48,0x8a5a30].map(c=>new T.MeshLambertMaterial({color:c}));
+  const PELO=[0x1b1410,0x3a2614,0x6b4a26,0x111111].map(c=>new T.MeshLambertMaterial({color:c}));
+  const NEGRO=new T.MeshLambertMaterial({color:0x151515});
+  // sombra: un disco con gradiente, una sola textura para todos
+  const sc=document.createElement('canvas'); sc.width=sc.height=64;
+  { const x=sc.getContext('2d'), gr=x.createRadialGradient(32,32,2,32,32,32);
+    gr.addColorStop(0,'rgba(0,0,0,.55)'); gr.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=gr; x.fillRect(0,0,64,64); }
+  const mSom=new T.MeshBasicMaterial({map:new T.CanvasTexture(sc),transparent:true,depthWrite:false});
+  const gSom=new T.PlaneGeometry(1,1);
+  const sombra=(r)=>{ const m=new T.Mesh(gSom,mSom); m.rotation.x=-Math.PI/2; m.scale.set(r,r,1); m.position.y=0.02; S.add(m); return m; };
+  const muneco=(p,kit)=>{
+    const raiz=new T.Group(), cuerpo=new T.Group(); raiz.add(cuerpo);
+    const k=p.isGK?{c1:'#15181c',c2:'#c8d420'}:kit;
+    const camiseta=mat(k.c1), media=mat((k.c2&&k.c2!==k.c1)?k.c2:'#eeeeee'), short=mat(k.c2&&k.c2!==k.c1?k.c2:'#222222');
+    const h=(p.name||'x').charCodeAt(0)+(p.name||'').length, piel=PIEL[h%4];
+    const add=(par,geo,m,x,y,z)=>{ const o=new T.Mesh(geo,m); o.position.set(x,y,z); par.add(o); return o; };
+    add(cuerpo,gTor,camiseta,0,1.30,0); add(cuerpo,gSho,short,0,0.93,0);
+    add(cuerpo,gCab,piel,0,1.70,0); add(cuerpo,gPel,PELO[h%4],0,1.715,-0.01);
+    const pierna=lado=>{ const cad=new T.Group(); cad.position.set(lado*0.11,0.88,0); cuerpo.add(cad);
+      add(cad,gMus,piel,0,-0.21,0); const rod=new T.Group(); rod.position.y=-0.42; cad.add(rod);
+      add(rod,gPie,media,0,-0.21,0); add(rod,gBot,NEGRO,0,-0.42,0.06); return {cad,rod}; };
+    const brazo=lado=>{ const hom=new T.Group(); hom.position.set(lado*0.30,1.52,0); cuerpo.add(hom);
+      add(hom,gBra,camiseta,0,-0.25,0); return hom; };
+    const J={raiz,cuerpo,pi:pierna(-1),pd:pierna(1),bi:brazo(-1),bd:brazo(1),
+      som:sombra(1.5),ph:((p.num||1)*2.399963)%6,yaw:0,lx:null,lz:null};
+    raiz.scale.setScalar(E3_ESC); S.add(raiz); return J;
+  };
+  // la pelota: pentágonos dibujados en la textura, gira según la velocidad
+  const pc=document.createElement('canvas'); pc.width=128; pc.height=64;
+  { const x=pc.getContext('2d'); x.fillStyle='#f4f4f4'; x.fillRect(0,0,128,64); x.fillStyle='#161616';
+    [[16,14],[48,40],[80,14],[112,40],[16,52],[80,52],[48,6],[112,6]].forEach(([a,b])=>{ x.beginPath(); for(let i=0;i<5;i++){ const t=i*1.2566-1.57; x.lineTo(a+Math.cos(t)*7,b+Math.sin(t)*7); } x.fill(); }); }
+  const pel=new T.Mesh(new T.SphereGeometry(0.11*E3_ESC*1.6,14,10),new T.MeshLambertMaterial({map:new T.CanvasTexture(pc)}));
+  S.add(pel); const pelSom=sombra(0.9);
+  const anillo=(c,o)=>{ const m=new T.Mesh(new T.RingGeometry(0.85,1.12,28),new T.MeshBasicMaterial({color:c,side:T.DoubleSide,transparent:true,opacity:o,depthWrite:false}));
+    m.rotation.x=-Math.PI/2; m.visible=false; S.add(m); return m; };
+  const aro=anillo(0xffe066,0.95), aroSig=anillo(0x44ddff,0.6);
+  const w=()=>(FM.rightGL-FM.leftGL)||1;
+  const toW=p=>[((p.x-FM.leftGL)/w()-.5)*E.L,(p.y/FM.VH-.5)*E.A];
+  const R={pel,jugs,toW,sig:-1,sync(){
     if(typeof FM==='undefined'||!FM||!FM.my)return null;
-    const w=(FM.rightGL-FM.leftGL)||1;
-    const toW=p=>[((p.x-FM.leftGL)/w-.5)*E.L,(p.y/FM.VH-.5)*E.A];
-    if(!jugs.length){ FM.my.forEach(()=>ficha(FM.myKit||{c1:'#1d4ed8',c2:'#fff'})); FM.opp.forEach(()=>ficha(FM.oppKit||{c1:'#fff',c2:'#222'})); }
-    FM.my.concat(FM.opp).forEach((p,i)=>{ if(!jugs[i])return; const [x,z]=toW(p); jugs[i].position.set(x,0.85,z); });
-    const [bx,bz]=toW(FM.ball); pel.position.set(bx,0.45+(FM.ball.air||0)*0.12,bz);
+    const todos=FM.my.concat(FM.opp);
+    if(jugs.length!==todos.length) _e3dSinAzar(()=>{ jugs.forEach(j=>{ S.remove(j.raiz); S.remove(j.som); }); jugs.length=0;
+      FM.my.forEach(p=>jugs.push(muneco(p,FM.myKit||{c1:'#1d4ed8',c2:'#fff'})));
+      FM.opp.forEach(p=>jugs.push(muneco(p,FM.oppKit||{c1:'#fff',c2:'#222'}))); });
+    todos.forEach((p,i)=>{ const J=jugs[i]; if(!J)return;
+      // ⚠️ drawP3 descuenta estos dos relojes al dibujar; con el 2D apagado
+      // nadie los bajaba y el arquero quedaba tirado para siempre.
+      if(p._kickT>0)p._kickT-=1; if(p._diveT>0)p._diveT-=1;
+      const [x,z]=toW(p);
+      const dx=J.lx===null?0:x-J.lx, dz=J.lz===null?0:z-J.lz; J.lx=x; J.lz=z;
+      const mv=Math.hypot(p.vx||0,p.vy||0), corre=mv>0.3, sp=Math.min(1,mv/2.1);
+      if(Math.hypot(dx,dz)>0.004){ const obj=Math.atan2(dx,dz); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.25; }
+      else if(FM.ball){ const [bx,bz]=toW(FM.ball); const obj=Math.atan2(bx-x,bz-z); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.06; }
+      J.ph+=mv*0.30+0.02; const ph=J.ph;
+      const tirado=(p._slideT||0)>0||(p._diveT||0)>0, patada=(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0;
+      const sw=corre?Math.sin(ph)*0.78*sp:0.03;
+      J.pi.cad.rotation.x=-sw; J.pd.cad.rotation.x=sw-patada*1.2;
+      J.pi.rod.rotation.x=corre?Math.max(0.1,Math.cos(ph))*0.95*sp:0.08;
+      J.pd.rod.rotation.x=corre?Math.max(0.1,-Math.cos(ph))*0.95*sp*(1-patada):0.08;
+      J.bi.rotation.x=sw*0.8; J.bd.rotation.x=-sw*0.8;
+      J.bi.rotation.z=-0.12; J.bd.rotation.z=0.12;
+      if(p.isGK&&!corre&&!tirado){ J.bi.rotation.z=-0.5; J.bd.rotation.z=0.5; }
+      J.cuerpo.rotation.x=tirado?0:0.13*sp;
+      J.raiz.rotation.set(0,J.yaw,tirado?(J.yaw>0?1:-1)*1.35:0);
+      J.raiz.position.set(x,(corre?Math.abs(Math.cos(ph))*0.06*sp:0)+(tirado?0.25:0),z);
+      J.som.position.set(x+0.25,0.02,z+0.15);
+    });
+    const b=FM.ball, [bx,bz]=toW(b);
+    // misma curva que drawBall3, que llega a la altura de un jugador; en 3D se
+    // ve chato, así que la parábola sube hasta ~5 m
+    const alt=b.air>0?Math.sin(Math.min(1,b.air/60)*Math.PI)*5:0;
+    pel.position.set(bx,0.18+alt,bz);
+    const bv=Math.hypot(b.vx||0,b.vy||0);
+    if(bv>0.05){ pel.rotation.z-=(b.vx||0)*0.05; pel.rotation.x+=(b.vy||0)*0.05; }
+    pelSom.position.set(bx+alt*0.25,0.021,bz); pelSom.scale.setScalar(Math.max(0.4,0.9-alt*0.08));
     const c=FM.my[FM.ctrl];
+    let sig=-1, nb=1e9;
+    if(c&&!FM.watch){ FM.my.forEach((p,i)=>{ if(i===FM.ctrl)return; const d=Math.hypot(p.x-b.x,p.y-b.y); if(d<nb){nb=d;sig=i;} }); }
+    R.sig=sig;
     if(c&&!FM.watch){ const [cx,cz]=toW(c); aro.position.set(cx,0.03,cz); aro.visible=true; } else aro.visible=false;
-    return [bx,bz];
+    if(sig>=0){ const [sx,sz]=toW(FM.my[sig]); aroSig.position.set(sx,0.03,sz); aroSig.visible=true; } else aroSig.visible=false;
+    return [bx,bz,alt];
   }};
+  return R;
 }
 
 // ═══ EL FONDO 3D: tu estadio detrás del menú ═══
@@ -29762,58 +29896,396 @@ function abrirTrofeos3D(){
 // joystick siguen iguales. Se inserta DESPUÉS del canvas en el DOM y con
 // pointer-events:none, así los botones táctiles siguen encima y el toque
 // pasa de largo.
-const _FM3={on:false,R:null,E:null,J:null,cam:null,raf:0,cx:0,modo:'tv'};
+// Fase 72: arranca PRENDIDO (la preferencia es del navegador, `dt_fm3d`), lo
+// dibuja el mismo fmLoop en vez de un rAF aparte, y trae su propio HUD en
+// HTML porque el del canvas 2D (marcador, barra de potencia, minimapa) se
+// apaga junto con el canvas.
+const FM3_CAMS=['cerca','tv','detras'];
+const FM3_CAM_NOM={cerca:'🎮 Cámara de juego',tv:'📺 Cámara de TV',detras:'🎥 Detrás de la jugada'};
+const _FM3={on:false,R:null,E:null,J:null,cam:null,cx:0,cz:0,modo:'cerca',hud:null,gaps:[],prev:0,avisoLento:false,lluvia:null};
+try{ const c=localStorage.getItem('dt_fm3dcam'); if(FM3_CAMS.includes(c))_FM3.modo=c; }catch(e){}
+function fm3DPref(){ try{ return localStorage.getItem('dt_fm3d')!=='0'; }catch(e){ return true; } }
+function fm3DAuto(){ if(fm3DPref()&&e3dSoporta()&&!_FM3.on) fm3DEncender(); }
 function fm3DToggle(){
   if(!document.getElementById('fm-ov'))return;
-  if(_FM3.on){ fm3DApagar(); return; }
+  if(_FM3.on){ fm3DApagar(); try{ localStorage.setItem('dt_fm3d','0'); }catch(e){} return; }
+  try{ localStorage.setItem('dt_fm3d','1'); }catch(e){}
+  fm3DEncender();
+}
+function fm3DEncender(){
   e3dCargar(ok=>{
     if(!ok||!e3dSoporta()){ flash('Este navegador no tiene 3D (WebGL)','loss'); return; }
-    const cv=document.getElementById('fm-cv'), gm=document.getElementById('fm-game'); if(!cv||!gm)return;
+    const cv=document.getElementById('fm-cv'), gm=document.getElementById('fm-game'); if(!cv||!gm||_FM3.on)return;
     const host=document.createElement('div'); host.id='fm3d';
     host.style.cssText='position:absolute;inset:0;pointer-events:none';
     cv.insertAdjacentElement('afterend',host);
     // Más liviano que el visor: corre AL MISMO TIEMPO que el motor del 11v11.
-    _FM3.R=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
-    _FM3.R.setPixelRatio(1);
+    _FM3.R=_e3dSinAzar(()=>new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}));
+    _FM3.prMax=Math.min(1.5,window.devicePixelRatio||1); _FM3.ajuste=0;
+    _FM3.R.setPixelRatio(_FM3.prMax);
     host.appendChild(_FM3.R.domElement);
     const st=(G&&G.stadium)||{};
     // Local: tu cancha. Visitante: una cancha neutra del tamaño del rival.
     const m=FM&&FM.m, local=!m||m.home===G.teamName;
-    _FM3.E=e3dEstadio({cap:local?(st.capacity||30000):30000,color:local?_colClub():'#7a8494',gente:3500,asist:0.85,
-      techo:local&&!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
-    _FM3.J=e3dJugadores(_FM3.E);
-    _FM3.cam=new THREE.PerspectiveCamera(38,1,0.5,900);
-    _FM3.on=true; cv.style.visibility='hidden';
+    _e3dSinAzar(()=>{
+      _FM3.E=e3dEstadio({cap:local?(st.capacity||30000):30000,color:local?_colClub():'#7a8494',gente:3500,asist:0.85,
+        clima:window.matchWeather,techo:local&&!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
+      _FM3.J=e3dJugadores(_FM3.E);
+      _FM3.lluvia=window.matchWeather==='lluvia'?fm3DLluvia(_FM3.E.S):null;
+      _FM3.cam=new THREE.PerspectiveCamera(38,1,0.5,900);
+      _FM3.hud=fm3DHud(host);
+    });
+    _FM3.on=true; _FM3.gaps=[]; _FM3.prev=0; cv.style.visibility='hidden';
     const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='2D';
-    const fit=()=>{ const w=gm.clientWidth,h=gm.clientHeight; _FM3.R.setSize(w,h,false);
+    const fit=()=>{ if(!_FM3.R)return; const w=gm.clientWidth,h=gm.clientHeight; _FM3.R.setSize(w,h,false);
       _FM3.R.domElement.style.width='100%'; _FM3.R.domElement.style.height='100%'; _FM3.cam.aspect=w/Math.max(1,h); _FM3.cam.updateProjectionMatrix(); };
     fit(); _FM3.fit=fit; window.addEventListener('resize',fit);
-    const tick=()=>{
-      if(!_FM3.on)return;
-      if(!document.getElementById('fm-ov')){ fm3DApagar(); return; }
-      const b=_FM3.J.sync();
-      if(b){
-        _FM3.cx+= (b[0]*0.85-_FM3.cx)*0.06;
-        // La cámara de TV va en el borde de la platea, alta: más atrás queda
-        // ADENTRO de la tribuna (medido: la primera versión sólo veía cemento).
-        if(_FM3.modo==='tv'){ _FM3.cam.position.set(_FM3.cx,23,_FM3.E.A/2+_FM3.E.M+3); _FM3.cam.lookAt(_FM3.cx,0,b[1]*0.25); }
-        else { _FM3.cam.position.set(_FM3.cx-38,22,b[1]*0.5); _FM3.cam.lookAt(_FM3.cx+10,0,b[1]*0.5); }
-        _FM3.R.render(_FM3.E.S,_FM3.cam);
-      }
-      _FM3.raf=requestAnimationFrame(tick);
-    };
-    tick();
+    fm3DFrame();
   });
 }
-function fm3DCamara(){ _FM3.modo=_FM3.modo==='tv'?'detras':'tv'; flash(_FM3.modo==='tv'?'📺 Cámara de TV':'🎥 Cámara detrás de la jugada','draw'); }
+// La dibuja fmLoop, UNA vez por cuadro, en lugar de fmDraw.
+function fm3DFrame(){
+  if(!_FM3.on||!_FM3.R)return;
+  if(!document.getElementById('fm-ov')){ fm3DApagar(); return; }
+  const b=_FM3.J.sync(); if(!b)return;
+  const E=_FM3.E, cam=_FM3.cam, A=E.A;
+  const c=FM.my[FM.ctrl], juego=c&&!FM.watch;
+  let tx=b[0], tz=b[1];
+  // La cámara de juego sigue a TU jugador (con la pelota adentro del cuadro);
+  // mirando, sigue a la pelota.
+  if(juego){ const [px,pz]=_FM3.J.toW(c), k=_FM3.modo==='detras'?0.3:0.6; tx=px*k+b[0]*(1-k); tz=pz*k+b[1]*(1-k); }
+  _FM3.cx+=(tx-_FM3.cx)*0.08; _FM3.cz+=(tz-_FM3.cz)*0.08;
+  const cx=_FM3.cx, cz=Math.max(-A/2+4,Math.min(A/2-4,_FM3.cz));
+  // ⚠️ 'cerca' y 'tv' miran desde la platea (+z hacia -z): arriba en la
+  // pantalla es -y en el motor, igual que en 2D, así el joystick no cambia.
+  // 'detras' da vuelta los ejes y fmCtrl rota la entrada (fm3DEntrada).
+  if(_FM3.modo==='tv'){ cam.position.set(cx*0.85,23,A/2+E.M+3); cam.lookAt(cx*0.85,0,b[1]*0.25); }
+  else if(_FM3.modo==='cerca'){ cam.position.set(cx,13.5,cz+24); cam.lookAt(cx,0.5,cz-3); }
+  else { const d=FM.myAttRight?1:-1; cam.position.set(cx-d*24,11,cz); cam.lookAt(cx+d*12,0.5,cz); }
+  if(_FM3.lluvia) _FM3.lluvia.tick(cx,cz);
+  _e3dSinAzar(()=>_FM3.R.render(E.S,cam));
+  fm3DHudPintar(b);
+  // Equipo flojo: se avisa UNA vez cómo volver al 2D en vez de dejar que el
+  // partido se arrastre (el motor va a paso fijo, pero con cuadros de más de
+  // 100 ms el reloj de pared igual pierde tiempo).
+  const t=performance.now();
+  if(_FM3.prev){ _FM3.gaps.push(t-_FM3.prev); if(_FM3.gaps.length>90)_FM3.gaps.shift(); }
+  _FM3.prev=t;
+  // Primero se baja la RESOLUCIÓN del render (lo que cuesta es pintar
+  // píxeles, no la escena) y recién con la mínima se avisa.
+  if(_FM3.gaps.length>=30&&t-(_FM3.ajuste||0)>1500){
+    const g=_FM3.gaps.slice(-30).sort((a,b)=>a-b)[15], pr=_FM3.R.getPixelRatio();
+    if(g>40&&pr>0.5){ _FM3.ajuste=t; _FM3.R.setPixelRatio(Math.max(0.5,pr*0.75)); _FM3.fit(); _FM3.gaps=[]; }
+    else if(g<22&&pr<_FM3.prMax){ _FM3.ajuste=t; _FM3.R.setPixelRatio(Math.min(_FM3.prMax,pr/0.75)); _FM3.fit(); _FM3.gaps=[]; }
+  }
+  if(!_FM3.avisoLento&&_FM3.gaps.length>=90&&_FM3.R.getPixelRatio()<=0.5){ const g=_FM3.gaps.slice().sort((a,b)=>a-b)[45];
+    if(g>60){ _FM3.avisoLento=true; try{ fmMsg('El 3D va lento en este equipo\n<span style="font-size:16px">tocá 2D arriba</span>'); }catch(e){} } }
+}
+// La entrada del joystick, en ejes del MOTOR. Sólo la cámara 'detras' rota.
+function fm3DEntrada(ix,iy){
+  if(!_FM3.on||_FM3.modo!=='detras'||!FM)return null;
+  // mirando hacia +x: arriba de la pantalla es +x y la derecha es +y
+  return FM.myAttRight?[-iy,ix]:[iy,-ix];
+}
+function fm3DCamara(){
+  if(!_FM3.on){ flash('Prendé el 3D para cambiar la cámara','draw'); return; }
+  _FM3.modo=FM3_CAMS[(FM3_CAMS.indexOf(_FM3.modo)+1)%FM3_CAMS.length];
+  try{ localStorage.setItem('dt_fm3dcam',_FM3.modo); }catch(e){}
+  flash(FM3_CAM_NOM[_FM3.modo],'draw');
+}
 function fm3DApagar(){
-  _FM3.on=false; cancelAnimationFrame(_FM3.raf);
+  _FM3.on=false;
   window.removeEventListener('resize',_FM3.fit||(()=>{}));
   try{ _FM3.R&&_FM3.R.dispose(); }catch(e){}
   document.getElementById('fm3d')?.remove();
   const cv=document.getElementById('fm-cv'); if(cv) cv.style.visibility='';
   const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='3D';
-  _FM3.R=null; _FM3.E=null; _FM3.J=null;
+  _FM3.R=null; _FM3.E=null; _FM3.J=null; _FM3.hud=null; _FM3.lluvia=null;
+}
+// Lluvia: 1.400 gotas en una caja que acompaña a la cámara (un solo draw
+// call). Cada gota es un trazo corto: como puntos se veían cuadraditos.
+function fm3DLluvia(S){
+  const T=THREE, n=1400, pos=new Float32Array(n*6), rnd=_e3dRng(97);
+  for(let i=0;i<n;i++){ const x=(rnd()-.5)*70, y=rnd()*30, z=(rnd()-.5)*60;
+    pos.set([x,y,z,x+0.08,y+0.7,z],i*6); }
+  const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(pos,3));
+  const ls=new T.LineSegments(g,new T.LineBasicMaterial({color:0xd7e0ec,transparent:true,opacity:.45,depthWrite:false}));
+  S.add(ls);
+  return {tick(cx,cz){ ls.position.set(cx,0,cz);
+    for(let i=0;i<n;i++){ let y=pos[i*6+1]-0.9; if(y<0)y+=30; pos[i*6+1]=y; pos[i*6+4]=y+0.7; }
+    g.attributes.position.needsUpdate=true; }};
+}
+// ═══ HUD del 3D, en HTML ═══
+function fm3DHud(host){
+  const d=document.createElement('div'); d.className='f3h';
+  d.innerHTML=`<div class="f3-dim"></div>
+    <div class="f3-sb"><span class="f3-t">0'</span><i class="f3-k1"></i><b class="f3-a1"></b><span class="f3-sc">0 - 0</span><b class="f3-a2"></b><i class="f3-k2"></i></div>
+    <div class="f3-pw"><div></div></div>
+    <div class="f3-chip"></div>
+    <canvas class="f3-mm" width="190" height="99"></canvas>`;
+  host.appendChild(d);
+  const q=s=>d.querySelector(s);
+  const ab3=t=>String(t||'').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,3).toUpperCase()||String(t||'RIV').slice(0,3).toUpperCase();
+  q('.f3-a1').textContent=ab3(G&&G.teamName); q('.f3-a2').textContent=ab3(FM&&FM.oppName||'RIV');
+  q('.f3-k1').style.background=_cssVar((FM.myKit||{}).c1,'#1d4ed8'); q('.f3-k2').style.background=_cssVar((FM.oppKit||{}).c1,'#ffffff');
+  return {d,t:q('.f3-t'),sc:q('.f3-sc'),pw:q('.f3-pw'),pwB:q('.f3-pw div'),chip:q('.f3-chip'),mm:q('.f3-mm'),dim:q('.f3-dim'),v:new THREE.Vector3(),ult:{}};
+}
+function fm3DHudPintar(b){
+  const H=_FM3.hud, f=FM; if(!H||!f)return;
+  const set=(k,el,txt)=>{ if(H.ult[k]!==txt){ H.ult[k]=txt; el.textContent=txt; } };
+  set('t',H.t,`${f.minute}'`); set('sc',H.sc,`${f.myG} - ${f.oppG}`);
+  const parado=f.phase!=='play'&&f.phase!=='kickoff'&&f.phase!=='restart';
+  if(H.ult.dim!==parado){ H.ult.dim=parado; H.dim.style.opacity=parado?1:0; }
+  const c=f.my[f.ctrl], juego=c&&!f.watch&&f.phase==='play';
+  set('chip',H.chip,juego?`${String(c.name).toUpperCase()}   ${c.role||''}   ${c.rat||''}`:'');
+  H.chip.style.display=juego?'':'none';
+  const ch=Math.max(f.chargeA||0,f.chargeC||0);
+  if(ch>0&&c){
+    const [x,z]=_FM3.J.toW(c); H.v.set(x,2.6*E3_ESC,z).project(_FM3.cam);
+    const w=_FM3.R.domElement.clientWidth, h=_FM3.R.domElement.clientHeight;
+    H.pw.style.display='block'; H.pw.style.left=((H.v.x+1)/2*w-28)+'px'; H.pw.style.top=((1-H.v.y)/2*h-12)+'px';
+    H.pwB.style.width=Math.round(Math.min(1,ch)*100)+'%';
+  } else if(H.pw.style.display!=='none') H.pw.style.display='none';
+  // minimapa: el mismo del 2D, en un canvas chico
+  const x=H.mm.getContext('2d'), W=190, Hm=99;
+  x.clearRect(0,0,W,Hm); x.fillStyle='rgba(6,40,14,.72)'; x.fillRect(0,0,W,Hm);
+  x.strokeStyle='rgba(255,255,255,.45)'; x.lineWidth=1; x.strokeRect(.5,.5,W-1,Hm-1);
+  x.beginPath(); x.moveTo(W/2,0); x.lineTo(W/2,Hm); x.stroke();
+  x.beginPath(); x.arc(W/2,Hm/2,Hm*0.16,0,7); x.stroke();
+  x.strokeRect(.5,Hm*0.28,W*0.12,Hm*0.44); x.strokeRect(W*0.88,Hm*0.28,W*0.12,Hm*0.44);
+  const mm=(px,py)=>[(px/f.VW)*W,(py/f.VH)*Hm];
+  const myC=_cssVar((f.myKit||{}).c1,'#1d4ed8'), myCol=myC.toLowerCase()==='#ffffff'?'#e84545':myC;
+  f.opp.forEach(p=>{ const [a,c2]=mm(p.x,p.y); x.beginPath(); x.arc(a,c2,2.1,0,7); x.fillStyle='#fff'; x.fill(); });
+  f.my.forEach((p,i)=>{ const [a,c2]=mm(p.x,p.y); const yo=i===f.ctrl&&!f.watch; x.beginPath(); x.arc(a,c2,yo?3:2.1,0,7); x.fillStyle=yo?GOLD():myCol; x.fill(); if(yo){ x.strokeStyle='#fff'; x.lineWidth=.8; x.stroke(); } });
+  { const [a,c2]=mm(f.ball.x,f.ball.y); x.beginPath(); x.arc(a,c2,2.5,0,7); x.fillStyle='#fff'; x.fill(); x.strokeStyle='#000'; x.lineWidth=.7; x.stroke(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 72: TIENDA OFICIAL, DERECHOS DE TV Y REUNIÓN DE PRETEMPORADA
+// ═══════════════════════════════════════════════════════════════════════
+// Tres decisiones de presidente que el club ya tenía escondidas en números
+// fijos. En G van sólo primitivas: G.merch {precio, alt}, G.tvDeal {tipo,
+// season, rep} y G.reunion {season, hecha, amb, base, desc, iny}. Un save
+// viejo no trae ninguno de los tres y eso es exactamente "precio de siempre,
+// contrato de TV de siempre, sin reunión pendiente": el default va en el
+// punto de lectura, no se migra nada.
+
+// ── 👕 TIENDA OFICIAL ──
+// Ganancia = camisetas × (precio − costo). El óptimo de esa cuenta es
+// p* = e·c/(e−1); con elasticidad 3 y el costo en 2/3 del precio de lista
+// (fábrica + la marca deportiva) cae JUSTO en el precio de lista (90 €).
+// ⚠️ Con elasticidad 2 el techo era chato: medido, entre 81 € y 108 € se
+// ganaba lo mismo (0,27M) y el precio no era una decisión. Con 3, cobrar un
+// 20% de menos cuesta un 22% de la ganancia y un 20% de más, un 7%:
+// cobrar de más vende menos y además enoja a la gente, cobrar de menos vende
+// más pero deja menos margen. Es una decisión, no una perilla para subir.
+const MERCH={lista:90,costo:2/3,elast:3.0,esc:11111,K:0.62,altCosto:0.4,altSemanas:16,altBoost:0.8,pMin:0.6,pMax:1.8};
+function merchPrecio(){ const p=G&&G.merch&&G.merch.precio; return (typeof p==='number'&&p>=MERCH.pMin&&p<=MERCH.pMax)?p:1; }
+function merchAltBoost(){
+  const a=G&&G.merch&&G.merch.alt; if(!a||a.season!==G.season)return 0;
+  const s=(G.week||1)-a.desde; return s<0?0:Math.max(0,1-s/MERCH.altSemanas)*MERCH.altBoost;
+}
+function merchEstrellas(){ return (G.squad||[]).filter(p=>p.rat>=82).length; }
+// Demanda a precio de lista, en "unidades de ganancia" (1 = 1M de margen al mes)
+function merchDemanda(){
+  const soc=G.socios||(typeof sociosBase==='function'?sociosBase():20000);
+  const mood=G.fanMood===undefined?55:G.fanMood;
+  return MERCH.K*(soc/230000)*(0.6+mood/100*0.7)*(1+Math.min(0.4,merchEstrellas()*0.07))*(1+merchAltBoost());
+}
+function merchMes(p){
+  p=p===undefined?merchPrecio():p;
+  const U=merchDemanda()*Math.pow(p,-MERCH.elast);
+  const camisetas=Math.round(U*MERCH.esc);
+  const precio=Math.round(MERCH.lista*p);
+  const ingreso=camisetas*precio/1e6, costo=camisetas*MERCH.lista*MERCH.costo/1e6;
+  return {camisetas,precio,ingreso:Math.round(ingreso*100)/100,costo:Math.round(costo*100)/100,neto:Math.round((ingreso-costo)*100)/100};
+}
+// Lo cobra el balance mensual, al lado de la TV y las cuotas. Devuelve el neto.
+function merchCobrar(){
+  const m=merchMes(), p=merchPrecio();
+  // El precio también se paga en humor: caro molesta, barato suma de a poco.
+  if(p>1.15) G.fanMood=Math.round(Math.max(0,(G.fanMood===undefined?55:G.fanMood)-(p-1.15)*8)*10)/10;
+  else if(p<0.85) G.fanMood=Math.round(Math.min(100,(G.fanMood===undefined?55:G.fanMood)+(0.85-p)*5)*10)/10;
+  return m.neto;
+}
+function merchFijar(){
+  const v=nRead('merchP',MERCH.lista);
+  G.merch=G.merch||{}; G.merch.precio=Math.round(v/MERCH.lista*1000)/1000;
+  flash(`👕 La camiseta queda a ${Math.round(v)} €`,'win'); saveSoon(); abrirTienda();
+}
+function merchPreview(){
+  const el=document.getElementById('merchPv'); if(!el)return;
+  const v=nRead('merchP',MERCH.lista), p=v/MERCH.lista, m=merchMes(p);
+  const humor=p>1.15?`<span style="color:var(--red)">la gente se queja del precio (−${((p-1.15)*8).toFixed(1)} de humor por mes)</span>`
+    :p<0.85?`<span style="color:var(--green)">la gente lo agradece (+${((0.85-p)*5).toFixed(1)} de humor por mes)</span>`:'precio aceptado';
+  el.innerHTML=`<div class="mpanel-row"><span>Camisetas por mes</span><b class="sv">${m.camisetas.toLocaleString('es')}</b></div>
+    <div class="mpanel-row"><span>Ingreso / costo</span><b class="sv">${fv(m.ingreso)} / ${fv(m.costo)}</b></div>
+    <div class="mpanel-row"><span>Ganancia por mes</span><b class="sv" style="color:${m.neto>0?'var(--green)':'var(--red)'}">${fv(m.neto)}</b></div>
+    <div style="font-size:10.5px;color:var(--t3);margin-top:4px">${humor}</div>`;
+}
+function merchLanzarAlt(){
+  if(G.merch&&G.merch.alt&&G.merch.alt.season===G.season){ flash('Ya lanzaste la camiseta alternativa esta temporada','loss'); return; }
+  const c=merchAltCosto();
+  if((G.budget||0)<c){ flash('No alcanza la caja para el lanzamiento','loss'); return; }
+  G.budget=Math.round((G.budget-c)*100)/100;
+  finAnota('otros_out',c,'Lanzamiento de la camiseta alternativa');
+  G.merch=G.merch||{}; G.merch.alt={season:G.season,desde:G.week||1};
+  G.fanMood=Math.min(100,(G.fanMood===undefined?55:G.fanMood)+3);
+  addPhoneMsg('board','Marketing',`👕 Salió la camiseta alternativa ${G.season}. Las primeras semanas se vende el doble; después vuelve a lo de siempre.`,'👕');
+  _pubRumor(`${G.teamName} presentó su camiseta alternativa ${G.season}`,'misc');
+  saveSoon(); abrirTienda();
+}
+function merchAltCosto(){ return Math.round(MERCH.altCosto*Math.max(0.4,(G.rep||50)/78)*100)/100; }
+function abrirTienda(){
+  if(!G)return;
+  const p=merchPrecio(), m=merchMes(), alt=G.merch&&G.merch.alt&&G.merch.alt.season===G.season;
+  const opt=merchMes(1).neto, est=merchEstrellas(), b=merchAltBoost();
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">👕 Tienda oficial</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Lo que se vende sale de los socios, del humor de la gente y de las figuras que tenés: hoy ${est} jugador${est===1?'':'es'} de 82+. Se cobra con el balance mensual.</div>
+    <div class="mpanel"><div class="mpanel-t">Precio de la camiseta</div>
+      ${nPair('merchP',Math.round(MERCH.lista*MERCH.pMin),Math.round(MERCH.lista*MERCH.pMax),Math.round(MERCH.lista*p),1,'merchPreview()','€')}
+      <div id="merchPv"></div>
+      <div style="text-align:right;margin-top:6px"><button class="btn bg bs" onclick="merchFijar()">Fijar precio</button></div>
+    </div>
+    <div class="mpanel"><div class="mpanel-t">Este mes</div>
+      <div class="mpanel-row"><span>A ${m.precio} €</span><b class="sv">${fv(m.neto)}</b></div>
+      <div class="mpanel-row"><span>A precio de lista (90 €)</span><b class="sv">${fv(opt)}</b></div>
+    </div>
+    <div class="mpanel"><div class="mpanel-t">Camiseta alternativa</div>
+      ${alt?`<div class="note">Lanzada en la semana ${G.merch.alt.desde}. ${b>0?`Todavía vende un ${Math.round(b*100)}% más.`:'El efecto ya se terminó.'}</div>`
+        :`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Una por temporada. Cuesta ${fv(merchAltCosto())} y durante ${MERCH.altSemanas} semanas la demanda arranca un 80% arriba y se va apagando.</div>
+          <button class="btn bo" onclick="merchLanzarAlt()">🚀 Lanzar (${fv(merchAltCosto())})</button>`}
+    </div>`);
+  merchPreview();
+}
+
+// ── 📺 DERECHOS DE TV ──
+// El cobro de siempre era (1,15 + rep×0,017)M por mes. Ése es el contrato
+// MIXTO, y es el default: una partida que nunca negoció cobra exactamente lo
+// mismo que antes. Las otras dos opciones son un trade de riesgo, no plata
+// gratis: el fijo resigna un 5% a cambio de congelar la reputación del día de
+// la firma (la rep cae sin freno con las derrotas), y el variable paga entre
+// 0,70× y 1,30× según la posición en la tabla. Medido con Boca primero:
+// 51,9M contra 38,6M del mixto con 0,65-1,35 — demasiado premio, se achicó.
+const TV_DEALS={
+  mixto:{n:'⚖️ El de siempre',d:'Se cobra según la reputación del club, mes a mes.'},
+  fijo:{n:'📄 Fijo',d:'Se congela la reputación de hoy y se cobra un 5% menos. Si la temporada sale mal, la TV no se entera.'},
+  variable:{n:'📈 Por rendimiento',d:'Entre 0,70× y 1,30× según dónde estés en la tabla. Arriba se gana mucho, abajo se pierde mucho.'},
+};
+function tvTipo(){ const d=G&&G.tvDeal; return (d&&d.season===G.season&&TV_DEALS[d.tipo])?d.tipo:'mixto'; }
+function tvRendimiento(){
+  try{ const t=leagueSorted(), me=t.find(r=>r.club===G.teamName);
+    if(!me||!me.pj||t.length<2)return 0.5;
+    return 1-(me.pos-1)/(t.length-1); }catch(e){ return 0.5; }
+}
+function tvMensual(tipo){
+  tipo=tipo||tvTipo();
+  if(tipo==='fijo'){ const r=(G.tvDeal&&G.tvDeal.rep)||G.rep||50; return Math.round((1.15+r*0.017)*0.95*10)/10; }
+  const base=1.15+(G.rep||50)*0.017;
+  if(tipo==='variable') return Math.round(base*(0.70+0.60*tvRendimiento())*10)/10;
+  return Math.round(base*10)/10;
+}
+
+// ── 🏛️ REUNIÓN DE PRETEMPORADA ──
+// La Comisión Directiva fijaba el objetivo sola (`setBoardTarget`) y te lo
+// mandaba por mensaje. Ahora te sienta en la mesa: elegís cuánta ambición
+// firmás (y con eso el objetivo y la plata que pone la CD) y el contrato de
+// TV. NO frena el club —ya hay demasiados modales al arrancar la temporada
+// (la gira, los dilemas, la conferencia)—: queda pendiente en la Oficina y,
+// si no fuiste para la semana 5, la CD decide sola lo de siempre.
+const REUNION_VENCE=PRE_SEMANAS+2;
+const REUNION_AMB={
+  prudente:{n:'🛡️ Prudente',d:'Objetivo 3 puestos más abajo. La CD no pone un peso y le gusta poco la falta de ambición.'},
+  acordado:{n:'🤝 Lo acordado',d:'El objetivo que propone la CD, sin aporte extra.'},
+  ambiciosa:{n:'🔥 Ambiciosa',d:'Objetivo 2 puestos más arriba y la CD pone plata para refuerzos YA. Si no se cumple, lo vas a pagar.'},
+};
+function reunionAbrir(){
+  if(!G||!G.boardTarget)return;
+  G.reunion={season:G.season,hecha:false,amb:'acordado',base:G.boardTarget.maxPos,desc:G.boardTarget.desc,iny:0};
+  addPhoneMsg('board','Comisión Directiva',`🏛️ Presidente, lo esperamos para la <b>reunión de pretemporada</b>: hay que fijar el objetivo y el contrato de TV. Está en la Oficina. Si para la semana ${REUNION_VENCE} no vino, decidimos nosotros.`,'🏛️');
+}
+function reunionPendiente(){ const r=G&&G.reunion; return !!(r&&r.season===G.season&&!r.hecha); }
+// Escala con el tamaño del club: Boca (rep 78) recibe 6,2M y un club de rep
+// 39, 1,2M. Con un piso de 2M el chico DUPLICABA su caja de 3M de un saque.
+function reunionAporte(){ return Math.round(Math.max(0.5,Math.min(10,((G.rep||50)-30)*0.13))*10)/10; }
+function _reunionClubs(){ try{ return leagueSorted().length||20; }catch(e){ return 20; } }
+function reunionResolver(amb,tv){
+  if(!reunionPendiente())return;
+  if(!REUNION_AMB[amb])amb='acordado'; if(!TV_DEALS[tv])tv='mixto';
+  const R=G.reunion, n=_reunionClubs();
+  R.amb=amb; R.hecha=true;
+  if(amb==='prudente'){
+    const mp=Math.min(n,R.base+3);
+    G.boardTarget.maxPos=mp; G.boardTarget.desc=`terminar entre los primeros ${mp} (objetivo prudente)`;
+    G.boardConf=Math.max(0,(G.boardConf||50)-3);
+  } else if(amb==='ambiciosa'){
+    const mp=Math.max(1,R.base-2), iny=reunionAporte();
+    G.boardTarget.maxPos=mp; G.boardTarget.desc=mp===1?'salir campeón (objetivo ambicioso)':`terminar entre los primeros ${mp} (objetivo ambicioso)`;
+    R.iny=iny; G.budget=Math.round((G.budget+iny)*100)/100;
+    finAnota('otros_in',iny,'Aporte de la Comisión Directiva para refuerzos');
+    G.boardConf=Math.min(100,(G.boardConf||50)+4);
+    G.fanMood=Math.min(100,(G.fanMood===undefined?55:G.fanMood)+3);
+  }
+  G.tvDeal={tipo:tv,season:G.season,rep:G.rep||50};
+  addPhoneMsg('board','Comisión Directiva',`📋 Quedó firmado: <b>${G.boardTarget.desc}</b>${R.iny?` y ${fv(R.iny)} para refuerzos`:''}. Contrato de TV: <b>${TV_DEALS[tv].n}</b>.`,'🏛️');
+  lg('🏛️',`Reunión de pretemporada: ${REUNION_AMB[amb].n} · TV ${TV_DEALS[tv].n}`);
+  closeMod(); saveSoon(); updateUI();
+  flash('🏛️ Reunión cerrada','win');
+}
+// Semanal: si no fuiste, la CD decide lo de siempre y te lo hace saber.
+function reunionVencer(){
+  if(!reunionPendiente()||(G.week||1)<REUNION_VENCE)return;
+  G.reunion.hecha=true; G.reunion.auto=true;
+  G.tvDeal={tipo:'mixto',season:G.season,rep:G.rep||50};
+  G.boardConf=Math.max(0,(G.boardConf||50)-2);
+  addPhoneMsg('board','Comisión Directiva',`🏛️ No vino a la reunión de pretemporada, así que decidimos nosotros: <b>${G.boardTarget.desc}</b> y el contrato de TV de siempre.`,'🏛️');
+}
+// Al cerrar la temporada, ANTES de checkFired: lo que firmaste se cobra.
+function reunionCierre(pos){
+  const R=G&&G.reunion; if(!R||R.season!==G.season||!R.hecha||R.auto||R.cerrada)return;
+  R.cerrada=true;
+  const ok=pos<=(G.boardTarget?G.boardTarget.maxPos:99);
+  let d=0, txt='';
+  if(R.amb==='ambiciosa'){ d=ok?10:-12; txt=ok?'Pidió plata y cumplió. Así da gusto.':`Le dimos ${fv(R.iny)} y no cumplió. La CD toma nota.`; }
+  else if(R.amb==='prudente'){ d=ok?2:-8; txt=ok?'Cumplió el objetivo prudente.':'Ni siquiera el objetivo prudente. Preocupante.'; }
+  if(!d)return;
+  G.boardConf=Math.max(0,Math.min(100,(G.boardConf||50)+d));
+  addPhoneMsg('board','Comisión Directiva',`${ok?'✅':'⚠️'} Cierre de temporada: ${txt} (${d>0?'+':''}${d} de confianza)`,'🏛️');
+}
+function abrirReunion(){
+  if(!G)return;
+  const R=G.reunion, pend=reunionPendiente();
+  if(!pend){
+    const amb=R&&R.season===G.season?REUNION_AMB[R.amb]:null;
+    showMod(`<button class="mclose" onclick="closeMod()">✕</button><div class="mtitle">🏛️ Reunión de pretemporada</div>
+      <div class="mpanel"><div class="mpanel-t">Lo que quedó firmado</div>
+        <div class="mpanel-row"><span>Objetivo</span><b>${_esc(G.boardTarget?G.boardTarget.desc:'—')}</b></div>
+        <div class="mpanel-row"><span>Ambición</span><b>${amb?amb.n+(R.auto?' (la decidió la CD)':''):'—'}</b></div>
+        ${R&&R.iny&&R.season===G.season?`<div class="mpanel-row"><span>Aporte de la CD</span><b class="sv">${fv(R.iny)}</b></div>`:''}
+        <div class="mpanel-row"><span>TV</span><b>${TV_DEALS[tvTipo()].n} · ${fv(tvMensual())}/mes</b></div>
+      </div>
+      <div class="note">La próxima reunión es al empezar la temporada que viene.</div>`);
+    return;
+  }
+  window._reu=window._reu||{amb:'acordado',tv:'mixto'};
+  const n=_reunionClubs(), base=R.base;
+  const meta={prudente:Math.min(n,base+3),acordado:base,ambiciosa:Math.max(1,base-2)};
+  const op=(grupo,k,o,extra)=>`<div class="mpanel reu-op${window._reu[grupo]===k?' on':''}" onclick="window._reu.${grupo}='${k}';abrirReunion()">
+      <div class="mpanel-t">${o.n}${extra?` <span style="float:right" class="sv">${extra}</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t3)">${o.d}</div></div>`;
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🏛️ Reunión de pretemporada ${G.season}</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">La CD propone <b>${_esc(R.desc)}</b>. Vence en la semana ${REUNION_VENCE} (vamos en la ${G.week||1}).</div>
+    <div class="reu-h">🎯 Ambición</div>
+    ${op('amb','prudente',REUNION_AMB.prudente,'Top '+meta.prudente)}
+    ${op('amb','acordado',REUNION_AMB.acordado,'Top '+meta.acordado)}
+    ${op('amb','ambiciosa',REUNION_AMB.ambiciosa,'Top '+meta.ambiciosa+' · +'+fv(reunionAporte()))}
+    <div class="reu-h">📺 Contrato de TV <span style="font-weight:400;color:var(--t3)">(por mes, con la tabla de hoy)</span></div>
+    ${op('tv','mixto',TV_DEALS.mixto,fv(tvMensual('mixto')))}
+    ${op('tv','fijo',TV_DEALS.fijo,fv(Math.round((1.15+(G.rep||50)*0.017)*0.95*10)/10))}
+    ${op('tv','variable',TV_DEALS.variable,fv(Math.round((1.15+(G.rep||50)*0.017)*0.70*10)/10)+' – '+fv(Math.round((1.15+(G.rep||50)*0.017)*1.30*10)/10))}
+    <div style="text-align:center;margin-top:10px"><button class="btn bg" onclick="reunionResolver(window._reu.amb,window._reu.tv);window._reu=null">✍️ Firmar</button></div>`);
 }
 
 // ═══ ENGANCHES ═══
