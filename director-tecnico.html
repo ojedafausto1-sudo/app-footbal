@@ -1879,23 +1879,79 @@ function squadFromDB(clubName, fallbackFn, overrides, liga){
   // 'Primera Nacional', no encontraba ninguna y se caía al plantel inventado.
   let rows=PLAYERS_DB.filter(r=>r[5]===clubName&&r[6]===((typeof ligaDB==='function')?ligaDB(_lg):_lg));
   if(rows.length<15) return fallbackFn(); // datos insuficientes → plantel manual
-  // Tope 30: los planteles TM traen hasta 37 fichas y el juego permite 35.
-  // Se priorizan los más valiosos, garantizando al menos 2 arqueros.
-  if(rows.length>30){
-    const gks=rows.filter(r=>r[2]==='ARQ').sort((a,b)=>b[7]-a[7]).slice(0,2);
-    const rest=rows.filter(r=>!gks.includes(r)).sort((a,b)=>b[7]-a[7]).slice(0,28);
-    rows=gks.concat(rest);
-  }
+  rows=_filasPlantel(rows);
   const OV=overrides||{};
   const used=new Set();
   return rows.map(r=>{
     let num=r[0];
     while(used.has(num)&&num<50)num++;
     used.add(num);
-    const pl=P(num,r[1],r[2],r[3],r[4],clubName,r[6],r[7],OV[r[1]]||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
-    if(r[8])pl.foot=r[8];
-    return pl;
+    return _filaAJugador(r,num,clubName,OV[r[1]]||0);
   });
+}
+// La fila de la base convertida en jugador: el ÚNICO lugar donde se lee el
+// valor de una fila (lo usan el plantel y el mercado).
+function _filaAJugador(r,num,club,ratOv){
+  const v=valDeFila(r);
+  const pl=P(num,r[1],r[2],r[3],r[4],club,r[6],v,ratOv||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
+  if(r[8])pl.foot=r[8];
+  if(v!==r[7])pl.valRef=r[18];      // el valor es una estimación: de qué año sale
+  return pl;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EL JUGADOR QUE TRANSFERMARKT NO TASÓ (Fase 74)
+// ═══════════════════════════════════════════════════════════════════════
+// En los años viejos TM casi no tasaba la liga argentina: en Boca 2000, 41 de
+// las 50 fichas vienen en €0,1M, que NO es un precio sino el relleno del
+// extractor para "sin dato". Riquelme, Palermo, Delgado e Ibarra valían lo
+// mismo que un juvenil de 18 que no volvió a aparecer nunca.
+//
+// El extractor ahora cruza temporadas (`histRefValores`) y deja el DATO en dos
+// columnas al final: r[17] = la tasación real más cercana del mismo jugador
+// (mismo nombre, edad coherente) y r[18] = el año de esa tasación. Puede ser
+// del mismo año en otro club (Palermo: 7,6M en Villarreal 2000) o de los años
+// vecinos (Riquelme: 11M en el Barcelona 2002). Acá se la lleva al año de la
+// base con dos correcciones:
+//  - la plata de ese año: `getYearInflation`, la misma tabla de la media;
+//  - la edad: una tasación FUTURA de un pibe es proyección (vale menos hoy),
+//    una PASADA de un veterano ya bajó.
+// ⚠️ Sólo reemplaza el relleno (≤0,1): un precio real de TM no se toca nunca.
+// Una base sin las columnas nuevas devuelve r[7] tal cual.
+const VAL_RELLENO=0.1;
+function valDeFila(r,y){
+  const v=r[7]||0;
+  if(v>VAL_RELLENO||!(r[17]>VAL_RELLENO)||!r[18])return v;
+  y=y||(typeof anioBase==='function'?anioBase():2026);
+  const d=r[18]-y, e=r[3]||25;
+  let k=1;
+  if(d>0){ const g=e<=20?0.60:e<=22?0.80:e<=27?0.92:1; k=Math.pow(g,d); }
+  else if(d<0&&e>=29) k=Math.pow(0.85,-d);
+  const est=r[17]*k*getYearInflation(r[18])/getYearInflation(y);
+  return Math.max(VAL_RELLENO,Math.round(est*100)/100);
+}
+// Tope 30: los planteles TM traen hasta 50 fichas (en los años viejos, con
+// todas las inferiores adentro) y el juego permite 45.
+// ⚠️ Antes era "los 30 más valiosos" a secas. Con 41 de 50 empatadas en el
+// relleno, el desempate era el ORDEN DEL ARCHIVO —que viene por puesto—: Boca
+// 2000 arrancaba con 4 arqueros y 15 defensores y sin Riquelme, Palermo,
+// Delgado, Takahara ni Pandolfi. Ahora: 3 arqueros, un mínimo por línea, y
+// entre empatados gana la edad de primera (el de 26 antes que el de 18).
+const PLANTEL_DB_TOPE=30, PLANTEL_DB_MIN={ARQ:3,DEF:9,MED:9,DEL:5};
+function _filasPlantel(rows){
+  if(rows.length<=PLANTEL_DB_TOPE)return rows;
+  const y=(typeof anioBase==='function')?anioBase():2026;
+  const sc=new Map(rows.map((r,i)=>[r,[valDeFila(r,y),Math.abs((r[3]||25)-26),i]]));
+  const ord=(a,b)=>{const A=sc.get(a),B=sc.get(b);return (B[0]-A[0])||(A[1]-B[1])||(A[2]-B[2]);};
+  const todo=rows.slice().sort(ord), out=new Set();
+  for(const g in PLANTEL_DB_MIN)
+    todo.filter(r=>pgr(r[2])===g).slice(0,PLANTEL_DB_MIN[g]).forEach(r=>out.add(r));
+  for(const r of todo){
+    if(out.size>=PLANTEL_DB_TOPE)break;
+    if(pgr(r[2])==='ARQ')continue;            // un cuarto arquero no le sirve a nadie
+    out.add(r);
+  }
+  return rows.filter(r=>out.has(r));          // vuelve en el orden del archivo
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2005,9 +2061,7 @@ function buildMkt(){
   if(window.PLAYERS_DB && Array.isArray(PLAYERS_DB)){
     for(const r of PLAYERS_DB){
       // r[9]=año de vencimiento de contrato, r[10]=altura en cm (si la base los trae)
-      const pl=P(r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
-      if(r[8])pl.foot=r[8];
-      m.push(pl);
+      m.push(_filaAJugador(r,r[0],r[5],0));
     }
   }
 
@@ -5498,7 +5552,10 @@ function initGame(teamId){
     staff: [{role:'Preparador físico',name:'H. García',rat:70},{role:'Asistente',name:'M. Torres',rat:68}],
     staffLevels: {physio:1, asst:1, psych:0, analyst:0, doctor:0, sportdir:0, youthcoach:0},
     squad: buildSquad(teamId),
-    market: (function(){ const sq=buildSquad(teamId); const sqNames=new Set(sq.map(p=>p.name)); return buildMkt().filter(p=>!sqNames.has(p.name)); })(),
+    // ⚠️ Los que quedaron afuera del tope de 30 son de TU club: si quedaran en
+    // el mercado, Riquelme aparecía a la venta "en Boca Juniors" con Boca
+    // dirigido por vos. Se van, igual que las inferiores que no subieron.
+    market: (function(){ const sq=buildSquad(teamId); const sqNames=new Set(sq.map(p=>p.name)); return buildMkt().filter(p=>!sqNames.has(p.name)&&p.club!==tc.name); })(),
     calendar: buildCal(tc.name, teamId),
     log: [],
     news: [],
@@ -7093,12 +7150,12 @@ function openP(id, inSquad){
     </div>
     <div class="card" style="padding:8px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">Valor Transfermarkt</span>
-        <span style="font-size:16px;font-weight:700;color:${tmColor};font-family:'Rajdhani',sans-serif">${fv(p.val)}</span>
+        <span style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">${p.valRef?'Valor estimado':'Valor Transfermarkt'}</span>
+        <span style="font-size:16px;font-weight:700;color:${tmColor};font-family:'Rajdhani',sans-serif">${p.valRef?'~':''}${fv(p.val)}</span>
       </div>
       <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
         <div style="width:${tmPct}%;height:100%;background:${tmColor};border-radius:3px;transition:width .5s"></div>
-      </div>
+      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">

@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74` |
 
 ## Formato de `players-db.js`
 
@@ -6767,6 +6767,78 @@ Ahora deja el contenedor vacío y los amistosos se juegan con el botón de
 siempre.
 
 `tests/fase73.js`, **22 checks**.
+
+## Fase 74: a Boca 2000 le faltaban Riquelme y Palermo
+
+El archivo los tenía: Boca 2000 trae **50 fichas**, con Riquelme, Palermo,
+Delgado, Takahara, Pandolfi y Gaitán. El juego los tiraba al armar el plantel.
+
+### El corte a 30 desempataba por el orden del archivo
+
+`squadFromDB` se quedaba con "2 arqueros + los 28 más valiosos". En 2000, **41
+de las 50 fichas valen €0,1M** —el relleno del extractor para "TM no lo tasó",
+no un precio—, así que entre los 41 empatados decidía el orden del archivo, que
+viene **por puesto**: quedaban 4 arqueros y 15 defensores (casi todos pibes de
+18-20) y se caían los delanteros y los enganches. Y los descartados **quedaban
+en el mercado como jugadores de Boca**: Riquelme a la venta en tu propio club.
+
+`_filasPlantel(rows)`: 3 arqueros como mucho, un mínimo por línea
+(`PLANTEL_DB_MIN` = 9 DEF · 9 MED · 5 DEL) y, entre empatados, gana la edad de
+primera (el de 26 antes que el de 18). Los que quedan afuera del tope **salen del
+mercado** (`p.club!==tc.name` en el literal de `G`).
+
+⚠️ **En 2026 también se mueve, y poco**: cambia ~1 jugador en 86 de 132 clubes
+con más de 30 fichas, casi siempre un tercer arquero que entra por el 30º de
+campo.
+
+### El que TM no tasó recibe la tasación de otro año
+
+Aun adentro del plantel, Riquelme valía lo mismo que un juvenil que no volvió a
+aparecer nunca (media 63). Pero el mismo Riquelme está tasado en **11M en el
+Barcelona 2002**, y Palermo en **7,6M en el Villarreal del mismo 2000**.
+
+- **El extractor deja el DATO** (`histRefValores`): para cada fila sin tasar,
+  la tasación real más cercana del mismo jugador —mismo año en otro club,
+  después hasta 4 años adelante, después hasta 3 atrás— en dos columnas al
+  final: **`r[17]` = valor, `r[18]` = año**. La edad tiene que ser coherente con
+  el salto de años, así no se mezclan homónimos. Corre sola en cada año de una
+  extracción y hay un botón **🧮 Completar tasaciones** que cruza todos los
+  archivos cargados con ➕ (es lo que hay que correr al final de una corrida
+  larga: mientras se baja el 2000, el 2002 todavía no existe).
+- **El juego estima** (`valDeFila(r)`, el único lugar donde se lee el valor de
+  una fila, vía `_filaAJugador` para plantel y mercado): lleva esa tasación a la
+  plata del año con `getYearInflation` y la corrige por edad — una tasación
+  FUTURA de un pibe es proyección (×0,60 por año hasta los 20, ×0,80 a los
+  21-22, ×0,92 hasta los 27), una PASADA de un veterano ya bajó (×0,85 por año
+  desde los 29).
+- ⚠️ **Sólo reemplaza el relleno (≤0,1).** Un precio real de TM no se toca y
+  `r[7]` queda intacto en el archivo (verificado por suma en los 26 años). Una
+  base sin las columnas nuevas devuelve `r[7]` tal cual: 2026 tiene 0 valores
+  estimados. Esto matiza la regla de la Fase 50 ("`p.val` no se modifica"): el
+  relleno no es un precio, es la ausencia de uno.
+- `p.valRef` guarda el año de la tasación y la ficha dice **"Valor estimado"**.
+
+Cobertura sobre los 26 archivos: **88.462 de 226.083 fichas sin tasar** (39%)
+reciben referencia; en 2000 son el 22%, y son justo las que importan —el que
+después jugó en Europa—. El pibe que nunca más apareció tasado se queda en 0,1,
+que es lo que corresponde.
+
+| | antes | ahora |
+|---|---|---|
+| Boca 2000 | 4 ARQ · 15 DEF, sin Riquelme/Palermo/Delgado | 3 · 11 · 9 · 7, los tres titulares |
+| Riquelme | fuera del plantel (63 en el mercado) | **84**, ~€8,3M por su tasación de 2002 |
+| mediana de la base 2000 / 2010 / 2026 | 64 / 67 / 66 | 65 / 67 / 66 |
+
+⚠️ **Palermo hace 33 goles en 20 partidos** simulando. No es de esta fase: el
+70% de los goles va a los delanteros del ONCE, y el técnico de Boca 2000 juega
+con un solo punta. Con el Boca de hoy se reparten entre tres.
+
+⚠️ **Palermo sigue figurando también en el Villarreal 2000** (TM lo lista en los
+dos clubes porque se fue en enero de 2001). En tu partida no se duplica —el
+mercado descarta los nombres de tu plantel—, pero si dirigís otro club, el
+Palermo del mercado es el del Villarreal.
+
+`tests/fase74.js`, **22 checks**.
 
 ## Deploy
 

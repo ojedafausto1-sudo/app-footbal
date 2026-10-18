@@ -113,6 +113,7 @@ button.secondary{background:#1a3a6a;color:#e8edf5}
     <button class="secondary" onclick="document.getElementById('histBaseFiles').click()">➕ Sumar a mis archivos</button>
     <input type="file" id="histBaseFiles" multiple accept=".js" style="display:none"
            onchange="histBaseCargar(this)">
+    <button class="secondary" onclick="histCompletarTasaciones()" title="Cruza las temporadas cargadas: al que TM no tasó le pone la tasación de otro club o de un año vecino">🧮 Completar tasaciones</button>
   </div>
   <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1d3356">
     <div style="font-size:11px;color:#8faed4;margin-bottom:6px">
@@ -2019,6 +2020,12 @@ async function extraerHistorico() {
     if (flacas.length) log(`  ⚠️ No llegan a 10 clubes con plantel, así que el juego NO las va a ofrecer en ${y}: ${flacas.join(' · ')}`);
     log(`  → ${y}: ${filas.length} jugadores de ${clubesOK} clubes · ${lgResumen.length} liga(s)`);
     const fus = histFusionar(y, filas);
+    // Las tasaciones cruzan temporadas: con tus archivos cargados (➕) o con los
+    // años que ya bajó esta misma corrida, el jugador sin tasar de este año
+    // recibe la tasación más cercana. Lo que falte se completa con 🧮 al final.
+    (window._histRun = window._histRun || {})[y] = fus.filas;
+    const ref = histRefValores(Object.assign({}, window._histBase || {}, window._histRun), { solo: y });
+    if (ref.sinValor) log(`  🧮 ${ref.conRef} de ${ref.sinValor} sin tasar tienen tasación en otro club o en un año vecino`);
     histDescargar(y, fus.filas, fus.clubes, fus.porLiga);
     histIdxGuardar(y, fus.filas, fus.porLiga);
   }
@@ -2176,6 +2183,67 @@ function histBaseEstado() {
   if (!el) return;
   const a = Object.keys(window._histBase || {}).sort();
   el.textContent = a.length ? `se van a fusionar con: ${a.join(', ')}` : 'sin archivos cargados: lo que se baje trae sólo las ligas marcadas';
+}
+// ═══ EL JUGADOR QUE TM NO TASÓ: SE BUSCA SU TASACIÓN EN OTRO LADO ═══
+// En los años viejos TM casi no tasaba: en Boca 2000, 41 de 50 fichas vienen
+// en €0,1M (el relleno de "sin dato") y Riquelme valía lo mismo que un pibe
+// de 18 que no volvió a aparecer nunca. Pero el mismo Riquelme está tasado en
+// 11M en el Barcelona 2002, y Palermo en 7,6M en el Villarreal del MISMO año.
+// Esto busca, para cada fila sin tasar, la tasación REAL más cercana del mismo
+// jugador (mismo nombre, edad coherente con el salto de años, para no mezclar
+// homónimos) y la deja como DATO al final de la fila: r[17]=valor, r[18]=año.
+// El juego la lleva a la plata de ese año y la corrige por edad (valDeFila);
+// acá no se estima nada. Un precio real (>0,1) no se toca.
+// Orden de preferencia: mismo año → años siguientes (TM tasaba tarde) →
+// años anteriores, hasta 4 adelante y 3 atrás.
+function histRefValores(H, opt) {
+  opt = opt || {};
+  const ATRAS = 3, ADELANTE = 4, RELLENO = 0.1;
+  const anios = Object.keys(H).map(Number).sort((a, b) => a - b);
+  const idx = {};
+  anios.forEach(y => (H[y] || []).forEach(r => {
+    if (r[7] > RELLENO) (idx[r[1]] = idx[r[1]] || []).push([y, r[3], r[7]]);
+  }));
+  const res = { filas: 0, sinValor: 0, conRef: 0 };
+  anios.forEach(y => {
+    if (opt.solo && y !== +opt.solo) return;
+    (H[y] || []).forEach(r => {
+      res.filas++;
+      if (r.length > 17) r.length = 17;          // volver a correrlo no acumula
+      if (r[7] > RELLENO) return;
+      res.sinValor++;
+      const c = idx[r[1]]; if (!c) return;
+      let best = null, bk = 99;
+      for (const [y2, a2, v] of c) {
+        const d = y2 - y;
+        if (d < -ATRAS || d > ADELANTE) continue;
+        if (Math.abs((a2 - r[3]) - d) > 1) continue;   // un homónimo
+        const k = Math.abs(d) * 2 + (d < 0 ? 1 : 0);
+        if (k < bk || (k === bk && v > best[2])) { bk = k; best = [y2, a2, v]; }
+      }
+      if (!best) return;
+      while (r.length < 17) r.push(r.length === 11 || r.length === 16 ? '' : 0);
+      r[17] = best[2]; r[18] = best[0]; res.conRef++;
+    });
+  });
+  return res;
+}
+// 🧮 sobre los archivos cargados con ➕: cruza TODAS las temporadas y los
+// vuelve a bajar. Es lo que hay que correr después de una extracción larga,
+// porque mientras se baja el año 2000 todavía no existe el 2002.
+function histCompletarTasaciones() {
+  const H = window._histBase || {};
+  const anios = Object.keys(H).sort();
+  if (!anios.length) { alert('Primero cargá tus players-hist-*.js con ➕ Sumar a mis archivos'); return; }
+  const r = histRefValores(H);
+  log(`\n🧮 Tasaciones cruzadas: ${r.conRef} de ${r.sinValor} fichas sin tasar recibieron la de otro club o un año vecino (${r.filas} filas, ${anios.length} temporadas)`);
+  anios.forEach(y => {
+    const porLiga = {};
+    H[y].forEach(f => { if (f[6] && f[5]) (porLiga[f[6]] = porLiga[f[6]] || {})[f[5]] = 1; });
+    const clubes = Object.keys(porLiga).reduce((a, l) => a + Object.keys(porLiga[l]).length, 0);
+    histDescargar(+y, H[y], clubes, porLiga);
+  });
+  log('   → reemplazá los archivos de tu carpeta por estos (el índice no cambia).');
 }
 function histFusionar(y, filas) {
   const base = (window._histBase || {})[y] || [];
