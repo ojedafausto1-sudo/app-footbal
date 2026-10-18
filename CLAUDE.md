@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73` |
 
 ## Formato de `players-db.js`
 
@@ -6638,6 +6638,135 @@ Verificado borrando los tres campos del JSON guardado.
 volvió a reproducir; el candidato era la ventana de 1,5 s de "el partido
 corre" (a 5 fps un tiro libre puede durar más de 2 s quieto), que pasó a 4 s
 acá y en `ui-fifa`. Si lo ves rojo, corré de nuevo antes de creerle.
+
+## Fase 73: el botón JUGAR, la mesa de negociación y las copas como en la realidad
+
+### ⚠️ El 11v11 jugable no tenía botón
+
+**▶ JUGAR PARTIDO** abría las jugadas clave (`playMatch`), y el único acceso
+al 11v11 era **📺 SIM TÁCTICA**, que es el modo espectador. El partido donde
+manejás a un jugador (`startFullMatch(false)`) no lo llamaba ningún botón: la
+Fase 72 lo probó por código y por eso no se vio. Ahora JUGAR abre el 11v11
+jugable (en 3D por defecto), y las jugadas clave quedan como **🎯 JUGADAS
+CLAVE** al lado de **📺 MIRAR 11v11**.
+
+### El 3D se reproduce más lento — y por qué no es "arreglar el amontonamiento"
+
+Medido con un hook en `fmTick` (`scratchpad/vel.js`): con el reloj normal los
+jugadores corren a **5,4 m/s de mediana y 7,5 el 10% más rápido** (un sprint
+todo el partido; real ~2 m/s) y la pelota a 11,6 m/s. Desde arriba en 2D no
+se nota; en 3D a escala real se ve frenético. `FM3_TIEMPO=0.55` escala el
+acumulador de `fmLoop` sólo con el 3D prendido: quedan en **3,0 y 4,1 m/s**.
+Cada paso del motor es el mismo, así que el partido sale idéntico — sólo
+tarda ~3,8 minutos en vez de 2.
+
+⚠️ **El amontonamiento NO se tocó.** El arnés determinista de la Fase 67
+(`det.js`) se perdió con el contenedor y sin él cualquier cambio a la IA es
+inverificable (la Fase 32 lo dejó escrito). Lo que sí cambia lo que se VE:
+mirando, la cámara arranca en la de **TV** (cancha entera) y no en la de
+juego, que de cerca llena la pantalla con el montón alrededor de la pelota.
+La cámara se recuerda aparte jugando (`dt_fm3dcam`) y mirando (`dt_fm3dcamW`).
+
+Tres bugs del 3D de la Fase 72 que salieron al probarlo de verdad:
+- **Un error en `fm3DFrame` mataba el partido**: tiraba antes del
+  `requestAnimationFrame` de `fmLoop` y el partido quedaba congelado sin
+  aviso. Ahora va en `try/catch` y vuelve al 2D.
+- **El 3D no se apagaba al terminar el partido**: el siguiente heredaba la
+  escena (rival, cancha, cámara) y `fm3DAuto` no la rearmaba. Se apaga en
+  `fmClean` y al entrar a `startFullMatch`.
+- **Un amistoso jugado en el 11v11 caía en `applyMatchResult`** como si fuera
+  de liga. Ahora se cierra con `_amisCerrar`, el mismo que usa el simulado.
+
+### ⚠️ Los 22 se vestían igual
+
+`kitFor` conocía 28 clubes (casi todos argentinos) y al resto le daba la misma
+roja: Real Madrid–Celta o City–Arsenal salían con los dos equipos iguales, en
+2D y en 3D. Ahora `KITS_MUNDO` tiene las camisetas de ~60 grandes (con los
+nombres de la base: `Man Utd`, `Atlético`, `Leverkusen`, `Atl. Nacional`…),
+después el color del club en `TEAMS` y si no un color estable por nombre. Y
+`kitFor(rival)` compara contra TU camiseta: si se parecen (`_kitDist<110`)
+usa la alternativa. ⚠️ Los clubes generados traen el color en `hsl(...)`:
+`_kitRGB` lo lee; sin eso todo daba gris y el choque no se detectaba. Medido
+en 4 ligas: **0 choques y 0 con la roja vieja**.
+
+### El estadio apoya en el suelo y las copas son las de verdad
+
+- Fuera de la cancha había **cielo**: desde la cámara del fondo el estadio
+  flotaba y las torres de luz colgaban en el vacío. Ahora hay terreno hasta el
+  horizonte, explanada (su tamaño sale de `offMax`, por eso va DESPUÉS de las
+  tribunas), estacionamientos y una ciudad baja sorteada con `_e3dRng`.
+- Las copas eran 4 formas genéricas y **todas doradas**; casi todas las reales
+  son de plata. `_copaForma` las reconoce por nombre: orejona (Champions),
+  Libertadores (base de madera y jugador arriba), Sudamericana, Recopa
+  (pelota), Mundial de Clubes (la única dorada), Europa League (jarrón), Premier
+  (corona), Bundesliga (Meisterschale, un plato), copas nacionales y ligas. Se
+  apoyan en el pedestal por su `Box3`, no a una altura fija.
+
+### La oferta que te llega se negocia en tres modalidades
+
+"🎚️ Negociar precio" dejaba mover un número: no había forma de contestar una
+oferta de compra con un préstamo o un canje. `openNegSell` es ahora una mesa
+con **💰 venta** (precio, cuotas, % de reventa) · **📤 préstamo** (cargo,
+parte del sueldo, media temporada o una, opción u obligación de compra) ·
+**🔄 canje** (un jugador DEL club comprador + plata en cualquier sentido).
+
+- El club tiene un **techo oculto** (`o._techo`) sorteado una vez por oferta y
+  guardado como número: no se puede tantear abriendo y cerrando. `negRatio`
+  convierte cada paquete a "veces su techo" y sale la misma escalera de
+  siempre (acepta / contraoferta en la MISMA modalidad / se levanta). Dos
+  pedidos abusivos y se van.
+- Aceptar pasa por `accOff`: en una venta o canje **el jugador igual tiene que
+  querer irse**.
+- ⚠️ El canje de la IA traía un jugador de **cualquier club argentino**
+  (`q.lg==='Liga ARG'`), también dirigiendo en la Premier. Ahora sale del club
+  comprador. Y el que llegaba quedaba con `lg='Liga ARG'`: el **sexto** valor
+  argentino escrito a mano en un camino que corre en las 24 ligas.
+- ⚠️ **Un préstamo firmado tarde nunca volvía**: `returnWeek=G.week+26` y la
+  semana vuelve a 1 al cambiar de temporada, así que una cesión de la semana
+  40 esperaba la 66, que no existe. `nextSeason` descuenta lo que ya corrió.
+- Una contraoferta en canje puede quedar con plata a favor del otro club: se
+  anota como `fichajes`, no como `ventas` (`finAnota` guarda el absoluto).
+
+### ⚠️ Las copas se jugaban al final de la temporada
+
+`_intSemana` busca primero una semana SIN partidos, y en una liga de 38 fechas
+corridas la primera es la que sigue a la última fecha: octavos, cuartos, semis
+y final caían todos al final, en fila. Ahora `_intSemanaKO` ubica cada ronda
+en una FRACCIÓN del largo de la liga (`KO_FRAC`: playoff 50%, octavos 58%,
+cuartos 70%, semis 82%, final 95%) y comparte semana con la fecha de liga,
+saltando las semanas reservadas a los playoffs del Apertura/Clausura. Medido:
+Real Madrid octavos 25/27, cuartos 30/31, semis 34/35, final 39 (liga hasta la
+41); Boca octavos 24/25, cuartos 29/30, semis 33/34, final 37.
+
+### La Champions nueva, desde la temporada 2025
+
+`uclFormatoLiga()` (`G.season>=2025`): **fase liga de 36**, una sola tabla,
+8 partidos contra 8 rivales distintos (2 por bombo, uno de local y otro de
+visitante). 1º-8º a octavos, 9º-24º al **playoff** ida y vuelta (el 9-16 cruza
+con uno del 17-24), 25º para abajo afuera. Tus 8 partidos van al calendario y
+los otros 136 a `G.intGrp.fix` (`liga:true`, `comp:'Champions League - Fase
+liga'`, `fechas:8`), que juega `intGrpPlay` como siempre. Verificado: los 36
+terminan con 8 PJ y sin rival repetido.
+
+- `intFaseComp(copa)` / `esFaseInt(comp)` reemplazan el `' - Grupos'` escrito
+  en cinco lugares (la tabla, el fin de la fase, el sorteo de la ronda
+  siguiente, la tarjeta de posiciones). Un save viejo sin `g.comp` cae a
+  `' - Grupos'`.
+- ⚠️ **En la primera temporada `clubRank()` está vacío** (`buildCal` corre
+  dentro del literal de `G` y el ranking lee `G.market`), así que no había con
+  qué armar los 36 y caía al grupo de cuatro. `uclAsegurarFormato()` lo rearma
+  desde `initGame` apenas existe la partida.
+- La Europa League también cambió en 2024-25 en la realidad; acá sigue con el
+  grupo de cuatro porque el pedido fue la Champions.
+
+### Los amistosos, sólo en el fixture
+
+`rFriendlies` dibujaba la lista de la gira en la portada, debajo del botón de
+jugar: un segundo lugar para lo que ya está en el calendario desde la Fase 43.
+Ahora deja el contenedor vacío y los amistosos se juegan con el botón de
+siempre.
+
+`tests/fase73.js`, **22 checks**.
 
 ## Deploy
 

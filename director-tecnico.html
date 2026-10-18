@@ -922,7 +922,7 @@ body.bg3d-on .main{background:transparent}
           <button onclick="setTacticM('Equilibrado',this)" id="tac-eq" class="btn bg bs" style="font-size:9px;padding:2px 6px">⚖️ EQ</button>
           <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
         </div>
-        <button class="hm-play" id="btnPlay" onclick="askTeamTalk(playMatch)">▶ JUGAR PARTIDO</button>
+        <button class="hm-play" id="btnPlay" onclick="askTeamTalk(()=>startFullMatch(false))">▶ JUGAR PARTIDO</button>
         <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center">
           <button class="btn bo bs" id="dayBtn" onclick="advanceDay()" style="border-color:var(--gold);color:var(--gold)">📅 AVANZAR DÍA</button>
           <span id="dayLbl" style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif"></span>
@@ -931,7 +931,8 @@ body.bg3d-on .main{background:transparent}
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">🔍 PREVIA</button>
           <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
           <button class="btn bo bs" onclick="openContinuousSim()" style="border-color:var(--gold);color:var(--gold)">⏩ SIM CONTINUA</button>
-          <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 SIM TÁCTICA 11v11</button>
+          <button class="btn bo bs" onclick="askTeamTalk(playMatch)">🎯 JUGADAS CLAVE</button>
+          <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 MIRAR 11v11</button>
         </div>
         <div id="hmEspera" style="display:none;margin-top:8px">
           <button class="btn bg" id="btnHastaPartido" onclick="avanzarHastaPartido()" style="width:100%">⏭️ SIMULAR HASTA EL DÍA DEL PARTIDO</button>
@@ -3527,6 +3528,12 @@ function _tierCont(teamId){
 function _copaIntArmar(teamName,lg,teamId,sch,weeks){
   const copa=copaIntDeLiga(lg,_tierCont(teamId));
   if(!copa)return null;
+  // Desde 2025 la Champions es una fase liga de 36 (Fase 73)
+  if(copa==='ucl'&&uclFormatoLiga()){
+    const ws=sch.map(m=>m.week||0).filter(w=>w>0);
+    const ini=ws.length?Math.min(...ws):1+PRE_SEMANAS, fin=ws.length?Math.max(...ws):41;
+    if(uclLigaArmar(teamName,sch,ini,fin))return copa;
+  }
   const pool=intBombo(copa).filter(c=>c!==teamName);
   if(pool.length<3)return null;
   const mezcla=pool.slice();
@@ -4043,7 +4050,7 @@ function intGrpTabla(){
     else if(gh<ga){B.w++;B.pts+=3;A.l++;}
     else{A.d++;B.d++;A.pts++;B.pts++;}
   };
-  (G.calendar||[]).filter(m=>m.comp===C.pref+' - Grupos'&&m.played&&m.score)
+  (G.calendar||[]).filter(m=>m.comp===(g.comp||C.pref+' - Grupos')&&m.played&&m.score)
     .forEach(m=>{const [gh,ga]=String(m.score).split('-').map(Number);anota(m.home,m.away,gh,ga);});
   (g.fix||[]).filter(f=>f.played).forEach(f=>anota(f.home,f.away,f.gh,f.ga));
   // Desempate como en la copa: puntos, diferencia de gol, goles a favor
@@ -4119,12 +4126,147 @@ function _intSemana(desde,pref){
   }
   return fin;
 }
-// Sortea UNA ronda de una copa internacional. rnd: 2=octavos … 5=final
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 73: LAS LLAVES VAN INTERCALADAS CON LA LIGA, COMO EN LA REALIDAD
+// ═══════════════════════════════════════════════════════════════════════
+// `_intSemana` busca PRIMERO una semana sin ningún partido, y en una liga de
+// 38 fechas corridas la primera semana libre es la que sigue a la última
+// fecha: octavos, cuartos, semis y final se jugaban todos al final de la
+// temporada, uno atrás del otro. En la realidad la copa va a mitad de semana,
+// entre fechas de liga. Ahora cada ronda tiene su lugar en la temporada como
+// FRACCIÓN del largo de la liga (octavos al 58%, cuartos al 70%, semis al 82%,
+// final al 95%) y comparte semana con la fecha de liga.
+const KO_FRAC={1:[.50,.53],2:[.58,.61],3:[.70,.73],4:[.82,.85],5:[.95]};
+function _ligaSpan(){
+  const cal=(G&&G.calendar)||[];
+  const ws=cal.filter(m=>m.comp&&!m.friendly&&!esCopaInt(m.comp)&&!(typeof esCopaNac==='function'&&esCopaNac(m.comp)))
+    .map(m=>m.week||0).filter(w=>w>0);
+  if(!ws.length)return {ini:1+PRE_SEMANAS,fin:41};
+  return {ini:Math.min(...ws),fin:Math.max(...ws)};
+}
+function _intSemanaKO(frac,desde,pref){
+  const cal=(G&&G.calendar)||[], {ini,fin}=_ligaSpan();
+  // Las semanas reservadas a los playoffs del Apertura/Clausura no se tocan:
+  // si clasificás, ahí se juega la llave del torneo local.
+  const reserv=new Set();
+  try{ Object.values(G.arPhases||{}).forEach(ph=>(ph&&ph.playoffWeeks||[]).forEach(w=>reserv.add(w))); }catch(e){}
+  const obj=Math.max(desde|0,Math.round(ini+frac*(fin-ini)));
+  for(let w=obj;w<=obj+14;w++){
+    if(reserv.has(w))continue;
+    const enSem=cal.filter(m=>m.week===w);
+    if(enSem.length>=2)continue;
+    if(pref&&enSem.some(m=>m.comp&&m.comp.startsWith(pref)))continue;
+    return w;
+  }
+  return _intSemana(desde,pref);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LA CHAMPIONS NUEVA (desde la temporada 2025): FASE LIGA DE 36
+// ═══════════════════════════════════════════════════════════════════════
+// Una sola tabla de 36 clubes; cada uno juega 8 partidos contra 8 rivales
+// distintos (2 de cada bombo, uno de local y otro de visitante). Del 1º al 8º
+// van directo a octavos, del 9º al 24º juegan un playoff ida y vuelta, y del
+// 25º para abajo quedan afuera. Después: octavos, cuartos, semis y final.
+// Tus 8 partidos van al calendario; los otros 136 viven en `G.intGrp.fix` y
+// los juega `intGrpPlay` fecha por fecha, igual que el grupo de cuatro.
+const UCL_NUEVO_DESDE=2025;
+function uclFormatoLiga(){
+  const y=(typeof G==='object'&&G&&G.season)||(typeof tempActual==='function'?tempActual():2026);
+  return y>=UCL_NUEVO_DESDE;
+}
+function _uclPoolLiga(teamName){
+  const C=INT_COPAS.ucl; if(!C||!C.ligas||typeof clubRank!=='function')return [];
+  const set=new Set(C.ligas), porPais={}, out=[];
+  clubRank().filter(x=>set.has(x.lg)&&x.club!==teamName).forEach(x=>{
+    if((porPais[x.lg]=(porPais[x.lg]||0)+1)<=6) out.push(x.club); });
+  return out.slice(0,35);
+}
+function uclLigaArmar(teamName,sch,ini,fin){
+  let pool=_uclPoolLiga(teamName);
+  if((pool.length+1)%2)pool=pool.slice(0,-1);          // la cantidad tiene que ser par
+  if(pool.length<17)return false;                        // sin material: grupo de cuatro
+  const pow={}; pool.forEach(c=>{ pow[c]=Math.round(clubPowerAny(c)||70); });
+  const clubs=[teamName,...pool];
+  const miPow=(typeof clubPower==='function')?clubPower(teamName):72;
+  // 4 bombos por nivel (el tuyo incluido donde te toque)
+  const orden=clubs.slice().sort((a,b)=>(b===teamName?miPow:pow[b])-(a===teamName?miPow:pow[a]));
+  const nb=Math.ceil(orden.length/4), bombos=[0,1,2,3].map(k=>orden.slice(k*nb,(k+1)*nb));
+  const sh=a=>{for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+  // Mis 8 rivales: 2 por bombo, uno de local y otro de visitante
+  const mios=[]; bombos.forEach(b=>sh(b.filter(c=>c!==teamName)).slice(0,2).forEach((c,k)=>mios.push({c,local:k===0})));
+  sh(mios);
+  // Las 8 fechas: cada una es un emparejamiento de los 36 sin repetir cruces
+  const jugo=new Set(), clave=(a,b)=>a<b?a+'|'+b:b+'|'+a;
+  const fechas=[];
+  for(let r=0;r<8;r++){
+    let par=null;
+    for(let intento=0;intento<300&&!par;intento++){
+      const libres=sh(clubs.filter(c=>c!==teamName&&c!==mios[r].c));
+      const out=[[teamName,mios[r].c]], usados=new Set(); let ok=true;
+      for(const a of libres){
+        if(usados.has(a))continue; usados.add(a);
+        const b=libres.find(x=>!usados.has(x)&&!jugo.has(clave(a,x)));
+        if(!b){ ok=false; break; } usados.add(b); out.push([a,b]);
+      }
+      if(ok)par=out;
+    }
+    if(!par){ // último recurso: se permite un cruce repetido entre dos de afuera
+      const libres=sh(clubs.filter(c=>c!==teamName&&c!==mios[r].c)); par=[[teamName,mios[r].c]];
+      for(let i=0;i+1<libres.length;i+=2)par.push([libres[i],libres[i+1]]);
+    }
+    par.forEach(([a,b])=>jugo.add(clave(a,b)));
+    fechas.push(par);
+  }
+  const span=Math.max(10,fin-ini), FR=[.06,.12,.18,.24,.31,.37,.42,.46];
+  const fix=[], usadas=new Set(sch.map(m=>m.week));
+  fechas.forEach((par,r)=>{
+    let wk=Math.round(ini+FR[r]*span);
+    while(sch.some(m=>m.week===wk&&m.comp&&m.comp.startsWith(INT_COPAS.ucl.pref)))wk++;
+    par.forEach(([a,b],k)=>{
+      if(a===teamName){
+        const loc=mios[r].local;
+        sch.push({week:wk,comp:INT_COPAS.ucl.pref+' - Fase liga',fecha:r+1,
+          home:loc?teamName:b,away:loc?b:teamName,played:false,result:null,score:null});
+      } else {
+        const swap=(r+k)%2===1;
+        fix.push({fecha:r+1,week:wk,home:swap?b:a,away:swap?a:b,played:false,gh:0,ga:0});
+      }
+    });
+  });
+  buildCal._intGrp={copa:'ucl',clubs,pow,fix,comp:INT_COPAS.ucl.pref+' - Fase liga',liga:true,fechas:8};
+  return true;
+}
+// ⚠️ En la PRIMERA temporada `buildCal` corre dentro del literal que crea
+// `G`, cuando `clubRank()` todavía está vacío (lee `G.market`): no hay con qué
+// armar los 36 y caía al grupo de cuatro. `initGame` llama a esto apenas
+// existe la partida y, si la Champions todavía no arrancó, la rearma.
+function uclAsegurarFormato(){
+  if(!G||!G.intGrp||G.intGrp.copa!=='ucl'||G.intGrp.liga||!uclFormatoLiga())return false;
+  const grp=INT_COPAS.ucl.pref+' - Grupos';
+  if(G.calendar.some(m=>m.comp===grp&&m.played))return false;
+  const resto=G.calendar.filter(m=>m.comp!==grp);
+  const ws=resto.filter(m=>!m.friendly&&!esCopaInt(m.comp)).map(m=>m.week||0).filter(w=>w>0);
+  const ini=ws.length?Math.min(...ws):1+PRE_SEMANAS, fin=ws.length?Math.max(...ws):41;
+  if(!uclLigaArmar(G.teamName,resto,ini,fin))return false;
+  G.calendar=resto.sort((a,b)=>a.week-b.week);
+  G.intGrp=buildCal._intGrp;
+  return true;
+}
+// El nombre de la fase de grupos de la copa en curso (grupo de 4 o fase liga)
+function intFaseComp(copa){
+  const g=G&&G.intGrp, C=INT_COPAS[copa]||{};
+  return (g&&g.copa===copa&&g.comp)||(C.pref+' - Grupos');
+}
+function esFaseInt(comp){ return /( - Grupos| - Fase liga)$/.test(comp||'')&&!!intCopaDe(comp); }
+
+// Sortea UNA ronda de una copa internacional. rnd: 1=playoff (Champions nueva), 2=octavos … 5=final
 function intProximaRonda(copa,rnd){
   if(!G||!G.calendar)return null;
   const C=INT_COPAS[copa]; if(!C)return null;
-  if(rnd<2||rnd>5)return null;
-  const nombreR=INT_RONDAS[rnd-2];
+  const _liga=!!(G.intGrp&&G.intGrp.copa===copa&&G.intGrp.liga);
+  if(rnd<(_liga?1:2)||rnd>5)return null;
+  const nombreR=rnd===1?'Playoff':INT_RONDAS[rnd-2];
   const yaEsta=G.calendar.some(x=>x.comp&&x.comp.startsWith(C.pref+' - '+nombreR));
   if(yaEsta)return null;
   // Nadie repetido: ni los que ya enfrentaste en esta copa, ni vos mismo
@@ -4140,11 +4282,18 @@ function intProximaRonda(copa,rnd){
   let rival;
   const T=(G.intGrp&&G.intGrp.copa===copa)?intGrpTabla():null;
   const puesto=T?(T.findIndex(r=>r.c===G.teamName)+1):0;
+  if(rnd===1&&T){
+    // Playoff: el 9-16 cruza con uno del 17-24 y al revés
+    const bandas=puesto<=16?T.slice(16,24):T.slice(8,16);
+    const urna=bandas.map(r=>r.c).filter(c=>c!==G.teamName);
+    if(urna.length)rival=urna[~~(Math.random()*urna.length)];
+  }
   if(rnd===2&&puesto>0){
     const orden=[...bombo].sort((a,b)=>(INT_RAT[a]||70)-(INT_RAT[b]||70));
-    // 1º del grupo: sale de la mitad más floja. 2º: de la mitad más fuerte.
+    // 1º del grupo (o top 8 de la fase liga): sale de la mitad más floja.
     const mitad=Math.max(1,Math.ceil(orden.length/2));
-    const urna=puesto===1?orden.slice(0,mitad):orden.slice(-mitad);
+    const primero=_liga?puesto<=8:puesto===1;
+    const urna=primero?orden.slice(0,mitad):orden.slice(-mitad);
     rival=urna[~~(Math.random()*urna.length)];
   }
   if(!rival)rival=bombo[~~(Math.random()*bombo.length)];
@@ -4152,19 +4301,19 @@ function intProximaRonda(copa,rnd){
   const ultima=Math.max(G.week||1,...G.calendar.filter(x=>x.comp&&x.comp.startsWith(C.pref)).map(x=>x.week||1));
   if(rnd===5){
     // La final es a un partido y en cancha neutral
-    const w=_intSemana(Math.max((G.week||1)+3,ultima+4),C.pref);
+    const w=_intSemanaKO(KO_FRAC[5][0],Math.max((G.week||1)+2,ultima+2),C.pref);
     G.calendar.push({week:w,comp:C.pref+' - Final',home:G.teamName,away:rival,neutral:true,
                      played:false,result:null,score:null});
   } else {
-    const w1=_intSemana(Math.max((G.week||1)+2,ultima+3),C.pref);
-    const w2=_intSemana(w1+1,C.pref);
+    const w1=_intSemanaKO(KO_FRAC[rnd][0],Math.max((G.week||1)+2,ultima+2),C.pref);
+    const w2=_intSemanaKO(KO_FRAC[rnd][1],w1+1,C.pref);
     const local1=Math.random()<0.5;   // quién juega la ida de local
     G.calendar.push(
       {week:w1,comp:C.pref+' - '+nombreR+' IDA',   home:local1?G.teamName:rival,away:local1?rival:G.teamName,played:false,result:null,score:null},
       {week:w2,comp:C.pref+' - '+nombreR+' VUELTA',home:local1?rival:G.teamName,away:local1?G.teamName:rival,played:false,result:null,score:null});
   }
   G.calendar.sort((a,b)=>a.week-b.week);
-  const humano={'Octavos':'octavos','Cuartos':'cuartos','Semis':'la semifinal','Final':'LA FINAL'}[nombreR];
+  const humano={'Playoff':'el playoff','Octavos':'octavos','Cuartos':'cuartos','Semis':'la semifinal','Final':'LA FINAL'}[nombreR];
   lg('🎲',`Sorteo de ${C.nombre}: ${humano} contra ${rival}`);
   addPhoneMsg('board','Secretaría del Club',
     `${C.emoji} Salió el sorteo de <b>${C.nombre}</b>: en ${humano} nos toca <b>${rival}</b>.`,'🏛️');
@@ -4175,8 +4324,8 @@ function genIntKO(copa){
   if(!G)return;
   const C=INT_COPAS[copa]; if(!C)return;
   const tn=G.teamName||'Boca Juniors';
-  if(G.calendar.some(m=>m.comp&&m.comp.startsWith(C.pref+' - Octavos')))return;
-  const gs=G.calendar.filter(m=>m.comp===C.pref+' - Grupos'&&m.played);
+  if(G.calendar.some(m=>m.comp&&(m.comp.startsWith(C.pref+' - Octavos')||m.comp.startsWith(C.pref+' - Playoff'))))return;
+  const gs=G.calendar.filter(m=>m.comp===intFaseComp(copa)&&m.played);
   if(!gs.length)return;
   // ═══ CLASIFICAN LOS DOS PRIMEROS DEL GRUPO ═══
   // Antes alcanzaba con llegar a un piso de puntos inventado, sin mirar a los
@@ -4190,11 +4339,26 @@ function genIntKO(copa){
     const mio=T.find(r=>r.c===tn);
     if(mio)pts=mio.pts;
     pasa=puesto>0&&puesto<=2;
+    // Fase liga de 36: 1-8 directo a octavos, 9-24 al playoff, 25+ afuera
+    if(G.intGrp&&G.intGrp.liga){
+      const det=`${puesto}º de ${T.length} con ${pts} pts`;
+      if(puesto>0&&puesto<=8){
+        lg(C.emoji,`¡${tn} terminó ${det} en la fase liga: directo a octavos!`);
+        flash(`¡${puesto}º en la fase liga: directo a octavos!`,'win');
+        intProximaRonda(copa,2); updateUI(); return;
+      }
+      if(puesto>0&&puesto<=24){
+        lg(C.emoji,`${tn} terminó ${det}: juega el playoff de ${C.nombre}`);
+        flash(`${puesto}º en la fase liga: vas al playoff`,'draw');
+        intProximaRonda(copa,1); updateUI(); return;
+      }
+      pasa=false; puesto=puesto||99;
+    }
   }else{
     const piso=copa==='sud'?Math.max(5,Math.round(gs.length*1.0)):Math.max(6,Math.round(gs.length*1.15));
     pasa=pts>=piso;
   }
-  const detalle=puesto?`${puesto}º del grupo con ${pts} pts`:`${pts} pts`;
+  const detalle=puesto?`${puesto}º ${G.intGrp&&G.intGrp.liga?'de la fase liga':'del grupo'} con ${pts} pts`:`${pts} pts`;
   if(!pasa){
     lg('📋',`${tn} no clasificó a octavos de ${C.nombre} (${detalle})`);
     flash(`Eliminados de la ${C.nombre} en grupos`,'loss');
@@ -5392,6 +5556,7 @@ function initGame(teamId){
   autoFill();
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   setBoardTarget();
+  try{ uclAsegurarFormato(); }catch(e){ console.error('ucl',e); }
   try{ reunionAbrir(); }catch(e){}
   document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
@@ -6174,7 +6339,9 @@ function buildBuyOffer(p, listed){
     o.sellOn=[10,15,20][~~(Math.random()*3)];
     o.amount=Math.round(o.amount*0.88*10)/10;
   } else if(roll<0.55&&p.rat>=76){ // te ofrecen plata + un jugador de su plantel
-    const cand=G.market.filter(q=>q.club!==G.teamName&&q.lg==='Liga ARG'&&Math.abs(q.rat-p.rat)<=6&&q.pos!==p.pos);
+    // El que te dan sale del plantel del club que COMPRA (antes, de cualquier
+    // club argentino, también dirigiendo en la Premier)
+    const cand=G.market.filter(q=>q.club===o.from&&Math.abs(q.rat-p.rat)<=6&&q.pos!==p.pos);
     if(cand.length){o.swapIn=cand[~~(Math.random()*cand.length)];o.amount=Math.round(o.amount*0.55*10)/10;}
   }
   return o;
@@ -8192,13 +8359,15 @@ function rOffs(){
           ${o.buyOption?`<div style="font-size:9px;color:var(--t2)">💰 Opción de compra: ${fv(o.buyOption)}</div>`:''}
           ${o.buyObligation?`<div style="font-size:9px;color:var(--gold)">📋 Obligación de compra: ${fv(o.buyObligation)} si juega ${o.obligApps||18} partidos</div>`:''}
           ${o.wageShare?`<div style="font-size:9px;color:var(--green)">💵 Cubren ${o.wageShare}% del sueldo</div>`:''}
+          ${o.type==='préstamo'?`<div style="font-size:9px;color:var(--t2)">📅 ${(o.loanWeeks||26)>=52?'Una temporada':'Media temporada'}</div>`:''}
+          ${o.swapIn&&o.amount<0?`<div style="font-size:9px;color:var(--red)">💸 Vos ponés ${fv(-o.amount)} encima</div>`:''}
         </div>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn bG bs" onclick="accOff(${i})">✓ Aceptar</button>
         <button class="btn bR bs" onclick="rejOff(${i})">✗ Rechazar</button>
         <button class="btn bo bs" onclick="ctrOff(${i})">↔ +20%</button>
-        <button class="btn bo bs" onclick="openNegSell(${i})">🎚️ Negociar precio</button>
+        <button class="btn bo bs" onclick="openNegSell(${i})">🤝 Negociar (venta · préstamo · canje)</button>
       </div>
     </div>
   `;
@@ -8227,49 +8396,201 @@ function ofertaCtx(o){
                  :('Valor TM: '+fv(o.player.val)),
   };
 }
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 73: LA OFERTA QUE TE LLEGA SE NEGOCIA EN LAS TRES MODALIDADES
+// ═══════════════════════════════════════════════════════════════════════
+// "🎚️ Negociar precio" dejaba mover UN número: si un club te ofrecía comprar
+// y vos querías prestarlo, o pedirle un jugador a cambio, no había manera —
+// se abría la misma ventana de venta. Ahora la mesa tiene tres modalidades
+// (💰 venta · 📤 préstamo · 🔄 canje) y el club evalúa el PAQUETE entero.
+//
+// El club tiene un techo oculto (`o._techo`, lo máximo que pagaría por el
+// pase) que se sortea UNA vez por oferta y se guarda como número en la oferta
+// misma: recargar no lo cambia y no se puede tantear abriendo y cerrando.
+// Cada modalidad se convierte a "cuánto le cuesta al club" contra ese techo,
+// y de ahí sale la misma escalera de siempre (acepta / contraoferta / se va).
+//
+// El estado de la pantalla vive en `_NO`, fuera de `G` (como `_PT` y `_SPN`).
+let _NO=null;
+const NEG_MODOS={venta:'💰 Venta',prestamo:'📤 Préstamo',canje:'🔄 Canje'};
+function _negTecho(o){
+  if(typeof o._techo!=='number'){
+    const p=o.player;
+    // Un club que vino a COMPRAR ya mostró el número: su techo está un poco
+    // arriba. Uno que pidió un PRÉSTAMO no pensaba gastar: comprar le cuesta.
+    o._techo=o.type==='préstamo'
+      ? Math.round(p.val*(0.70+Math.random()*0.25)*100)/100
+      : Math.round(o.amount*(1.08+Math.random()*0.14)*100)/100;
+  }
+  return o._techo;
+}
+// Los límites del préstamo, en las unidades que se negocian
+function _negLoanLim(o){
+  const V=_negTecho(o), p=o.player;
+  const quiere=o.type!=='préstamo';                     // vino a comprar: lo quiere mucho
+  return {
+    cargo: Math.max(0.1,Math.round((quiere?V*0.12:Math.max(o.amount*1.15,p.val*0.06))*10)/10),
+    sueldo: quiere?100:Math.min(100,(o.wageShare||40)+30),
+    oblig: quiere?V:Math.round(p.val*1.0*10)/10,
+  };
+}
+// Jugadores del club comprador que te puede dar en el canje
+function _negSuyos(o){
+  return (G.market||[]).filter(q=>q.club===o.from&&!q.injured&&q.id!==o.player.id)
+    .sort((a,b)=>b.rat-a.rat).slice(0,14);
+}
+// Cuánto le pesa al club el paquete, en "veces su techo" (1 = el límite)
+function negRatio(o,T){
+  const V=_negTecho(o);
+  if(T.modo==='venta'){
+    const desc=(T.plan===3?0.93:T.plan===2?0.96:1)*(1-(T.sellOn||0)/100*0.7);
+    return T.precio*desc/Math.max(0.05,V);
+  }
+  if(T.modo==='prestamo'){
+    const L=_negLoanLim(o);
+    let lc=L.cargo*(T.semanas>=52?1.5:1);
+    if(T.compra==='opcion'&&T.compraPrecio<=V*1.1)lc*=1.25;   // la opción es una concesión tuya
+    const rc=T.cargo/Math.max(0.05,lc), rw=(T.sueldo||0)/Math.max(1,L.sueldo);
+    if(T.compra==='oblig') return 0.40*rc+0.25*rw+0.35*(T.compraPrecio/Math.max(0.05,L.oblig));
+    return 0.60*rc+0.40*rw;
+  }
+  // canje: el jugador que pedís vale lo que vale para ELLOS (un titular, más)
+  const q=_negSuyos(o).find(x=>x.id===T.canjeId);
+  if(!q) return 9;
+  const suyos=_negSuyos(o), top3=suyos.slice(0,3).some(x=>x.id===q.id);
+  return ((q.val||0)*(top3?1.18:1.0)+(T.cash||0))/Math.max(0.05,V);
+}
+function _negRx(r){
+  if(r<=1.03) return ['✅ Aceptarían fácilmente','var(--green)'];
+  if(r<=1.10) return ['🟢 Probable acuerdo','var(--green)'];
+  if(r<=1.18) return ['🟡 Posible contraoferta','var(--gold)'];
+  if(r<=1.28) return ['🟠 Pueden retirarse','var(--ora)'];
+  return ['⚠️ Se retirarán seguro','var(--red)'];
+}
 function openNegSell(i){
-  const o = G.offers[i];
-  if(!o) return;
-  const rec = Math.round(o.amount*1.08*10)/10;
-  const C = ofertaCtx(o);
-  // Las condiciones que ya pactó el club siguen a la vista mientras regateás
-  const cond=[
-    o.buyOption     ? `💰 Opción de compra: <b>${fv(o.buyOption)}</b>` : '',
-    o.buyObligation ? `📋 Obligación de compra: <b>${fv(o.buyObligation)}</b> si juega ${o.obligApps||18} partidos` : '',
-    o.swapIn        ? `🔄 Te ceden a <b>${o.swapIn.name}</b> (${o.swapIn.pos} · ${o.swapIn.rat})` : '',
-    o.sellOn        ? `📈 Te queda el <b>${o.sellOn}%</b> de una futura venta` : '',
-    o.plan          ? `💳 Pagan en <b>${o.plan}</b> cuotas` : '',
-  ].filter(Boolean);
-  showMod(`
-    <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">${C.ico} ${C.titulo}: ${o.player.name}</div>
-    <div style="text-align:center;margin-bottom:8px">
-      <div style="font-size:10px;color:var(--t3)">Oferta de ${o.from} · ${C.ref}</div>
-      <div style="font-size:24px;font-weight:700;color:var(--gold);font-family:'Rajdhani'">${fv(o.amount)}</div>
-      <div style="font-size:9px;color:${C.esLoan?'var(--ora)':'var(--t3)'};font-weight:${C.esLoan?'700':'400'}">${C.esLoan?'📤 ES UNA CESIÓN — el jugador vuelve, no lo vendés':'💰 Venta definitiva'}</div>
-    </div>
-    ${cond.length?`<div class="mpanel" style="margin-bottom:9px">
-      <div class="mpanel-t">Condiciones de esta oferta</div>
-      ${cond.map(c=>`<div style="font-size:10px;color:var(--t2);margin-top:3px">${c}</div>`).join('')}
-      <div style="font-size:9px;color:var(--t3);margin-top:5px">Se mantienen si acordás: sólo estás regateando ${C.esLoan?'el cargo':'el precio'}.</div>
-    </div>`:''}
-    <div class="note">Pedí más, pero si exagerás ${o.from} se retira.</div>
-    <div style="font-size:10px;color:var(--t3);margin:8px 0 3px">${C.campo}:</div>
-    <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px">
-      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
-      <input type="number" id="negSellInp" step="0.1" min="${o.amount}" value="${rec}"
-        style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Rajdhani';font-size:24px;font-weight:700;text-align:center;outline:none"
-        oninput="updNegSellI(${o.amount})">
-      <span style="font-size:12px;color:var(--t3)">M USD</span>
-    </div>
-    <div class="neg-rx" id="negSellRx"></div>
-    <div style="font-size:9px;color:var(--t3);margin-top:4px;text-align:center">Máx. recomendado: ${fv(Math.round(o.amount*1.15*10)/10)}</div>
-    <div style="display:flex;gap:6px;margin-top:12px">
-      <button class="btn bg" onclick="subNegSellI(${i})">${C.esLoan?'📤 Pedir ese cargo':'💸 Enviar pedido'}</button>
-      <button class="btn bo bs" onclick="closeMod()">Cancelar</button>
-    </div>
-  `);
-  updNegSellI(o.amount);
+  const o=G&&G.offers&&G.offers[i]; if(!o)return;
+  _negTecho(o);
+  const p=o.player, L=_negLoanLim(o);
+  const suyos=_negSuyos(o);
+  _NO={i,
+    modo:o.type==='préstamo'?'prestamo':(o.swapIn?'canje':'venta'),
+    precio:Math.round(o.amount*1.08*10)/10, plan:o.plan||1, sellOn:o.sellOn||0,
+    cargo:o.type==='préstamo'?Math.round(o.amount*1.05*10)/10:Math.round(L.cargo*0.9*10)/10,
+    sueldo:o.type==='préstamo'?(o.wageShare||50):70, semanas:26,
+    compra:o.buyObligation?'oblig':o.buyOption?'opcion':'no',
+    compraPrecio:Math.round((o.buyObligation||o.buyOption||p.val)*10)/10,
+    canjeId:(o.swapIn&&o.swapIn.id)||(suyos[0]&&suyos[0].id)||null,
+    cash:o.swapIn?o.amount:0};
+  negOfRender();
+}
+// Lo que hay en los campos pasa al estado antes de redibujar
+function _negLeer(){
+  const T=_NO; if(!T)return;
+  const v=(id,d)=>document.getElementById(id)?nRead(id,d):d;
+  T.precio=v('noPrecio',T.precio); T.cargo=v('noCargo',T.cargo);
+  T.compraPrecio=v('noCompra',T.compraPrecio); T.cash=v('noCash',T.cash);
+}
+function negOfSet(k,val){ _negLeer(); _NO[k]=val; negOfRender(); }
+function negOfRender(){
+  const T=_NO, o=T&&G.offers[T.i]; if(!o){closeMod();return;}
+  const p=o.player, V=_negTecho(o), L=_negLoanLim(o);
+  const tab=(k)=>`<button class="btn ${T.modo===k?'bg':'bo'} bs" style="flex:1" onclick="negOfSet('modo','${k}')">${NEG_MODOS[k]}</button>`;
+  const chips=(k,opts,fmt)=>opts.map(v=>`<button class="btn ${T[k]===v?'bg':'bo'} bs" onclick="negOfSet('${k}',${typeof v==='string'?`'${v}'`:v})">${fmt(v)}</button>`).join(' ');
+  let cuerpo='';
+  if(T.modo==='venta'){
+    cuerpo=`<div class="mpanel-t">Precio del pase</div>
+      ${nPair('noPrecio',Math.max(0.1,Math.round(o.amount*0.5*10)/10),Math.round(Math.max(o.amount,p.val)*1.8*10)/10,T.precio,0.1,'negOfRx()','M')}
+      <div class="mpanel-t" style="margin-top:8px">Forma de pago</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${chips('plan',[1,2,3],v=>v===1?'Contado':v+' cuotas')}</div>
+      <div class="mpanel-t" style="margin-top:8px">% de una futura venta para vos</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${chips('sellOn',[0,10,20,30],v=>v?v+'%':'Nada')}</div>
+      <div style="font-size:9.5px;color:var(--t3);margin-top:5px">Cuotas y % de reventa abaratan el pase para ellos: aceptan un precio más alto.</div>`;
+  } else if(T.modo==='prestamo'){
+    cuerpo=`<div class="mpanel-t">Cargo por el préstamo</div>
+      ${nPair('noCargo',0,Math.round(Math.max(L.cargo*2.2,1)*10)/10,T.cargo,0.1,'negOfRx()','M')}
+      <div class="mpanel-t" style="margin-top:8px">Qué parte del sueldo pagan ellos</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${chips('sueldo',[0,50,70,100],v=>v+'%')}</div>
+      <div class="mpanel-t" style="margin-top:8px">Duración</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${chips('semanas',[26,52],v=>v===26?'Media temporada':'Una temporada')}</div>
+      <div class="mpanel-t" style="margin-top:8px">Compra al final</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${chips('compra',['no','opcion','oblig'],v=>v==='no'?'Sin compra':v==='opcion'?'Opción':'Obligación')}</div>
+      ${T.compra!=='no'?`<div style="margin-top:6px">${nPair('noCompra',Math.round(p.val*0.4*10)/10,Math.round(p.val*2.5*10)/10,T.compraPrecio,0.1,'negOfRx()','M')}</div>
+        <div style="font-size:9.5px;color:var(--t3);margin-top:3px">${T.compra==='oblig'?'Se ejecuta sola si juega los partidos pactados.':'Ellos deciden si lo compran al final. Darles la opción los afloja con el cargo.'}</div>`:''}`;
+  } else {
+    const suyos=_negSuyos(o);
+    cuerpo=suyos.length?`<div class="mpanel-t">Qué jugador te dan</div>
+      <div style="max-height:170px;overflow:auto">${suyos.map(q=>`<div class="mpanel-row" style="cursor:pointer;${T.canjeId===q.id?'outline:1px solid rgba(var(--gold-rgb),.7);border-radius:6px;':''}" onclick="negOfSet('canjeId','${q.id}')">
+        <span>${rbK(q)} ${_esc(q.name)} <span style="color:var(--t3);font-size:10px">${q.pos} · ${q.age}</span></span><b class="sv">${fv(q.val)}</b></div>`).join('')}</div>
+      <div class="mpanel-t" style="margin-top:8px">Plata que ponen además (negativo: la ponés vos)</div>
+      ${nPair('noCash',-Math.round(Math.max(V,p.val)*10)/10,Math.round(Math.max(V,p.val)*1.2*10)/10,T.cash,0.1,'negOfRx()','M')}`
+      :`<div class="note">${_esc(o.from)} no tiene jugadores para ofrecer en un canje.</div>`;
+  }
+  showMod(`<button class="mclose" onclick="_NO=null;closeMod()">✕</button>
+    <div class="mtitle">🤝 Negociar con ${_esc(o.from)}: ${_esc(p.name)}</div>
+    <div style="font-size:10.5px;color:var(--t3);margin-bottom:8px">Ofrecieron <b style="color:var(--gold)">${o.type==='préstamo'?'un préstamo':'comprarlo'}</b> por ${fv(o.amount)} · valor TM ${fv(p.val)}. Podés contraofertar en otra modalidad.</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">${tab('venta')}${tab('prestamo')}${tab('canje')}</div>
+    <div class="mpanel">${cuerpo}</div>
+    <div class="neg-rx" id="noRx" style="padding:7px;border-radius:6px;margin-top:8px"></div>
+    <div style="font-size:9px;color:var(--t3);margin-top:3px;text-align:center">Si te pasás dos veces, ${_esc(o.from)} se levanta de la mesa.</div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn bg" onclick="negOfEnviar()">📨 Enviar propuesta</button>
+      <button class="btn bo bs" onclick="_NO=null;closeMod()">Cancelar</button>
+    </div>`);
+  negOfRx();
+}
+function negOfRx(){
+  const T=_NO, o=T&&G.offers[T.i], el=document.getElementById('noRx'); if(!o||!el)return;
+  _negLeer();
+  const [txt,col]=_negRx(negRatio(o,T));
+  el.textContent=txt; el.style.color=col; el.style.background='rgba(255,255,255,.04)';
+}
+// Convierte la propuesta (o la contraoferta del club) en la oferta de la lista
+function _negAplicar(o,T){
+  ['plan','sellOn','swapIn','buyOption','buyObligation','obligApps','wageShare','loanWeeks'].forEach(k=>delete o[k]);
+  if(T.modo==='venta'){
+    o.type='compra'; o.amount=Math.round(T.precio*10)/10;
+    if(T.plan>1)o.plan=T.plan; if(T.sellOn)o.sellOn=T.sellOn;
+  } else if(T.modo==='prestamo'){
+    o.type='préstamo'; o.amount=Math.round(T.cargo*10)/10; o.loanWeeks=T.semanas;
+    if(T.sueldo)o.wageShare=T.sueldo;
+    if(T.compra==='opcion')o.buyOption=Math.round(T.compraPrecio*10)/10;
+    if(T.compra==='oblig'){ o.buyObligation=Math.round(T.compraPrecio*10)/10;
+      const _gap=(o.player.rat||70)-((typeof nivelClub==='function')?nivelClub(o.from):68);
+      o.obligApps=Math.max(10,Math.min(28,Math.round(20-_gap*0.9))); }
+  } else {
+    o.type='compra'; o.amount=Math.round((T.cash||0)*10)/10;
+    const q=_negSuyos(o).find(x=>x.id===T.canjeId); if(q)o.swapIn=q;
+  }
+  o.negociada=true;
+}
+function negOfEnviar(){
+  const T=_NO, o=T&&G.offers[T.i]; if(!o)return;
+  _negLeer();
+  if(T.modo==='canje'&&!_negSuyos(o).find(x=>x.id===T.canjeId)){ flash('Elegí qué jugador te dan','draw'); return; }
+  const r=negRatio(o,T), d=Math.random();
+  o._intentos=(o._intentos||0)+(r>1.10?1:0);
+  if(r<=1.03||(r<=1.10&&d<0.7)){
+    _negAplicar(o,T); _NO=null; closeMod();
+    lg('🤝',`${o.from} aceptó la propuesta por ${o.player.name} (${NEG_MODOS[T.modo]})`);
+    accOff(T.i);                         // el jugador igual tiene que querer irse
+    return;
+  }
+  if(o._intentos>=2||r>1.28||(r>1.18&&d<0.5)){
+    G.offers.splice(T.i,1); _NO=null; closeMod(); rOffs(); updateUI();
+    flash('❌ '+o.from+' se levantó de la mesa','loss');
+    lg('❌',`${o.from} cortó la negociación por ${o.player.name}`);
+    return;
+  }
+  // Contraoferta: el club baja lo que le pedís hasta su techo, en la MISMA modalidad
+  const k=1/Math.max(1,r);
+  const C=Object.assign({},T);
+  if(T.modo==='venta')C.precio=Math.round(T.precio*k*10)/10;
+  else if(T.modo==='prestamo'){ C.cargo=Math.round(T.cargo*k*10)/10; C.sueldo=Math.min(T.sueldo,Math.round(T.sueldo*k/10)*10);
+    if(T.compra==='oblig')C.compraPrecio=Math.round(T.compraPrecio*k*10)/10; }
+  else C.cash=Math.round(((T.cash||0)-(r-1)*_negTecho(o))*10)/10;
+  _negAplicar(o,C); _NO=null; closeMod(); rOffs(); updateUI();
+  flash('↔ '+o.from+' contraofertó: revisá la oferta','draw');
+  addPhoneMsg('agent',o.from,`↔ Contrapropuesta por <b>${_esc(o.player.name)}</b> (${NEG_MODOS[C.modo]}). Está en Mercado → Ofertas.`,'🤝',{gotoTab:'mkt',tabIdx:3});
 }
 
 function updNegSellI(base){
@@ -11705,10 +12026,11 @@ function rStand(){
   const copaEl=document.getElementById('standCopa');
   const copaTitleEl=document.getElementById('standCopaTitle');
   if(copaCard&&copaEl){
-    const copaComp=G.calendar.find(m=>m.comp&&/ - Grupos$/.test(m.comp)&&intCopaDe(m.comp));
+    const copaComp=G.calendar.find(m=>m.comp&&esFaseInt(m.comp));
     if(copaComp){
       const _ck=intCopaDe(copaComp.comp), _cc=INT_COPAS[_ck]||{};
-      const copaLabel=(_cc.emoji||'🏆')+' Grupo '+(_cc.nombre||'Copa');
+      const _lgF=!!(G.intGrp&&G.intGrp.liga);
+      const copaLabel=(_cc.emoji||'🏆')+(_lgF?' Fase liga ':' Grupo ')+(_cc.nombre||'Copa');
       if(copaTitleEl) copaTitleEl.textContent=copaLabel;
       copaCard.style.display='';
       // La tabla sale de los 12 partidos del grupo (los 6 míos del calendario
@@ -11732,10 +12054,10 @@ function rStand(){
           return {c,pts,pj,w,d,l,gf,ga,dif:gf-ga};
         }).sort((a,b)=>b.pts-a.pts||b.dif-a.dif);
       }
-      const fechas=(G.intGrp&&G.intGrp.fix)?6:0;
+      const fechas=(G.intGrp&&G.intGrp.fix)?(G.intGrp.fechas||6):0;
       const jug=cTbl.length?Math.max(...cTbl.map(r=>r.pj)):0;
       if(copaTitleEl&&fechas)copaTitleEl.textContent=copaLabel+' · fecha '+Math.min(fechas,jug)+'/'+fechas;
-      const czc=i=>i<2?'#0fb866':'transparent';
+      const czc=_lgF?(i=>i<8?'#0fb866':i<24?'#f59e0b':'#e84545'):(i=>i<2?'#0fb866':'transparent');
       copaEl.innerHTML=hdrHtml+cTbl.map((t,i)=>rowHtml(t,i,czc)).join('');
     } else {
       copaCard.style.display='none';
@@ -15462,6 +15784,10 @@ function nextSeason(){
   });
   retiros();          // ya con la edad y la media nuevas
   expireContracts();  // y después los que se van libres
+  // ⚠️ La semana vuelve a 1: un préstamo firmado en la semana 40 con regreso
+  // en la 66 no volvía NUNCA (ninguna temporada llega a la 66). Se descuenta
+  // lo que ya corrió de esta temporada (Fase 73).
+  (G.loaned||[]).forEach(l=>{ if(l&&typeof l.returnWeek==='number') l.returnWeek=Math.max(1,l.returnWeek-(G.week||0)); });
   G.season++;
   G.week = 1;
   G.wins = 0; G.draws = 0; G.losses = 0;
@@ -15947,8 +16273,8 @@ function resolveKO(m){
   const copaInt=intCopaDe(c);                   // 'lib','sud','ucl','uel','ccl','afc' o null
   const isCA=!copaInt&&esCopaNac(c);
   if(!copaInt&&!isCA)return;
-  if(c.includes('Grupos'))return;               // los grupos se resuelven aparte
-  const roundOf=(s)=>/R32/.test(s)?1:(/Octavos|R16/.test(s))?2:(/Cuartos|QF/.test(s))?3:(/Semi|SF/.test(s))?4:/Final/.test(s)?5:0;
+  if(c.includes('Grupos')||c.includes('Fase liga'))return;   // los grupos se resuelven aparte
+  const roundOf=(s)=>/R32|Playoff/.test(s)?1:(/Octavos|R16/.test(s))?2:(/Cuartos|QF/.test(s))?3:(/Semi|SF/.test(s))?4:/Final/.test(s)?5:0;
   const rnd=roundOf(c);
   if(!rnd)return;
   // Una llave con IDA sólo se define en la VUELTA
@@ -15960,7 +16286,7 @@ function resolveKO(m){
   if(mine===theirs)mine+=Math.random()<0.5?1:-1;   // se define por penales
   const advanced=mine>theirs;
   const compName=copaInt?(INT_COPAS[copaInt].nombre):copaNacPref();
-  const rndName=['','32avos','octavos','cuartos','semifinal','la final'][rnd];
+  const rndName=[ '',copaInt?'el playoff':'32avos','octavos','cuartos','semifinal','la final'][rnd];
   if(advanced){
     if(rnd===5){
       lg('🏆',`¡${G.teamName} CAMPEÓN de la ${compName}! (global ${mine}-${theirs})`);
@@ -16126,14 +16452,14 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(/Liga Profesional - (Apertura|Clausura)/.test(m.comp))arAdvancePlayoff(m,res);
 
   // El resto del grupo juega su fecha en la misma semana que vos
-  if(/ - Grupos$/.test(m.comp||'')&&intCopaDe(m.comp))intGrpPlay(m.fecha||99);
+  if(esFaseInt(m.comp))intGrpPlay(m.fecha||99);
   // ¿Terminó la fase de grupos de la copa continental? Esto preguntaba por el
   // nombre exacto ('Copa Libertadores - Grupos' y 'Copa Sudamericana - Grupos'),
   // así que una Champions o una Concachampions terminaba el grupo y **no
   // pasaba a octavos nunca**. Sale de la copa del partido que se acaba de jugar.
   const _gk=intCopaDe(m.comp);
-  if(_gk&&/ - Grupos$/.test(m.comp||'')){
-    const _gp=INT_COPAS[_gk].pref+' - Grupos';
+  if(_gk&&esFaseInt(m.comp)){
+    const _gp=intFaseComp(_gk);
     const gsTotal =G.calendar.filter(x=>x.comp===_gp).length;
     const gsPlayed=G.calendar.filter(x=>x.comp===_gp&&x.played).length;
     if(gsTotal>0&&gsPlayed===gsTotal) genIntKO(_gk);   // el grupo son 3 rivales (6 partidos)
@@ -18106,6 +18432,12 @@ function playFriendly(i,mirar){
   const d=(mi-su)/9+(deLocal?0.12:-0.06);
   const pois=(l)=>{let L=Math.exp(-l),k=0,pr=1;do{k++;pr*=Math.random();}while(pr>L);return k-1;};
   const gf=Math.min(6,pois(Math.max(0.3,1.4+d))), ga=Math.min(6,pois(Math.max(0.3,1.4-d)));
+  _amisCerrar(m,gf,ga);
+}
+// Lo comparten el amistoso simulado y el jugado en el 11v11: un amistoso no
+// pasa por applyMatchResult (no da puntos ni mueve la tabla).
+function _amisCerrar(m,gf,ga){
+  const deLocal=m.home===G.teamName, rival=deLocal?m.away:m.home, su=m.oppPow||72;
   m.played=true;
   m.score=deLocal?(gf+'-'+ga):(ga+'-'+gf);
   m.result=gf>ga?'W':gf===ga?'D':'A';
@@ -18117,21 +18449,15 @@ function playFriendly(i,mirar){
   lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${rival} (+${fv(ing)})`);
   addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${rival}</b>${deLocal?'':' (de visitante)'}: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
   flash(`🤝 ${G.teamName} ${gf}-${ga} ${rival}`,gf>ga?'win':gf===ga?'draw':'loss');
-  updateUI(); rFriendlies();
+  updateUI();
 }
+// ⚠️ Esta lista iba en la portada, debajo del botón de jugar, y era un
+// segundo lugar para ver lo mismo que ya está en el fixture: los amistosos
+// son fechas del calendario (Fase 43) y se juegan con el botón de siempre.
+// El presidente pidió sacarla (Fase 73). Queda la función porque la llaman
+// updateUI y _TAB_R; deja el contenedor vacío.
 function rFriendlies(){
-  const el=document.getElementById('friendlyBox'); if(!el||!G)return;
-  const fs=G.friendlies||[];
-  if(!fs.length){el.innerHTML='';return;}
-  el.innerHTML=`<div class="card" style="margin-bottom:9px">
-    <div class="ctitle">🤝 Amistosos de la gira</div>
-    ${fs.map((m,i)=>`<div class="sr">
-      <span class="sl" style="flex:1;display:flex;align-items:center;gap:7px">${clubCrest(m.away,22)}${m.away} <span style="color:var(--t3);font-size:9px">(${m.oppPow})</span></span>
-      ${m.played?`<span class="sv" style="color:${m.result==='W'?'var(--green)':m.result==='D'?'var(--gold)':'var(--red)'}">${m.score}</span>`
-        :`<button class="btn bg bs" onclick="playFriendly(${i})">▶ Jugar</button>`}
-    </div>`).join('')}
-    <div style="font-size:9px;color:var(--t3);margin-top:5px">Los amistosos no dan puntos: suman condición física, química y taquilla.</div>
-  </div>`;
+  const el=document.getElementById('friendlyBox'); if(el)el.innerHTML='';
 }
 
 function offerPreseason(){
@@ -19044,7 +19370,69 @@ const KITS={
   'Fluminense':{c1:'#7a1437',c2:'#0a7a3c'},'Nacional (URU)':{c1:'#f2f2f2',c2:'#10316b'},
   'LDU Quito':{c1:'#f2f2f2',c2:'#e31e24'}
 };
-function kitFor(name){return KITS[name]||{c1:'#c0392b',c2:'#fff'};}
+// ═══ CADA CLUB CON SU CAMISETA, Y NUNCA LAS DOS IGUALES (Fase 73) ═══
+// `KITS` tenía 28 clubes —casi todos argentinos— y al resto le tocaba la
+// MISMA roja de fallback: Real Madrid–Celta, City–Arsenal o cualquier partido
+// fuera de esa lista salía con los 22 vestidos igual, en 2D y en 3D. Ahora:
+// las camisetas de los grandes de cada liga (nombres de la base), después el
+// color del club en TEAMS, y si no, un color estable por nombre. Y si el
+// rival se parece a vos, usa la alternativa.
+const KITS_MUNDO={
+  'Real Madrid':{c1:'#f4f4f4',c2:'#1a2a5c'},'Barcelona':{c1:'#a50044',c2:'#004d98'},'Atlético':{c1:'#cb3524',c2:'#f4f4f4'},
+  'Sevilla FC':{c1:'#f4f4f4',c2:'#d2001f'},'Valencia':{c1:'#f4f4f4',c2:'#111'},'Real Betis':{c1:'#00954c',c2:'#f4f4f4'},
+  'Athletic Club':{c1:'#ee2523',c2:'#f4f4f4'},'Villarreal':{c1:'#ffe114',c2:'#005187'},'Real Sociedad':{c1:'#0067b1',c2:'#f4f4f4'},
+  'Celta':{c1:'#8bc4ef',c2:'#f4f4f4'},'Man City':{c1:'#6cabdd',c2:'#f4f4f4'},'Liverpool':{c1:'#c8102e',c2:'#f4f4f4'},
+  'Chelsea':{c1:'#034694',c2:'#f4f4f4'},'Arsenal':{c1:'#ef0107',c2:'#f4f4f4'},'Man Utd':{c1:'#da291c',c2:'#111'},
+  'Tottenham':{c1:'#f4f4f4',c2:'#132257'},'Newcastle':{c1:'#241f20',c2:'#f4f4f4'},'Aston Villa':{c1:'#670e36',c2:'#95bfe5'},
+  'Bayern Munich':{c1:'#dc052d',c2:'#f4f4f4'},'Dortmund':{c1:'#fde100',c2:'#111'},'Leverkusen':{c1:'#e32221',c2:'#111'},
+  'Leipzig':{c1:'#f4f4f4',c2:'#dd0741'},'PSG':{c1:'#004170',c2:'#da291c'},'Marseille':{c1:'#f4f4f4',c2:'#2faee0'},
+  'Lyon':{c1:'#f4f4f4',c2:'#14387f'},'Monaco':{c1:'#e51b22',c2:'#f4f4f4'},'Juventus':{c1:'#f4f4f4',c2:'#111'},
+  'Inter':{c1:'#0068a8',c2:'#111'},'AC Milan':{c1:'#fb090b',c2:'#111'},'Napoli':{c1:'#12a0d7',c2:'#f4f4f4'},
+  'Roma':{c1:'#8e1f2f',c2:'#f0bc42'},'Lazio':{c1:'#87d8f7',c2:'#f4f4f4'},'Atalanta':{c1:'#1e71b8',c2:'#111'},
+  'Benfica':{c1:'#e83030',c2:'#f4f4f4'},'Porto':{c1:'#0055a5',c2:'#f4f4f4'},'Sporting':{c1:'#008057',c2:'#f4f4f4'},
+  'Ajax':{c1:'#f4f4f4',c2:'#d2122e'},'PSV':{c1:'#ed1c24',c2:'#f4f4f4'},'Feyenoord':{c1:'#e2001a',c2:'#f4f4f4'},
+  'Galatasaray':{c1:'#fdb912',c2:'#a90432'},'Fenerbahçe':{c1:'#fff200',c2:'#163962'},'Beşiktaş':{c1:'#111',c2:'#f4f4f4'},
+  'Corinthians':{c1:'#f4f4f4',c2:'#111'},'São Paulo':{c1:'#f4f4f4',c2:'#e2001a'},'Santos':{c1:'#f4f4f4',c2:'#111'},
+  'Grêmio':{c1:'#0d80bf',c2:'#111'},'Internacional':{c1:'#e30613',c2:'#f4f4f4'},'Cruzeiro':{c1:'#2f529e',c2:'#f4f4f4'},
+  'Peñarol':{c1:'#fdd116',c2:'#111'},'Nacional':{c1:'#f4f4f4',c2:'#0a2a6b'},'América':{c1:'#fff200',c2:'#002f6c'},
+  'Chivas':{c1:'#e30613',c2:'#f4f4f4'},'Tigres UANL':{c1:'#fdb913',c2:'#003a70'},'Monterrey':{c1:'#0b2240',c2:'#f4f4f4'},
+  'Al-Hilal':{c1:'#1f4ea1',c2:'#f4f4f4'},'Al-Nassr':{c1:'#fdd116',c2:'#1f3e8c'},'Al-Ittihad':{c1:'#fbd010',c2:'#111'},
+  'Colo-Colo':{c1:'#f4f4f4',c2:'#111'},'Club Brugge':{c1:'#0071ce',c2:'#111'},'Anderlecht':{c1:'#4b2a83',c2:'#f4f4f4'},
+  'Olympiacos':{c1:'#e30613',c2:'#f4f4f4'},'Panathinaikos':{c1:'#007a33',c2:'#f4f4f4'},'LA Galaxy':{c1:'#00245d',c2:'#ffd200'},
+  'Miami':{c1:'#f7b5cd',c2:'#111'},'Millonarios':{c1:'#0a3fa0',c2:'#f4f4f4'},'Atl. Nacional':{c1:'#0b8a3b',c2:'#f4f4f4'},
+  'Universitario':{c1:'#f4f1e1',c2:'#8b1a1a'},'Alianza Lima':{c1:'#1b2a6b',c2:'#f4f4f4'},
+};
+const _KIT_PAL=['#c0392b','#1f4ea1','#0b8a3b','#f4f4f4','#111111','#f2c200','#6cabdd','#7a1437','#e86a10','#4b2a83','#00877a','#d2122e'];
+function _kitBase(name){
+  if(KITS[name])return KITS[name];
+  if(KITS_MUNDO[name])return KITS_MUNDO[name];
+  const t=(typeof TEAMS==='object'&&TEAMS)?Object.values(TEAMS).find(x=>x&&x.name===name):null;
+  if(t&&t.color)return {c1:t.color,c2:'#f4f4f4'};
+  let h=0; String(name||'').split('').forEach(ch=>{h=(h*31+ch.charCodeAt(0))>>>0;});
+  const c1=_KIT_PAL[h%_KIT_PAL.length], c2=_KIT_PAL[(h>>5)%_KIT_PAL.length];
+  return {c1,c2:c2===c1?(c1==='#f4f4f4'?'#111111':'#f4f4f4'):c2};
+}
+function _kitRGB(c){
+  c=String((typeof _cssVar==='function')?_cssVar(c,'#888888'):c).trim();
+  const hs=c.match(/hsl\(\s*([\d.]+)[ ,]+([\d.]+)%[ ,]+([\d.]+)%/i);
+  if(hs){ const h=+hs[1]/360,sa=+hs[2]/100,l=+hs[3]/100;
+    const q=l<.5?l*(1+sa):l+sa-l*sa,p=2*l-q,f=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};
+    return [f(h+1/3),f(h),f(h-1/3)].map(v=>Math.round(v*255)); }
+  if(c[0]!=='#')return [136,136,136];
+  if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];
+  const n=parseInt(c.slice(1,7),16); return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function _kitDist(a,b){ const x=_kitRGB(a),y=_kitRGB(b); return Math.hypot(x[0]-y[0],x[1]-y[1],x[2]-y[2]); }
+function kitFor(name){
+  const k=_kitBase(name);
+  // El rival se compara SIEMPRE contra tu club: es el único cruce que se dibuja
+  const mio=(typeof G==='object'&&G&&G.teamName)||null;
+  if(!mio||name===mio)return k;
+  const m=_kitBase(mio);
+  if(_kitDist(k.c1,m.c1)>=110)return k;
+  const alts=[{c1:k.c2,c2:k.c1},{c1:'#f4f4f4',c2:'#222222'},{c1:'#1b1f2a',c2:'#f4f4f4'},{c1:'#f2c200',c2:'#111111'}];
+  return alts.sort((a,b)=>_kitDist(b.c1,m.c1)-_kitDist(a.c1,m.c1))[0];
+}
 function sitDrawPlayerK(ctx,x,y,r,kit,label,isCtrl){
   // Drop shadow
   ctx.beginPath();ctx.ellipse(x+2,y+r+3,r*.88,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.32)';ctx.fill();
@@ -21372,7 +21760,7 @@ function accOffAt(i, val){
     // préstamo. Los partidos los va sumando loanTick() semana a semana según
     // lo que el jugador rinda contra el nivel del club que lo pidió.
     if(!G.loaned) G.loaned=[];
-    const _l={player:p, returnWeek:G.week+26, destClub:o.from,
+    const _l={player:p, returnWeek:G.week+(o.loanWeeks||26), destClub:o.from,
               buyOption:o.buyOption, apps:0};
     if(o.buyObligation){
       _l.buyObligation=o.buyObligation;
@@ -21397,6 +21785,7 @@ function accOffAt(i, val){
     }
     G.budget=Math.round((G.budget+payNow)*10)/10;
     if(payNow>0)finAnota('ventas',payNow,'Venta de '+p.name+' a '+o.from);
+    else if(payNow<0)finAnota('fichajes',-payNow,'Diferencia del canje con '+o.from);
     if(o.sellOn){p.sellOnPct=o.sellOn;p.sellOnTo=G.teamName;} // guardás % de futura venta
     if(o.swapIn){
       const inc=G.market.find(x=>x.id===o.swapIn.id)||o.swapIn;
@@ -21408,7 +21797,7 @@ function accOffAt(i, val){
         lg('🛂',`${inc.name} no pudo inscribirse: cupo de extranjeros lleno`);
       } else {
       G.market=G.market.filter(x=>x.id!==inc.id);
-      inc.club=G.teamName;inc.lg='Liga ARG';
+      inc.club=G.teamName;inc.lg=ligaMia();   // sexto 'Liga ARG' escrito a mano
       G.squad.push(inc);G.bench.push(inc);
       movAnota('entra',inc,{motivo:'llegó en el canje por '+p.name});
       lg('🔄',`En el pase de ${p.name} llegó ${inc.name}`);
@@ -22014,6 +22403,7 @@ function startFullMatch(watch){
   const m=G.calendar.find(x=>!x.played);
   if(!m){flash('No hay partidos pendientes','loss');return;}
   window._fmWatch=!!watch;
+  try{ if(typeof _FM3!=='undefined'&&_FM3.on)fm3DApagar(); }catch(e){}
   document.getElementById('fm-ov')?.remove();
   const opp=m.home===G.teamName?m.away:m.home;
   // El clima se sortea acá; si venís de jugar las jugadas clave del MISMO
@@ -23324,7 +23714,13 @@ function fmLoop(ts){
   const PASO_MS=9.3;
   const real=FM.lastTs?Math.min(ts-FM.lastTs,100):PASO_MS;
   FM.lastTs=ts;
-  FM.acc=(FM.acc||0)+real/PASO_MS;
+  // ═══ EN 3D EL PARTIDO VA MÁS LENTO (Fase 73) ═══
+  // Medido: con el reloj normal los jugadores corren a 5,4 m/s de mediana y
+  // 7,5 el 10% más rápido — un sprint todo el partido. Desde arriba en 2D no
+  // se nota; en 3D a escala real se ve frenético. Con 0,55 quedan en 3,0 y 4,1
+  // m/s. Es la REPRODUCCIÓN la que va más lenta: cada paso es el mismo, así
+  // que el partido sale idéntico, sólo que tarda ~3,8 minutos en vez de 2.
+  FM.acc=(FM.acc||0)+real/PASO_MS*((typeof _FM3!=='undefined'&&_FM3.on)?FM3_TIEMPO:1);
   const enteros=Math.floor(FM.acc);
   FM.acc-=enteros;
   let pasos=enteros*(FM.watch?(FM.speed||1):1);
@@ -23333,7 +23729,14 @@ function fmLoop(ts){
   if(FM)FM._dtLast=Math.max(0.3,Math.min(4,real/PASO_MS));   // cuánto avanza la lluvia este cuadro
   // Con la vista 3D puesta el canvas 2D está oculto: dibujarlo igual es tirar
   // los cuadros que el 3D necesita (Fase 71).
-  if(FM&&FM.phase!=='done'){ if(typeof _FM3!=='undefined'&&_FM3.on) fm3DFrame(); else fmDraw(); }
+  // ⚠️ Un error del 3D NO puede matar el partido: si fm3DFrame tira, el
+  // requestAnimationFrame de abajo no se agendaba y el partido quedaba
+  // congelado sin aviso. Se vuelve al 2D y se sigue jugando.
+  if(FM&&FM.phase!=='done'){
+    if(typeof _FM3!=='undefined'&&_FM3.on){
+      try{ fm3DFrame(); }catch(e){ console.error('3D',e); try{ fm3DApagar(); }catch(e2){} flash('El 3D falló en este equipo: seguimos en 2D','draw'); }
+    } else fmDraw();
+  }
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
 
@@ -26455,6 +26858,9 @@ function fmEnd(){
   const st=f.stat,pt=f.possT||{my:1,opp:1};
   document.getElementById('fm-ov')?.remove();
   fmClean();
+  // ⚠️ Un amistoso jugado en el 11v11 caía en applyMatchResult como si fuera
+  // de liga. Ahora se cierra igual que el simulado y corre la semana.
+  if(m&&m.friendly){ _amisCerrar(m,gf,ga); G.week=(G.week||1)+1; G.day=1; updateUI(); return; }
   applyMatchResult(m,gf,ga,[]);updateUI();
   if(st)showSimStats(m,gf,ga,st,pt); else
   flash(gf>ga?'¡Victoria! '+gf+'-'+ga:gf===ga?'Empate '+gf+'-'+ga:'Derrota '+gf+'-'+ga,
@@ -26501,6 +26907,9 @@ function fmQuit(){
 }
 
 function fmClean(){
+  // El 3D muere con el partido: si no, el siguiente heredaba la escena (rival,
+  // cancha, cámara) del anterior y fm3DAuto no lo volvía a armar (Fase 73).
+  try{ if(typeof _FM3!=='undefined'&&_FM3.on)fm3DApagar(); }catch(e){}
   if(!FM)return;
   if(FMS._swell){clearInterval(FMS._swell);FMS._swell=null;}
   if(FMS.ac){try{FMS.ac.close();}catch(e){}FMS.ac=null;FMS.crowdG=null;}
@@ -29547,6 +29956,30 @@ function e3dEstadio(o){
     const sp=new T.SpotLight(0xfff6e0,2.2,0,Math.PI/4.2,0.5,0);
     sp.position.set(a*(L/2+20),alto+30,b*(A/2+20)); sp.target.position.set(a*8,0,b*6); S.add(sp); S.add(sp.target);
   });
+  // ═══ EL ESTADIO APOYA EN ALGO (Fase 73) ═══
+  // Sólo existía la cancha: alrededor de la tribuna había cielo, así que
+  // desde la cámara del fondo el estadio se veía flotando y las torres de
+  // luz colgaban en el vacío. Ahora hay terreno hasta el horizonte (la niebla
+  // lo funde con el cielo), una explanada de cemento al pie de la tribuna,
+  // estacionamientos y una ciudad baja alrededor, sorteada con el azar propio.
+  const piso=new T.Mesh(new T.PlaneGeometry(3000,3000),new T.MeshLambertMaterial({color:o.noche?0x1d2418:0x56663f}));
+  piso.rotation.x=-Math.PI/2; piso.position.y=-0.05; S.add(piso);
+  // ⚠️ Va DESPUÉS de las tribunas: el tamaño de la explanada sale de offMax,
+  // que recién se sabe cuando están armadas.
+  const exX=L/2+M+offMax+16, exZ=A/2+M+offMax+16, anilloPx=Math.max(exX,exZ);
+  const expl=new T.Mesh(new T.CircleGeometry(1,48),new T.MeshLambertMaterial({color:o.noche?0x2a2d33:0x8d9097}));
+  expl.rotation.x=-Math.PI/2; expl.scale.set(exX*1.12,exZ*1.12,1); expl.position.y=-0.03; S.add(expl);
+  const mAsf=new T.MeshLambertMaterial({color:o.noche?0x17191d:0x45484e});
+  [[1,0],[-1,0],[0,1]].forEach(([a,b],i)=>{
+    const pk=new T.Mesh(new T.PlaneGeometry(i<2?60:110,i<2?90:50),mAsf);
+    pk.rotation.x=-Math.PI/2; pk.position.set(a*(exX*1.12+38),-0.02,b*(exZ*1.12+30)); S.add(pk); });
+  { const mEd=[0xb8b1a4,0xa39a8b,0xc9c3b8,0x8e8a84,0xd1c7b4].map(c=>new T.MeshLambertMaterial({color:o.noche?0x2b2f38:c}));
+    const geo=new T.BoxGeometry(1,1,1);
+    for(let k=0;k<70;k++){
+      const ang=rnd()*Math.PI*2, d=anilloPx*1.12+90+rnd()*260;
+      const w=12+rnd()*22, h=6+rnd()*(d<anilloPx*1.12+180?14:34), dd=12+rnd()*22;
+      const ed=new T.Mesh(geo,mEd[k%mEd.length]); ed.scale.set(w,h,dd);
+      ed.position.set(Math.cos(ang)*d,h/2,Math.sin(ang)*d*0.85); ed.rotation.y=ang; S.add(ed); } }
   return {S,alto,offMax,L,A,M,cap};
 }
 // Los 22 y la pelota del 11v11, leídos de FM: el motor no cambia, sólo cómo
@@ -29824,29 +30257,97 @@ function _trofeosLista(){
     const n=(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[ligaMia()])||'Liga'; cont[n]=(cont[n]||0)+1; });
   return Object.entries(cont).map(([n,c])=>({n:c,name:n})).sort((a,b)=>b.n-a.n);
 }
+// ═══ LAS COPAS SE PARECEN A LAS DE VERDAD (Fase 73) ═══
+// Eran cuatro formas genéricas y TODAS doradas, cuando casi todas las copas
+// reales son de PLATA: la orejona de la Champions, la Libertadores (con el
+// jugadorcito arriba y la base de madera), la Premier (con corona dorada), la
+// Meisterschale de la Bundesliga (que es un plato). De oro es el Mundial de
+// Clubes. La forma sale del NOMBRE del torneo, el mismo que guarda la vitrina.
 function _copaForma(name){
   const s=String(name).toLowerCase();
-  if(/libertadores|champions|concacaf|asi/.test(s)) return 'orejona';
-  if(/mundial|recopa|supercopa/.test(s)) return 'globo';
-  if(/copa|cup|pokal|coppa|taça|ta[cç]a|knvb/.test(s)) return 'copa';
+  if(/libertadores/.test(s)) return 'libertadores';
+  if(/sudamericana/.test(s)) return 'sudamericana';
+  if(/recopa/.test(s)) return 'recopa';
+  if(/mundial|club world/.test(s)) return 'mundial';
+  if(/europa league/.test(s)) return 'europa';
+  if(/champions|concachampions|asi[aá]tica/.test(s)) return 'orejona';
+  if(/premier league/.test(s)) return 'premier';
+  if(/bundesliga/.test(s)) return 'plato';
+  if(/copa|cup|pokal|coppa|ta[cç]a|knvb|rey|beker|coupe/.test(s)) return 'copa';
   return 'liga';
 }
 function e3dCopa(T,forma){
-  const oro=new T.MeshPhongMaterial({color:0xd4a531,specular:0xfff2b0,shininess:95});
+  const plata=new T.MeshPhongMaterial({color:0xd5dbe2,specular:0xffffff,shininess:130});
+  const oro=new T.MeshPhongMaterial({color:0xd4a531,specular:0xfff2b0,shininess:100});
+  const madera=new T.MeshPhongMaterial({color:0x4a2c17,shininess:25});
+  const negro=new T.MeshPhongMaterial({color:0x161616,shininess:60});
   const g=new T.Group();
-  const perf={liga:[[0,0],[1.1,0],[1.1,.35],[.45,.5],[.35,1.2],[.5,1.5],[1.25,2.2],[1.45,3.2],[1.4,3.3],[0,3.3]],
-    copa:[[0,0],[.9,0],[.9,.3],[.3,.45],[.25,1.3],[.9,1.8],[1.05,2.6],[1,2.7],[0,2.7]],
-    orejona:[[0,0],[1,0],[1,.4],[.4,.6],[.3,1.5],[.8,2.2],[1,3.4],[.95,3.5],[0,3.5]],
-    globo:[[0,0],[.9,0],[.9,.3],[.3,.5],[.25,1.6],[0,1.6]]}[forma];
-  const lathe=new T.LatheGeometry(perf.map(([x,y])=>new T.Vector2(x,y)),32);
-  g.add(new T.Mesh(lathe,oro));
-  if(forma==='orejona'||forma==='liga'){
-    [-1,1].forEach(sg=>{ const asa=new T.Mesh(new T.TorusGeometry(forma==='orejona'?0.75:0.5,0.09,8,24,Math.PI*1.3),oro);
-      asa.position.set(sg*(forma==='orejona'?1.25:1.35),forma==='orejona'?2.3:2.4,0); asa.rotation.z=sg>0?-1.0:Math.PI+1.0; g.add(asa); });
+  const torno=(pts,m,seg)=>{ const me=new T.Mesh(new T.LatheGeometry(pts.map(([x,y])=>new T.Vector2(x,y)),seg||40),m); g.add(me); return me; };
+  // asa: un tubo por una curva, espejado a los dos lados
+  const asas=(pts,r,m)=>[-1,1].forEach(sg=>{ const c=new T.CatmullRomCurve3(pts.map(([x,y])=>new T.Vector3(sg*x,y,0)));
+    g.add(new T.Mesh(new T.TubeGeometry(c,24,r,8,false),m)); });
+  const pie=(r,h,m)=>{ const b=new T.Mesh(new T.CylinderGeometry(r,r*1.06,h,32),m||negro); b.position.y=-h/2; g.add(b); };
+  if(forma==='orejona'){
+    // Champions: alta, de plata, con las dos "orejas" que van del borde al pie
+    torno([[0,0],[.85,0],[.85,.12],[.32,.3],[.2,.9],[.42,1.25],[.78,2.1],[.98,3.2],[.94,3.28],[0,3.28]],plata);
+    asas([[.92,3.12],[1.55,3.0],[1.78,2.35],[1.55,1.55],[.95,1.15],[.36,.95]],.07,plata);
+    pie(.95,.35);
+  } else if(forma==='libertadores'){
+    // base de madera octogonal con chapas, copa de plata y el jugador arriba
+    const base=new T.Mesh(new T.CylinderGeometry(.95,1.1,1.5,8),madera); base.position.y=-.75; g.add(base);
+    for(let i=0;i<8;i++){ const ch=new T.Mesh(new T.BoxGeometry(.36,.22,.02),oro); const a=i/8*Math.PI*2+Math.PI/8;
+      ch.position.set(Math.sin(a)*.99,-.55-(i%2)*.4,Math.cos(a)*.99); ch.rotation.y=a; g.add(ch); }
+    torno([[0,0],[.55,0],[.55,.1],[.2,.25],[.16,.75],[.55,1.0],[.9,1.55],[.95,1.75],[0,1.75]],plata);
+    torno([[0,1.75],[.7,1.75],[.35,1.9],[.12,2.0],[0,2.0]],plata);
+    const cu=new T.Mesh(new T.CylinderGeometry(.09,.11,.42,10),plata); cu.position.y=2.25; g.add(cu);
+    const ca=new T.Mesh(new T.SphereGeometry(.1,12,10),plata); ca.position.y=2.55; g.add(ca);
+    const pi=new T.Mesh(new T.CylinderGeometry(.045,.05,.36,8),plata); pi.position.set(.06,1.95,.08); pi.rotation.x=.5; g.add(pi);
+    const pe=new T.Mesh(new T.SphereGeometry(.09,12,10),plata); pe.position.set(.12,2.05,.28); g.add(pe);
+  } else if(forma==='sudamericana'){
+    torno([[0,0],[.75,0],[.75,.15],[.25,.35],[.2,1.1],[.7,1.5],[.92,2.4],[.86,2.5],[0,2.5]],plata);
+    asas([[.86,2.25],[1.3,2.15],[1.28,1.6],[.75,1.45]],.06,oro);
+    pie(.85,.45);
+  } else if(forma==='recopa'){
+    torno([[0,0],[.7,0],[.7,.15],[.22,.35],[.18,1.2],[.62,1.6],[.8,2.2],[.2,2.35],[0,2.35]],plata);
+    const bo=new T.Mesh(new T.SphereGeometry(.42,24,18),plata); bo.position.y=2.7; g.add(bo);
+    pie(.8,.4);
+  } else if(forma==='mundial'){
+    // Mundial de Clubes: el único de oro, con la esfera de anillos
+    torno([[0,0],[.7,0],[.7,.2],[.3,.4],[.22,1.5],[.12,1.9],[0,1.9]],oro);
+    for(let i=0;i<6;i++){ const r=new T.Mesh(new T.TorusGeometry(.7,.045,8,40),oro);
+      r.position.y=2.5; r.rotation.set(Math.PI/2,0,i/6*Math.PI); g.add(r); }
+    const nu=new T.Mesh(new T.SphereGeometry(.28,16,12),oro); nu.position.y=2.5; g.add(nu);
+    pie(.8,.4);
+  } else if(forma==='europa'){
+    // Europa League: la más pesada, un jarrón ancho sin asas
+    torno([[0,0],[.95,0],[.95,.18],[.45,.4],[.4,.8],[1.05,1.5],[1.25,2.4],[1.15,3.0],[1.12,3.05],[0,3.05]],plata);
+    pie(1.05,.35);
+  } else if(forma==='premier'){
+    torno([[0,0],[.75,0],[.75,.15],[.25,.35],[.22,1.0],[.8,1.4],[.95,2.3],[.92,2.38],[0,2.38]],plata);
+    asas([[.9,2.15],[1.35,2.0],[1.32,1.5],[.78,1.35]],.07,plata);
+    // la corona dorada de arriba
+    torno([[0,2.38],[.62,2.38],[.6,2.62],[0,2.62]],oro,24);
+    for(let i=0;i<8;i++){ const pu=new T.Mesh(new T.ConeGeometry(.08,.3,6),oro); const a=i/8*Math.PI*2;
+      pu.position.set(Math.cos(a)*.52,2.78,Math.sin(a)*.52); g.add(pu); }
+    pie(.85,.45);
+  } else if(forma==='plato'){
+    // Meisterschale: un plato de plata parado, con los anillos grabados
+    const pl=new T.Mesh(new T.CylinderGeometry(1.35,1.35,.1,48),plata); pl.rotation.x=Math.PI/2; pl.position.y=1.65; g.add(pl);
+    [1.0,.72,.42].forEach(r=>{ const an=new T.Mesh(new T.TorusGeometry(r,.025,6,48),oro); an.position.set(0,1.65,.06); g.add(an); });
+    const so=new T.Mesh(new T.BoxGeometry(.5,.35,.5),negro); so.position.y=.17; g.add(so);
+    const ba=new T.Mesh(new T.BoxGeometry(.06,.6,.06),negro); ba.position.set(0,.5,-.1); g.add(ba);
+  } else if(forma==='copa'){
+    // copa nacional: plata, dos asas y tapa con remate
+    torno([[0,0],[.7,0],[.7,.14],[.24,.32],[.2,.95],[.72,1.3],[.82,2.05],[.74,2.12],[0,2.12]],plata);
+    torno([[0,2.12],[.74,2.12],[.5,2.3],[.16,2.45],[.08,2.75],[0,2.8]],plata);
+    asas([[.8,1.95],[1.25,1.85],[1.22,1.35],[.7,1.25]],.065,plata);
+    pie(.8,.4);
+  } else {
+    // liga: copa grande de plata, con asas, sobre base ancha
+    torno([[0,0],[.9,0],[.9,.15],[.3,.4],[.25,1.1],[.95,1.5],[1.1,2.6],[1.05,2.68],[0,2.68]],plata);
+    asas([[1.05,2.4],[1.6,2.25],[1.55,1.7],[.95,1.5]],.08,plata);
+    pie(1.0,.5,madera);
   }
-  if(forma==='globo'){ const b=new T.Mesh(new T.SphereGeometry(0.85,24,16),oro); b.position.y=2.4; g.add(b); }
-  const base=new T.Mesh(new T.CylinderGeometry(1.15,1.25,0.5,24),new T.MeshPhongMaterial({color:0x1a1a1a,shininess:60}));
-  base.position.y=-0.25; g.add(base);
   return g;
 }
 function _cartel(T,txt,sub){
@@ -29880,10 +30381,15 @@ function abrirTrofeos3D(){
       const ped=new T.Mesh(new T.BoxGeometry(2.8,1.6,2.8),new T.MeshPhongMaterial({color:0x2f3846,shininess:30}));
       ped.position.set(x,0.8,z); S.add(ped);
       if(t.n){
-        const c=e3dCopa(T,_copaForma(t.name)); c.position.set(x,1.85,z); S.add(c); copas.push(c);
-        const sp=new T.SpotLight(0xfff1c8,1.6,24,0.42,0.6,1); sp.position.set(x,9,z+3); sp.target=c; S.add(sp);
+        // Cada copa tiene otro alto y otra base: se apoya en el pedestal por su
+        // caja real, no con un número fijo (la Libertadores, con su base de
+        // madera, quedaba metida adentro del pedestal).
+        const c=e3dCopa(T,_copaForma(t.name)); c.scale.setScalar(1.3); const bb=new T.Box3().setFromObject(c);
+        c.position.set(x,1.6-bb.min.y,z); S.add(c); copas.push(c);
+        t._top=1.6+(bb.max.y-bb.min.y);
+        const sp=new T.SpotLight(0xffffff,1.5,24,0.42,0.6,1); sp.position.set(x,9,z+3); sp.target=c; S.add(sp);
       }
-      const cart=_cartel(T,t.name,t.n?('×'+t.n):'—'); cart.position.set(x,t.n?6.6:3,z+1.6); S.add(cart);
+      const cart=_cartel(T,t.name,t.n?('×'+t.n):'—'); cart.position.set(x,t.n?Math.max(6.0,(t._top||5)+1.1):3,z+1.6); S.add(cart);
     });
     V.look=[0,2.8,-((Math.ceil(n/6)-1)*6.5)/2]; V.min=8; V.max=60; V.dist=Math.max(16,ancho*1.15+8); V.el=0.28;
     V.info=lista.length?`${lista.reduce((a,t)=>a+t.n,0)} títulos`:'La vitrina está vacía. Todavía hay tiempo.';
@@ -29903,7 +30409,15 @@ function abrirTrofeos3D(){
 const FM3_CAMS=['cerca','tv','detras'];
 const FM3_CAM_NOM={cerca:'🎮 Cámara de juego',tv:'📺 Cámara de TV',detras:'🎥 Detrás de la jugada'};
 const _FM3={on:false,R:null,E:null,J:null,cam:null,cx:0,cz:0,modo:'cerca',hud:null,gaps:[],prev:0,avisoLento:false,lluvia:null};
-try{ const c=localStorage.getItem('dt_fm3dcam'); if(FM3_CAMS.includes(c))_FM3.modo=c; }catch(e){}
+const FM3_TIEMPO=0.55;     // reproducción en 3D (ver fmLoop)
+// La cámara se recuerda por separado jugando y mirando: mirando, la de juego
+// sigue a la pelota de cerca y el amontonamiento alrededor llena la pantalla;
+// la de TV muestra la cancha entera, que es como se mira un partido.
+function _fm3CamKey(){ return (typeof FM!=='undefined'&&FM&&FM.watch)?'dt_fm3dcamW':'dt_fm3dcam'; }
+function _fm3CamIni(){
+  let c=null; try{ c=localStorage.getItem(_fm3CamKey()); }catch(e){}
+  return FM3_CAMS.includes(c)?c:((FM&&FM.watch)?'tv':'cerca');
+}
 function fm3DPref(){ try{ return localStorage.getItem('dt_fm3d')!=='0'; }catch(e){ return true; } }
 function fm3DAuto(){ if(fm3DPref()&&e3dSoporta()&&!_FM3.on) fm3DEncender(); }
 function fm3DToggle(){
@@ -29935,7 +30449,7 @@ function fm3DEncender(){
       _FM3.cam=new THREE.PerspectiveCamera(38,1,0.5,900);
       _FM3.hud=fm3DHud(host);
     });
-    _FM3.on=true; _FM3.gaps=[]; _FM3.prev=0; cv.style.visibility='hidden';
+    _FM3.on=true; _FM3.gaps=[]; _FM3.prev=0; _FM3.modo=_fm3CamIni(); cv.style.visibility='hidden';
     const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='2D';
     const fit=()=>{ if(!_FM3.R)return; const w=gm.clientWidth,h=gm.clientHeight; _FM3.R.setSize(w,h,false);
       _FM3.R.domElement.style.width='100%'; _FM3.R.domElement.style.height='100%'; _FM3.cam.aspect=w/Math.max(1,h); _FM3.cam.updateProjectionMatrix(); };
@@ -29990,7 +30504,7 @@ function fm3DEntrada(ix,iy){
 function fm3DCamara(){
   if(!_FM3.on){ flash('Prendé el 3D para cambiar la cámara','draw'); return; }
   _FM3.modo=FM3_CAMS[(FM3_CAMS.indexOf(_FM3.modo)+1)%FM3_CAMS.length];
-  try{ localStorage.setItem('dt_fm3dcam',_FM3.modo); }catch(e){}
+  try{ localStorage.setItem(_fm3CamKey(),_FM3.modo); }catch(e){}
   flash(FM3_CAM_NOM[_FM3.modo],'draw');
 }
 function fm3DApagar(){
