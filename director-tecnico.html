@@ -1274,7 +1274,10 @@ body.bg3d-on .main{background:transparent}
   <div id="lmFeed"></div>
   <div id="lmGame">
     <div id="lmGameInfo" style="font-size:11px;color:#ffd;margin-bottom:6px;text-align:center;font-weight:600"></div>
-    <canvas id="lmCanvas"></canvas>
+    <div id="lmWrap" style="position:relative;line-height:0;max-width:100%">
+      <canvas id="lmCanvas" style="position:relative;z-index:1"></canvas>
+      <button id="lmS3btn" onclick="sit3DToggle()" style="position:absolute;right:8px;bottom:8px;z-index:2;font:700 10px Rajdhani,sans-serif;padding:3px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;cursor:pointer">2D</button>
+    </div>
     <div id="lmCtrlHint" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:3px;text-align:center">📱 Joystick: mover · Z/X: patear/pasar · ⌨️ WASD también funciona</div>
     <div id="lmPads" style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:6px;user-select:none;padding:0 4px">
       <canvas id="lmJoyCanvas" width="130" height="130"></canvas>
@@ -1469,7 +1472,44 @@ function devLabel(p){
 // desarrollo de applyMatchResult). Promedio de 4 partidos: desde JUG_SUBE
 // sube, hasta JUG_BAJA baja. JUG_TOPE es el techo de la escala (el mismo 91
 // de `P()`).
-const JUG_SUBE=6.9, JUG_BAJA=6.0, JUG_TOPE=91;
+const JUG_SUBE=7.0, JUG_BAJA=5.5, JUG_TOPE=91;   // Fase 76: los de la ventana de 15
+const NOTA_REGLAS=[            // en este orden: la de 8 manda sobre la de 15
+  {n:8,  sube:v=>v>8.5,  baja:v=>v<4,   d:3},
+  {n:15, sube:v=>v>=JUG_SUBE, baja:v=>v<=JUG_BAJA, d:1},
+];
+// Mete la nota en la ventana y dice cuánto se mueve la media (0 si nada).
+function notaVentana(p,n){
+  const v=(p._nVent||[]).concat(Math.round(n*100)/100).slice(-15);
+  p._nVent=v;
+  for(const R of NOTA_REGLAS){
+    if(v.length<R.n) continue;
+    const avg=v.slice(-R.n).reduce((a,b)=>a+b,0)/R.n;
+    if(R.sube(avg)){ p._nVent=[]; return R.d; }
+    if(R.baja(avg)){ p._nVent=[]; return -R.d; }
+  }
+  return 0;
+}
+// Para la ficha: cómo viene en las dos ventanas.
+function notaVentanaTxt(p){
+  const v=p._nVent||[];
+  const pr=k=>v.length>=1?(v.slice(-k).reduce((a,b)=>a+b,0)/Math.min(k,v.length)).toFixed(1):'—';
+  return `Últimos ${Math.min(8,v.length)}/8: ${pr(8)} (más de 8,5 → +3 · menos de 4 → −3) · últimos ${v.length}/15: ${pr(15)} (7+ → +1 · 5,5 o menos → −1). La edad no la toca.`;
+}
+function notaAplicar(p,d){
+  const r0=p.rat;
+  p.rat=Math.max(52,Math.min(JUG_TOPE,p.rat+d));
+  if(p.rat===r0) return;
+  if(p.rat>(p.pot||0)) p.pot=p.rat;
+  p.val=calcVal(p);
+  ensureAttrs(p);
+  const ks=Object.entries(p.attrs).sort((a,b)=>d>0?b[1]-a[1]:a[1]-b[1]).slice(0,Math.abs(d)).map(x=>x[0]);
+  ks.forEach(k=>{ p.attrs[k]=Math.max(30,Math.min(99,p.attrs[k]+(d>0?1:-1))); });
+  const fuerte=Math.abs(d)>=3;
+  lg(d>0?'📈':'📉',`${p.name} ${d>0?'sube':'baja'} ${Math.abs(d)} (${r0} → ${p.rat}) por sus notas`);
+  if(fuerte) addPhoneMsg('board','Cuerpo Técnico',d>0
+    ?`🚀 Presidente, <b>${p.name}</b> lleva 8 partidos con un promedio arriba de 8,5. Es otro jugador: su media pasa de <b>${r0}</b> a <b>${p.rat}</b>.`
+    :`🧊 Presidente, <b>${p.name}</b> lleva 8 partidos con un promedio de menos de 4. Está perdido: su media cae de <b>${r0}</b> a <b>${p.rat}</b>.`, d>0?'🚀':'🧊');
+}
 // Fase 75: el tope ya no depende de la edad (era 2 / 3 / 4 a los 33 y 36):
 // la media baja por cómo juega, y uno de 36 que juega mal no tiene por qué
 // caer el doble que uno de 28 que juega igual de mal.
@@ -7384,7 +7424,7 @@ function openP(id, inSquad){
       </div>
       <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
         <div style="width:${tmPct}%;height:100%;background:${tmColor};border-radius:3px;transition:width .5s"></div>
-      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}${typeof p.notaProm==='number'?`<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px"><span style="color:var(--t3)">📊 Promedio de notas (últimos partidos)</span><b style="font-family:'Chakra Petch';color:${p.notaProm>=JUG_SUBE?'var(--green)':p.notaProm<=JUG_BAJA?'var(--red)':'var(--t2)'}">${p.notaProm.toFixed(1)}</b></div><div style="font-size:9px;color:var(--t3)">Desde ${JUG_SUBE} sube la media; en ${JUG_BAJA} o menos, baja. La edad no la toca.</div>`:''}
+      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}${typeof p.notaProm==='number'?`<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px"><span style="color:var(--t3)">📊 Promedio de notas (últimos partidos)</span><b style="font-family:'Chakra Petch';color:${p.notaProm>=JUG_SUBE?'var(--green)':p.notaProm<=JUG_BAJA?'var(--red)':'var(--t2)'}">${p.notaProm.toFixed(1)}</b></div><div style="font-size:9px;color:var(--t3)">${notaVentanaTxt(p)}</div>`:''}
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">
@@ -7952,7 +7992,46 @@ function accCounter(id, val){
   negStep3(id);
 }
 
+// ⚠️ Fase 76: los términos de la compra normal tenían SU PROPIA copia de la
+// mesa y de la cuenta (con el rol esperado sacado del sueldo, no del nivel).
+// Ahora abren la misma que la cláusula, el canje, el libre y el préstamo
+// (`openPlayerTerms`): un solo puntaje, y la comisión, las primas, la promesa
+// de rol y la contraoferta llegan también acá. La versión vieja queda abajo
+// (`negStep3Viejo`) sólo como referencia; no la llama nadie.
 function negStep3(id){
+  if(!G) return;
+  const p=G.market.find(x=>x.id===id);
+  if(!p) return;
+  const nd=window._negData;
+  if(!nd){openNeg(id);return;}
+  nd.wageExp=_negWageExpect(p);
+  const plan=nd.plan||1;
+  openPlayerTerms({p, icon:'📋', fee:nd.agreedFee, feeLbl:'Traspaso acordado con '+p.club,
+    note:`Ya arreglaste con <b>${p.club}</b>: ${fv(nd.agreedFee)}${plan>1?' en '+plan+' cuotas':' al contado'}. Ahora falta él.`,
+    onAccept:(t)=>negStep3Cierre(id,p,nd,t)});
+}
+function negStep3Cierre(id,p,nd,t){
+  const plan=nd.plan||1, wage=t.wage, years=t.years, bonus=t.bonus||0;
+  const feeTot=Math.round(nd.agreedFee*(plan===1?1:plan===2?1.05:1.10)*10)/10;
+  const cuota=Math.round(feeTot/plan*10)/10;
+  const payNow=Math.round((cuota+bonus)*10)/10;
+  if(G.budget<payNow){ delete p._pacto; flash('❌ Sin presupuesto para la primera cuota + bono ('+fv(payNow)+')','loss'); return; }
+  G.budget=Math.round((G.budget-payNow)*10)/10;
+  if(payNow>0)finAnota('fichajes',payNow,'Ficha de '+p.name);
+  const oldClub=p.club;
+  if(plan>1){
+    G.installments=G.installments||[];
+    for(let k=1;k<plan;k++)G.installments.push({player:p.name,toClub:oldClub,amount:cuota,dueWeek:(G.week||1)+17*k,season:G.season});
+    lg('💳',`Financiado: ${plan-1} cuota(s) de ${fv(cuota)} pendiente(s) a ${oldClub}`);
+  }
+  firmaProgramar(p,{price:0,pagado:true,fee:feeTot,wage,years,motivo:'fichaje',sellOn:(nd.sellOn||0),clausula:t.clausula||0});
+  lg('💰',`Acuerdo por ${p.name}: ${fv(feeTot)}${plan>1?' en '+plan+' cuotas':''} (${wage}k/sem, ${years}a, ${t.roleLabel})`);
+  addPhoneMsg('player',p.name,`🎉 ¡Estoy feliz de arreglar con <b>${G.teamName||'el club'}</b>! Paso la revisión y firmo.`,'⭐');
+  if(nd.agent) addPhoneMsg('agent',nd.agent.name,`✅ Negociación cerrada. <b>${p.name}</b> firmó por <b>${years} años</b> a <b>${wage}k/sem</b>. ¡Buena incorporación!`,'🤝');
+  window._negData=null;
+  negStep4(p,nd.agreedFee,wage,years,t.roleLabel);
+}
+function negStep3Viejo(id){
   if(!G) return;
   const p=G.market.find(x=>x.id===id);
   if(!p) return;
@@ -10409,6 +10488,9 @@ function weeklyTraining(){
     // Fase 75: el que viene jugando mal no progresa en la semana. Si no, las
     // notas lo bajaban y el entrenamiento lo devolvía a su potencial.
     if(typeof p.notaProm==='number'&&p.notaProm<=JUG_BAJA) gain=0;
+    // Fase 76: del entrenamiento sólo crecen los pibes; al resto la media la
+    // mueve únicamente la ventana de notas.
+    if(p.age>23) gain=0;
     p.dev+=gain;
     // Subir un punto de foco al atributo elegido cuando acumula
     if(foc.attr&&p.dev>=6){
@@ -16096,7 +16178,11 @@ function nextSeason(){
     const jugo = (p._lastSeason && p._lastSeason.apps) || 0;
     // rendimiento de la temporada, centrado en 0: arriba de 1 es buena campaña
     const rend = jugo>=8 ? ((p._lastSeason.perf||1)-1) : -0.15;
-    if(d <= -4)      p.rat = Math.min(p.pot, p.rat + 1 + (Math.random()<0.45+rend?1:0));
+    // ⚠️ Fase 76: el salto de temporada es SÓLO para los pibes (23 o menos),
+    // que es desarrollo, no rendimiento. Del resto se encarga la regla de las
+    // notas: "los que se mantienen en el medio ni suben ni bajan".
+    if(p.age > 23) { /* nada: lo decide la ventana de notas */ }
+    else if(d <= -4) p.rat = Math.min(p.pot, p.rat + 1 + (Math.random()<0.45+rend?1:0));
     else if(d <= -1) p.rat = Math.min(p.pot, p.rat + (Math.random()<0.55+rend?1:0));
     else if(d <= 1)  p.rat = Math.min(p.pot, p.rat + (Math.random()<0.20+rend?1:0));
     // La caída empieza recién pasado su pico y es lenta; el que sigue rindiendo
@@ -16106,11 +16192,8 @@ function nextSeason(){
     // (y otro más desde los 36) jugara como jugara. Ahora decide la temporada:
     // el que jugó (8+ partidos) con un promedio de notas bueno se sostiene; el
     // que jugó mal o casi no jugó, pierde ritmo.
-    else {
-      const nT=(p._nTCnt||0)>=8 ? p._nTAcc/p._nTCnt : null;
-      if(nT===null){ if(jugo<8 && Math.random()<0.45) bajarRat(p,55); }   // sin ritmo
-      else if(nT<6.2) bajarRat(p,55);
-    }
+    // (Fase 75 bajaba acá al que pasado el pico promediaba menos de 6,2: con
+    // la regla de la Fase 76 eso ya lo cubre la ventana de 15.)
     if(p.rat !== oldRat) p.val = calcVal(p);
     p._nTAcc=0; p._nTCnt=0;            // las notas de la temporada vuelven a cero
     p.goals = 0; p.apps = 0; p.assists = 0;
@@ -17087,53 +17170,31 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(res==='W') t.pts=(t.pts||0)+3;
   else if(res==='D') t.pts=(t.pts||0)+1;
   scorersList.forEach(s=>{ t.scorers[s.name]=(t.scorers[s.name]||0)+1; });
+  try{ primasPartido(xiPlayers,scorersList,ga); }catch(e){}   // Fase 76: las primas pactadas
 
   // ═══════════════════════════════════════════════════════════════════════
-  // LA MEDIA LA MUEVE LA CANCHA, NO EL DOCUMENTO (Fase 75)
+  // LA MEDIA LA MUEVE LA CANCHA (Fase 75, regla exacta de la Fase 76)
   // ═══════════════════════════════════════════════════════════════════════
-  // Antes cada 4 partidos el jugador sumaba según el RESULTADO del equipo
-  // (+0,55 ganando, −0,4 perdiendo) y, pasado su pico, bajaba igual aunque la
-  // rompiera (`ageFac<0`). Ahora manda su NOTA de cada partido (`calcNotas`,
-  // 3,5 a 10): un promedio de 6,9+ en cuatro partidos lo sube, uno de 6,0 o
-  // menos lo baja, y en el medio se sostiene. La edad no entra: un veterano
-  // que juega bien mantiene su media.
-  // ⚠️ Si rinde por encima de su techo, el techo se corre: el potencial era
-  // una estimación, la cancha manda. El tope anual por edad (`techoAnual`)
-  // sigue, para que un pibe no salte +7 en un año y valga 60M de golpe.
-  // ⚠️ La nota ya trae el resultado adentro: con notas crudas, medido, un
-  // equipo que gana todo sube ENTERO y uno que pierde baja entero, y eso es una
-  // bola de nieve (mejores jugadores → más victorias → mejores jugadores). Se
-  // centra cada nota contra el promedio del once en ESE partido: lo colectivo
-  // pesa 30% y lo que hizo cada uno, 70% (con 40% el club que pierde se hundía
-  // entero: medido, 11 de 30 bajaron en San Martín SJ).
+  // La regla la puso el presidente y es a propósito difícil de mover:
+  //   · 8 partidos con promedio MAYOR a 8,5  → +3
+  //   · 8 partidos con promedio MENOR a 4    → −3
+  //   · 15 partidos con promedio de 7 o más  → +1
+  //   · 15 partidos con promedio de 5,5 o menos → −1
+  //   · en el medio no se mueve.
+  // Es la NOTA que se ve en el resumen (`calcNotas`), sin centrar: así el
+  // número de la ficha y la regla dicen lo mismo. Cada jugador guarda sus
+  // últimas 15 (`p._nVent`, números planos) y después de un cambio la ventana
+  // se vacía: si no, el mismo tramo dispararía dos veces seguidas.
+  // ⚠️ Los ±3 NO pasan por el tope anual de `bajarRat` ni por `techoAnual`: la
+  // regla ya es lo bastante exigente como para que llegar sea noticia.
   const _N=G._notas||null;
   const _nd=p=>(_N&&typeof _N[p.id]==='number')?_N[p.id]:(res==='W'?6.9:res==='D'?6.3:5.8);
-  const _nMed=xiPlayers.length?xiPlayers.reduce((a,p)=>a+_nd(p),0)/xiPlayers.length:6.5;
   xiPlayers.forEach(p => {
-    const nRaw=_nd(p), n=nRaw-(_nMed-6.5)*0.7;
-    p._nAcc=(p._nAcc||0)+n; p._nCnt=(p._nCnt||0)+1;
+    const n=_nd(p);
     p._nTAcc=(p._nTAcc||0)+n; p._nTCnt=(p._nTCnt||0)+1;     // la de la temporada
-    p.notaProm=Math.round(((p.notaProm===undefined?nRaw:p.notaProm)*0.8+nRaw*0.2)*100)/100;
-    if(p._nCnt<4) return;
-    const avg=p._nAcc/p._nCnt; p._nAcc=0; p._nCnt=0;
-    if(p._upSeason!==G.season){ p._upSeason=G.season; p._upCount=0; }
-    const techoAnual = p.age<=21?4 : p.age<=24?3 : 2;
-    if(avg>=JUG_SUBE && (p._upCount||0)<techoAnual && p.rat<JUG_TOPE){
-      const pot=p.pot||p.rat;
-      let ch=Math.min(0.85,(avg-6.6)*0.6);
-      ch*= p.rat<pot ? 1+Math.min(1,(pot-p.rat)/20) : 0.55;   // con margen sube más fácil
-      if(Math.random()<ch){
-        p._upCount=(p._upCount||0)+1;
-        p.rat=Math.min(JUG_TOPE,p.rat+1); if(p.rat>(p.pot||0)) p.pot=p.rat;
-        p.val=calcVal(p); lg('📈',`${p.name} viene jugando bien (${avg.toFixed(1)}) → ${p.rat}`);
-        ensureAttrs(p);
-        const bestK=Object.entries(p.attrs).sort((a,b)=>b[1]-a[1])[0][0];
-        p.attrs[bestK]=Math.min(99,p.attrs[bestK]+1);
-      }
-    } else if(avg<=JUG_BAJA){
-      const ch=Math.min(0.80,(6.3-avg)*0.6);
-      if(Math.random()<ch && bajarRat(p,52)) lg('📉',`${p.name} viene jugando mal (${avg.toFixed(1)}) → ${p.rat}`);
-    }
+    p.notaProm=Math.round(((p.notaProm===undefined?n:p.notaProm)*0.8+n*0.2)*100)/100;
+    const d=notaVentana(p,n);
+    if(d) notaAplicar(p,d);
   });
 
   // La valoración del DT se mueve con lo que sacó contra lo esperado (Fase 75)
@@ -17281,6 +17342,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyRumores();
   weeklyDtRenuncia();
   weeklyDtRachaRenuncia();   // Fase 75: una racha muy mala y pone el cargo a disposición
+  weeklyPromesas();          // Fase 76: el rol que le prometiste al firmar
   weeklyDtPlan();
   weeklyReconv();
   weeklyPrestamosIn();
@@ -19468,6 +19530,7 @@ function startSituation(ev){
   else{SIT=null;lmRun();return;}
   const execName=mainP&&mainP.name?` · 👤 ${mainP.name} (${mainP.rat})`:'';
   document.getElementById('lmGameInfo').innerHTML=(SIT.label||'🎮 Situación de juego')+execName;
+  try{ sit3DIniciar(SIT); }catch(e){ console.error('sit3D',e); }
   SIT.raf=requestAnimationFrame(sitLoop);
 }
 
@@ -19478,6 +19541,8 @@ function sitLoop(ts){
   s.update(dt);
   if(!s.ended){
     const ctx=document.getElementById('lmCanvas').getContext('2d');
+    // la escena 3D va primero: el HUD proyecta con su cámara
+    if(s._3d) try{ sit3DFrame(s,dt); }catch(e){ console.error('sit3D',e); s._3d=false; if(_S3.host)_S3.host.style.display='none'; }
     s.draw(ctx);
     // La lluvia se dibuja ARRIBA DE TODO y en el loop, no en la cancha: así
     // cae sobre los jugadores y sirve para las 5 jugadas, incluidas las
@@ -19587,6 +19652,7 @@ function wxDrawRain(ctx,W,H,dt){
 
 // ——— Utilidades de dibujo ———
 function sitDrawField(ctx,W,H,glY,gh){
+  if(SIT&&SIT._3d){ ctx.clearRect(0,0,W,H); return; }
   // Alternating horizontal mow stripes
   const sh=Math.max(20,Math.floor(H/14));
   for(let i=0;i<Math.ceil(H/sh);i++){
@@ -19634,6 +19700,7 @@ function sitDrawField(ctx,W,H,glY,gh){
 }
 
 function sitDrawBall(ctx,b){
+  if(SIT&&SIT._3d)return;
   const r=6.5;
   b._rot=(b._rot||0)+Math.hypot(b.vx||0,b.vy||0)*0.038;
   // Ground shadow
@@ -19663,6 +19730,7 @@ function sitDrawBall(ctx,b){
 }
 
 function sitDrawPlayer(ctx,x,y,r,col,label,isCtrl){
+  if(SIT&&SIT._3d)return;
   // Drop shadow
   ctx.beginPath();ctx.ellipse(x+2,y+r+3,r*.88,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.32)';ctx.fill();
   // Jersey oval body
@@ -19682,6 +19750,7 @@ function sitDrawPlayer(ctx,x,y,r,col,label,isCtrl){
 // ——— Futbolista dibujado (figura con cabeza/camiseta/piernas) para las jugadas ———
 // run: 0..1 fase de carrera (piernas alternadas) · face: -1 izq, 1 der, 0 de frente
 function sitDrawFigure(ctx,x,y,h,shirt,shorts,opt){
+  if(SIT&&SIT._3d)return;
   opt=opt||{};
   const run=opt.run||0, face=opt.face||0, isCtrl=opt.isCtrl, dive=opt.dive;
   const w=h*0.42;                       // ancho del cuerpo
@@ -19805,6 +19874,7 @@ function kitFor(name){
   return alts.sort((a,b)=>_kitDist(b.c1,m.c1)-_kitDist(a.c1,m.c1))[0];
 }
 function sitDrawPlayerK(ctx,x,y,r,kit,label,isCtrl){
+  if(SIT&&SIT._3d)return;
   // Drop shadow
   ctx.beginPath();ctx.ellipse(x+2,y+r+3,r*.88,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.32)';ctx.fill();
   // Jersey oval body (clipped) — top half c1, bottom band c2
@@ -19973,7 +20043,7 @@ function sitMent(){
 }
 function sitSetupAttack(W,H,oR,mainP,pool){
   const s=SIT,gh=Math.min(92,W*.22),glY=22;
-  s.gh=gh;s.glY=glY;
+  s.gh=gh;s.glY=glY;s._m3={tipo:'t'};
   // Escenario aleatorio: 1v1, 2v1, 2v2, 3v2, 3v3
   const sc=Math.random();
   const _m=sitMent();
@@ -20131,14 +20201,17 @@ function sitSetupAttack(W,H,oR,mainP,pool){
       let aim=(s.keys.right?1:0)-(s.keys.left?1:0);
       if(aim===0)aim=sC((p.x-W/2)/gh*0.5,-0.4,0.4);
       const tx=sC(W/2+aim*(gh-8),W/2-gh+5,W/2+gh-5),ty=glY;
+      // en 3D la mira va proyectada: sale de la pelota y apunta al arco de verdad
+      const G2=s._3d&&s._g2s?s._g2s:(x,y)=>({x,y});
+      const b0=G2(s.ball.x,s.ball.y,0.12), t0=G2(tx,ty,s._3d?0.9:0);
       ctx.save();
       ctx.strokeStyle=aim!==0?''+GOLDA(.85)+'':''+GOLDA(.4)+'';
       ctx.lineWidth=aim!==0?2.6:1.6;ctx.setLineDash([6,5]);
-      ctx.beginPath();ctx.moveTo(s.ball.x,s.ball.y);ctx.lineTo(tx,ty);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(b0.x,b0.y);ctx.lineTo(t0.x,t0.y);ctx.stroke();
       ctx.setLineDash([]);
       // marcador del palo apuntado
       ctx.fillStyle=aim!==0?''+GOLDA(.9)+'':''+GOLDA(.45)+'';
-      ctx.beginPath();ctx.arc(tx,ty+3,aim!==0?6:4,0,7);ctx.fill();
+      ctx.beginPath();ctx.arc(t0.x,t0.y+(s._3d?0:3),aim!==0?6:4,0,7);ctx.fill();
       ctx.restore();
     }
     sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
@@ -20218,15 +20291,17 @@ function sitDrawContact(ctx,W,H,s){
 function sitSetupPenalty(W,H,oR,mainP,isOpp){
   const s=SIT;
   const P={nearY:H*0.90, farY:H*0.16, nearHW:W*0.58, farHW:W*0.26, hUnit:H*0.33};
-  const proj=(wx,wz,wy)=>{
+  const proj2=(wx,wz,wy)=>{
     const t=wz<0?0:wz>1?1:wz;
     const sc=1-0.62*t;
     const gy=P.nearY+(P.farY-P.nearY)*t;
     const hw=P.nearHW+(P.farHW-P.nearHW)*t;
     return {x:W/2+wx*hw, y:gy-(wy||0)*P.hUnit*sc, sc};
   };
+  const proj=(wx,wz,wy)=>s._3d&&s._pj?s._pj(wx,wz,wy):proj2(wx,wz,wy);
   s.proj=proj;s.isOpp=isOpp;
   const GOAL_HW=0.62, BAR=0.86;
+  s._m3={tipo:'p',hw:GOAL_HW,bar:BAR,D:11/0.9,near:0.10,atras:7.5,alto:2.5,yN:0.80};
   s.label=isOpp
     ?`🟨 <span style="color:#e84545">PENAL para ${LM.rival}</span> — sos el arquero, ¡atajalo!`
     :`🎯 <span style="color:var(--gold)">¡PENAL!</span> ${mainP.name.split(' ').pop()} al punto`;
@@ -20321,6 +20396,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   };
 
   s.draw=function(ctx){
+    if(s._3d) ctx.clearRect(0,0,W,H); else {
     ctx.fillStyle='#2a8037';ctx.fillRect(0,0,W,H);
     const sky=ctx.createLinearGradient(0,0,0,P.farY+H*0.05);
     sky.addColorStop(0,'#0a1622');sky.addColorStop(1,'#1a3a54');ctx.fillStyle=sky;ctx.fillRect(0,0,W,P.farY+H*0.02);
@@ -20346,6 +20422,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     for(let i=1;i<4;i++){const t=i/4;const a=proj(-GOAL_HW,1,BAR*t),b=proj(GOAL_HW,1,BAR*t);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
     ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
+    }
     // arquero
     const gkKit=isOpp?kitFor(LM.myName):{c1:'#e0c020'};
     const gp=proj(s.gkWx,0.965,0),gh=68*gp.sc;
@@ -20357,14 +20434,16 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     sitDrawFigure(ctx,kp.x,kp.y,kh,tKit.c1,'#fff',
       {run:s.kicked?(s.flightT*0.25)%1:(s.t*0.05)%1,face:1,isCtrl:!isOpp,
        label:(isOpp?LM.rival.split(' ')[0]:mainP.name.split(' ').pop()).slice(0,7)});
-    // pelota + sombra
+    // pelota + sombra (en 3D la dibuja la escena)
     const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sp=proj(s.ball.wx,s.ball.wz,0);
-    ctx.beginPath();ctx.ellipse(sp.x,sp.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();
+    if(!s._3d){ctx.beginPath();ctx.ellipse(sp.x,sp.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();}
+    if(!s._3d){
     const br=Math.max(2.6,9*bp.sc);
     ctx.beginPath();ctx.arc(bp.x,bp.y,br,0,7);
     const bg=ctx.createRadialGradient(bp.x-br*.35,bp.y-br*.38,br*.1,bp.x,bp.y,br);
     bg.addColorStop(0,'#fff');bg.addColorStop(.6,'#e6e6e6');bg.addColorStop(1,'#b2b2b2');ctx.fillStyle=bg;ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
+    }
     // mira + potencia (sólo pateando)
     if(!s.kicked&&!isOpp){
       const tgt=proj(s.aimAx*GOAL_HW,1,s.aimAy*BAR);
@@ -20399,15 +20478,17 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
 function sitSetupCorner(W,H,oR,mainP,pool){
   const s=SIT;
   const P={nearY:H*0.92, farY:H*0.14, nearHW:W*0.62, farHW:W*0.27, hUnit:H*0.32};
-  const proj=(wx,wz,wy)=>{
+  const proj2=(wx,wz,wy)=>{
     const t=wz<0?0:wz>1?1:wz;
     const sc=1-0.63*t;
     const gy=P.nearY+(P.farY-P.nearY)*t;
     const hw=P.nearHW+(P.farHW-P.nearHW)*t;
     return {x:W/2+wx*hw, y:gy-(wy||0)*P.hUnit*sc, sc};
   };
+  const proj=(wx,wz,wy)=>s._3d&&s._pj?s._pj(wx,wz,wy):proj2(wx,wz,wy);
   s.proj=proj;
   const GOAL_HW=0.60, BAR=0.84;
+  s._m3={tipo:'p',hw:GOAL_HW,bar:BAR,D:22,near:0.36,atras:7,alto:5.5,yN:0.88};
   s.label=`⚡ <span style="color:var(--gold)">¡CENTRO AL ÁREA!</span> ${mainP.name.split(' ').pop()} a definir`;
   s.hint='CENTRO: ← → ↑ ↓ mové la mira · mantené Z para cargar y soltá para tirarlo';
   s.finQ=(mainP.attrs&&Math.max(mainP.attrs.TIR||70,mainP.attrs.FIS||70))||mainP.rat||72;
@@ -20542,6 +20623,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
   };
 
   s.draw=function(ctx){
+    if(s._3d) ctx.clearRect(0,0,W,H); else {
     ctx.fillStyle='#2a8037';ctx.fillRect(0,0,W,H);
     const sky=ctx.createLinearGradient(0,0,0,P.farY+H*0.05);
     sky.addColorStop(0,'#0a1622');sky.addColorStop(1,'#1a3a54');ctx.fillStyle=sky;ctx.fillRect(0,0,W,P.farY+H*0.02);
@@ -20565,6 +20647,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
     for(let i=1;i<4;i++){const t=i/4;const a=proj(-GOAL_HW,1,BAR*t),b=proj(GOAL_HW,1,BAR*t);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
     ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
+    }
     // arquero
     const gp=proj(s.gkWx,0.965,0);
     sitDrawFigure(ctx,gp.x,gp.y,66*gp.sc,'#e0c020','#222',{label:'GK',dive:s.phase==='shot'&&s.flightT>2,diveDir:s.gkDiveDir||1});
@@ -20620,12 +20703,14 @@ function sitSetupCorner(W,H,oR,mainP,pool){
        label:mainP.name.split(' ').pop().slice(0,7)});
     // pelota + sombra
     const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sh=proj(s.ball.wx,s.ball.wz,0);
-    ctx.beginPath();ctx.ellipse(sh.x,sh.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();
+    if(!s._3d){ctx.beginPath();ctx.ellipse(sh.x,sh.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();}
+    if(!s._3d){
     const br=Math.max(2.6,9.5*bp.sc);
     ctx.beginPath();ctx.arc(bp.x,bp.y,br,0,7);
     const bg=ctx.createRadialGradient(bp.x-br*.35,bp.y-br*.38,br*.1,bp.x,bp.y,br);
     bg.addColorStop(0,'#fff');bg.addColorStop(.6,'#e6e6e6');bg.addColorStop(1,'#b2b2b2');ctx.fillStyle=bg;ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
+    }
     if(s.phase==='cross'){
       // aviso de remate cuando la tenés a tiro
       if((s.dBall||9)<0.5){
@@ -20653,16 +20738,18 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   const s=SIT;
   // —— Proyección pseudo-3D: el mundo (wx lateral, wz profundidad 0→arco, wy altura) al canvas ——
   const P={nearY:H*0.90, farY:H*0.15, nearHW:W*0.60, farHW:W*0.26, hUnit:H*0.34};
-  const proj=(wx,wz,wy)=>{
+  const proj2=(wx,wz,wy)=>{
     const t=wz<0?0:wz>1?1:wz;
     const sc=1-0.64*t;                                   // lejos = más chico
     const gy=P.nearY+(P.farY-P.nearY)*t;                 // piso en pantalla a esa profundidad
     const hw=P.nearHW+(P.farHW-P.nearHW)*t;              // ancho de cancha en pantalla
     return {x:W/2+wx*hw, y:gy-(wy||0)*P.hUnit*sc, sc};
   };
+  const proj=(wx,wz,wy)=>s._3d&&s._pj?s._pj(wx,wz,wy):proj2(wx,wz,wy);
   s.proj=proj;
   const GOAL_HW=0.60, BAR=0.82;                          // semiancho del arco y alto del travesaño (mundo)
   const dist=16+~~(Math.random()*12);
+  s._m3={tipo:'p',hw:GOAL_HW,bar:BAR,D:dist/0.94,near:0.06,atras:8,alto:3.2,yN:0.80};
   s.label=`🟡 <span style="color:var(--gold)">¡TIRO LIBRE!</span> ${mainP.name.split(' ').pop()} · ${dist} m`;
   s.hint='Arrastrá desde la pelota (o joystick + Z): dirección, comba y potencia. Rodeá la barrera y clavala al ángulo.';
   s.wx0=(Math.random()*0.5-0.25);                        // la pelota arranca apenas descentrada
@@ -20781,6 +20868,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
   };
 
   s.draw=function(ctx){
+    if(s._3d) ctx.clearRect(0,0,W,H); else {
     // base (cubre TODO el canvas: el primer plano bajo la línea de fondo también)
     ctx.fillStyle='#2a8037';ctx.fillRect(0,0,W,H);
     // cielo + tribuna
@@ -20800,6 +20888,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     [-GOAL_HW*2.0,GOAL_HW*2.0].forEach(wx=>{const a=proj(wx,0,0),b=proj(wx,1,0);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
     const ar=proj(0,0.995,0);ctx.beginPath();ctx.moveTo(proj(-GOAL_HW*2,0.995,0).x,ar.y);ctx.lineTo(proj(GOAL_HW*2,0.995,0).x,ar.y);ctx.stroke();
     drawGoal(ctx);
+    }
     // arquero
     const gp=proj(s.gkWx,0.965,0),gh2=66*gp.sc;
     sitDrawFigure(ctx,gp.x,gp.y,gh2,'#e0c020','#222',{label:'GK',dive:s.kicked&&s.flightT>3,diveDir:s.gkDiveDir});
@@ -20812,12 +20901,14 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     sitDrawFigure(ctx,kp.x,kp.y,kh,mkit.c1,'#fff',{run:s.kicked?(s.flightT*0.22)%1:0,face:1,isCtrl:!s.kicked,label:mainP.name.split(' ').pop().slice(0,7)});
     // pelota + sombra en el piso
     const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sp=proj(s.ball.wx,s.ball.wz,0);
-    ctx.beginPath();ctx.ellipse(sp.x,sp.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();
+    if(!s._3d){ctx.beginPath();ctx.ellipse(sp.x,sp.y,7*bp.sc+2,3*bp.sc+1,0,0,7);ctx.fillStyle='rgba(0,0,0,.26)';ctx.fill();}
+    if(!s._3d){
     const br=Math.max(2.6,8.5*bp.sc);
     ctx.beginPath();ctx.arc(bp.x,bp.y,br,0,7);
     const bg=ctx.createRadialGradient(bp.x-br*.35,bp.y-br*.38,br*.1,bp.x,bp.y,br);
     bg.addColorStop(0,'#fff');bg.addColorStop(.6,'#e6e6e6');bg.addColorStop(1,'#b2b2b2');ctx.fillStyle=bg;ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
+    }
     if(!s.kicked)drawAimUI(ctx);
     sitDrawHint(ctx,W,H,s.hint);
   };
@@ -20826,7 +20917,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
 // ——— DEFENSA (Z=TACKLE, X=DESPEJAR, escenarios variados) ———
 function sitSetupDefense(W,H,oR){
   const s=SIT,gh=Math.min(92,W*.22),glY=24;
-  s.gh=gh;s.glY=glY;
+  s.gh=gh;s.glY=glY;s._m3={tipo:'t'};
   const sc=Math.random();
   const atkN=sc<.40?1:2;
   const defN=sc<.30?1:2;
@@ -20966,7 +21057,8 @@ function sitSetupDefense(W,H,oR){
     if(cl>0.28){
       ctx.fillStyle=`rgba(246,211,24,${cl*.85})`;ctx.font='bold 12px Rajdhani,sans-serif';
       ctx.textAlign='center';ctx.textBaseline='bottom';
-      ctx.fillText('⚡ TACKLE!',s.player.x,s.player.y-18);
+      const tp=s._3d&&s._g2s?s._g2s(s.player.x,s.player.y,2.1):{x:s.player.x,y:s.player.y-18};
+      ctx.fillText('⚡ TACKLE!',tp.x,tp.y);
     }
     sitDrawContact(ctx,W,H,s);sitDrawHint(ctx,W,H,s.hint);
   };
@@ -21301,6 +21393,9 @@ function ptScore(p,t){
   // La cláusula es SU puerta de salida: una baja le gusta, una alta lo encierra
   const cl=PT_CLAUS[t.clausIdx===undefined?2:t.clausIdx];
   if(cl) s+=cl.s;
+  // Fase 76: el representante y las primas
+  if(t.comisEsp){ if(t.comis>t.comisEsp) s+=0.6; else if(t.comis<t.comisEsp) s-=1.2*(t.comisEsp-t.comis)/5; }
+  if(t.prima) s+=(t.confia?0.6:0.25)*t.prima;
   return s+(t.pull||0);
 }
 function ptWhyNo(p,t){
@@ -21310,7 +21405,97 @@ function ptWhyNo(p,t){
   if(wr<0.85)return 'Necesito un salario acorde a mi nivel. Hoy gano más donde estoy.';
   if(t.role-ptRoleExpect(p)>=2)return 'No me voy a mover de club para calentar el banco.';
   if(t.years<=1&&!t.loan)return '¿Un año? Busco estabilidad, no un contrato de prueba.';
+  if(t.comisEsp&&t.comis<t.comisEsp)return 'Mi representante dice que así no. Arreglá con él primero.';
   return 'Las condiciones no me cierran. Esperaba algo más ambicioso.';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 76: MÁS COSAS SOBRE LA MESA
+// ═══════════════════════════════════════════════════════════════════════
+// · 🕴️ Comisión del representante: un % de la operación (o del valor, si
+//   llega libre). Pagar menos de lo que espera le enfría al jugador.
+// · 🎯 Primas por rendimiento: por gol (DEL/MED) o por valla invicta (DEF/ARQ).
+//   El que confía en sí mismo las acepta con gusto; se cobran en cada partido.
+// · 🤝 La promesa de rol se cumple o se paga: cada mes se mira cuánto jugó
+//   contra lo prometido. Dos incumplimientos en la temporada y pide salir.
+// · 💬 Si te dice que no, te dice con cuánto firma: igualarlo es firma segura.
+// Lo acordado viaja con el jugador en `p._pacto` (números planos) y se activa
+// recién cuando ENTRA al plantel (`pactoActivar`): si la operación se cae, no
+// se cobra nada.
+const PT_COMIS=[0,5,10,15];                       // % de la operación
+const PT_PRIMA=[{k:0,lbl:'Sin primas'},{k:1,lbl:'Primas bajas'},{k:2,lbl:'Primas altas'}];
+const ROL_MIN=[0.70,0.50,0.25,0,0];               // qué parte de los partidos garantiza cada rol
+function ptComisEspera(p){ return (esMercenario(p)||p.rat>=84)?10:5; }
+function ptComisBase(s){ return Math.max(s.o.fee||0,(s.p.val||0)*0.6); }
+function ptComisMonto(s,pct){ return Math.round(ptComisBase(s)*pct/100*100)/100; }
+function ptPrimaTipo(p){ return (pgr(p.pos)==='DEF'||p.pos==='ARQ')?'valla':'gol'; }
+function ptPrimaMonto(p,k,wage){ return k? Math.round(Math.max(0.01,(wage||p.wage||20)/1000*(k===1?1.0:2.5))*100)/100 : 0; }
+function ptConfia(p){ return p.rat>=76||p.age<=27; }
+function ptSetComis(i){ if(!_PT)return; _PT.comis=PT_COMIS[i]; ptRender(); }
+function ptSetPrima(k){ if(!_PT)return; _PT.prima=k; ptRender(); }
+// La contraoferta: el sueldo más bajo con el que, sin tocar nada más, firma seguro.
+function ptContra(p,t){
+  for(let w=Math.max(t.wage,Math.round(t.wageExp*0.8));w<=Math.round(t.wageExp*2.2);w++){
+    if(ptScore(p,Object.assign({},t,{wage:w}))>=3.5) return w;
+  }
+  return null;
+}
+function ptAceptarContra(w){
+  if(!_PT)return; _PT.wage=w; _PT.contraOk=true; ptSubmit();
+}
+// Cuando el jugador entra de verdad al plantel.
+function pactoActivar(p){
+  const k=p&&p._pacto; if(!k)return;
+  delete p._pacto;
+  if(k.comis>0){
+    G.budget=Math.round((G.budget-k.comis)*100)/100;
+    if(typeof finAnota==='function') finAnota('fichajes',k.comis,'Comisión del representante de '+p.name);
+    lg('🕴️',`Comisión del representante de ${p.name}: ${fv(k.comis)}`);
+  }
+  if(k.primaTipo&&k.prima>0){ p.primaTipo=k.primaTipo; p.prima=k.prima; }
+  if(k.rol!==undefined&&ROL_MIN[k.rol]>0){
+    p.rolProm=k.rol; p._rolStrikes=0; p._rolSeason=G.season;
+    p._rolPJ0=(G.wins||0)+(G.draws||0)+(G.losses||0); p._rolApps0=p.apps||0;
+  }
+}
+// En cada partido: las primas pactadas.
+function primasPartido(xi,scorers,ga){
+  let tot=0; const det=[];
+  (xi||[]).forEach(p=>{
+    if(!(p.prima>0)) return;
+    let n=0;
+    if(p.primaTipo==='gol') n=(scorers||[]).filter(x=>x.name===p.name).length;
+    else if(p.primaTipo==='valla'&&ga===0) n=1;
+    if(n){ tot+=p.prima*n; det.push(p.name+(n>1?' ×'+n:'')); }
+  });
+  if(tot>0){
+    tot=Math.round(tot*100)/100;
+    G.budget=Math.round((G.budget-tot)*100)/100;
+    if(typeof finAnota==='function') finAnota('sueldos',tot,'Primas: '+det.join(', '));
+  }
+  return tot;
+}
+// Cada 4 semanas: ¿le cumpliste el rol que le prometiste?
+function weeklyPromesas(){
+  if(!G||!G.squad||(G.week||1)%4!==0) return;
+  const pj=(G.wins||0)+(G.draws||0)+(G.losses||0);
+  G.squad.forEach(p=>{
+    if(p.rolProm===undefined||ROL_MIN[p.rolProm]<=0) return;
+    if(p._rolSeason!==G.season){ p._rolSeason=G.season; p._rolStrikes=0; p._rolPJ0=pj; p._rolApps0=p.apps||0; return; }
+    const jugados=pj-(p._rolPJ0||0), suyos=(p.apps||0)-(p._rolApps0||0);
+    p._rolPJ0=pj; p._rolApps0=p.apps||0;
+    if(jugados<3||p.injured) return;
+    if(suyos/jugados>=ROL_MIN[p.rolProm]-0.20) return;
+    p._rolStrikes=(p._rolStrikes||0)+1;
+    p.morale=Math.max(5,(p.morale===undefined?60:p.morale)-10);
+    if(p._rolStrikes>=2&&!p.wantsOut){
+      p.wantsOut=true;
+      addPhoneMsg('player',p.name,`😡 Presidente, usted me firmó como <b>${PT_ROLES[p.rolProm]}</b> y jugué ${suyos} de ${jugados}. Me mintió. Búsqueme club.`,'😡');
+      lg('😡',`${p.name} pide salir: no le cumplieron la promesa de ser ${PT_ROLES[p.rolProm].toLowerCase()}`);
+    } else {
+      addPhoneMsg('player',p.name,`😤 Presidente, cuando firmé me prometieron ser <b>${PT_ROLES[p.rolProm]}</b>. Este mes jugué ${suyos} de ${jugados}. Hable con el técnico.`,'😤');
+    }
+  });
 }
 
 let _PT=null;   // negociación de términos en curso
@@ -21319,7 +21504,8 @@ function openPlayerTerms(o){
   const p=o.p;
   const wageExp=Math.round(_negWageExpect(p)*(o.wageMult||1));
   _PT={o,p,wageExp,wage:Math.round(wageExp*1.05),years:o.loan?1:3,
-       role:ptRoleExpect(p),bonus:0,tries:0};
+       role:ptRoleExpect(p),bonus:0,tries:0,comis:o.loan?0:ptComisEspera(p),prima:0};
+  delete p._pacto;     // lo de una negociación anterior que se cayó no cuenta
   ptRender(true);
 }
 function ptRender(first){
@@ -21357,13 +21543,24 @@ function ptRender(first){
       <div style="display:flex;gap:4px">${[1,2,3,4,5].map(y=>`<button class="btn ${y===s.years?'bg':'bo'} bs ptYr" data-y="${y}" onclick="ptSetYears(${y})" style="flex:1;font-size:11px">${y}a</button>`).join('')}</div>
     </div>`}
     <div class="mpanel" style="margin-bottom:9px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL — espera <b style="color:var(--gold)">${PT_ROLES[ptRoleExpect(p)]}</b></div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🏟️ ROL — espera <b style="color:var(--gold)">${PT_ROLES[ptRoleExpect(p)]}</b> · <span style="color:var(--t3)">lo que prometés se cumple: si no juega, protesta</span></div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">${PT_ROLES.map((r,i)=>`<button class="btn ${i===s.role?'bg':'bo'} bs ptRl" data-r="${i}" onclick="ptSetRole(${i})" style="flex:1;font-size:9px;min-width:80px;white-space:nowrap">${r}</button>`).join('')}</div>
     </div>
     ${o.loan?'':`
     <div class="mpanel" style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
       <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}</div>
+    </div>`}
+    ${o.loan?'':`
+    <div class="mpanel" style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🕴️ COMISIÓN DEL REPRESENTANTE — espera <b style="color:var(--gold)">${ptComisEspera(p)}%</b></div>
+      <div style="display:flex;gap:4px">${PT_COMIS.map((c,i)=>`<button class="btn ${c===s.comis?'bg':'bo'} bs" onclick="ptSetComis(${i})" style="flex:1;font-size:9.5px">${c}%<br><span style="font-size:8px">${c?fv(ptComisMonto(s,c)):'—'}</span></button>`).join('')}</div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">Se paga el día que firma. Si le das menos de lo que espera, el representante le habla mal del club.</div>
+    </div>
+    <div class="mpanel" style="margin-bottom:9px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎯 PRIMAS POR ${ptPrimaTipo(p)==='gol'?'GOL':'VALLA INVICTA'}</div>
+      <div style="display:flex;gap:4px">${PT_PRIMA.map(x=>`<button class="btn ${x.k===s.prima?'bg':'bo'} bs" onclick="ptSetPrima(${x.k})" style="flex:1;font-size:9.5px">${x.lbl}<br><span style="font-size:8px">${x.k?fv(ptPrimaMonto(p,x.k,s.wage))+' c/u':'—'}</span></button>`).join('')}</div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">${ptConfia(p)?'Confía en sí mismo: las primas lo convencen.':'No está seguro de sus números: las primas lo convencen poco.'} Se cobran en cada ${ptPrimaTipo(p)==='gol'?'gol':'partido sin goles en contra'}.</div>
     </div>`}
     ${o.loan?'':`
     <div style="background:rgba(255,255,255,.03);border:1px solid var(--bdr);border-radius:8px;padding:10px;margin-bottom:9px">
@@ -21401,7 +21598,8 @@ function ptSetBonus(b){_PT.bonus=b;document.querySelectorAll('.ptBn').forEach(x=
 function ptTerms(){const s=_PT;return {wage:s.wage,years:s.years,role:s.role,bonus:s.bonus,
   wageExp:s.wageExp,pull:s.o.pull||0,loan:!!s.o.loan,
   recompra:!!s.recompra,bajaDesc:!!s.bajaDesc,bonoComp:!!s.bonoComp,
-  clausIdx:ptClausIdx(), clausula:ptClausMonto(s.p,ptClausIdx())};}
+  clausIdx:ptClausIdx(), clausula:ptClausMonto(s.p,ptClausIdx()),
+  comis:s.comis||0, comisEsp:s.o.loan?0:ptComisEspera(s.p), prima:s.prima||0, confia:ptConfia(s.p)};}
 function ptUpd(){
   const s=_PT,rx=document.getElementById('ptRx'); if(!s||!rx)return;
   const sc=ptScore(s.p,ptTerms());
@@ -21426,8 +21624,11 @@ function ptSubmit(){
   }
   const sc=ptScore(p,t), rnd=Math.random();
   const ok=sc>=3.5||(sc>=2&&rnd>0.35)||(sc>=0.5&&rnd>0.7);
-  if(ok){
+  const _seguro=s.contraOk&&sc>=3.5;   // le diste lo que pidió: firma
+  if(ok||_seguro){
     _PT=null; closeMod();
+    p._pacto={comis:t.comis?ptComisMonto(s,t.comis):0, rol:t.role,
+              primaTipo:t.prima?ptPrimaTipo(p):null, prima:ptPrimaMonto(p,t.prima,t.wage)};
     s.o.onAccept({wage:t.wage,years:t.years,role:t.role,bonus:t.bonus,roleLabel:PT_ROLES[t.role],
       recompra:t.recompra,bajaDesc:t.bajaDesc,bonoComp:t.bonoComp,clausula:t.clausula});
     return;
@@ -21452,9 +21653,11 @@ function ptSubmit(){
       <div style="font-size:40px;margin-bottom:8px">😤</div>
       <div style="font-size:13px;color:var(--t2)">"${why}"</div>
       <div style="font-size:10px;color:var(--t3);margin-top:6px">Te quedan ${3-s.tries} intento(s).</div>
+      ${(()=>{const w=ptContra(p,t);return w?`<div class="mpanel" style="margin-top:10px;text-align:left"><div style="font-size:11px">💬 <i>"Con <b>${w}k</b> por semana y lo demás como está, firmo hoy."</i></div></div>`:'';})()}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn bg" onclick="ptRender(false)">↔ Mejorar la oferta</button>
+      ${(()=>{const w=ptContra(p,t);return w?`<button class="btn bg" onclick="ptAceptarContra(${w})">✍️ Darle ${w}k</button>`:'';})()}
+      <button class="btn bo" onclick="ptRender(false)">↔ Mejorar la oferta</button>
       <button class="btn bR bs" onclick="ptCancel()">🚪 Dejarlo</button>
     </div>
   `);
@@ -22422,6 +22625,22 @@ function rSocial(){
 // 11vs11 FULL MATCH — TOP-DOWN CANVAS (portrait & landscape, joystick táctil)
 // =============================================
 let FM=null;
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 76: EL ARCO MIDE LO QUE MIDE, LA PELOTA NO SALTA, LA FALTA ES UNA ENTRADA
+// ═══════════════════════════════════════════════════════════════════════
+// · GM es la boca del arco REAL (7,32 m → ±86 px con 1600 px = 68 m de ancho,
+//   la misma escala que usa el 3D). GH (180) se queda como UNIDAD de medida
+//   de las áreas, la marca y el posicionamiento: medio motor cuelga de ella.
+//   Medido antes: 10 de 19 goles entraban por fuera del arco que se ve.
+// · pegarPaso: lo máximo que se mueve la pelota pegada al pie en un tick. La
+//   conducción la clavaba en la dirección nueva y al girar saltaba 40-60 px
+//   al otro lado del cuerpo (34 saltos por partido).
+// · gkLerp / restLerp: la pelota va a las manos del arquero y al punto del
+//   saque deslizándose, no apareciendo (13 y 12 saltos por partido).
+// · faltaQuite: la falta sale de una ENTRADA que no llega a la pelota, no de
+//   estar cerca del que la lleva (antes: 2,5% por tick a un cuerpo de
+//   distancia, en el modo espectador; 0,5% por tick sobre tu jugador).
+const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.12, alcance:1};
 
 // ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
 // El apunte era mid + random*GH*0.62, o sea CENTRADO EN EL MEDIO DEL ARCO — y
@@ -22430,7 +22649,7 @@ let FM=null;
 // parado el arquero) y el error se mide contra ESE punto: el bueno la pone
 // junto al poste, al malo se le va al medio o afuera.
 function fmAim(f,p,shotAttr,gk,mid,anchoFactor,dist){
-  const GH=f.GH;
+  const GH=f.GM||FM76.GM;   // Fase 76: se apunta al arco REAL
   // Cerca del arco casi no se erra el marco; de lejos sí. Antes la dispersión
   // era la misma desde 6 metros que desde 30 y se iba afuera la mitad.
   const cerca = dist===undefined?1:Math.max(0.42,Math.min(1.25,dist/(f.VW*0.20)));
@@ -22472,7 +22691,11 @@ function fmBodyBall(p,b,team){
     // estira: el alcance ahora es una fracción del arco y depende de sus
     // reflejos, que es donde un ARQ de 85 se tiene que notar contra uno de 65.
     const _refG=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
-    const reachG=p.r+22+f.GH*(0.26+Math.max(0,Math.min(100,_refG))/100*0.38);
+    // Fase 76: todo el alcance se escala con el arco real (GM/GH): así el
+    // arquero cubre la MISMA fracción del arco que antes y el % de atajadas
+    // no se mueve por achicar la boca.
+    const _kA=(f.GM||FM76.GM)/f.GH;
+    const reachG=((p.r+22)+f.GH*(0.26+Math.max(0,Math.min(100,_refG))/100*0.38))*_kA*FM76.alcance;
     const dG=Math.hypot(b.x-p.x,b.y-p.y);
     // sólo interviene si la pelota va HACIA su arco con intención (o la tiene encima)
     const ownGoalX=(p.x<f.VW/2)?f.leftGL:f.rightGL;
@@ -22485,12 +22708,16 @@ function fmBodyBall(p,b,team){
     // pelota la línea de gol: si va afuera, el arquero la deja pasar, como en
     // la cancha. Y lo que le cuesta la atajada es lo que tiene que estirarse
     // hasta ESE punto, no la distancia en diagonal a la pelota.
-    const _gy1=f.VH/2-f.GH, _gy2=f.VH/2+f.GH;
+    const _gy1=f.VH/2-(f.GM||FM76.GM), _gy2=f.VH/2+(f.GM||FM76.GM);
     const _t=(Math.abs(b.vx)>0.05)?(ownGoalX-b.x)/b.vx:-1;
     const _yCruce=(_t>0)?(b.y+b.vy*_t):b.y;
-    const vaAlArco=(_t>0&&_t<70&&_yCruce>_gy1-16&&_yCruce<_gy2+16);
+    const vaAlArco=(_t>0&&_t<70&&_yCruce>_gy1-8&&_yCruce<_gy2+8);
     const estirada=Math.abs(_yCruce-p.y);
-    if((vaAlArco?estirada<reachG:dG<p.r+26)&&b.air<=6&&(towardGoal||power<3.5)){
+    // ⚠️ Fase 76: y la pelota tiene que LLEGAR hasta él. Sólo miraba dónde iba
+    // a cruzar la línea, así que con la pelota a 390 px (medido) ya la
+    // "embolsaba" y aparecía en sus manos desde 15 metros.
+    const _llego=Math.abs(b.x-p.x)<p.r+26+Math.abs(b.vx)*2.2;
+    if((vaAlArco?(estirada<reachG&&_llego):dG<p.r+26)&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
       // ANTES: tope 0.66 y −0.05 por cada punto de potencia. Un arquero de 75
       // con un remate fuerte atajaba el 21%: el 79% restante eran rebotes que
@@ -22507,7 +22734,7 @@ function fmBodyBall(p,b,team){
       b.isShot=null;
       if(!esRemate){
         // Pelota suelta o retrocesión: simplemente la toma, sin drama ni stat.
-        b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
+        b.vx=0;b.vy=0;b.air=0;p._recvTick=f.ticks;     // va a las manos deslizándose (_gkHold)
         f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16)};
         f._lastTouch=team;
         return true;
@@ -22545,7 +22772,7 @@ function fmBodyBall(p,b,team){
         // LA EMBOLSA: la retiene un momento y después distribuye. El juego se
         // corta como en la realidad en vez de seguir de largo con la pelota
         // suelta a un metro de sus manos.
-        b.vx=0;b.vy=0;b.air=0;b.x=p.x+(p.x<f.VW/2?14:-14);b.y=p.y;p._recvTick=f.ticks;
+        b.vx=0;b.vy=0;b.air=0;p._recvTick=f.ticks;     // va a las manos deslizándose (_gkHold)
         f._gkHold={gk:p,until:f.ticks+34+~~(Math.random()*30)};
         fmSay('catch');
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
@@ -22990,7 +23217,7 @@ function fmInit(m,W,H){
 
   FM={
     m,S,oppName:opp,myKit,oppKit,
-    VW,VH,GH,leftGL,rightGL,sc,ox,oy,
+    VW,VH,GH,GM:FM76.GM,leftGL,rightGL,sc,ox,oy,
     myG:0,oppG:0,minute:0,half:1,
     ticks:0,tpm:150,
     phase:'kickoff',phaseT:0,
@@ -23372,7 +23599,7 @@ function fmDoRestart(){
       const shooter=[...atk].filter(q=>!q.isGK).sort((a,c)=>(((c.attrs&&c.attrs.TIR)||c.rat)-((a.attrs&&a.attrs.TIR)||a.rat)))[0];
       const tir=(shooter&&shooter.attrs&&shooter.attrs.TIR)||(shooter&&shooter.rat)||76;
       const spread=1.25-Math.min(90,tir)/120;
-      const aimY=f.VH/2+(Math.random()-.5)*f.GH*1.1*spread;
+      const aimY=f.VH/2+(Math.random()-.5)*(f.GM||FM76.GM)*1.1*spread;
       const dx=atkGoalX-b.x,dy=aimY-b.y,dd=Math.hypot(dx,dy)||1;
       const pwr=8.6+Math.max(0,tir-76)/12;
       b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=Math.random()<0.4?4:0;
@@ -24260,6 +24487,16 @@ function fmTick(dt){
   if(f.phase==='restart'){
     f.phaseT+=dt;
     fmSetPieceShape(dt);
+    // Fase 76: la pelota va al punto del saque mientras se arma la jugada (la
+    // acomoda el que lo va a patear), en vez de aparecer ahí al reanudar.
+    const _r=f.restart, _b=f.ball;
+    if(_r&&_r.type!=='penalty'&&_b){
+      const _tx=Math.max(f.leftGL+8,Math.min(f.rightGL-8,_r.x)), _ty=Math.max(16,Math.min(f.VH-16,_r.y));
+      const _dx=_tx-_b.x,_dy=_ty-_b.y,_dd=Math.hypot(_dx,_dy);
+      const _st=Math.min(_dd,Math.max(_dd*FM76.restLerp,2)*dt,FM76.restPaso*dt);
+      if(_dd>0.5){ _b.x+=_dx/_dd*_st; _b.y+=_dy/_dd*_st; }
+      _b.vx=0;_b.vy=0;_b.air=0;
+    }
     // Cada reinicio lleva su tiempo. Antes TODOS usaban 72 ticks (1,2s): el
     // córner se ejecutaba antes de que llegara nadie al área y el tiro libre
     // sin que se armara la barrera.
@@ -24415,8 +24652,14 @@ function fmCtrl(dt){
       if(victim){
         f.slide._fouled=true;
         f.slide.t=0;f.slideRec=44;p._slideT=0;
-        fmFoul('my',p,victim);
-        return;
+        // Fase 76: no toda barrida que toca es falta. Depende de cómo entrás:
+        // de atrás (en la misma dirección en que corre el rival) casi siempre,
+        // de costado la mitad, de frente pocas veces (le ganaste el cuerpo).
+        const _sv=Math.hypot(f.slide.dx,f.slide.dy)||1, _vv=Math.hypot(victim.vx||0,victim.vy||0);
+        const _cos=_vv>0.3?((f.slide.dx*(victim.vx||0)+f.slide.dy*(victim.vy||0))/(_sv*_vv)):0;
+        const _pF=_cos>0.5?0.85:_cos<-0.3?0.25:0.50;
+        if(Math.random()<_pF){ fmFoul('my',p,victim); return; }
+        // choque limpio: el rival sigue con la pelota
       }
     }
     if(bd<KICK_R+12&&!(b.air>2)){
@@ -24475,7 +24718,7 @@ function fmCtrl(dt){
       if(moving){const dm=Math.hypot(ix,iy)||1;dxk=ix/dm;dyk=iy/dm;}
       else{
         const tgx=f.myAttRight?f.rightGL:f.leftGL;
-        const aimY=f.VH/2+(Math.random()*f.GH-f.GH/2)*0.6;
+        const aimY=f.VH/2+(Math.random()*(f.GM||FM76.GM)-(f.GM||FM76.GM)/2)*0.6;
         const dd=Math.hypot(tgx-b.x,aimY-b.y)||1;
         dxk=(tgx-b.x)/dd;dyk=(aimY-b.y)/dd;
       }
@@ -24981,7 +25224,7 @@ function fmAI(p,team,idx,dt){
       } else {
         // la va a llegar un rival antes: se planta en el arco en vez de regalarlo
         const gx=attRight?lx+paW*0.10:lx-paW*0.10;
-        const gy=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
+        const gy=Math.max(mid-(f.GM||FM76.GM)*1.1,Math.min(mid+(f.GM||FM76.GM)*1.1,b.y));
         fmMove(p,gx-p.x,gy-p.y,dt,0.078);
       }
     } else {
@@ -24995,7 +25238,7 @@ function fmAI(p,team,idx,dt){
       fwdFrac=Math.max(0.03,Math.min(0.50,fwdFrac));
       if(!isM&&f.adapt&&!f.watch) fwdFrac*=(1-f.adapt.gkDeep*0.5);
       const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
-      const gkTargY=Math.max(mid-f.GH*1.1,Math.min(mid+f.GH*1.1,b.y));
+      const gkTargY=Math.max(mid-(f.GM||FM76.GM)*1.1,Math.min(mid+(f.GM||FM76.GM)*1.1,b.y));
       const returnSpd=ballNearGoal?0.065:0.09;
       fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,returnSpd);
     }
@@ -25512,7 +25755,9 @@ function fmAI(p,team,idx,dt){
           fmMove(p,ux,uy,dt,acc);
           // el toque es más corto cuanto mejor regatea: un crack no la despega
           const toque=p.r+7.5+(85-Math.min(85,reg))*0.26;
-          b.x=p.x+ux*toque; b.y=p.y+uy*toque;
+          // Fase 76: la pelota RUEDA hasta el pie nuevo, no aparece ahí.
+          const _tx=p.x+ux*toque, _ty=p.y+uy*toque, _dx=_tx-b.x, _dy=_ty-b.y, _dd=Math.hypot(_dx,_dy), _mx=FM76.pegarPaso*dt;
+          if(_dd>_mx){ b.x+=_dx/_dd*_mx; b.y+=_dy/_dd*_mx; } else { b.x=_tx; b.y=_ty; }
           b.vx=p.vx||0; b.vy=p.vy||0; b.air=0;
           f._lastTouch=team;
         };
@@ -25615,11 +25860,8 @@ function fmAI(p,team,idx,dt){
           const cp4=f.my[f.ctrl];
           if(cp4&&Math.hypot(cp4.x-b.x,cp4.y-b.y)<42){
             const dCp=Math.hypot(p.x-cp4.x,p.y-cp4.y);
-            if(dCp<p.r+cp4.r+4&&Math.random()<0.005*dt*(1+ad.aggr)){
-              p._slideT=10;
-              fmFoul('opp',p,cp4);
-              return;
-            }
+            // ⚠️ Fase 76: tampoco por cercanía a tu jugador (0,5% por tick). La
+            // falta sale del quite fallido, igual que entre la IA.
           }
         }
         // Falta en modo simulación: el presionador comete infracción sobre el portador
@@ -25636,11 +25878,10 @@ function fmAI(p,team,idx,dt){
           // como toda falta ahí es penal, los partidos pasaron a 5,8 goles.
           // Un defensor mide el riesgo: adentro del área aguanta y no barre.
           const _enMiArea=Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.25;
-          if(dCar<p.r+carrier.r+12&&Math.random()<0.025*(_enMiArea?0.16:1)*dt*(0.6+prof.aggr)*aggrMul){
-            p._slideT=10;
-            fmFoul(team,p,carrier); // team comete la falta → tiro libre para el rival
-            return;
-          }
+          // ⚠️ Fase 76: ya NO se cobra falta por estar cerca. Era 2,5% por tick a
+          // un cuerpo de distancia, sin entrada ni nada: "faltas por todo". La
+          // falta ahora sale de un quite que NO llega a la pelota (más abajo).
+          p._aggrMul=aggrMul; p._enMiArea=_enMiArea;
         }
         // Quite: depende del DEF del marcador vs el REG/nivel del que lleva la pelota
         if(bd<KICK_R&&!(b.air>2)&&theyHave){
@@ -25681,6 +25922,19 @@ function fmAI(p,team,idx,dt){
             b.vx=awayX/dd4*3.2;b.vy=awayY/dd4*3.2;
             f._lastTouch=team;
             if(f.learn)f.learn.tackles=(f.learn.tackles||0)+1;
+          }
+          // ═══ EL QUITE QUE NO LLEGA PUEDE SER FALTA (Fase 76) ═══
+          // Si falla, el portador sigue con la pelota. Y a veces el que fue al
+          // quite se lleva al jugador en vez de la pelota: ESA es la falta. Más
+          // si es un marcador duro, casi nunca dentro de su propia área.
+          else if(carrier&&carrier!==p){
+            const _am=p._aggrMul||((p.roleStyle==='Destructor'||p.roleStyle==='Marcador')?1.5:1);
+            const _area=Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.25;
+            if(Math.random()<FM76.faltaQuite*(0.6+prof.aggr)*_am*(_area?0.16:1)*Math.max(0.6,1-(defA-carA)/120)){
+              p._slideT=10;
+              fmFoul(team,p,carrier);
+              return;
+            }
           }
           // si falla, el portador sigue con la pelota (no la toca)
         }
@@ -26248,18 +26502,35 @@ function fmBall(dt){
   }
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   // Mientras el arquero la tiene en las manos, la pelota va con él
+  // Fase 76: si la pelota ya llegó a las manos y alguien la sacó (el arquero
+  // la pasó o la despejó con la retención todavía activa), la retención se
+  // suelta. Antes la volvía a traer a las manos en un tick.
+  if(f._gkHold&&f._gkHold.gk){
+    const _g=f._gkHold.gk, _hd=Math.hypot(b.x-(_g.x+(_g.x<f.VW/2?15:-15)),b.y-_g.y);
+    if(_hd<8) f._gkHold.enMano=true;
+    else if(f._gkHold.enMano&&_hd>30) f._gkHold=null;
+    // ⚠️ y si se la sacaron ANTES de llegar a las manos (la pelota se aleja en
+    // vez de acercarse), también se suelta: si no, la retención la traía de
+    // vuelta de un tirón (medido: 549 px en un tick).
+    else if(f._gkHold.dPrev!=null&&_hd>f._gkHold.dPrev+6) f._gkHold=null;
+    if(f._gkHold) f._gkHold.dPrev=_hd;
+  }
   if(f._gkHold){
     if(f.ticks>=f._gkHold.until || !f._gkHold.gk){ f._gkHold=null; }
     else { const gk=f._gkHold.gk;
       b.vx=0;b.vy=0;b.air=0;
-      b.x=gk.x+(gk.x<f.VW/2?15:-15); b.y=gk.y;
+      // Fase 76: a las manos deslizándose. Antes aparecía pegada desde el
+      // alcance del arquero (hasta ~150 px en un tick).
+      const _hx=gk.x+(gk.x<f.VW/2?15:-15), _hy=gk.y;
+      b.x+=(_hx-b.x)*FM76.gkLerp; b.y+=(_hy-b.y)*FM76.gkLerp;
       // Ojo: el resto del motor usa 'my'/'opp'. Acá decía 'home'/'away', así que
       // después de cada pelota retenida por el arquero no coincidía con nada y
       // los córners y laterales se le daban al equipo equivocado.
       f._lastTouch=(f.my.indexOf(gk)>=0)?'my':'opp';
     }
   }
-  const gy1=f.VH/2-f.GH,gy2=f.VH/2+f.GH,bR=7,mid2=f.VH/2;
+  // Fase 76: el gol se cobra en la boca REAL (GM), la misma que dibuja el 3D.
+  const gy1=f.VH/2-(f.GM||FM76.GM),gy2=f.VH/2+(f.GM||FM76.GM),bR=7,mid2=f.VH/2;
   const _beatFin=(k)=>{if(b._beat&&f.ticks-b._beat<80){b._beat=0;if(f.learn)f.learn[k]=(f.learn[k]||0)+1;}};
   // ═══ CABEZAZO EN EL ÁREA: centro que baja y un delantero la conecta ═══
   if(b.air>1&&b.air<9){
@@ -26296,7 +26567,7 @@ function fmBall(dt){
         }
         if(hd&&Math.random()<0.45){
           const head=(hd.attrs&&(hd.attrs.FIS||hd.attrs.TIR))||hd.rat||70;
-          const aimY=mid2+(Math.random()-.5)*f.GH*1.05*(1.35-Math.min(90,head)/110);
+          const aimY=mid2+(Math.random()-.5)*(f.GM||FM76.GM)*1.05*(1.35-Math.min(90,head)/110);
           const dx=goalX-b.x,dy=aimY-b.y,dd=Math.hypot(dx,dy)||1;
           const pwr=5.6+Math.random()*2;
           b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=0;
@@ -26404,7 +26675,7 @@ function fmDrawSim(cv,ctx){
   const f=FM,W=cv.width,H=cv.height;
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2;
-  const gy1=mid-GH,gy2=mid+GH;
+  const gy1=mid-(f.GM||FM76.GM),gy2=mid+(f.GM||FM76.GM);
   const pad=90;
   const fit=Math.min(W/(VW+pad*2),(H-88)/(VH+pad*2));
 
@@ -26468,7 +26739,7 @@ function fmDrawSim(cv,ctx){
   const netW=64;
   [[leftGL,-1],[rightGL,1]].forEach(([gx,dir])=>{
     ctx.fillStyle='rgba(220,235,220,.10)';
-    ctx.fillRect(dir<0?gx-netW:gx,gy1,netW,GH*2);
+    ctx.fillRect(dir<0?gx-netW:gx,gy1,netW,gy2-gy1);
     ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1;
     for(let yy=gy1;yy<=gy2;yy+=16){ctx.beginPath();ctx.moveTo(gx,yy);ctx.lineTo(gx+dir*netW,yy);ctx.stroke();}
     for(let i=0;i<=netW;i+=16){ctx.beginPath();ctx.moveTo(gx+dir*i,gy1);ctx.lineTo(gx+dir*i,gy2);ctx.stroke();}
@@ -26627,7 +26898,7 @@ function fmDraw(){
   if(f.watch){fmDrawSim(cv,ctx);return;}
   const{VW,VH,GH,leftGL,rightGL}=f;
   const mid=VH/2,cx=VW/2,netW=80;
-  const gy1=mid-GH,gy2=mid+GH;
+  const gy1=mid-(f.GM||FM76.GM),gy2=mid+(f.GM||FM76.GM);
 
   // ═══ CÁMARA 2.5D ESTILO DLS: vista elevada desde la platea ═══
   // La cancha se proyecta en perspectiva: lo lejano (arriba) se ve más chico
@@ -28372,7 +28643,9 @@ function negExecDeal(n,p){
       });
     }
     if(n.kind==='pct') p.ownedPct=d.pc;
-    p.club=G.teamName;p.lg='Liga ARG';p.wage=n.wage;p.contract=G.season+n.years;
+    // ⚠️ Era p.lg='Liga ARG' fijo: el séptimo valor argentino escrito a mano
+    // en un camino que corre en las 24 ligas.
+    p.club=G.teamName;p.lg=ligaMia();p.wage=n.wage;p.contract=G.season+n.years;
     // La cláusula que acordaste queda ESCRITA en su contrato. `clauseOf` ya
     // respeta `p.clause>0`, así que no hace falta un campo nuevo; y `-1` es la
     // marca de "expresamente SIN cláusula" que `tieneClausula` ya conoce.
@@ -28382,6 +28655,7 @@ function negExecDeal(n,p){
     if(n.bonoComp)p.compBonus=Math.round(Math.max(0.1,p.wage*0.02)*100)/100;
   }
   G.squad.push(p);G.bench.push(p);
+  try{ pactoActivar(p); }catch(e){}   // comisión, primas y promesa de rol (Fase 76)
   n.stage='cerrada';
   lg('✅',`${KIND_LBL[n.kind]} cerrada: ${p.name} (${n.wage}k/sem${n.kind==='prestamo'?'':', '+n.years+'a'}, ${n.roleLabel})`);
   addPhoneMsg('player',p.name,`🎉 ¡Listo presidente! Ya soy jugador de ${G.teamName||'el club'}. Gracias por la insistencia.`,'⭐');
@@ -28796,7 +29070,7 @@ function firmasTick(){
     // Las condiciones se revisan de nuevo el día de la firma: entre el acuerdo
     // y la revisión pudo llenarse el plantel o irse la plata.
     if(G.squad.length>=PLANTEL_MAX){
-      addPhoneMsg('board','Secretaría Deportiva',`❌ No pudimos inscribir a <b>${p.name}</b>: el plantel está lleno (35).`,'🏛️');
+      addPhoneMsg('board','Secretaría Deportiva',`❌ No pudimos inscribir a <b>${p.name}</b>: el plantel está lleno (${PLANTEL_MAX}).`,'🏛️');
       G.market.push(p); return;
     }
     if(f.price>G.budget){
@@ -28832,6 +29106,7 @@ function firmasTick(){
       lg('📈',`${p.name}: ${f.desde} se queda con el ${f.sellOn}% de una futura venta (cobrás el ${Math.round(p.ownedPct*100)}%)`);
     }
     G.squad.push(p);(G.bench=G.bench||[]).push(p);
+    try{ pactoActivar(p); }catch(e){}   // comisión, primas y promesa de rol (Fase 76)
     const _fee=f.fee||f.price;
     const modo=f.isPre?'con un PRECONTRATO (llega libre)':_fee>0?`por ${fv(_fee)}`:'LIBRE, sin costo de ficha';
     movAnota('entra',p,{club:f.desde||'',monto:f.fee||f.price,
@@ -30365,8 +30640,11 @@ function e3dEstadio(o){
 // kit: 22 jugadores son ~260 mallas pero sólo 9 geometrías.
 const E3_ESC=1.25;        // los jugadores van un 25% más grandes que lo real: en una
                           // toma de TV de 105 m un tipo de 1,8 m es un fósforo
-function e3dJugadores(E){
-  const T=THREE, S=E.S, jugs=[];
+// La fábrica de muñecos la comparten el 11v11 y las jugadas clave (Fase 76).
+// `posar` es la misma zancada de siempre; si no le pasan `mv`, la velocidad
+// sale del desplazamiento entre cuadros (26,4 px del motor por metro).
+function e3dFab(S,esc){
+  const T=THREE; esc=esc||E3_ESC;
   const mats={}, mat=c=>{ const k=_cssVar(c,'#888888'); return mats[k]||(mats[k]=new T.MeshLambertMaterial({color:k})); };
   const gTor=new T.BoxGeometry(0.46,0.52,0.25), gSho=new T.BoxGeometry(0.44,0.24,0.27),
     gMus=new T.BoxGeometry(0.17,0.42,0.18), gPie=new T.BoxGeometry(0.14,0.42,0.15), gBot=new T.BoxGeometry(0.15,0.09,0.28),
@@ -30396,48 +30674,63 @@ function e3dJugadores(E){
     const brazo=lado=>{ const hom=new T.Group(); hom.position.set(lado*0.30,1.52,0); cuerpo.add(hom);
       add(hom,gBra,camiseta,0,-0.25,0); return hom; };
     const J={raiz,cuerpo,pi:pierna(-1),pd:pierna(1),bi:brazo(-1),bd:brazo(1),
-      som:sombra(1.5),ph:((p.num||1)*2.399963)%6,yaw:0,lx:null,lz:null};
-    raiz.scale.setScalar(E3_ESC); S.add(raiz); return J;
+      som:sombra(1.5*esc/E3_ESC),ph:((p.num||1)*2.399963)%6,yaw:0,lx:null,lz:null};
+    raiz.scale.setScalar(esc); S.add(raiz); return J;
+  };
+  // o: {x,z, mv?, dt?, mira:[x,z]|null, tirado, roll?, patada 0..1, gk, salto, brazosArriba}
+  const posar=(J,o)=>{
+    const x=o.x, z=o.z;
+    const dx=J.lx===null?0:x-J.lx, dz=J.lz===null?0:z-J.lz; J.lx=x; J.lz=z;
+    const mv=o.mv!=null?o.mv:Math.hypot(dx,dz)*26.4/Math.max(0.3,o.dt||1), corre=mv>0.3, sp=Math.min(1,mv/2.1);
+    if(Math.hypot(dx,dz)>0.004){ const obj=Math.atan2(dx,dz); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.25; }
+    else if(o.mira){ const obj=Math.atan2(o.mira[0]-x,o.mira[1]-z); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*(o.giro||0.06); }
+    J.ph+=mv*0.30+0.02; const ph=J.ph;
+    const tirado=!!o.tirado, patada=o.patada||0;
+    const sw=corre?Math.sin(ph)*0.78*sp:0.03;
+    J.pi.cad.rotation.x=-sw; J.pd.cad.rotation.x=sw-patada*1.2;
+    J.pi.rod.rotation.x=corre?Math.max(0.1,Math.cos(ph))*0.95*sp:0.08;
+    J.pd.rod.rotation.x=corre?Math.max(0.1,-Math.cos(ph))*0.95*sp*(1-patada):0.08;
+    J.bi.rotation.x=sw*0.8; J.bd.rotation.x=-sw*0.8;
+    J.bi.rotation.z=-0.12; J.bd.rotation.z=0.12;
+    if(o.gk&&!corre&&!tirado){ J.bi.rotation.z=-0.5; J.bd.rotation.z=0.5; }
+    if(o.brazosArriba){ J.bi.rotation.x=J.bd.rotation.x=Math.PI*0.85; }
+    J.cuerpo.rotation.x=tirado?0:0.13*sp;
+    J.raiz.rotation.set(0,J.yaw,tirado?(o.roll!=null?o.roll:(J.yaw>0?1:-1)*1.35):0);
+    J.raiz.position.set(x,(corre?Math.abs(Math.cos(ph))*0.06*sp:0)+(tirado?0.25:0)+(o.salto||0),z);
+    J.som.position.set(x+0.25,0.02,z+0.15);
   };
   // la pelota: pentágonos dibujados en la textura, gira según la velocidad
-  const pc=document.createElement('canvas'); pc.width=128; pc.height=64;
-  { const x=pc.getContext('2d'); x.fillStyle='#f4f4f4'; x.fillRect(0,0,128,64); x.fillStyle='#161616';
-    [[16,14],[48,40],[80,14],[112,40],[16,52],[80,52],[48,6],[112,6]].forEach(([a,b])=>{ x.beginPath(); for(let i=0;i<5;i++){ const t=i*1.2566-1.57; x.lineTo(a+Math.cos(t)*7,b+Math.sin(t)*7); } x.fill(); }); }
-  const pel=new T.Mesh(new T.SphereGeometry(0.11*E3_ESC*1.6,14,10),new T.MeshLambertMaterial({map:new T.CanvasTexture(pc)}));
-  S.add(pel); const pelSom=sombra(0.9);
+  const pelota=(r)=>{
+    const pc=document.createElement('canvas'); pc.width=128; pc.height=64;
+    { const x=pc.getContext('2d'); x.fillStyle='#f4f4f4'; x.fillRect(0,0,128,64); x.fillStyle='#161616';
+      [[16,14],[48,40],[80,14],[112,40],[16,52],[80,52],[48,6],[112,6]].forEach(([a,b])=>{ x.beginPath(); for(let i=0;i<5;i++){ const t=i*1.2566-1.57; x.lineTo(a+Math.cos(t)*7,b+Math.sin(t)*7); } x.fill(); }); }
+    const pel=new T.Mesh(new T.SphereGeometry(r,14,10),new T.MeshLambertMaterial({map:new T.CanvasTexture(pc)}));
+    S.add(pel); return {pel,som:sombra(r*4.1)};
+  };
   const anillo=(c,o)=>{ const m=new T.Mesh(new T.RingGeometry(0.85,1.12,28),new T.MeshBasicMaterial({color:c,side:T.DoubleSide,transparent:true,opacity:o,depthWrite:false}));
     m.rotation.x=-Math.PI/2; m.visible=false; S.add(m); return m; };
-  const aro=anillo(0xffe066,0.95), aroSig=anillo(0x44ddff,0.6);
+  return {muneco,posar,pelota,anillo,sombra,mat};
+}
+function e3dJugadores(E){
+  const S=E.S, jugs=[], F=e3dFab(S,E3_ESC);
+  const {pel,som:pelSom}=F.pelota(0.11*E3_ESC*1.6);
+  const aro=F.anillo(0xffe066,0.95), aroSig=F.anillo(0x44ddff,0.6);
   const w=()=>(FM.rightGL-FM.leftGL)||1;
   const toW=p=>[((p.x-FM.leftGL)/w()-.5)*E.L,(p.y/FM.VH-.5)*E.A];
   const R={pel,jugs,toW,sig:-1,sync(){
     if(typeof FM==='undefined'||!FM||!FM.my)return null;
     const todos=FM.my.concat(FM.opp);
     if(jugs.length!==todos.length) _e3dSinAzar(()=>{ jugs.forEach(j=>{ S.remove(j.raiz); S.remove(j.som); }); jugs.length=0;
-      FM.my.forEach(p=>jugs.push(muneco(p,FM.myKit||{c1:'#1d4ed8',c2:'#fff'})));
-      FM.opp.forEach(p=>jugs.push(muneco(p,FM.oppKit||{c1:'#fff',c2:'#222'}))); });
+      FM.my.forEach(p=>jugs.push(F.muneco(p,FM.myKit||{c1:'#1d4ed8',c2:'#fff'})));
+      FM.opp.forEach(p=>jugs.push(F.muneco(p,FM.oppKit||{c1:'#fff',c2:'#222'}))); });
+    const mira=FM.ball?toW(FM.ball):null;
     todos.forEach((p,i)=>{ const J=jugs[i]; if(!J)return;
       // ⚠️ drawP3 descuenta estos dos relojes al dibujar; con el 2D apagado
       // nadie los bajaba y el arquero quedaba tirado para siempre.
       if(p._kickT>0)p._kickT-=1; if(p._diveT>0)p._diveT-=1;
       const [x,z]=toW(p);
-      const dx=J.lx===null?0:x-J.lx, dz=J.lz===null?0:z-J.lz; J.lx=x; J.lz=z;
-      const mv=Math.hypot(p.vx||0,p.vy||0), corre=mv>0.3, sp=Math.min(1,mv/2.1);
-      if(Math.hypot(dx,dz)>0.004){ const obj=Math.atan2(dx,dz); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.25; }
-      else if(FM.ball){ const [bx,bz]=toW(FM.ball); const obj=Math.atan2(bx-x,bz-z); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.06; }
-      J.ph+=mv*0.30+0.02; const ph=J.ph;
-      const tirado=(p._slideT||0)>0||(p._diveT||0)>0, patada=(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0;
-      const sw=corre?Math.sin(ph)*0.78*sp:0.03;
-      J.pi.cad.rotation.x=-sw; J.pd.cad.rotation.x=sw-patada*1.2;
-      J.pi.rod.rotation.x=corre?Math.max(0.1,Math.cos(ph))*0.95*sp:0.08;
-      J.pd.rod.rotation.x=corre?Math.max(0.1,-Math.cos(ph))*0.95*sp*(1-patada):0.08;
-      J.bi.rotation.x=sw*0.8; J.bd.rotation.x=-sw*0.8;
-      J.bi.rotation.z=-0.12; J.bd.rotation.z=0.12;
-      if(p.isGK&&!corre&&!tirado){ J.bi.rotation.z=-0.5; J.bd.rotation.z=0.5; }
-      J.cuerpo.rotation.x=tirado?0:0.13*sp;
-      J.raiz.rotation.set(0,J.yaw,tirado?(J.yaw>0?1:-1)*1.35:0);
-      J.raiz.position.set(x,(corre?Math.abs(Math.cos(ph))*0.06*sp:0)+(tirado?0.25:0),z);
-      J.som.position.set(x+0.25,0.02,z+0.15);
+      F.posar(J,{x,z,mv:Math.hypot(p.vx||0,p.vy||0),mira,gk:p.isGK,
+        tirado:(p._slideT||0)>0||(p._diveT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0});
     });
     const b=FM.ball, [bx,bz]=toW(b);
     // misma curva que drawBall3, que llega a la altura de un jugador; en 3D se
@@ -30456,6 +30749,197 @@ function e3dJugadores(E){
     return [bx,bz,alt];
   }};
   return R;
+}
+
+// ═══ LAS JUGADAS CLAVE EN 3D (Fase 76) ═══
+// La jugada NO cambia: la lógica, los toques y las reglas siguen en su
+// `update`. Lo que cambia es el dibujo: una capa WebGL DETRÁS de #lmCanvas,
+// que queda transparente y dibuja sólo el HUD (mira, potencia, cuenta, el
+// widget del contacto). Para que el HUD caiga en el mismo lugar que la escena,
+// las vistas pseudo-3D (penal, tiro libre, centro) proyectan con la cámara de
+// verdad (`s._pj`) y las cenitales (ataque, defensa) con `s._g2s`.
+//
+// Del mundo de la jugada al estadio (cancha de 105×68, arco en x=+52,5):
+//  · pseudo-3D: lateral = wx·(3,66/GOAL_HW) · profundidad = 52,5−(1−wz)·D ·
+//    altura = wy·(2,44/BAR). D sale de la distancia real de la jugada (el
+//    penal está a 11 m, el tiro libre a `dist`).
+//  · cenital: 3,66/gh metros por píxel, con el arco en y=glY.
+// La cámara mira hacia +x, así que la derecha de la pantalla es +z y arriba es
+// hacia el arco: el joystick y el arrastre no cambian.
+const _S3={R:null,E:null,key:'',F:null,figs:{},pel:null,pelSom:null,aro:null,cam:null,host:null,carga:false};
+const S3_ESC=1.0;          // acá la cámara está cerca: tamaño real
+function sit3DPref(){ try{ return localStorage.getItem('dt_sit3d')!=='0'; }catch(e){ return true; } }
+function sit3DToggle(){
+  const on=!sit3DPref();
+  try{ localStorage.setItem('dt_sit3d',on?'1':'0'); }catch(e){}
+  const s=SIT;
+  if(!on){ if(s) s._3d=false; if(_S3.host) _S3.host.style.display='none'; }
+  else if(s) sit3DIniciar(s);
+  const b=document.getElementById('lmS3btn'); if(b) b.textContent=on?'2D':'3D';
+  flash(on?'🎥 Jugadas clave en 3D':'🎥 Jugadas clave en 2D','draw');
+}
+function _s3Key(){ const st=(G&&G.stadium)||{}, m=LM||{};
+  return [m.myName,m.rival,m.m&&m.m.home,st.capacity,window.matchWeather].join('|'); }
+function sit3DIniciar(s){
+  const b=document.getElementById('lmS3btn'); if(b) b.textContent=sit3DPref()?'2D':'3D';
+  if(!sit3DPref()||!e3dSoporta()||!s){ if(_S3.host)_S3.host.style.display='none'; return; }
+  e3dCargar(ok=>{
+    if(!ok||SIT!==s||s.ended)return;
+    const cv=document.getElementById('lmCanvas'); if(!cv)return;
+    if(!_S3.host){
+      const host=document.createElement('div'); host.id='lmS3';
+      host.style.cssText='position:absolute;left:2px;top:2px;right:2px;bottom:2px;border-radius:10px;overflow:hidden;pointer-events:none;z-index:0';
+      cv.parentNode.insertBefore(host,cv);
+      _S3.R=_e3dSinAzar(()=>new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}));
+      _S3.R.setPixelRatio(Math.min(1.5,window.devicePixelRatio||1));
+      host.appendChild(_S3.R.domElement);
+      _S3.host=host;
+    }
+    const k=_s3Key();
+    if(k!==_S3.key||!_S3.E){
+      _S3.key=k;
+      const st=(G&&G.stadium)||{}, local=!LM||!LM.m||LM.m.home===LM.myName;
+      _e3dSinAzar(()=>{
+        _S3.E=e3dEstadio({cap:local?(st.capacity||30000):30000,color:local?_colClub():'#7a8494',gente:3000,asist:0.85,
+          clima:window.matchWeather,techo:local&&!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
+        _S3.F=e3dFab(_S3.E.S,S3_ESC);
+        const P=_S3.F.pelota(0.12); _S3.pel=P.pel; _S3.pelSom=P.som;
+        _S3.aro=_S3.F.anillo(0xffe066,0.95); _S3.aro.scale.setScalar(0.7);
+        _S3.cam=new THREE.PerspectiveCamera(50,1,0.2,900);
+      });
+      _S3.figs={};
+    }
+    // los muñecos son de la jugada: los de la anterior se esconden
+    Object.values(_S3.figs).forEach(J=>{ J.raiz.visible=false; J.som.visible=false; J._usado=false; });
+    _S3.R.setSize(s.W,s.H,false);
+    _S3.R.domElement.style.width='100%'; _S3.R.domElement.style.height='100%';
+    _S3.host.style.display='block';
+    sit3DConfig(s);
+    s._3d=true;
+  });
+}
+// Cámara fija por jugada, encuadrada para que el punto cercano caiga en yN y
+// el lejano en yF (fracción de la pantalla). Mira hacia +x con una inclinación
+// p que sale de resolver tan(p−dN)/tan(p−dF) = ndcN/ndcF.
+function _s3Encuadre(cam,pos,near,far,yN,yF,aspect,ancho){
+  const dN=Math.atan2(pos[1]-near[1],near[0]-pos[0]), dF=Math.atan2(pos[1]-far[1],far[0]-pos[0]);
+  const a=1-2*yN, b=1-2*yF, obj=a/b;
+  let lo=dF+1e-4, hi=dN-1e-4;
+  for(let i=0;i<60;i++){ const m=(lo+hi)/2, r=Math.tan(m-dN)/Math.tan(m-dF); if(r<obj) lo=m; else hi=m; }
+  const p=(lo+hi)/2, t=Math.tan(p-dF)/b;
+  cam.fov=2*Math.atan(t)*180/Math.PI; cam.aspect=aspect;
+  cam.position.set(pos[0],pos[1],pos[2]);
+  cam.lookAt(pos[0]+Math.cos(p),pos[1]-Math.sin(p),pos[2]);
+  cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  // En vertical (celular) el encuadre vertical deja el arco más ancho que la
+  // pantalla: se abre el lente hasta que entren los dos palos con margen.
+  if(ancho){ const v=new THREE.Vector3();
+    for(let i=0;i<40;i++){ v.set(far[0],1.2,ancho).project(cam); if(Math.abs(v.x)<=0.86)break;
+      cam.fov=Math.min(110,cam.fov*1.04); cam.updateProjectionMatrix(); } }
+}
+function sit3DConfig(s){
+  const E=_S3.E, X0=E.L/2, cam=_S3.cam, W=s.W, H=s.H, asp=W/H;
+  const v=new THREE.Vector3();
+  s._p3=(X,Y,Z)=>{ v.set(X,Y,Z).project(cam); const d=cam.position.distanceTo({x:X,y:Y,z:Z});
+    return {x:(v.x+1)/2*W, y:(1-v.y)/2*H, d}; };
+  const M=s._m3;
+  if(M.tipo==='p'){
+    const k=3.66/M.hw, yk=2.44/M.bar;
+    M.w2W=(wx,wz,wy)=>[X0-(1-wz)*M.D, (wy||0)*yk, wx*k];
+    const nz=M.near, [nx]=M.w2W(0,nz,0);
+    _s3Encuadre(cam,[nx-M.atras,M.alto,0],[nx,0],[X0,2.44],M.yN,0.07,asp,M.ancho||4.6);
+    const ref=s._p3(...M.w2W(0,nz,0)).d;
+    s._pj=(wx,wz,wy)=>{ const q=s._p3(...M.w2W(wx,wz,wy)); q.sc=Math.max(0.22,Math.min(1.3,ref/q.d*0.95)); return q; };
+  } else {
+    const mpp=3.66/s.gh;
+    M.c2W=(x,y,h)=>[X0-(y-s.glY)*mpp, h||0, (x-W/2)*mpp];
+    const lejos=X0-(H-s.glY)*mpp;
+    _s3Encuadre(cam,[lejos-3.5,15,0],[lejos,0],[X0,2.44],0.97,0.06,asp,4.4);
+    s._g2s=(x,y,h)=>s._p3(...M.c2W(x,y,h));
+  }
+}
+function _s3Fig(id,p,kit){
+  let J=_S3.figs[id];
+  if(!J){ J=_e3dSinAzar(()=>_S3.F.muneco(p,kit)); _S3.figs[id]=J; }
+  // en las vistas de arriba la cámara está lejos: un poco más grandes, como en el 11v11
+  const e=SIT&&SIT._m3&&SIT._m3.tipo==='t'?1.35:S3_ESC; if(J.raiz.scale.x!==e) J.raiz.scale.setScalar(e);
+  J._usado=true; J.raiz.visible=true; J.som.visible=true; return J;
+}
+// Lo que hay en la cancha, leído del estado de la jugada.
+function _s3Escena(s){
+  const my=kitFor(LM.myName), rv=kitFor(LM.rival), M=s._m3, out=[];
+  let ball, aro=null;
+  if(M.tipo==='t'){
+    const c=(x,y,h)=>M.c2W(x,y,h);
+    const fig=(id,o,kit,p,extra)=>{ const [x,,z]=c(o.x,o.y); out.push(Object.assign({id,x,z,kit,p},extra||{})); };
+    if(s.type==='attack'){
+      s.atk.forEach((a,i)=>fig('a'+i,a,my,a.p));
+      s.defs.forEach((d,i)=>fig('d'+i,d,rv,{name:'Def'+i,num:i+2}));
+      fig('gk',s.gk,rv,{name:'Arquero',num:1,isGK:true},{gk:true});
+      if(s.mode==='dribble'){ const a=s.atk[s.ctrl]; aro=c(a.x,a.y); }
+    } else {
+      fig('r1',s.attacker,rv,{name:LM.rival,num:9});
+      if(s.attacker2) fig('r2',s.attacker2,rv,{name:LM.rival+'2',num:11});
+      fig('gk',s.gk,my,{name:'Arquero',num:1,isGK:true},{gk:true});
+      if(s.cpuDef) fig('m2',s.cpuDef,my,{name:'Central',num:2});
+      fig('m1',s.player,my,{name:'DEF',num:4},{tirado:s.stun>34});
+      aro=c(s.player.x,s.player.y);
+    }
+    const b=s.ball, [bx,,bz]=c(b.x,b.y);
+    ball=[bx,(s.mode==='shot'?0.35:0)+0.12,bz];
+  } else {
+    const w=(wx,wz,wy)=>M.w2W(wx,wz,wy);
+    const fig=(id,wx,wz,kit,p,extra)=>{ const [x,,z]=w(wx,wz,0); out.push(Object.assign({id,x,z,kit,p},extra||{})); };
+    const k=3.66/M.hw;
+    // el arquero se tira: hacia el palo que eligió, se levanta del piso y cae
+    const gkFig=(wx,kit,tirado,dir,meta,t)=>{
+      const prog=tirado?Math.min(1,t/10):0, dz=meta!=null?(meta-wx)*k*prog:dir*1.2*prog;
+      fig('gk',wx,0.965,kit,{name:'Arquero',num:1,isGK:true},{gk:true,tirado,roll:-dir*1.35,salto:tirado?Math.sin(prog*Math.PI)*0.45:0,dz});
+    };
+    if(s.type==='penalty'){
+      const opp=s.isOpp, dive=opp?s.dove:(s.kicked&&s.flightT>2);
+      gkFig(s.gkWx,opp?my:rv,dive,s.diveDir||1,opp?null:s.gkGuess,opp?(s.diveT||0):(s.flightT-2));
+      const u=s.kicked?Math.min(1,s.flightT/7):0;
+      fig('k',-0.20+0.08*u,0.0+0.06*u,opp?rv:my,s.mainP||{name:'Pateador'},{patada:s.kicked?Math.sin(Math.min(1,s.flightT/9)*Math.PI):0});
+    } else if(s.type==='freekick'){
+      gkFig(s.gkWx,rv,s.kicked&&s.flightT>3,s.gkDiveDir||1,s.gkGuess,s.flightT-3);
+      const wj=s.kicked?Math.max(0,Math.sin(Math.min(1,s.flightT/9)*Math.PI))*0.14:0;
+      s.wall.forEach((m,i)=>fig('w'+i,m.wx,s.wallZ,rv,{name:'Barrera'+i,num:i+3},{salto:wj*2.44/M.bar,brazosArriba:wj>0.02}));
+      const u=s.kicked?Math.min(1,s.flightT/7):0;
+      fig('k',s.wx0-0.16+0.10*u,0.02+0.03*u,my,s.mainP,{patada:s.kicked?Math.sin(Math.min(1,s.flightT/9)*Math.PI):0});
+    } else {
+      gkFig(s.gkWx,rv,s.phase==='shot'&&s.flightT>2,s.gkDiveDir||1,s.gkGuess,s.flightT-2);
+      s.defs.forEach((d,i)=>fig('d'+i,d.wx,d.wz,rv,{name:'Central'+i,num:i+2}));
+      (s.mates||[]).forEach((m,i)=>{ fig('m'+i,m.wx,m.wz,my,{name:m.name,num:i+5});
+        const mk=(s.mateMarks||[])[i]; if(mk) fig('mk'+i,mk.wx,mk.wz,rv,{name:'Marca'+i,num:i+6}); });
+      if(s.phase==='aim') fig('k',s.cross.x0,s.cross.z0,my,s.mainP);
+      else{
+        const cab=s.phase==='shot'&&s.strikeType==='CABEZAZO', u=s.phase==='shot'?Math.min(1,s.flightT/8):0;
+        fig('st',s.stWx,s.stWz,my,s.mainP,{salto:cab?Math.sin(u*Math.PI)*0.55:0,patada:s.phase==='shot'&&!cab?Math.sin(u*Math.PI):0});
+        if(s.phase==='cross') aro=w(s.stWx,s.stWz,0);
+      }
+    }
+    const b=s.ball; ball=w(b.wx,b.wz,b.wy); ball[1]=Math.max(0.12,ball[1]+0.12);
+  }
+  return {figs:out,ball,aro};
+}
+function sit3DFrame(s,dt){
+  if(!s._3d||!_S3.R||!_S3.E)return;
+  const E=_S3.E, esc=_s3Escena(s);
+  Object.values(_S3.figs).forEach(J=>J._usado=false);
+  const mira=[esc.ball[0],esc.ball[2]];
+  esc.figs.forEach(f=>{
+    const J=_s3Fig(f.id,f.p||{name:f.id},f.kit);
+    _S3.F.posar(J,{x:f.x,z:f.z+(f.dz||0),dt,mira,gk:f.gk,tirado:f.tirado,roll:f.roll,salto:f.salto,patada:f.patada,brazosArriba:f.brazosArriba,giro:0.12});
+  });
+  Object.values(_S3.figs).forEach(J=>{ if(!J._usado){ J.raiz.visible=false; J.som.visible=false; } });
+  const [bx,by,bz]=esc.ball, pel=_S3.pel;
+  const ox=pel.position.x, oz=pel.position.z;
+  pel.position.set(bx,by,bz);
+  pel.rotation.z-=(bx-ox)*2.5; pel.rotation.x+=(bz-oz)*2.5;
+  _S3.pelSom.position.set(bx+by*0.15,0.021,bz); _S3.pelSom.scale.setScalar(Math.max(0.25,0.5-by*0.05));
+  if(esc.aro){ _S3.aro.position.set(esc.aro[0],0.03,esc.aro[2]); _S3.aro.visible=true; } else _S3.aro.visible=false;
+  _e3dSinAzar(()=>_S3.R.render(E.S,_S3.cam));
 }
 
 // ═══ EL FONDO 3D: tu estadio detrás del menú ═══

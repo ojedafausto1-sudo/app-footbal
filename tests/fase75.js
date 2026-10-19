@@ -142,9 +142,11 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d !== unde
     bueno.age = 34; bueno.pot = bueno.rat + 10; malo.age = 31;
     const r0b = bueno.rat, r0m = malo.rat;
     const orig = window.calcNotas;
-    window.calcNotas = (x) => { const o = {}; x.forEach(p => o[p.id] = p === bueno ? 8.2 : p === malo ? 4.5 : 6.5); return o; };
-    let jug = 0;
-    for (let i = 0; i < 600 && jug < 16; i++) {
+    window.calcNotas = (x) => { const o = {}; x.forEach(p => o[p.id] = p === bueno ? 9.0 : p === malo ? 3.5 : 6.5); return o; };
+    // Fase 76: la regla son ventanas de 8 partidos (más de 8,5 → +3, menos de 4
+    // → −3), así que se juega hasta que los dos tengan 9 partidos de verdad.
+    let jug = 0; const a0b = bueno.apps || 0, a0m = malo.apps || 0;
+    for (let i = 0; i < 900 && ((bueno.apps || 0) - a0b < 9 || (malo.apps || 0) - a0m < 9); i++) {
       let d; while ((d = dilemaBloqueante())) dilemaResolver(d.id, 1);
       while (typeof prensaPend === 'function' && prensaPend()) prensaResolver(0);
       // que sigan en el once: el DT podría sacarlos
@@ -165,8 +167,8 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d !== unde
     for (let w = 0; w < 49; w++) weeklyTraining();
     return { jug, mApps: malo.apps, mNota: malo.notaProm,  b: [r0b, bFin], m: [r0m, mFin], prom: bueno.notaProm, v: [vr0, v.rat], vel: [vel0, v.attrs.VEL] };
   });
-  chk('el veterano de 34 que juega bien sube', pl.b[1] > pl.b[0], `${pl.b[0]} → ${pl.b[1]} en ${pl.jug} partidos (promedio ${pl.prom})`);
-  chk('el que juega mal baja', pl.m[1] < pl.m[0], `${pl.m[0]} → ${pl.m[1]} (jugó ${pl.mApps}, nota ${pl.mNota})`);
+  chk('el veterano de 34 que juega bien sube (+3 en 8 partidos)', pl.b[1] >= pl.b[0] + 3, `${pl.b[0]} → ${pl.b[1]} en ${pl.jug} partidos (promedio ${pl.prom})`);
+  chk('el que juega mal baja (−3 en 8 partidos)', pl.m[1] <= pl.m[0] - 3, `${pl.m[0]} → ${pl.m[1]} (jugó ${pl.mApps}, nota ${pl.mNota})`);
   chk('un año de entrenamiento a los 34 no le baja la media', pl.v[1] >= pl.v[0], `${pl.v[0]} → ${pl.v[1]}`);
   chk('…pero las piernas sí', pl.vel[1] < pl.vel[0], `VEL ${pl.vel[0]} → ${pl.vel[1]}`);
 

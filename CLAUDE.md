@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76` |
 
 ## Formato de `players-db.js`
 
@@ -6912,6 +6912,8 @@ el bloque de cada 4 partidos (`ageFac<0`), el declive semanal desde los 31
 (0,6-1,5 por semana) y el salto de temporada (65% de −1 pasado el pico, otro
 más desde los 36). Ahora:
 
+- ⚠️ **La Fase 76 reemplazó esta regla por ventanas de 8 y 15 partidos** (ver
+  abajo). Lo de este bloque queda como historia.
 - **Cada 4 partidos manda la NOTA** (`calcNotas`): promedio de **6,9+** sube
   (`JUG_SUBE`), **6,0 o menos** baja (`JUG_BAJA`), en el medio se sostiene. Si
   rinde por encima de su techo, el techo se corre (`p.pot=p.rat`), con
@@ -6950,6 +6952,133 @@ jugando" también. Y ⚠️ el plantel termina un poco MEJOR con los años que a
 es `JUG_SUBE`.
 
 `tests/fase75.js`, **27 checks**.
+
+## Fase 76: la media por ventanas de notas, el 11v11 sin teletransportes, más mesa de negociación y las jugadas clave en 3D
+
+### La regla de la media es la del presidente, tal cual
+
+`NOTA_REGLAS` + `notaVentana(p,n)`: cada titular mete su nota CRUDA del
+partido en `p._nVent` (las últimas 15, números planos).
+
+| ventana | sube | baja | cuánto |
+|---|---|---|---|
+| últimos 8 | promedio **más de 8,5** | **menos de 4** | **±3** |
+| últimos 15 | **7 o más** | **5,5 o menos** | ±1 |
+| en el medio | — | — | nada |
+
+- La de 8 manda sobre la de 15, y al moverse **la ventana se vacía**: para el
+  siguiente salto hay que volver a juntar 8 o 15 partidos.
+- `notaAplicar` mueve media, potencial (si la pasa), valor y los atributos más
+  altos (o más bajos); el ±3 avisa al celular.
+- ⚠️ **La nota ya no se centra contra el once** (Fase 75 lo hacía): la regla
+  pide la nota del partido, y con umbrales de 8,5 y 4 la bola de nieve no
+  aparece — son muy difíciles de sostener. Medido en una temporada: Boca 11
+  suben / 10 bajan / 9 igual; San Martín (SJ) 7 / 8 / 15.
+- ⚠️ **"Los del medio ni suben ni bajan" también vale para el entrenamiento y
+  el salto de temporada**: arriba de 23 años `weeklyTraining` no suma nada
+  (`gain=0`) y `nextSeason` no mueve la media; sólo los ≤23 siguen creciendo
+  por potencial. Si no, el entrenamiento los subía igual y la regla era
+  decorativa. El que no juega se sigue oxidando por `badSpell`.
+- La ficha muestra cómo viene en las dos ventanas (`notaVentanaTxt`).
+
+### El 11v11: el arco era el doble, la pelota se teletransportaba y se cobraba falta por todo
+
+`FM76={GM, pegarPaso, gkLerp, restLerp, restPaso, faltaQuite, alcance}`.
+
+- **El arco del motor medía ±180 px (~15 m) y el 3D dibuja 7,32 m (±86).** Los
+  goles que entraban "por afuera" eran goles dentro del arco viejo. `FM.GM=86`
+  es ahora la boca de verdad para cobrar, apuntar, el arquero y los dos
+  dibujos 2D. El alcance del arquero se escala por `GM/GH` para no cambiar el
+  porcentaje de atajadas.
+- **Tres teletransportes, los tres medidos:** el `_pegar` del gambeteo plantaba
+  la pelota en el pie (ahora se mueve como mucho `pegarPaso` por tick); el
+  arquero la "embolsaba" desde 390 px (`_llego`: tiene que llegarle) y la
+  ponía en las manos de un salto (ahora se desliza, `gkLerp`); y las pelotas
+  paradas la mudaban al punto de reanudación (ahora se desliza, `restLerp`).
+- ⚠️ **La retención del arquero se suelta si la pelota se ALEJA de las manos**
+  (`dPrev`): si alguien se la sacaba antes de que llegara, la retención la
+  traía de vuelta de un tirón — medido **549 px en un tick**. Con eso los
+  deslizamientos largos bajan de 4,9 a 0,4 por partido.
+- **Faltas**: se borraron las dos faltas por CERCANÍA (0,025 por tick a todo el
+  que se arrimaba en modo espectador, 0,005 al tuyo). Ahora hay falta cuando
+  un quite **falla** (`faltaQuite`, con la agresividad del perfil y la
+  diferencia de nivel) y en la barrida según el ángulo: de atrás 85%, de
+  costado 50%, de frente 25%.
+
+Medido con el mismo arnés (8 partidos, viejo → nuevo):
+
+| | antes | ahora |
+|---|---|---|
+| goles fuera de la boca real | 5 | **0** |
+| saltos de la pelota en juego | 46 | **0** |
+| saltos en pelota parada | 10,5 | **0** |
+| faltas por 90 | 12,5 | 12-13 |
+| goles por 90 | 2,9 | 2,3-2,9 |
+| pases por 90 | 418 | 495-534 |
+
+⚠️ **Ocho partidos no alcanzan para leer faltas ni goles**: la MISMA versión
+dio 6,8 y 13 faltas por 90 en dos corridas seguidas. Lo que sí es
+determinista son los saltos y los goles fuera del arco, y esos son 0.
+
+### La mesa de negociación: representante, primas, promesas y contraoferta
+
+Todo entra por `openPlayerTerms` (las cuatro vías + la negociación larga, que
+ahora delega: `negStep3` → `negStep3Cierre`; el cuerpo viejo quedó como
+`negStep3Viejo`, sin uso).
+
+- 🕴️ **Comisión del representante** (`PT_COMIS` 0/5/10/15% de la operación, o
+  del 60% del valor si llega libre). Espera 5%, o 10% si es mercenario o 84+
+  (`ptComisEspera`). Pagar menos le baja el puntaje, más lo sube.
+- 🎯 **Primas por rendimiento** (`ptPrimaTipo`: por gol los de campo, por
+  valla invicta DEF/ARQ). Suman más al que confía en sí mismo
+  (`ptConfia`: 76+ o ≤27). Se cobran en cada partido (`primasPartido`, rubro
+  sueldos).
+- 🤝 **La promesa de rol se cumple** (`ROL_MIN`, `weeklyPromesas` cada 4
+  semanas): si juega menos de lo prometido (con 20 puntos de tolerancia), −10
+  de moral y un mensaje; dos veces en la temporada y **pide salir**.
+- 💬 **Contraoferta**: si te dice que no, `ptContra` dice con qué sueldo firma
+  seguro y un botón lo iguala (`ptAceptarContra`).
+- ⚠️ Lo pactado viaja en `p._pacto` (números planos) y **se cobra recién
+  cuando entra al plantel** (`pactoActivar` en `negClose` y `firmasTick`): si
+  la operación se cae, no se paga comisión.
+- ⚠️ **La comisión cuesta plata por defecto** (arranca en lo que espera el
+  representante): todo fichaje sale un 5-10% más caro que antes.
+- Y el séptimo `'Liga ARG'` escrito a mano, en `negClose`. Ahora `ligaMia()`.
+
+### Las jugadas clave en 3D
+
+Las cinco (penal, tiro libre, centro, ataque, defensa) se dibujan con
+three.js. **La jugada no cambia**: lógica, toques y reglas siguen en su
+`update`. Una capa WebGL va DETRÁS de `#lmCanvas` (`#lmS3`), que queda
+transparente y dibuja sólo el HUD.
+
+- **Del mundo de la jugada al estadio** (`sit3DConfig`): las vistas pseudo-3D
+  mapean lateral = wx·(3,66/GOAL_HW), profundidad = 52,5−(1−wz)·D y altura =
+  wy·(2,44/BAR), con D sacada de la distancia real (penal 11 m, tiro libre
+  `dist`). Las cenitales usan 3,66/gh metros por píxel.
+- **El HUD proyecta con la cámara de verdad**: el `proj` de cada jugada pasa
+  por `s._pj` y las cenitales por `s._g2s`, así la mira, la trayectoria y el
+  "⚡ TACKLE!" caen sobre la escena. Los `sitDraw*` no dibujan nada en 3D.
+- **La cámara se encuadra sola** (`_s3Encuadre`): resuelve la inclinación y el
+  lente para que la pelota quede abajo y el travesaño arriba, y después abre
+  el lente hasta que entren los dos palos. ⚠️ Sin ese segundo paso, en un
+  celular vertical los palos quedaban afuera de la pantalla.
+- La cámara mira hacia el arco, así que **el joystick y el arrastre no
+  cambian**.
+- `e3dFab(S,esc)` es la fábrica de muñecos que ahora comparten el 11v11 y las
+  jugadas (`posar` es la misma zancada). En las vistas de arriba los muñecos
+  van ×1,35.
+- El arquero se tira de verdad hacia el palo que adivinó, la barrera salta
+  con los brazos arriba y el cabezazo despega.
+- Botón **2D/3D** en la esquina; la preferencia es del navegador
+  (`dt_sit3d`). Si el 3D tira un error en un cuadro, la jugada sigue en 2D.
+- ⚠️ **Todo lo de three.js pasa por `_e3dSinAzar`**: el test cuenta **0
+  `Math.random()`** del 3D, así no cambia el azar de la jugada.
+
+🛑 **El rendimiento en un celular no se midió**, igual que el 11v11 en 3D.
+
+`tests/fase76.js`, **54 checks**. ⚠️ El test fija `matchWeather='soleado'`
+para mirar el HUD: la lluvia pinta un velo con alfa 14 encima de todo.
 
 ## Deploy
 
