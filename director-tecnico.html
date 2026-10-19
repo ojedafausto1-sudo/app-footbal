@@ -1465,10 +1465,15 @@ function devLabel(p){
 // se sumaban: medido, un 78 a los 34 hacía 77 → 71 → 60 y colgaba a los 38.
 // Ahora todos piden permiso acá, así que el tope es del jugador y no de cada
 // sistema por su cuenta. Sin esto no llega nadie a los 39/40 con media.
-function topeBajaAnual(p){
-  const a=p.age||26;
-  return a>=36?4 : a>=33?3 : 2;
-}
+// Fase 75: la media se mueve por las NOTAS de los partidos (ver el bloque de
+// desarrollo de applyMatchResult). Promedio de 4 partidos: desde JUG_SUBE
+// sube, hasta JUG_BAJA baja. JUG_TOPE es el techo de la escala (el mismo 91
+// de `P()`).
+const JUG_SUBE=6.9, JUG_BAJA=6.0, JUG_TOPE=91;
+// Fase 75: el tope ya no depende de la edad (era 2 / 3 / 4 a los 33 y 36):
+// la media baja por cómo juega, y uno de 36 que juega mal no tiene por qué
+// caer el doble que uno de 28 que juega igual de mal.
+function topeBajaAnual(p){ return 3; }
 function bajarRat(p,piso){
   if(!p) return false;
   const temporada=(typeof G!=='undefined'&&G&&G.season)||0;
@@ -6208,14 +6213,19 @@ function setDtRel(delta){
 // La renuncia estaba a medias: mandaba el mensaje, marcaba G._dtQuit y el DT
 // se quedaba sentado en el banco igual. Ahora se va de verdad y queda el
 // interino, como cuando lo echás.
-function dtRenuncia(motivo){
+function dtRenuncia(motivo,porResultados){
   if(!G||!G.dt||G._dtQuit) return false;
   if(G.dt.custom) return false;          // el DT que armaste vos no renuncia
   G._dtQuit=true;
   const nom=G.dt.name||'El DT';
+  dtGuardarEnPool(G.dt);                 // se lleva lo que aprendió (Fase 75)
   if(G.dtPool){ const old=G.dtPool.find(x=>x.name===nom); if(old){old.club=null;old.until=0;} }
-  G.boardConf=Math.max(0,(G.boardConf||50)-10);
-  G.morale=Math.max(25,(G.morale===undefined?70:G.morale)-6);
+  // El que se va por los resultados no deja a la CD ni al vestuario peor de
+  // lo que ya estaban: la racha ya se cobró sola. El que se va peleado, sí.
+  if(!porResultados){
+    G.boardConf=Math.max(0,(G.boardConf||50)-10);
+    G.morale=Math.max(25,(G.morale===undefined?70:G.morale)-6);
+  }
   lg('🚪',`${nom} renunció: ${motivo}`);
   addPhoneMsg('board','Secretaría del Club',
     `🚪 <b>${nom}</b> presentó la renuncia — ${motivo}. Queda un interino a cargo. Hay que salir a buscar reemplazante ya.`,'🏛️');
@@ -6250,6 +6260,225 @@ function weeklyDtRenuncia(){
                : 'se cansó de que le manejen el equipo';
   dtRenuncia(motivo);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 75: EL TÉCNICO TIENE CINCO NÚMEROS, Y SE MUEVEN
+// ═══════════════════════════════════════════════════════════════════════
+// Antes el DT era UN número (`rat`) que pesaba 13% en la fuerza del once y no
+// cambiaba nunca: Guardiola valía 99 toda la carrera y el interino 62 aunque
+// sacara campeón al club. Ahora tiene cinco atributos, cada uno mueve una cosa
+// concreta del juego, y la media del DT es el PROMEDIO de los cinco:
+//
+//   tac  Táctica              la parte del DT en la fuerza del once, y cuánto
+//                             le saca al planteo (`tFit` de matchStrengths)
+//   lec  Lectura de partido   el segundo tiempo: si va perdiendo, el equipo
+//                             genera más; si va ganando, cierra mejor
+//   mot  Motivación           la moral de cada jugador, semana a semana
+//   fis  Preparación física   cuánto se funde la defensa al final (defCansada)
+//   jov  Formación juveniles  cuánto crecen los de 21 o menos
+//
+// ⚠️ Se DERIVAN de `rat` + el rasgo + el nombre (determinista) y promedian
+// exactamente el `rat` de siempre: el balance del juego no se mueve con sólo
+// cargar la fase. Un save viejo no trae `dt.attrs` y eso es "los de fábrica".
+// Recién cuando cambian se guardan en `G.dt.attrs` (5 números planos, 0
+// funciones en G).
+const DT_ATTRS=[
+  {k:'tac',l:'Táctica',ic:'🧠',d:'Pesa en la fuerza del equipo y en cuánto rinde el planteo'},
+  {k:'lec',l:'Lectura de partido',ic:'🔄',d:'El segundo tiempo: reacciona perdiendo, cierra ganando'},
+  {k:'mot',l:'Motivación',ic:'🔥',d:'Sube (o baja) la moral del plantel cada semana'},
+  {k:'fis',l:'Preparación física',ic:'💪',d:'La defensa se funde menos sobre el final'},
+  {k:'jov',l:'Formación de juveniles',ic:'🌱',d:'Los pibes de 21 o menos crecen más rápido'},
+];
+// El rasgo inclina los cinco números: un Formador es mejor con los pibes que
+// con la pizarra, un Cholo motiva y prepara, un Filósofo es pura táctica.
+const DT_ATTR_SESGO={
+  Formador:{jov:10,tac:-3,lec:-2}, Moderno:{tac:4,lec:2,mot:-2}, Guerrero:{mot:7,fis:4,tac:-5},
+  Equilibrado:{}, Táctico:{tac:7,lec:3,mot:-5}, Copero:{lec:6,mot:3,jov:-4},
+  Maestro:{lec:5,mot:5,fis:-3}, Intenso:{fis:8,mot:2,lec:-4}, Analítico:{tac:6,lec:4,mot:-5},
+  Ofensivo:{tac:2,mot:3,fis:-2}, Defensivo:{tac:5,fis:2,jov:-4}, Pragmático:{lec:4,tac:2,jov:-4},
+  Técnico:{tac:3,jov:3,fis:-3}, Leyenda:{mot:6,lec:4,jov:-4}, Muñeco:{lec:6,tac:4,jov:-3},
+  Cholo:{mot:8,fis:5,jov:-6}, Filósofo:{tac:8,jov:4,mot:-4}, Clase:{mot:5,tac:-2},
+  'Heavy Metal':{fis:8,mot:6,tac:-3}, Líder:{mot:7,tac:-2}, Campeón:{lec:5,mot:3},
+};
+const DT_ATTR_MIN=35, DT_ATTR_MAX=99;
+function _dtHash(s){ let h=2166136261; for(const c of String(s||'DT')){ h^=c.charCodeAt(0); h=Math.imul(h,16777619)>>>0; } return h; }
+function dtAttrs(dt){
+  if(!dt) return null;
+  if(dt.attrs && typeof dt.attrs.tac==='number') return dt.attrs;
+  const r=dt.rat||70, so=DT_ATTR_SESGO[dt.trait]||{}, h=_dtHash(dt.name);
+  const a={};
+  DT_ATTRS.forEach((x,i)=>{ a[x.k]=r+(so[x.k]||0)+((h>>>(i*5))%7)-3; });
+  // Re-centrado: el promedio tiene que dar el `rat` de siempre.
+  const dlt=r-DT_ATTRS.reduce((t,x)=>t+a[x.k],0)/DT_ATTRS.length;
+  DT_ATTRS.forEach(x=>{ a[x.k]=Math.max(DT_ATTR_MIN,Math.min(DT_ATTR_MAX,Math.round(a[x.k]+dlt))); });
+  return a;
+}
+function dtAttr(k,dt){ const a=dtAttrs(dt||(G&&G.dt)); return a?a[k]:70; }
+// La media del DT sale de los cinco. Se llama cada vez que uno se mueve.
+function dtRecalc(dt){
+  if(!dt||!dt.attrs) return;
+  dt.rat=Math.round(DT_ATTRS.reduce((t,x)=>t+dt.attrs[x.k],0)/DT_ATTRS.length);
+}
+// Lo que pesa el DT en la fuerza del once (matchStrengths). Antes era `rat`
+// pelado; ahora manda la táctica, con la lectura y la motivación detrás. En
+// un DT de fábrica da casi lo mismo que su `rat` (los pesos suman 1).
+function dtFuerza(dt){
+  const a=dtAttrs(dt); if(!a) return (dt&&dt.rat)||70;
+  return a.tac*0.50+a.lec*0.25+a.mot*0.25;
+}
+// Cuánto le saca al planteo: con 90 de táctica el ajuste del planteo pesa
+// ×1,20; con 50, ×0,80. El techo y el piso de tacMod no se tocan.
+function dtTacMult(dt){ return Math.max(0.75,Math.min(1.25,1+(dtAttr('tac',dt)-70)/100)); }
+// El segundo tiempo según cómo terminó el primero (sólo la simulación de texto).
+function dtLecturaMult(gf1,ga1,dt){
+  const k=(dtAttr('lec',dt)-70)/100;              // −0,35 .. +0,29
+  if(gf1<ga1) return {my:Math.max(0.88,Math.min(1.12,1+k*0.40)), op:1};
+  if(gf1>ga1) return {my:1, op:Math.max(0.88,Math.min(1.12,1-k*0.30))};
+  return {my:1,op:1};
+}
+// La defensa fundida: el preparador físico la estira o la acorta.
+// ⚠️ Multiplica `defCansada`, así que arriba del 70% de energía el efecto
+// sigue siendo exactamente cero (la regla medida del partido en dos tiempos).
+function dtFisMult(dt){ return Math.max(0.70,Math.min(1.30,1-(dtAttr('fis',dt)-70)/100)); }
+// Moral semanal y crecimiento de los pibes.
+function dtMotDelta(dt){ return (dtAttr('mot',dt)-70)*0.012; }
+function dtJovMult(dt){ return Math.max(0.65,Math.min(1.40,1+(dtAttr('jov',dt)-70)/80)); }
+
+// ═══ LA VALORACIÓN DEL DT SE GANA EN LA CANCHA ═══
+// Después de cada partido oficial se compara lo que sacó con lo que ESPERABA
+// sacar con ese plantel contra ese rival (los goles esperados del propio
+// partido, `xgDeS`). Un DT que le saca más puntos de los que da su plantel
+// mejora; uno que saca menos, empeora. Cada `DT_PASO` puntos de diferencia
+// acumulada mueve un atributo un punto.
+// ⚠️ La vara es lo ESPERADO, no la tabla: un DT del club chico que pierde
+// contra los grandes no se hunde por eso, y uno del grande que gana lo que
+// tiene que ganar no se infla.
+const DT_PASO=2.0;
+function _poisP(l,k){ let p=Math.exp(-l); for(let i=1;i<=k;i++)p*=l/i; return p; }
+function puntosEsperados(my,op){
+  let w=0,d=0;
+  for(let a=0;a<=10;a++){ const pa=_poisP(my,a);
+    for(let b=0;b<=10;b++){ const pr=pa*_poisP(op,b); if(a>b)w+=pr; else if(a===b)d+=pr; } }
+  return 3*w+d;
+}
+function dtEvaluarPartido(m,gf,ga){
+  if(!G||!G.dt||!G._S||m.friendly) return;
+  const dt=G.dt;
+  if(!dt.attrs) dt.attrs=Object.assign({},dtAttrs(dt));
+  if(dt._rat0===undefined) dt._rat0=dt.rat;
+  let xp=1.3;
+  try{ const x=xgDeS(G._S); xp=puntosEsperados(x.my,x.op); }catch(e){}
+  const pts=gf>ga?3:gf===ga?1:0;
+  dt._eval=Math.round(((dt._eval||0)+pts-xp)*100)/100;
+  dt._ult=(dt._ult||[]).concat(pts).slice(-12);       // los últimos 12, para la renuncia
+  dt._xpUlt=(dt._xpUlt||[]).concat(Math.round(xp*100)/100).slice(-12);
+  const rat0=dt.rat;
+  while(Math.abs(dt._eval)>=DT_PASO){
+    const sube=dt._eval>0;
+    dt._eval=Math.round((dt._eval+(sube?-DT_PASO:DT_PASO))*100)/100;
+    // Lo que se mueve es lo que pesa en la cancha; la cantera va por la temporada.
+    const pool=['tac','tac','tac','lec','lec','lec','mot','mot','fis'];
+    const k=pool[~~(Math.random()*pool.length)];
+    dt.attrs[k]=Math.max(DT_ATTR_MIN,Math.min(DT_ATTR_MAX,dt.attrs[k]+(sube?1:-1)));
+    dt._tend=(dt._tend||0)+(sube?1:-1);
+  }
+  dtRecalc(dt);
+  if(dt.rat!==rat0){
+    const sube=dt.rat>rat0;
+    lg(sube?'📈':'📉',`${dt.name}: su valoración ${sube?'sube':'baja'} a ${dt.rat}`);
+    if(dt.rat%2===0||Math.abs(dt.rat-(dt._rat0||dt.rat))>=4)
+      addPhoneMsg('board','Analista del club',
+        sube?`📈 Presidente, <b>${dt.name}</b> le está sacando al plantel más de lo que da: su valoración sube a <b>${dt.rat}</b>.`
+            :`📉 Presidente, con este plantel deberíamos estar sumando más. La valoración de <b>${dt.name}</b> baja a <b>${dt.rat}</b>.`,
+        sube?'📈':'📉');
+  }
+}
+// Un año más de oficio: el técnico joven aprende, el muy veterano se queda.
+// Va también la cantera, que no se mueve partido a partido.
+function dtTemporadaDt(){
+  const dt=G&&G.dt; if(!dt||/Interino/.test(dt.name||'')) return;
+  if(!dt.attrs) dt.attrs=Object.assign({},dtAttrs(dt));
+  const e=dt.age||50;
+  const k=DT_ATTRS[~~(Math.random()*DT_ATTRS.length)].k;
+  if(e<48&&Math.random()<0.65) dt.attrs[k]=Math.min(DT_ATTR_MAX,dt.attrs[k]+1);
+  else if(e>=68&&Math.random()<0.40) dt.attrs[k]=Math.max(DT_ATTR_MIN,dt.attrs[k]-1);
+  // El balance del año. Partido a partido se mide contra lo ESPERADO, y con un
+  // plantel que gana todo eso no mueve nada (medido: Boca 30-5-2 y el DT
+  // quedó en 74). Pero sacar campeón es lo que hace a un técnico, y terminar
+  // en zona de descenso lo hunde aunque el plantel fuera flojo.
+  const h=(G.history||[])[G.history.length-1];
+  if(h&&h.season===G.season){
+    const tit=Math.min(3,(h.titulos||[]).length+(h.champion?1:0));
+    const sube=['tac','lec','mot','tac','lec'];
+    for(let i=0;i<tit*2;i++){ const q=sube[~~(Math.random()*sube.length)]; dt.attrs[q]=Math.min(DT_ATTR_MAX,dt.attrs[q]+1); }
+    const desc=(typeof cuposDescenso==='function')?cuposDescenso():0;
+    if(desc>0&&h.clubs&&h.pos>h.clubs-desc){
+      ['tac','lec','mot'].forEach(q=>{ dt.attrs[q]=Math.max(DT_ATTR_MIN,dt.attrs[q]-1); });
+    }
+  }
+  // Los pibes que hizo crecer: si subieron 2+ de la casa, la cantera suma
+  const subieron=(G.squad||[]).filter(p=>p.age<=22&&(p._upCount||0)>=2).length;
+  if(subieron>=2) dt.attrs.jov=Math.min(DT_ATTR_MAX,dt.attrs.jov+1);
+  if(dt.age) dt.age++;
+  dtRecalc(dt);
+}
+// El DT que se va se lleva lo que aprendió: si lo volvés a contratar o lo
+// contrata otro, vuelve con SUS números, no con los de fábrica.
+function dtGuardarEnPool(dt){
+  if(!G||!dt||!dt.attrs) return;
+  try{ ensureDtPool(); }catch(e){}
+  const o=(G.dtPool||[]).find(x=>x.name===dt.name);
+  if(o){ o.attrs=Object.assign({},dt.attrs); o.rat=dt.rat; }
+}
+
+// ═══ SI LE VA MUY MAL, PONE LA RENUNCIA A DISPOSICIÓN ═══
+// Una seguidilla de malos resultados —6 puntos o menos en los últimos 8
+// partidos oficiales, y además por debajo de lo que daba el plantel— y el DT
+// se planta: "pongo mi cargo a disposición". No se va solo: la decisión es
+// TUYA y frena el club como cualquier dilema (aceptarla o ratificarlo). Si lo
+// ratificaste y la racha sigue, la segunda vez se va sin preguntar.
+const DT_REN_N=8, DT_REN_PTS=6;
+function dtRachaMala(dt){
+  const u=(dt&&dt._ult)||[], x=(dt&&dt._xpUlt)||[];
+  if(u.length<DT_REN_N) return false;
+  const pts=u.slice(-DT_REN_N).reduce((a,b)=>a+b,0);
+  const xp=x.slice(-DT_REN_N).reduce((a,b)=>a+b,0);
+  return pts<=DT_REN_PTS && pts<xp-2;
+}
+function weeklyDtRachaRenuncia(){
+  const dt=G&&G.dt;
+  if(!dt||dt.custom||G._dtQuit||/Interino/.test(dt.name||'')) return;
+  if(G._dilemaAbierto) return;
+  if(!dtRachaMala(dt)) return;
+  if(dt._ratificado===G.season){ dt._ult=[]; dt._xpUlt=[]; dtRenuncia('los resultados no llegaron ni después de que lo ratificaste',true); return; }
+  if(Math.random()>=0.55) return;
+  const pts=dt._ult.slice(-DT_REN_N).reduce((a,b)=>a+b,0);
+  const id='dtr'+(G._dtRenSeq=(G._dtRenSeq||0)+1)+'_'+(G.week||0);
+  G.dilemas=G.dilemas||[];
+  const txt=`<b>${dt.name}</b> pidió una reunión urgente: <i>"Presidente, ${pts} puntos de ${DT_REN_N*3} no es lo que este plantel merece. Pongo mi cargo a disposición. Si usted quiere un cambio, me hago a un lado sin pedir un peso."</i>`;
+  G.dilemas.push({id,did:'_dtren',txt,resuelto:null,week:G.week,bloquea:true,de:'Cuerpo Técnico',ic:'🚪',
+    ops:[{i:0,t:'✅ Aceptar la renuncia',d:'Se va sin indemnización. Queda un interino hasta que contrates.'},
+         {i:1,t:'🤝 Ratificarlo',d:'Lo bancás en público: la relación sube y el vestuario lo nota. Si la racha sigue, la próxima se va solo.'}]});
+  G._dilemaAbierto=id;
+  _DIL_FX[id]=_dtRenFx();
+  addPhoneMsg('board',dt.name,txt,'🚪',{dilema:id});
+  lg('🚪',`${dt.name} puso su cargo a disposición`);
+  dilemaModal(id);
+}
+function _dtRenFx(){
+  return [
+    ()=>{ const n=(G.dt&&G.dt.name)||'El DT';
+          dtRenuncia('dio un paso al costado por los malos resultados',true);
+          return `Aceptaste la renuncia de ${n}. No hubo que pagar indemnización.`; },
+    ()=>{ const dt=G.dt; if(!dt) return 'Decisión tomada.';
+          dt._ratificado=G.season; dt._ult=[]; dt._xpUlt=[];
+          if(typeof setDtRel==='function') setDtRel(15);
+          G.morale=Math.min(100,(G.morale===undefined?70:G.morale)+4);
+          G.boardConf=Math.max(5,(G.boardConf||50)-4);
+          G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-3);
+          return `Ratificaste a ${dt.name}. El plantel lo tomó bien; en la CD y la tribuna hay dudas.`; },
+  ];
+}
+
 function dtRelLabel(){
   const v=G&&G.dtRel!==undefined?G.dtRel:65;
   return v>=80?{t:'Excelente',c:'var(--green)',e:'🤝'}:v>=60?{t:'Buena',c:'var(--green)',e:'🙂'}
@@ -7155,7 +7384,7 @@ function openP(id, inSquad){
       </div>
       <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
         <div style="width:${tmPct}%;height:100%;background:${tmColor};border-radius:3px;transition:width .5s"></div>
-      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}
+      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}${typeof p.notaProm==='number'?`<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px"><span style="color:var(--t3)">📊 Promedio de notas (últimos partidos)</span><b style="font-family:'Chakra Petch';color:${p.notaProm>=JUG_SUBE?'var(--green)':p.notaProm<=JUG_BAJA?'var(--red)':'var(--t2)'}">${p.notaProm.toFixed(1)}</b></div><div style="font-size:9px;color:var(--t3)">Desde ${JUG_SUBE} sube la media; en ${JUG_BAJA} o menos, baja. La edad no la toca.</div>`:''}
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">
@@ -9743,6 +9972,7 @@ function weeklyPlayerDt(){
     // ENTERO cada semana, el +0.4 se perdía siempre (round(3+0.4)=3) y un
     // plantel hundido no se recuperaba nunca.
     let dm=(p.dtRel>=62?0.4:p.dtRel<=30?-0.9:0);
+    if(!p.injured) dm+=dtMotDelta(G.dt);   // el DT que motiva (Fase 75): ±0,25 por semana
     // ═══ SALIR DEL POZO ═══
     // Con el +0.4 plano, un plantel devastado (un embargo lo deja en 0) tardaba
     // 140 semanas —tres temporadas— en volver a 60: la partida quedaba muerta.
@@ -10088,12 +10318,27 @@ function weeklyTraining(){
     // y como rf alimenta también el declive (badSpell), un rebelde que sigue
     // en el club se oxida de verdad hasta que le resolvés la situación.
     if(p.wantsOut) rf-=0.55;
+    // Fase 75: lo que hace en la cancha también cuenta acá. Sin esto, el que
+    // jugaba mal bajaba por las notas y el entrenamiento lo volvía a subir
+    // hacia su potencial la semana siguiente (medido: 77 → 76 → 77).
+    if(typeof p.notaProm==='number') rf+=(p.notaProm-6.5)*0.25;
     rf=Math.max(-1,Math.min(1,rf));
     p.rendim=Math.round(rf*100)/100;                            // visible para la UI
     // ═══ DECLIVE: por edad, PERO acelerado o frenado por el rendimiento ═══
     // Antes un jugador sólo podía SUBIR: al llegar a su techo quedaba congelado
     // para siempre y un plantel viejo nunca se desgastaba.
-    const declineAge=p.age>=31;
+    // ⚠️ Fase 75: la EDAD ya no baja la media por sí sola. Antes desde los 31
+    // sumaba 0,6-1,5 por semana (un −1 cada 7-17 semanas, hasta el tope anual
+    // de 3-4) aunque el tipo fuera la figura. Ahora la media la mueven las
+    // notas de los partidos (applyMatchResult) y la edad gasta las PIERNAS:
+    // VEL y FIS bajan desde los 33, que es lo que de verdad se pierde y se
+    // nota en el planteo (presión, línea alta, contragolpe).
+    if(p.age>=33){
+      p._piernas=(p._piernas||0)+(p.age>=36?0.10:0.06);   // ~3 por temporada, ~5 desde los 36
+      if(p._piernas>=1){ p._piernas-=1;
+        ['VEL','FIS'].forEach(k=>{ if(p.attrs[k]!==undefined) p.attrs[k]=Math.max(30,p.attrs[k]-1); }); }
+    }
+    const declineAge=false;
     const badSpell=rf<-0.35&&p.age>=26;                          // suplente crónico: se oxida
     if(declineAge||badSpell){
       if(p.decl===undefined)p.decl=0;
@@ -10118,6 +10363,7 @@ function weeklyTraining(){
     if(gap<=0)return;
     let ageMul=p.age<=20?1.6:p.age<=23?1.25:p.age<=27?0.7:p.age<=31?0.35:0.12;
     if(p.age<=21&&ycLv)ageMul*=(1+ycLv*0.2);
+    if(p.age<=21)ageMul*=dtJovMult(G.dt);   // el DT que forma pibes (Fase 75)
     // El rendimiento multiplica el crecimiento: sin minutos casi no progresás
     const perfMul=Math.max(0.12,1+rf*1.15);
     let gain=0.9*intMul*ageMul*(0.9+asstLv*0.05)*ctr*perfMul;
@@ -10160,6 +10406,9 @@ function weeklyTraining(){
         p.attrs[L.k]=Math.min(L.techo,p.attrs[L.k]+1);
       }
     }
+    // Fase 75: el que viene jugando mal no progresa en la semana. Si no, las
+    // notas lo bajaban y el entrenamiento lo devolvía a su potencial.
+    if(typeof p.notaProm==='number'&&p.notaProm<=JUG_BAJA) gain=0;
     p.dev+=gain;
     // Subir un punto de foco al atributo elegido cuando acumula
     if(foc.attr&&p.dev>=6){
@@ -10844,6 +11093,7 @@ function rStaff(){
     <div class="prog"><div class="pf" style="width:${v}%;background:${r.c}"></div></div>
     <div style="font-size:9px;color:var(--t3);margin-top:3px">${v>=60?'Te respalda: el equipo rinde un poco más.':v>=30?'Está incómodo con tus declaraciones. El rendimiento se resiente.':'⚠️ La relación está rota: puede renunciar en cualquier momento.'}</div>`;})()}
     <div style="font-size:10px;color:var(--green);margin-top:4px">✦ ${(DT_TRAIT_FX[G.dt.trait]||{fx:'Sin bono especial'}).fx}</div>
+    ${dtAttrsHTML(G.dt)}
     <div style="font-size:9px;color:var(--t3);margin-top:6px;font-family:'Rajdhani';text-transform:uppercase">Perfil táctico (se ve en la simulación)</div>
     ${dtProfBars(G.dt)}
     <div style="display:flex;gap:5px;margin-top:7px">
@@ -10984,6 +11234,7 @@ function confirmFireDT(cost,justified){
   G.budget=Math.round((G.budget-cost)*10)/10;
   if(cost>0)finAnota('cuerpo',cost,'Cláusula por echar a '+((G.dt&&G.dt.name)||'el DT'));
   ensureDtPool();
+  dtGuardarEnPool(G.dt);                 // se lleva lo que aprendió (Fase 75)
   const old=G.dtPool.find(x=>x.name===G.dt.name);
   if(old){old.club=null;old.until=0;}
   G.boardConf=Math.max(5,(G.boardConf||50)+(justified?1:-5));
@@ -11063,8 +11314,13 @@ function confirmDtNeg(buyout){
     if(old){old.club=null;old.until=0;}
   }
   if(d.club)lg('💸',`Compensación de ${fv(buyout)} pagada a ${d.club}`);
-  d.club=G.teamName;d.until=2026+_dtNeg.years;
-  G.dt=Object.assign({},d,{salary:_dtNeg.offer,contract:{salary:_dtNeg.offer,until:2026+_dtNeg.years,clause:_dtNeg.clause,objectives:[..._dtNeg.objs],demands:dtDemands(d)}});
+  d.club=G.teamName;d.until=(G.season||2026)+_dtNeg.years;
+  G.dt=Object.assign({},d,{salary:_dtNeg.offer,contract:{salary:_dtNeg.offer,until:(G.season||2026)+_dtNeg.years,clause:_dtNeg.clause,objectives:[..._dtNeg.objs],demands:dtDemands(d)}});
+  // ⚠️ Los atributos se COPIAN: Object.assign deja la misma referencia y lo
+  // que aprendiera en tu club se escribiría también en la ficha del pool.
+  if(G.dt.attrs) G.dt.attrs=Object.assign({},G.dt.attrs);
+  delete G.dt._eval; delete G.dt._ult; delete G.dt._xpUlt; delete G.dt._ratificado; delete G.dt._tend;
+  G.dt._rat0=G.dt.rat;
   if(FORMS[d.style]){G.formation=d.style;autoFill();}
   G.dtRel=70;G._dtQuit=false;   // relación nueva: arranca con crédito
   lg('🤝',`${d.name} firmó hasta ${2026+_dtNeg.years} ($${_dtNeg.offer}K/sem, cláusula ${_dtNeg.clause})`);
@@ -11178,6 +11434,29 @@ function rDtTab(){
   rPressDemands();
 }
 
+// Los cinco números del DT, con la tendencia desde que llegó (Fase 75).
+function dtAttrsHTML(dt){
+  const a=dtAttrs(dt); if(!a) return '';
+  const r0=(dt._rat0===undefined?dt.rat:dt._rat0), dv=dt.rat-r0;
+  const ult=dt._ult||[], xp=dt._xpUlt||[];
+  const n=Math.min(8,ult.length);
+  const pts=ult.slice(-n).reduce((x,y)=>x+y,0), esp=xp.slice(-n).reduce((x,y)=>x+y,0);
+  const tend=n<3?'<span style="color:var(--t3)">recién empieza a evaluarse</span>'
+    :pts>=esp+1.5?`<span style="color:var(--green)">📈 en alza · ${pts} pts de ${Math.round(esp*10)/10} esperados</span>`
+    :pts<=esp-1.5?`<span style="color:var(--red)">📉 en baja · ${pts} pts de ${Math.round(esp*10)/10} esperados</span>`
+    :`<span style="color:var(--t2)">➡️ en lo esperado · ${pts} pts de ${Math.round(esp*10)/10}</span>`;
+  const racha=dtRachaMala(dt)?'<div style="font-size:9.5px;color:var(--red);margin-top:4px">⚠️ Racha muy mala: puede poner el cargo a disposición.</div>':'';
+  return `<div class="mpanel" style="margin-top:8px">
+    <div class="mpanel-t">Atributos del técnico ${dv?`<span style="color:${dv>0?'var(--green)':'var(--red)'};font-weight:700">${dv>0?'+':''}${dv} desde que llegó</span>`:''}</div>
+    ${DT_ATTRS.map(x=>{const v=a[x.k],c=v>=82?'var(--gold)':v>=70?'var(--green)':v>=58?'var(--t2)':'var(--red)';
+      return `<div title="${x.d}" style="display:flex;align-items:center;gap:6px;margin:3px 0">
+        <span style="width:16px">${x.ic}</span><span style="flex:1;font-size:10.5px">${x.l}</span>
+        <div style="width:78px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="width:${v}%;height:100%;background:${c}"></div></div>
+        <b style="font-family:'Chakra Petch';font-size:11px;width:22px;text-align:right;color:${c}">${v}</b></div>`;}).join('')}
+    <div style="font-size:9.5px;margin-top:5px">${tend}</div>${racha}
+    <div style="font-size:9px;color:var(--t3);margin-top:3px">Suben y bajan según los puntos que saca contra los que daba el plantel en cada partido.</div>
+  </div>`;
+}
 function rDtProfile(){
   const el=document.getElementById('dtProfileCard');
   if(!el||!G) return;
@@ -11201,6 +11480,7 @@ function rDtProfile(){
     <div class="sr"><span class="sl">Sueldo semanal</span><span class="sv" style="color:var(--red)">$${d.salary}K/sem</span></div>
     <div class="sr"><span class="sl">Rasgo</span><span class="sv"><span style="color:${tc};font-weight:600;font-size:10px">${d.trait}</span></span></div>
     <div class="sr"><span class="sl">Busca reforzar</span><span class="sv" style="display:flex;gap:3px;flex-wrap:wrap">${(d.wantedPos||[]).map(p=>`<span class="badge bau" style="font-size:8px">${p}</span>`).join('')}</span></div>
+    ${dtAttrsHTML(d)}
     ${d.custom ? `<button class="btn bg bs" style="margin-top:8px;width:100%" onclick="openCustomDTModal()">✏️ Editar DT Personalizado</button>` : `<button class="btn bo bs" style="margin-top:8px;width:100%" onclick="gTab('ct',document.querySelector('.nb[onclick*=ct]'))">🔄 Cambiar DT</button>`}
   `;
 }
@@ -11303,6 +11583,7 @@ function rDtReport(){
         <div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:var(--gold)">${dt.name}</div>
           <div style="font-size:9px;color:var(--t3)">${dt.nat} · ${dt.age} años · 💰 $${dt.salary}K/sem · ⭐ ${dt.rat}/100</div>
+          <div style="font-size:9px;color:var(--t2);font-family:'Chakra Petch'">${(()=>{const A=dtAttrs(dt)||{};return DT_ATTRS.map(x=>`<span title="${x.l}">${x.ic}${A[x.k]}</span>`).join(' ');})()}</div>
           <div style="font-size:10px;color:var(--t2);margin-top:2px">🎭 <em>${dt.trait||'Equilibrado'}</em> · ${dt.style||'4-3-3'}</div>
         </div>
       </div>
@@ -14617,6 +14898,7 @@ function dilemaFx(id){
   const d=(G.dilemas||[]).find(x=>x.id===id); if(!d)return null;
   // El de indisciplina no está en DILEMAS (es mensual y va aparte). Si la
   // partida se recargó con uno abierto, se reconstruye desde el pid.
+  if(d.did==='_dtren'){ _DIL_FX[id]=_dtRenFx(); return _DIL_FX[id]; }
   if(d.did==='_indis'){
     const jug=(G.squad||[]).find(q=>q.id===d.pid);
     if(!jug)return null;
@@ -15553,7 +15835,7 @@ function retiros(){
 // libres, cantera, canje, préstamo, el cierre de la firma…). Con un número
 // suelto por sitio, subirlo obliga a encontrarlos todos: por eso ahora es una
 // constante y el cartel también la lee.
-const PLANTEL_MAX=45;
+const PLANTEL_MAX=50;   // Fase 75: el presidente lo pidió (era 45)
 const RECONV={
   ARQ:[], DFD:['DFC','MC'], DFI:['DFC','MC'], DFC:['MCD','DFD','DFI'],
   MCD:['DFC','MC'], MC:['MCD','MCO','DFD','DFI'], MCO:['MC','EI','ED','DC'],
@@ -15798,6 +16080,7 @@ function nextSeason(){
   // La foto de la temporada va ANTES de G.season++, si no queda archivada con
   // el año siguiente.
   G.squad.forEach(seasonSnapshot);
+  try{ dtTemporadaDt(); }catch(e){}   // un año más de oficio para el DT (Fase 75)
   // ORDEN: primero cumplen años y se les ajusta la media, DESPUÉS se decide
   // quién cuelga. Al revés, el que llegaba a 35 por debajo de 60 se evaluaba
   // con la edad del año anterior y se quedaba una temporada de más.
@@ -15818,10 +16101,18 @@ function nextSeason(){
     else if(d <= 1)  p.rat = Math.min(p.pot, p.rat + (Math.random()<0.20+rend?1:0));
     // La caída empieza recién pasado su pico y es lenta; el que sigue rindiendo
     // se sostiene un año más, el que no juega se apaga antes.
-    else if(d <= 4){ if(Math.random()<0.30-rend) bajarRat(p,55); }
-    else { if(Math.random()<0.65-rend) bajarRat(p,55);
-           if(p.age>=36) bajarRat(p,55); }
+    // ⚠️ Fase 75: pasado el pico ya NO se baja por cumplir años. Antes, más
+    // de 4 años pasado del pico, había 65% de perder un punto cada verano
+    // (y otro más desde los 36) jugara como jugara. Ahora decide la temporada:
+    // el que jugó (8+ partidos) con un promedio de notas bueno se sostiene; el
+    // que jugó mal o casi no jugó, pierde ritmo.
+    else {
+      const nT=(p._nTCnt||0)>=8 ? p._nTAcc/p._nTCnt : null;
+      if(nT===null){ if(jugo<8 && Math.random()<0.45) bajarRat(p,55); }   // sin ritmo
+      else if(nT<6.2) bajarRat(p,55);
+    }
     if(p.rat !== oldRat) p.val = calcVal(p);
+    p._nTAcc=0; p._nTCnt=0;            // las notas de la temporada vuelven a cero
     p.goals = 0; p.apps = 0; p.assists = 0;
     // p.contract es el AÑO de vencimiento, no los años que faltan: no se resta.
     // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
@@ -15835,7 +16126,8 @@ function nextSeason(){
     const q=l&&l.player; if(!q) return;
     q.age++;
     const pk=(typeof peakAge==='function')?peakAge(q):28;
-    if(q.age-pk>1 && Math.random()<0.5) bajarRat(q,55);
+    // Fase 75: el cedido que jugó en su club no pierde nada por la edad
+    if(q.age-pk>1 && (l.apps||0)<10 && Math.random()<0.4) bajarRat(q,55);
     else if(q.age-pk<=-1 && q.rat<(q.pot||99) && Math.random()<0.5) q.rat++;
     q.goals=0; q.apps=0; q.assists=0;
   });
@@ -15858,7 +16150,7 @@ function nextSeason(){
     p.age++;
     const oldRat = p.rat;
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*2));
-    else if(p.age >= 35) p.rat = Math.max(50, p.rat - 1 - (Math.random()>0.5?1:0));
+    else if(p.age >= 35 && Math.random()<0.5) p.rat = Math.max(50, p.rat - 1);   // Fase 75: antes −1 o −2 seguro
     if(p.rat !== oldRat) p.val = calcVal(p);
     if(seRetira(p)){ p._retirado=true; colgaron++;
       // me guardo club/liga/nacionalidad para que suba un pibe de ese mismo club
@@ -16051,7 +16343,9 @@ function matchStrengths(m){
     : avgFit;
   // 0 con la defensa entera; crece cuando baja de 70 y se acota en 40 (por
   // debajo de eso ya no se puede caer más).
-  const defCansada = Math.max(0,Math.min(30,70-defFit))/30;
+  // El preparador físico estira o acorta el desgaste (Fase 75): multiplica, así
+  // que con la defensa arriba del 70% sigue siendo exactamente cero.
+  const defCansada = Math.min(1,Math.max(0,Math.min(30,70-defFit))/30*dtFisMult(G.dt));
   // La CALIDAD DEL PLANTEL manda. Antes la moral pesaba 25% y el DT 20%: una
   // mala racha hundía la moral, eso te hacía perder más y entrabas en una espiral
   // de la que no salías por más equipazo que tuvieras.
@@ -16112,7 +16406,7 @@ function matchStrengths(m){
   // saca 2,0-2,2). Ahora se centra en 70 y mueve la mitad: sigue importando,
   // pero no se retroalimenta sola.
   const _moralS=0.70+((G.morale===undefined?70:G.morale)-70)/100*0.5;
-  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (G.dt.rat/100+asstBonus)*.13 + _moralS*.14)
+  const myS  = (avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + (dtFuerza(G.dt)/100+asstBonus)*.13 + _moralS*.14)
                *fitMod*posMod*chemMod*capMod*incompleto*climaMod*relMod*reconvMod;
   // Moral del rival: estable por club/fecha (no un dado nuevo cada partido).
   // Antes era 55..90 al azar y metía ±9% de ruido: por eso ganaba cualquiera.
@@ -16171,7 +16465,9 @@ function matchStrengths(m){
   tFit += (myProfS.cyn-0.5)*0.05 - Math.max(0,myProfS.cyn-0.75)*0.06;
   // Disciplina táctica: un equipo ordenado sufre menos sorpresas
   tFit += (myProfS.disc-0.5)*0.06;
-  tacMod += Math.max(-0.075,Math.min(0.075,tFit*TS));  // techo y piso del planteo
+  // La táctica del DT decide cuánto se le saca al planteo (Fase 75); el techo
+  // y el piso no se mueven.
+  tacMod += Math.max(-0.075,Math.min(0.075,tFit*TS*dtTacMult(G.dt)));  // techo y piso del planteo
   // Guardamos el diagnóstico para mostrarlo en la previa del partido
   G._tacFit={pressFit:Math.round(pressFit*100)/100,lineFit:Math.round(lineFit*100)/100,spd:Math.round(spd),tec:Math.round(tec),phy:Math.round(phy)};
   // Instrucciones tácticas afectan el partido
@@ -16792,49 +17088,56 @@ function applyMatchResult(m, gf, ga, providedScorers){
   else if(res==='D') t.pts=(t.pts||0)+1;
   scorersList.forEach(s=>{ t.scorers[s.name]=(t.scorers[s.name]||0)+1; });
 
-  // === PLAYER DEVELOPMENT (age + potential + form based) ===
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA MEDIA LA MUEVE LA CANCHA, NO EL DOCUMENTO (Fase 75)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Antes cada 4 partidos el jugador sumaba según el RESULTADO del equipo
+  // (+0,55 ganando, −0,4 perdiendo) y, pasado su pico, bajaba igual aunque la
+  // rompiera (`ageFac<0`). Ahora manda su NOTA de cada partido (`calcNotas`,
+  // 3,5 a 10): un promedio de 6,9+ en cuatro partidos lo sube, uno de 6,0 o
+  // menos lo baja, y en el medio se sostiene. La edad no entra: un veterano
+  // que juega bien mantiene su media.
+  // ⚠️ Si rinde por encima de su techo, el techo se corre: el potencial era
+  // una estimación, la cancha manda. El tope anual por edad (`techoAnual`)
+  // sigue, para que un pibe no salte +7 en un año y valga 60M de golpe.
+  // ⚠️ La nota ya trae el resultado adentro: con notas crudas, medido, un
+  // equipo que gana todo sube ENTERO y uno que pierde baja entero, y eso es una
+  // bola de nieve (mejores jugadores → más victorias → mejores jugadores). Se
+  // centra cada nota contra el promedio del once en ESE partido: lo colectivo
+  // pesa 30% y lo que hizo cada uno, 70% (con 40% el club que pierde se hundía
+  // entero: medido, 11 de 30 bajaron en San Martín SJ).
+  const _N=G._notas||null;
+  const _nd=p=>(_N&&typeof _N[p.id]==='number')?_N[p.id]:(res==='W'?6.9:res==='D'?6.3:5.8);
+  const _nMed=xiPlayers.length?xiPlayers.reduce((a,p)=>a+_nd(p),0)/xiPlayers.length:6.5;
   xiPlayers.forEach(p => {
-    if(!p.formPts) p.formPts = 0;
-    if(!p.matchCount) p.matchCount = 0;
-    p.matchCount++;
-    p.formPts += res==='W'?0.55:res==='D'?0.1:-0.4;
-    if(p.matchCount % 4 === 0){
-      const pot=p.pot||Math.min(99,p.rat+Math.max(3,20-Math.max(0,p.age-18)));
-      const potGap=pot-p.rat;
-      // Age factor: peak growth 18-23, decline after 30
-      // Cada uno crece y se cae según SU trayectoria: un precoz toca techo a
-      // los 24 y un tardío recién a los 32. Antes todos usaban la misma tabla.
-      let ageFac=(typeof devFactor==='function')?devFactor(p)
-        :(p.age<=19?1.8:p.age<=21?1.4:p.age<=23?1.0:p.age<=26?0.5:p.age<=29?0.15
-          :p.age<=32?0.05:p.age<=33?-0.10:p.age<=35?-0.22:-0.38);
-      // DT Formador potencia a los jóvenes
-      if(G.dt&&G.dt.trait==='Formador'&&p.age<=23&&ageFac>0) ageFac*=1.35;
-      // TECHO DE CRECIMIENTO POR TEMPORADA. Sin esto un pibe sumaba +7 de media
-      // en un año y, como el valor es exponencial, pasaba de valer 2M a 65M:
-      // vendías uno y el presupuesto del club dejaba de importar.
-      if(p._upSeason!==G.season){ p._upSeason=G.season; p._upCount=0; }
-      const techoAnual = p.age<=21?4 : p.age<=24?3 : 2;
-      if(p.formPts>1.0 && ageFac>0 && potGap>=2 && (p._upCount||0)<techoAnual){
-        if(Math.random()<Math.min(0.75,ageFac*(0.3+potGap/40))){
-          p._upCount=(p._upCount||0)+1;
-          p.rat=Math.min(pot,p.rat+1); p.val=calcVal(p); lg('📈',`${p.name} mejora → ${p.rat}`);
-          // Su mejor atributo también crece
-          ensureAttrs(p);
-          const bestK=Object.entries(p.attrs).sort((a,b)=>b[1]-a[1])[0][0];
-          p.attrs[bestK]=Math.min(99,p.attrs[bestK]+1);
-        }
-      } else if(p.formPts<-1.2 || ageFac<0){
-        // La baja depende de la EDAD y del RENDIMIENTO. El veterano que juega
-        // bien aguanta su nivel; el que no rinde se cae aunque sea joven.
-        let caida = ageFac<0 ? 0.10+(-ageFac)*0.55 : 0.12;
-        if(p.formPts>0.8) caida*=0.35;
-        else if(p.formPts<-1.0) caida*=1.5;
-        if(Math.random()<caida && bajarRat(p,52)) lg('📉',`${p.name} baja → ${p.rat}`);
+    const nRaw=_nd(p), n=nRaw-(_nMed-6.5)*0.7;
+    p._nAcc=(p._nAcc||0)+n; p._nCnt=(p._nCnt||0)+1;
+    p._nTAcc=(p._nTAcc||0)+n; p._nTCnt=(p._nTCnt||0)+1;     // la de la temporada
+    p.notaProm=Math.round(((p.notaProm===undefined?nRaw:p.notaProm)*0.8+nRaw*0.2)*100)/100;
+    if(p._nCnt<4) return;
+    const avg=p._nAcc/p._nCnt; p._nAcc=0; p._nCnt=0;
+    if(p._upSeason!==G.season){ p._upSeason=G.season; p._upCount=0; }
+    const techoAnual = p.age<=21?4 : p.age<=24?3 : 2;
+    if(avg>=JUG_SUBE && (p._upCount||0)<techoAnual && p.rat<JUG_TOPE){
+      const pot=p.pot||p.rat;
+      let ch=Math.min(0.85,(avg-6.6)*0.6);
+      ch*= p.rat<pot ? 1+Math.min(1,(pot-p.rat)/20) : 0.55;   // con margen sube más fácil
+      if(Math.random()<ch){
+        p._upCount=(p._upCount||0)+1;
+        p.rat=Math.min(JUG_TOPE,p.rat+1); if(p.rat>(p.pot||0)) p.pot=p.rat;
+        p.val=calcVal(p); lg('📈',`${p.name} viene jugando bien (${avg.toFixed(1)}) → ${p.rat}`);
+        ensureAttrs(p);
+        const bestK=Object.entries(p.attrs).sort((a,b)=>b[1]-a[1])[0][0];
+        p.attrs[bestK]=Math.min(99,p.attrs[bestK]+1);
       }
-      p.formPts=0;
+    } else if(avg<=JUG_BAJA){
+      const ch=Math.min(0.80,(6.3-avg)*0.6);
+      if(Math.random()<ch && bajarRat(p,52)) lg('📉',`${p.name} viene jugando mal (${avg.toFixed(1)}) → ${p.rat}`);
     }
   });
 
+  // La valoración del DT se mueve con lo que sacó contra lo esperado (Fase 75)
+  try{ dtEvaluarPartido(m,gf,ga); }catch(e){}
   // Board confidence update from match result
   if(!G.boardConf) G.boardConf=50;
   if(res==='W'){G.boardConf=Math.min(100,G.boardConf+3);}
@@ -16977,6 +17280,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyVestuario();
   weeklyRumores();
   weeklyDtRenuncia();
+  weeklyDtRachaRenuncia();   // Fase 75: una racha muy mala y pone el cargo a disposición
   weeklyDtPlan();
   weeklyReconv();
   weeklyPrestamosIn();
@@ -17259,6 +17563,14 @@ function runContinuousSim(n){
   if(G.calendar.every(m=>m.played))setTimeout(()=>checkSeasonEnd(),400);
 }
 
+// Los goles esperados de un partido, a partir de las fuerzas de matchStrengths.
+function xgDeS(S){
+  // Mi calidad tiene que pesar lo mismo que la de la IA: ver el comentario
+  // largo en simMatch (el término _gapCal y su techo de ±8).
+  const _gapCal=Math.max(-8,Math.min(8,(S.avgR||70)-(S.oppRat||70)))/26*0.42;
+  const diff  = (S.myS - S.oppS)*1.65 + _gapCal + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
+  return { my:Math.max(0.22, 1.35 + diff*3.4), op:Math.max(0.22, 1.35 - diff*3.0) };
+}
 function simMatch(auto){
   if(!G) return;
   if(finFrena())return;                        // te echaron: el club no se mueve
@@ -17297,11 +17609,10 @@ function simMatch(auto){
   // tope el mejor club sacaba 2,7-2,8 puntos por partido, más que cualquier
   // campeón real. Arriba de 8 puntos de diferencia más calidad ya casi no
   // agrega: hay un límite de cuánto se le puede ganar a alguien.
-  const _gapCal=Math.max(-8,Math.min(8,(S.avgR||70)-(S.oppRat||70)))/26*0.42;
-  const diff  = (S.myS - S.oppS)*1.65 + _gapCal + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
-  // Cada equipo genera goles esperados según su fuerza (modelo tipo Poisson)
-  const myXG  = Math.max(0.22, 1.35 + diff*3.4);
-  const opXG  = Math.max(0.22, 1.35 - diff*3.0);
+  // La cuenta vive en xgDeS: la usa también la valoración del DT (Fase 75)
+  // para saber cuántos puntos ESPERABA sacar. Dos copias se desincronizan.
+  const _xg=xgDeS(S);
+  const myXG=_xg.my, opXG=_xg.op;
   const pois = (lam)=>{ let L=Math.exp(-lam),k=0,p=1; do{k++;p*=Math.random();}while(p>L); return k-1; };
   // ═══════════════════════════════════════════════════════════════════════
   // EL PARTIDO SE JUEGA EN DOS TIEMPOS
@@ -17319,8 +17630,11 @@ function simMatch(auto){
   // Fundido también te cuesta arriba, pero mucho menos: el que corre atrás
   // de la pelota es el que se muere.
   const _myT2f=_myT2*(1-_fat*0.12);
-  const gf1=pois(_myT1), gf2=pois(_myT2f);
-  const ga1=pois(_opT1), ga2=pois(_opT2);
+  // El primer tiempo se juega primero: lo que haga el DT en el entretiempo
+  // depende de cómo terminó (Lectura de partido, Fase 75).
+  const gf1=pois(_myT1), ga1=pois(_opT1);
+  const _lec=dtLecturaMult(gf1,ga1,G.dt);
+  const gf2=pois(_myT2f*_lec.my), ga2=pois(_opT2*_lec.op);
   let gf=Math.min(6,gf1+gf2), ga=Math.min(6,ga1+ga2);
   // Para el resumen: cuántos goles cayeron en cada tiempo y si te pasaron
   // por encima al final por venir fundido.
@@ -28700,7 +29014,10 @@ function weeklyMarketEvolution(){
     p.mform=Math.max(-3,Math.min(3,p.mform*0.82+(Math.random()*2-1)*0.9));
     const age=p.age||26, pot=p.pot||p.rat;
     // Tendencia por edad: los pibes crecen, los grandes caen
-    const ageTrend = age<=21?0.055 : age<=24?0.035 : age<=28?0.008 : age<=31?-0.012 : age<=34?-0.030 : -0.055;
+    // Fase 75: los veteranos del mercado bajan menos por la edad (antes −0,030
+    // y −0,055 por semana, o sea −1,5 y −2,7 por temporada solo por cumplir).
+    // Los goles que viene haciendo (perfR) pesan igual que siempre.
+    const ageTrend = age<=21?0.055 : age<=24?0.035 : age<=28?0.008 : age<=31?-0.004 : age<=34?-0.012 : -0.025;
     // Margen hasta su techo: cerca del potencial cuesta más subir
     const room = Math.max(0, (pot-p.rat))/12;
     // RENDIMIENTO REAL en la liga simulada: los goles que viene haciendo pesan

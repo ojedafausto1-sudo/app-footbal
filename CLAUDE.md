@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75` |
 
 ## Formato de `players-db.js`
 
@@ -6839,6 +6839,117 @@ mercado descarta los nombres de tu plantel—, pero si dirigís otro club, el
 Palermo del mercado es el del Villarreal.
 
 `tests/fase74.js`, **22 checks**.
+
+## Fase 75: plantel de 50, el técnico con cinco atributos y la media que mueve la cancha
+
+### `PLANTEL_MAX` = 50
+
+Era 45. ⚠️ El plantel con el que ARRANCÁS sigue cortado en 30
+(`PLANTEL_DB_TOPE`, Fase 74): subir eso mete hasta 20 sueldos más en una
+economía calibrada. El tope de 50 es hasta dónde podés llegar fichando.
+
+### El DT tiene cinco números
+
+Antes era un solo `rat` que pesaba 13% en la fuerza del once y no se movía
+nunca. Ahora (`DT_ATTRS`, `dtAttrs(dt)`):
+
+| atributo | qué mueve | dónde |
+|---|---|---|
+| 🧠 Táctica (`tac`) | la parte del DT en la fuerza (50%) y cuánto se le saca al planteo (×0,75-1,25 sobre `tFit`) | `dtFuerza` · `dtTacMult` en `matchStrengths` |
+| 🔄 Lectura (`lec`) | el 2º tiempo: perdiendo al entretiempo genera hasta ±12% más; ganando, el rival genera menos | `dtLecturaMult` en `simMatch` |
+| 🔥 Motivación (`mot`) | ±0,25 de moral por semana a cada jugador | `dtMotDelta` en `weeklyPlayerDt` |
+| 💪 Preparación física (`fis`) | `defCansada` ×0,70-1,30 | `dtFisMult` en `matchStrengths` |
+| 🌱 Juveniles (`jov`) | crecimiento de los de ≤21 ×0,65-1,40 | `dtJovMult` en `weeklyTraining` |
+
+- ⚠️ **Se DERIVAN** de `rat` + el rasgo (`DT_ATTR_SESGO`) + un hash del nombre,
+  y se re-centran para que **el promedio dé el `rat` de siempre** (medido: peor
+  desvío 0,40 sobre 75 DTs). Cargar la fase no mueve el balance. Recién cuando
+  cambian se guardan en `G.dt.attrs` (5 números planos).
+- La media del DT es el promedio de los cinco (`dtRecalc`).
+- ⚠️ **`fis` multiplica `defCansada`**: arriba del 70% de energía el cansancio
+  sigue siendo exactamente cero (verificado), como manda la regla del partido
+  en dos tiempos.
+- ⚠️ **La Lectura sólo existe en la simulación de texto.** El 11v11 no la mira.
+- `xgDeS(S)` es la cuenta de goles esperados que antes vivía adentro de
+  `simMatch`: ahora la usan la simulación **y** la valoración del DT. Dos
+  copias se desincronizan.
+- Contratar copia los atributos (`Object.assign` dejaba la misma referencia y
+  lo aprendido se habría escrito también en la ficha del pool). De paso: el
+  contrato del DT vencía en `2026+años` fijo; ahora es `G.season+años`.
+
+### La valoración del DT se mueve
+
+`dtEvaluarPartido` (en `applyMatchResult`, partidos oficiales) compara los
+puntos que sacó contra los **esperados** con ese plantel ante ese rival
+(`puntosEsperados` sobre `xgDeS(G._S)`). Cada `DT_PASO` = 2 puntos de
+diferencia acumulada mueve un atributo un punto (táctica y lectura más que
+motivación y física).
+
+- ⚠️ **La vara es lo esperado, no la tabla**, y por eso hizo falta el balance
+  de temporada: medido, Boca 30-5-2 dejó al DT exactamente en 74, porque con
+  ese plantel ganar era lo esperado. `dtTemporadaDt()` (en `nextSeason`) suma
+  +2 atributos por título (hasta 3 títulos), −1 a tac/lec/mot terminando en
+  zona de descenso, un punto de oficio al DT joven (<48) y −1 al muy veterano
+  (68+), y +1 de cantera si subieron 2+ pibes.
+- Medido en el test: perder 10 siendo favorito 74 → 71; ganar 10 siendo el
+  débil 74 → 77.
+- `dtGuardarEnPool`: el DT que renuncia o despedís se lleva sus números al pool.
+
+### Si le va muy mal, pone el cargo a disposición
+
+`weeklyDtRachaRenuncia`: con **6 puntos o menos en los últimos 8 oficiales
+y por debajo de lo esperado**, 55% por semana de que pida una reunión. Llega
+como dilema `_dtren` que **frena el club** (`bloquea:true`): ✅ aceptar la
+renuncia (sin indemnización, sin castigo a la CD ni al vestuario: la racha
+ya se cobró sola) o 🤝 ratificarlo (`dtRel` +15, moral +4, CD −4, hinchada
+−3). Ratificado, si la racha sigue esa temporada **se va sin preguntar**. El
+DT propio y el interino no renuncian. `dilemaFx` lo reconstruye al recargar.
+
+### La media del jugador la mueve la cancha, no la edad
+
+Antes la media bajaba por edad en TRES lugares, aunque el tipo fuera la figura:
+el bloque de cada 4 partidos (`ageFac<0`), el declive semanal desde los 31
+(0,6-1,5 por semana) y el salto de temporada (65% de −1 pasado el pico, otro
+más desde los 36). Ahora:
+
+- **Cada 4 partidos manda la NOTA** (`calcNotas`): promedio de **6,9+** sube
+  (`JUG_SUBE`), **6,0 o menos** baja (`JUG_BAJA`), en el medio se sostiene. Si
+  rinde por encima de su techo, el techo se corre (`p.pot=p.rat`), con
+  `JUG_TOPE`=91 de la escala.
+- ⚠️ **La nota se centra contra el promedio del once en ese partido** (lo
+  colectivo pesa 30%): con notas crudas, medido, el equipo que ganaba todo
+  subía entero y el que perdía bajaba entero —una bola de nieve—. Con 40% el
+  colista seguía hundiéndose (11 de 30 bajaron en San Martín SJ).
+- **La edad gasta las piernas, no la media**: desde los 33, VEL y FIS bajan
+  ~3 por temporada (~5 desde los 36), que es lo que se nota en el planteo.
+- **El salto de temporada** pasado el pico decide por la temporada: 8+
+  partidos con promedio ≥6,2 se sostiene, peor que eso baja uno, y el que
+  casi no jugó tiene 45% de perder ritmo.
+- `topeBajaAnual` pasó a **3 fijo** (era 2/3/4 según la edad).
+- ⚠️ **El entrenamiento también mira la nota** (`rf += (notaProm−6,5)·0,25`, y
+  con nota ≤6,0 no progresa): si no, las notas lo bajaban y el entrenamiento
+  lo devolvía a su potencial la semana siguiente (medido: 77 → 74 → 77).
+- El mercado (sin notas) baja menos por edad: el arrastre semanal de 32-34
+  pasó de −0,030 a −0,012 y de 35+ de −0,055 a −0,025; al cambiar de temporada
+  el de 35+ pierde 1 con 50% (antes 1 o 2 seguro). Los cedidos que jugaban
+  10+ partidos no pierden nada por la edad.
+- La ficha muestra el **📊 promedio de notas** y los umbrales.
+
+Medido, dos temporadas de Boca desde el mismo arranque:
+
+| | antes | ahora |
+|---|---|---|
+| veteranos (30+) que juegan | −1,0 | **+1,0** |
+| veteranos que casi no juegan | −5,4 | −5,0 |
+| 24-29 | −0,1 | +1,6 |
+| juveniles | +6,5 | +6,0 |
+
+⚠️ **El que no juega igual se oxida** (`badSpell`, no se tocó): es "cómo está
+jugando" también. Y ⚠️ el plantel termina un poco MEJOR con los años que antes
+(los 24-29 +1,6): si la dificultad se va al piso en carreras largas, el lugar
+es `JUG_SUBE`.
+
+`tests/fase75.js`, **27 checks**.
 
 ## Deploy
 
