@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77` |
 
 ## Formato de `players-db.js`
 
@@ -6493,8 +6493,8 @@ gente de la asistencia) y lo usan los cuatro lugares:
   Chromium compone la página entera por software y las animaciones de CSS se
   congelan: la pestaña queda en opacidad 0 y parece que la interfaz está rota.
   Pasa igual con la versión ANTERIOR del juego. Costó media hora descubrirlo.
-- `FM.ticks` **no es monótono** (se reinicia): para saber si el partido corre,
-  mirá `FM.minute` o la pelota.
+- `FM.ticks` **es monótono desde la Fase 77** (antes volvía a cero cada
+  minuto). El minuto se cuenta aparte en `FM._minT`.
 
 ### Tres funciones nuevas (las tarjetas de la captura del FIFA)
 
@@ -7079,6 +7079,77 @@ transparente y dibuja sólo el HUD.
 
 `tests/fase76.js`, **54 checks**. ⚠️ El test fija `matchWeather='soleado'`
 para mirar el HUD: la lluvia pinta un velo con alfa 14 encima de todo.
+
+## Fase 77: el montón de jugadores de la captura — era el reloj
+
+El presidente mandó una captura de Inter–Monza: **los diez jugadores de campo
+del Inter pegados en un punto**, en pleno juego. No era el amontonamiento de
+la Fase 67 (ése ya estaba arreglado): eran dos bugs juntos.
+
+### Medido antes de tocar
+
+Sonda tick a tick, "8+ jugadores de campo de UN equipo a menos de 170 px":
+
+| | ticks con 8+ | máximo juntos |
+|---|---|---|
+| Boca, 4 partidos | 141 (0,2%) | 8 |
+| **Inter, 6 partidos** | **1.597 (1,4%)** | **10** |
+
+Siempre con el equipo en posesión y la pelota suelta, a veces a 25 metros de
+la pelota. Anotando desde qué línea de `fmAI` se movía cada uno del montón,
+el 66% salía de la rama **"el que va a recibir, va a buscarla"** (`_voyYo`).
+
+### Bug 1: `f.ticks` volvía a cero cada minuto
+
+`f.ticks-=f.tpm` en el cambio de minuto. Y **todo lo que se mide con él son
+duraciones**: `_recvTick`, `_giveGo`, `_gkHold.until`, `_gkPass`, `_transT`,
+`_carryLong`, `_despT`, `b._beat`. Al dar la vuelta, las marcas viejas
+revivían: cada jugador que alguna vez fue destino de un pase volvía a creer,
+en la misma ventanita de cada minuto, que el pase era para él.
+
+Ahora `f.ticks` es **monótono** y el minuto se cuenta en `f._minT`. Los usos
+con módulo (`%12`, `%20`, `%40`) y los senos del vaivén siguen andando igual.
+
+### Bug 2: "voy a buscarla" no miraba si había un pase más nuevo
+
+Dos pases seguidos en menos de 90 ticks dejaban a los dos receptores yendo a
+la pelota. Ahora va sólo el destino del ÚLTIMO pase (el `_recvTick` más alto
+del equipo; un 0 es "sin marca" y no cuenta).
+
+Después de los dos arreglos, Inter 6 partidos: **0 ticks con 8+ y máximo 5
+juntos**.
+
+### ⚠️ El balance de remates estaba calibrado CON el bug
+
+Con el reloj arreglado salían **60-77 remates por partido** (venían 24-43). La
+causa: `_carryLong` (el arranque largo con la pelota) podía durar hasta un
+minuto entero con el reloj roto, así que el portador seguía corriendo en vez
+de patear. Con los tiempos bien, patea apenas pisa el área (la línea del
+remate en el área pasó de 164 a 302 remates en 6 partidos).
+
+`FM77.remArea` escala sólo ese remate. Medido a 10 partidos:
+
+| ×remArea | remates | al arco | goles | pases |
+|---|---|---|---|---|
+| 1 (sin tocar) | 58-77 | 10-12 | 2,4-2,8 | 410-526 |
+| 0,50 | 41 | 11,4 | 2,0 | 452 |
+| 0,33 | 30 | 9,3 | 2,8 | 517 |
+| 0,22 | 24 | 9,6 | 2,2 | 493 |
+| **0,30 (shippeado)** | **26,6** | **9,3** | **2,1** | **497** |
+
+⚠️ **Los goles quedan algo bajos (2,1 contra 2,5-3,0 reales)** y ocho-diez
+partidos no alcanzan para leerlos fino (la misma versión da 2,0 a 2,8). Si hay
+que subirlos, el lugar NO es `remArea` —que mueve sobre todo la cantidad de
+remates— sino la calidad del remate.
+
+⚠️ **Toda medición del 11v11 anterior a esta fase se hizo con el reloj roto.**
+Las tablas viejas de este archivo siguen siendo válidas como historia, pero
+si algo "dejó de dar" lo mismo que decía una tabla vieja, primero sospechá de
+este cambio.
+
+`tests/fase77.js`, **9 checks**: el reloj monótono, que sólo vaya el destino
+del último pase (determinista, con `fmAI` aislado), dos partidos del Inter
+sin un solo montón de 8+, remates en rango y 0 errores.
 
 ## Deploy
 

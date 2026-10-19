@@ -22640,6 +22640,7 @@ let FM=null;
 // · faltaQuite: la falta sale de una ENTRADA que no llega a la pelota, no de
 //   estar cerca del que la lleva (antes: 2,5% por tick a un cuerpo de
 //   distancia, en el modo espectador; 0,5% por tick sobre tu jugador).
+const FM77={remArea:0.30};   // ver el remate en el área (fmAI)
 const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.12, alcance:1};
 
 // ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
@@ -24532,9 +24533,16 @@ function fmTick(dt){
       }
     }
   }
-  f.ticks+=dt;
-  if(f.ticks>=f.tpm){
-    f.ticks-=f.tpm;f.minute++;fmHUD();
+  // ⚠️ Fase 77: f.ticks es un reloj MONÓTONO. Antes volvía a cero cada
+  // minuto (f.ticks-=f.tpm) y TODO lo que se mide con él es una duración
+  // (_recvTick, _giveGo, _gkHold.until, _transT, _carryLong, _despT…): al
+  // dar la vuelta, las marcas viejas revivían. La peor: cada jugador que
+  // alguna vez fue destino de un pase volvía a creer que el pase era para él
+  // (`_voyYo`) y medio equipo corría a la misma pelota. El minuto se cuenta
+  // aparte, en f._minT.
+  f.ticks+=dt; f._minT=(f._minT||0)+dt;
+  if(f._minT>=f.tpm){
+    f._minT-=f.tpm;f.minute++;fmHUD();
     try{fmCoachSubs();}catch(e){}   // el DT mueve el banco por su cuenta
     try{fmOppCoach();}catch(e){}    // el DT rival también lee el partido
     if(f.minute%2===0)fmUpdateTactics();
@@ -25700,7 +25708,13 @@ function fmAI(p,team,idx,dt){
       // que la pelota tardaba una eternidad en llegar al arco: daba tiempo a
       // que la cortara cualquiera y el arquero la veía venir. Ahora el remate
       // va al doble, que además es lo que le baja las manos al arquero.
-      } else if(inBox&&Math.random()<(0.0550+shotAttr/2400)*dt){
+      // ⚠️ Fase 77: ×FM77.remArea. Con el reloj que volvía a cero cada
+      // minuto, `_carryLong` podía durar hasta un minuto y el portador seguía
+      // corriendo en vez de patear: el balance de remates estaba calibrado CON
+      // ese bug. Arreglado el reloj salían 60 remates por partido. Medido a 10
+      // partidos: ×0,50 → 41 · ×0,33 → 30 · ×0,22 → 24 (real 22-26), con goles
+      // 2,0-2,8, al arco 9-11 y pases ~500 en los tres.
+      } else if(inBox&&Math.random()<(0.0550+shotAttr/2400)*FM77.remArea*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
@@ -26007,7 +26021,10 @@ function fmAI(p,team,idx,dt){
     // compañero ESTABA y él seguía haciendo su desmarque para otro lado.
     // Medido: sólo el 21-25% de los pases terminaba en un compañero, cuando en
     // un partido real se completa el 78-85%. Eso son los "pases a la nada".
-    const _voyYo=p._recvTick&&Math.abs(f.ticks-p._recvTick)<90;
+    // ⚠️ Fase 77: sólo el destino del ÚLTIMO pase. Con dos pases seguidos en
+    // menos de 90 ticks, el receptor del anterior seguía "yendo a buscarla".
+    const _voyYo=p._recvTick&&Math.abs(f.ticks-p._recvTick)<90
+                 &&players.every(q=>q===p||!(q._recvTick&&q._recvTick>p._recvTick));
     // El que espera el pase arranca YA, no cuando la pelota queda suelta: los
     // que presionan salen al punto de llegada desde el momento del pase, así
     // que si el receptor espera unos ticks siempre llegan ellos primero.
