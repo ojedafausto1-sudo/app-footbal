@@ -1205,6 +1205,10 @@ body.bg3d-on .main{background:transparent}
             <div class="ctitle">🏆 Vitrina del Club</div>
             <div id="presVitrina"></div>
           </div>
+          <div class="card" style="margin-bottom:8px">
+            <div class="ctitle">👔 Galería de técnicos</div>
+            <div id="presDtGal"></div>
+          </div>
           <!-- ═══ MASA SOCIETARIA: socios, cuota e ingreso proyectado ═══ -->
           <div class="card" style="margin-bottom:8px">
             <div class="ctitle">👥 Masa Societaria</div>
@@ -3306,6 +3310,12 @@ const LIGA_NOMBRE={'Liga ARG':'Liga Profesional','Primera Nacional':'Primera Nac
   'Ecuador':'LigaPro','Bolivia':'División Profesional','Venezuela':'Liga FUTVE',
   'Arabia':'Saudi Pro League','Rusia':'Premier Liga','Grecia':'Super League'};
 function ligaMia(){ return (typeof G==='object'&&G&&G.miLiga)||'Liga ARG'; }
+// ⚠️ La etiqueta del jugador en la base NO siempre es el nombre de tu liga:
+// la Primera Nacional vive bajo `Liga ARG` (ver LIGA_DB). Comparar
+// `p.lg===ligaMia()` jugando el ascenso daba falso para TODOS, así que cada
+// rival valía 66 fijo (`clubPower`), no se acreditaba un solo goleador y la
+// niebla de guerra te tapaba tu propia liga (Fase 78, medido).
+function esLgMia(lg){ return !!lg && (lg===ligaMia() || lg===ligaDB(ligaMia())); }
 function ligaComp(){ return LIGA_NOMBRE[ligaMia()]||'Liga Profesional'; }
 // ═══════════════════════════════════════════════════════════════════════
 // LA COPA CONTINENTAL DEPENDE DEL CONTINENTE
@@ -6266,6 +6276,7 @@ function dtRenuncia(motivo,porResultados){
     G.boardConf=Math.max(0,(G.boardConf||50)-10);
     G.morale=Math.max(25,(G.morale===undefined?70:G.morale)-6);
   }
+  G._dtSalida='renunció: '+motivo;
   lg('🚪',`${nom} renunció: ${motivo}`);
   addPhoneMsg('board','Secretaría del Club',
     `🚪 <b>${nom}</b> presentó la renuncia — ${motivo}. Queda un interino a cargo. Hay que salir a buscar reemplazante ya.`,'🏛️');
@@ -7133,6 +7144,7 @@ function updateUI(){
   // Y que la pretemporada tenga partidos: si no, `advanceDay` se traba en el
   // día 7 de la semana 1 (ver preseasonGarantizar).
   try{ preseasonGarantizar(); }catch(e){}
+  try{ dtHistTick(); }catch(e){}          // Fase 78: la galería de técnicos (estado, no dibujo)
   const $ = id => document.getElementById(id);
   $('bTop').textContent='$'+G.budget+'M';
   $('wTop').textContent=(DIAS[curDay()-1]||'').slice(0,3)+' S'+G.week;
@@ -7546,7 +7558,7 @@ function _topLiga(){
 }
 function esRivalDirecto(club,lg){
   if(!G||!club||club===G.teamName)return false;
-  if(lg&&lg!==ligaMia())return false;            // sólo dentro de tu liga
+  if(lg&&!esLgMia(lg))return false;              // sólo dentro de tu liga
   const top=_topLiga();
   return top.indexOf(club)>=0 && top.indexOf(G.teamName)>=0;
 }
@@ -11321,6 +11333,7 @@ function confirmFireDT(cost,justified){
   if(old){old.club=null;old.until=0;}
   G.boardConf=Math.max(5,(G.boardConf||50)+(justified?1:-5));
   lg('🚪',`${G.dt.name} despedido (${fv(cost)})${justified?' por bajos resultados':''}`);
+  G._dtSalida=justified?'despedido por los resultados':'despedido';
   G.dt={name:'DT Interino',nat:'ARG',age:52,rat:62,style:G.formation||'4-4-2',str:'Interinato hasta contratar',salary:15,trait:'Equilibrado',wantedPos:['DC'],philosophy:'Aguantar el barco'};
   closeMod();rStaff();updateUI();
   flash('🚪 DT despedido — contratá un reemplazo','draw');
@@ -11396,6 +11409,8 @@ function confirmDtNeg(buyout){
     if(old){old.club=null;old.until=0;}
   }
   if(d.club)lg('💸',`Compensación de ${fv(buyout)} pagada a ${d.club}`);
+  // Fase 78: el club al que le sacaste el técnico queda con la vacante
+  if(d.club&&d.club!==G.teamName){ G.dtVacantes=G.dtVacantes||[]; if(!G.dtVacantes.some(v=>v.club===d.club)) G.dtVacantes.push({club:d.club,w:_dtSemAbs(),ex:d.name}); }
   d.club=G.teamName;d.until=(G.season||2026)+_dtNeg.years;
   G.dt=Object.assign({},d,{salary:_dtNeg.offer,contract:{salary:_dtNeg.offer,until:(G.season||2026)+_dtNeg.years,clause:_dtNeg.clause,objectives:[..._dtNeg.objs],demands:dtDemands(d)}});
   // ⚠️ Los atributos se COPIAN: Object.assign deja la misma referencia y lo
@@ -13123,7 +13138,7 @@ function isKnown(p){
   if(typeof G!=='object'||!G)return false;
   if(p.club===G.teamName)return true;                                // los tuyos, obvio
   if(G.squad&&G.squad.some(x=>x.id===p.id))return true;
-  return p.lg===ligaMia();                                           // tu propia liga la ves entera
+  return esLgMia(p.lg);                                              // tu propia liga la ves entera
 }
 // Margen del informante: estable por jugador (3 a 6 puntos), así el rango no
 // baila cada vez que se redibuja la lista.
@@ -13349,7 +13364,7 @@ function anyClubPower(club){
 function clubPower(club){
   G._clubPow=G._clubPow||{};
   if(G._clubPow[club])return G._clubPow[club];
-  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club&&p.lg===ligaMia())).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  const rats=(club===G.teamName?G.squad:G.market.filter(p=>p.club===club&&esLgMia(p.lg))).map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
   const pow=rats.length?rats.reduce((a,r)=>a+r,0)/rats.length:66;
   G._clubPow[club]=pow;
   return pow;
@@ -13379,7 +13394,7 @@ function tallyLeague(A,B,ga,gb){
 }
 function creditScorers(club,n){
   if(!n)return;
-  const cand=G.market.filter(p=>p.club===club&&p.lg===ligaMia()&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
+  const cand=G.market.filter(p=>p.club===club&&esLgMia(p.lg)&&['DC','EI','ED','MCO'].includes(p.pos)).sort((a,b)=>b.rat-a.rat).slice(0,5);
   for(let i=0;i<n;i++){
     const p=cand.length?cand[~~(Math.random()*cand.length)]:null;
     const nm=p?p.name:club+' (varios)';
@@ -13388,7 +13403,7 @@ function creditScorers(club,n){
     if(p)p.goals=(p.goals||0)+1;
     // La asistencia se la lleva otro: alguien se la tuvo que dar
     if(Math.random()<0.62){
-      const asis=G.market.filter(q=>q.club===club&&q.lg===ligaMia()&&
+      const asis=G.market.filter(q=>q.club===club&&esLgMia(q.lg)&&
                  ['MCO','MC','EI','ED','DFI','DFD'].includes(q.pos)&&(!p||q.id!==p.id))
                  .sort((a,b)=>b.rat-a.rat).slice(0,6);
       const q=asis.length?asis[~~(Math.random()*asis.length)]:null;
@@ -14047,7 +14062,9 @@ function setBoardTarget(){
   const rep=G.rep||50;
   const nClubs=(G.league&&G.league.clubs.length)||19;
   let maxPos,desc;
-  if(rep>=78){maxPos=Math.min(2,nClubs);desc='pelear el campeonato (terminar 1º o 2º)';}
+  // Fase 78: en la Nacional el único objetivo que importa es volver a Primera
+  if(esSegundaARG(ligaMia())&&rep>=52){maxPos=ASC_NAC;desc=`ascender a Primera (Top ${ASC_NAC})`;}
+  else if(rep>=78){maxPos=Math.min(2,nClubs);desc='pelear el campeonato (terminar 1º o 2º)';}
   else if(rep>=68){maxPos=4;desc=objetivoCopa();}
   else if(rep>=58){maxPos=8;desc='terminar en la mitad de arriba (Top 8)';}
   else if(rep>=48){maxPos=Math.max(10,nClubs-6);desc=hayCopaCont()?'pelear una copa internacional':'no sufrir el descenso';}
@@ -14981,6 +14998,9 @@ function dilemaFx(id){
   // El de indisciplina no está en DILEMAS (es mensual y va aparte). Si la
   // partida se recargó con uno abierto, se reconstruye desde el pid.
   if(d.did==='_dtren'){ _DIL_FX[id]=_dtRenFx(); return _DIL_FX[id]; }
+  if(d.did==='_dtofe'){ _DIL_FX[id]=_dtOfeFx(d.club,d.fee); return _DIL_FX[id]; }   // Fase 78
+  if(d.did==='_lesion'){ _DIL_FX[id]=_lesFx(d.pid); return _DIL_FX[id]; }
+  if(d.did==='_clasico'){ _DIL_FX[id]=_clasFx(d.key,d.local,d.costo); return _DIL_FX[id]; }
   if(d.did==='_indis'){
     const jug=(G.squad||[]).find(q=>q.id===d.pid);
     if(!jug)return null;
@@ -15276,6 +15296,124 @@ function volverAlMenu(){
   // por las dudas de que el usuario quiera mirarla. Recargar devuelve al menú.
   try{ location.reload(); }catch(e){}
 }
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 78: ASCENSO Y DESCENSO DE VERDAD ENTRE PRIMERA Y LA NACIONAL
+// ═══════════════════════════════════════════════════════════════════════
+// Descender era el fin del ciclo y punto. Ahora la asamblea vota: si la
+// gestión todavía tiene respaldo (`aprobacion() >= ASAMBLEA_SIGUE`) te deja
+// elegir entre renunciar o quedarte a devolver al club a Primera. Y desde la
+// Primera Nacional se asciende: los dos primeros de la tabla suben.
+// Todo se apoya en lo que ya existía: `G.miLiga` dice en qué categoría
+// jugás (buildCal y squadFromDB ya lo leen) y `G.arClubs` dice quiénes son
+// los 30 de Primera (clubesPrimera ya lo leía). La Nacional sale sola: son los
+// clubes argentinos de la base que NO están en esa lista.
+const ASC_NAC=2;          // ascienden de la Nacional (campeón + reducido)
+const ASAMBLEA_SIGUE=30;  // aprobación mínima para que te dejen seguir tras descender
+const DESC_REP=8;         // lo que cuesta en reputación bajar de categoría
+function arCategoriaPuede(){ const l=ligaMia(); return l==='Liga ARG'||l==='Primera Nacional'; }
+function nacJugable(){ try{ return ligasJugables().includes('Primera Nacional'); }catch(e){ return false; } }
+// Fuerza de un club de la OTRA categoría. `clubPower` filtra por tu liga, y en
+// un año histórico la Nacional tiene etiqueta propia, así que miraría vacío.
+function _powCat(club){
+  if(club===G.teamName) return clubPower(club);
+  const r=G.market.filter(p=>p.club===club&&(p.lg==='Liga ARG'||p.lg==='Primera Nacional'))
+          .map(p=>p.rat).sort((a,b)=>b-a).slice(0,15);
+  return r.length?r.reduce((a,x)=>a+x,0)/r.length:60;
+}
+function arMovimientoCategorias(t){
+  if(!arCategoriaPuede()||!t||!t.length) return null;
+  const prim=[...clubesPrimera()];
+  let bajan=[], suben=[];
+  if(ligaMia()==='Liga ARG'){
+    const nDown=cuposDescenso();
+    if(nDown<=0) return null;
+    bajan=[...t].reverse().slice(0,nDown).map(r=>r.club);   // tu club incluido
+    // La Nacional no se simula fecha a fecha: suben los más fuertes, con
+    // sorteo entre los seis de arriba (es lo que hacía el código de antes).
+    const nac=clubesDeCategoria('Primera Nacional').filter(c=>!prim.includes(c)&&c!==G.teamName);
+    const top=nac.sort((a,b)=>_powCat(b)-_powCat(a)).slice(0,Math.max(bajan.length,6));
+    suben=_shuf(top).slice(0,bajan.length);
+  } else {
+    // Dirigís la Nacional: la tabla es la de verdad.
+    suben=t.slice(0,ASC_NAC).map(r=>r.club);
+    const flojos=prim.filter(c=>!suben.includes(c)).sort((a,b)=>_powCat(a)-_powCat(b)).slice(0,6);
+    bajan=_shuf(flojos).slice(0,suben.length);
+  }
+  const n=Math.min(bajan.length,suben.length);
+  if(!n) return null;
+  bajan=bajan.slice(0,n); suben=suben.slice(0,n);
+  G.arClubs=prim.filter(c=>!bajan.includes(c)).concat(suben);
+  G.leagueClubs=G.arClubs.slice();          // compatibilidad: lo leía buildCal
+  return {bajan,suben};
+}
+function catMovEsta(tipo){ return !!(G&&G._catMov&&G._catMov.season===G.season&&G._catMov.tipo===tipo); }
+// El cambio de categoría se aplica al ARRANCAR la temporada nueva, antes de
+// armar el calendario (nextSeason lo llama justo antes de buildCal).
+function aplicarCategoria(){
+  if(!G||!G._catMov||G._catMov.aplicado) return;
+  const m=G._catMov;
+  if(m.tipo==='baja'&&!m.sigue) return;     // no aceptó quedarse: no hay temporada nueva
+  const nueva=m.tipo==='sube'?'Liga ARG':'Primera Nacional';
+  G.miLiga=nueva; try{ _LIGA_ELEGIDA=nueva; }catch(e){}
+  G.squad.forEach(p=>{ if(p.lg==='Liga ARG'||p.lg==='Primera Nacional') p.lg=ligaDB(nueva); });
+  G._clubPow=null; G._powAny=null;
+  try{ _topLiga._v=null; }catch(e){}
+  if(m.tipo==='sube'){
+    repSuma(6);
+    G.fanMood=Math.min(100,(G.fanMood===undefined?55:G.fanMood)+15);
+    G.boardConf=Math.min(100,(G.boardConf===undefined?50:G.boardConf)+15);
+    G.socios=Math.round((G.socios||sociosBase())*1.10);
+    addPhoneMsg('board','Comisión Directiva',`🎉 ¡Presidente, <b>${G.teamName}</b> vuelve a PRIMERA! La ciudad está de fiesta. El objetivo ahora es mantener la categoría.`,'🏛️');
+    newsPush({w:'S1',ic:'⬆️',type:'club',msg:`¡${G.teamName} es de Primera! El club consiguió el ascenso y vuelve a la Liga Profesional.`});
+    lg('⬆️',`${G.teamName} ascendió a Primera`);
+  } else {
+    G.rep=Math.max(20,Math.round(((G.rep===undefined?50:G.rep)-DESC_REP)*10)/10);
+    G.boardConf=Math.max(35,Math.min(55,G.boardConf===undefined?50:G.boardConf));
+    G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-8);
+    newsPush({w:'S1',ic:'⬇️',type:'club',msg:`${G.teamName} juega la Primera Nacional: tras el descenso, el presidente se quedó para pelear la vuelta.`});
+    lg('⬇️',`${G.teamName} arranca la temporada en la Primera Nacional`);
+  }
+  m.aplicado=true;
+}
+// La asamblea después de descender: te deja quedarte si todavía te bancan.
+function descensoAsamblea(pos){
+  const ap=aprobacion();
+  const puede=nacJugable()&&ap>=ASAMBLEA_SIGUE;
+  // ⚠️ NO pone G._fired: si cerrás el modal, "Iniciar temporada" vuelve a
+  // llamar a nextSeason, que retoma y te vuelve a mostrar la asamblea.
+  showMod(`
+    <div class="mtitle" style="color:var(--red)">📉 Descenso</div>
+    <div style="text-align:center;margin:14px 0">
+      <div style="font-size:44px;margin-bottom:8px">📉</div>
+      <div style="font-size:13px;color:var(--t2);line-height:1.5">
+        <b>${G.teamName}</b> terminó <b>${pos}º</b> en la tabla anual y <b>se va a la Primera Nacional</b>.
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:8px">Aprobación de la gestión: <b style="color:${aprobColor(ap)}">${ap}</b> · la asamblea pide ${ASAMBLEA_SIGUE} para darte otra chance</div>
+    </div>
+    ${puede?`
+      <div class="mpanel" style="margin-bottom:8px;font-size:11px;color:var(--t2);line-height:1.5">
+        La asamblea vota que <b>sigas</b> si te comprometés a devolver al club a Primera.
+        Bajar cuesta <b>−${DESC_REP} de reputación</b> (menos TV, menos sponsors, menos socios) y el objetivo pasa a ser <b>ascender (Top ${ASC_NAC})</b>.
+      </div>
+      <button class="btn bg" style="width:100%;margin-bottom:6px" onclick="descensoQuedarse()">💪 Me quedo a pelear el ascenso</button>
+      <button class="btn bo" style="width:100%;margin-bottom:6px" onclick="descensoRenunciar(${pos})">🚪 Presento la renuncia</button>
+    `:`
+      <div class="note" style="margin-bottom:8px">${nacJugable()?'La asamblea no te banca más: te piden la renuncia.':'Ese año no hay Primera Nacional jugable en la base: el descenso termina el ciclo.'}</div>
+      <button class="btn bo" style="width:100%" onclick="descensoRenunciar(${pos})">Aceptar</button>
+    `}
+  `);
+}
+function descensoQuedarse(){
+  if(!G||!G._catMov||G._catMov.tipo!=='baja') return;
+  if(aprobacion()<ASAMBLEA_SIGUE||!nacJugable()) return;
+  G._catMov.sigue=true;
+  closeMod();
+  nextSeason();     // retoma donde quedó: el cierre ya está hecho (G._cierreHecho)
+}
+function descensoRenunciar(pos){
+  closeMod();
+  showFiredModal(pos,true);
+}
 function checkFired(pos){
   const meta=G.boardTarget?G.boardTarget.maxPos:99;
   // La cantidad de clubes salía de G.league.clubs con un ||19 de rescate. En
@@ -15298,6 +15436,13 @@ function checkFired(pos){
   const nDown=cuposDescenso();
   const descendio=nDown>0&&pos>nClubs-nDown;
   const fracaso=pos>meta+4&&conf<30;
+  // Fase 78: ascender nunca termina el ciclo, y bajar de Primera abre la asamblea
+  if(catMovEsta('sube')) return false;
+  if(G._catMov&&G._catMov.season===G.season&&G._catMov.tipo==='baja'){
+    if(G._catMov.sigue) return false;      // ya decidió quedarse
+    descensoAsamblea(pos);
+    return true;
+  }
   if(descendio||fracaso){
     showFiredModal(pos,descendio);
     return true;
@@ -15594,7 +15739,9 @@ function archiveSeason(){
   try{
     const _titAño=(G.trophies||[]).filter(x=>x.season===G.season).map(x=>x.name);
     const _copaNac=(typeof copaNacPref==='function')?copaNacPref():'Copa Argentina';
-    const _clasif=(pos>0&&pos<=4)||_titAño.indexOf(_copaNac)>=0;
+    // Fase 78: salir 1º de la Nacional te sube, no te mete en la copa
+    // continental. Ganar la Copa Argentina sí, como en la realidad.
+    const _clasif=(pos>0&&pos<=4&&!esSegundaARG(ligaMia()))||_titAño.indexOf(_copaNac)>=0;
     if(G.qualifiedLib!==_clasif){
       G.qualifiedLib=_clasif;
       const _cn=(typeof copaCont==='function')?copaCont():'copa internacional';
@@ -15603,31 +15750,32 @@ function archiveSeason(){
         : `${G.teamName} quedó afuera de la ${_cn} del año que viene (${pos}º)`);
     } else G.qualifiedLib=_clasif;
   }catch(e){}
-  // ═══ DESCENSOS POR TABLA ANUAL (como en la Liga Profesional de verdad) ═══
-  // G.league.table acumula el Apertura Y el Clausura, así que leagueSorted()
-  // ES la tabla anual. Bajan los 2 últimos y suben 2 de la Primera Nacional.
-  const inLeague=new Set(t.map(r=>r.club));
-  const cands=[...new Set(G.market.filter(p=>p.lg==='Liga ARG').map(p=>p.club))].filter(c=>!inLeague.has(c)&&c!==G.teamName);
-  const nDown=(typeof cuposDescenso==='function')?cuposDescenso():(t.length>=26?2:1);
-  const doomed=nDown>0?[...t].reverse().filter(r=>r.club!==G.teamName).slice(0,nDown):[];
-  const iAmLast=t.length&&t[t.length-1].club===G.teamName;
-  if(doomed.length&&cands.length){
-    cands.sort((a,b)=>clubPower(b)-clubPower(a));
-    const ups=_shuf(cands.slice(0,Math.max(nDown,Math.min(6,cands.length)))).slice(0,nDown);
-    const downSet=new Set(doomed.map(d=>d.club));
-    G.leagueClubs=t.map(r=>r.club).filter(c=>!downSet.has(c));
-    ups.forEach(u=>{if(!G.leagueClubs.includes(u))G.leagueClubs.push(u);});
-    // La lista de 30 para el fixture de la temporada que viene
-    if(typeof AR_CLUBS!=='undefined'){
-      doomed.forEach((d,i)=>{const idx=AR_CLUBS.indexOf(d.club);if(idx>=0&&ups[i])AR_CLUBS[idx]=ups[i];});
-    }
-    lg('🔻',`Descienden por la tabla anual: ${doomed.map(d=>d.club).join(' y ')} — ascienden ${ups.join(' y ')}`);
-    addPhoneMsg('agent','Mercado de pases',`📉 Por la <b>tabla anual</b> se fueron al descenso <b>${doomed.map(d=>d.club).join('</b> y <b>')}</b>. Desde la Primera Nacional ascienden <b>${ups.join('</b> y <b>')}</b>.`,'📰');
+  // ═══ DESCENSOS Y ASCENSOS (Fase 78) ═══
+  // La tabla anual (G.league.table acumula Apertura y Clausura) manda los dos
+  // últimos a la Primera Nacional, y desde la Nacional suben dos. Ahora
+  // también puede bajar TU club, y si dirigís la Nacional podés subir.
+  // ⚠️ Antes esto escribía en `AR_CLUBS`, que es una constante del archivo y
+  // NO se guarda: al recargar la partida volvían los 30 de 2026 y los
+  // ascendidos desaparecían de Primera. Ahora la lista vive en `G.arClubs`,
+  // que `clubesPrimera()` ya leía primero y no escribía nadie.
+  const _iAmLast=t.length&&t[t.length-1].club===G.teamName;
+  let _mov=null;
+  try{ _mov=arMovimientoCategorias(t); }catch(e){ console.error('arMovimientoCategorias',e); }
+  if(_mov){
+    const _yo=G.teamName, _hist=G.history[G.history.length-1];
+    if(_mov.bajan.includes(_yo)){ G._catMov={season:G.season,tipo:'baja'}; if(_hist)_hist.descenso=true; }
+    if(_mov.suben.includes(_yo)){ G._catMov={season:G.season,tipo:'sube'}; if(_hist)_hist.ascenso=true; }
+    if(_hist) _hist.cat=ligaMia();
+    const _bj=_mov.bajan.filter(c=>c!==_yo), _sb=_mov.suben.filter(c=>c!==_yo);
+    lg('🔻',`Descienden: ${_mov.bajan.join(' y ')} — ascienden ${_mov.suben.join(' y ')}`);
+    if(_bj.length||_sb.length)
+      addPhoneMsg('agent','Mercado de pases',`📉 Por la <b>tabla anual</b> se van a la Primera Nacional <b>${_mov.bajan.join('</b> y <b>')}</b>. A Primera suben <b>${_mov.suben.join('</b> y <b>')}</b>.`,'📰');
   }
+  const iAmLast=_iAmLast;
   if(iAmLast){
     addPhoneMsg('board','Comisión Directiva',`🚨 Presidente, quedamos ÚLTIMOS en la tabla anual. Es una vergüenza institucional y su continuidad está en juego.`,'🏛️');
   }
-  if(pos===t.length&&t.length){
+  if(pos===t.length&&t.length&&!(G._catMov&&G._catMov.season===G.season&&G._catMov.tipo==='baja')){
     G.boardConf=Math.max(0,(G.boardConf||50)-40);
     addPhoneMsg('board','Secretaría del Club',`🚨 Presidente, terminamos ÚLTIMOS. Nos salvó la reestructuración de la AFA, pero la confianza de la comisión quedó por el piso. Otra así y le piden la renuncia.`,'🏛️');
   }
@@ -16145,20 +16293,29 @@ function nextSeason(){
   // ⚠️ El guardado agrupado espera 900 ms; el cambio de temporada NO puede
   // perderse, así que acá se fuerza (ver `saveSoon` / `saveFlush`).
   try{ saveFlush(); }catch(e){}
-  const finalPos=myLeaguePos()||10;
-  archiveSeason();
-  // El campeonato de las ligas largas queda en G.history[].champion (no en
-  // G.trophies): si no se mira acá, el empujón de socios llegaría recién con
-  // el primer partido del año que viene.
-  try{ sociosTitulos(); }catch(e){}
-  try{ prensaTitulos(); }catch(e){}
-  try{ juntaTick(); }catch(e){}   // el ídolo que se fue vuelve de traje
-  endSeasonMarket();
-  try{ reunionCierre(finalPos); }catch(e){}   // lo firmado en la reunión se cobra ANTES del veredicto
+  // ⚠️ Fase 78: nextSeason se puede RETOMAR. Tras un descenso la asamblea
+  // te deja elegir en un modal, y el botón "me quedo" vuelve a llamar acá:
+  // el cierre (historial, mercado, reunión) ya está hecho y no puede correr
+  // dos veces, si no la temporada queda archivada doble.
+  let finalPos;
+  if(G._cierreHecho===G.season){ finalPos=G._cierrePos||10; }
+  else {
+    finalPos=myLeaguePos()||10;
+    archiveSeason();
+    // El campeonato de las ligas largas queda en G.history[].champion (no en
+    // G.trophies): si no se mira acá, el empujón de socios llegaría recién con
+    // el primer partido del año que viene.
+    try{ sociosTitulos(); }catch(e){}
+    try{ prensaTitulos(); }catch(e){}
+    try{ juntaTick(); }catch(e){}   // el ídolo que se fue vuelve de traje
+    endSeasonMarket();
+    try{ reunionCierre(finalPos); }catch(e){}   // lo firmado en la reunión se cobra ANTES del veredicto
+    G._cierreHecho=G.season; G._cierrePos=finalPos;
+  }
   if(checkFired(finalPos))return; // te echaron: no arranca la temporada nueva
   // Las elecciones van DESPUÉS del checkFired: si terminaste en zona de
   // descenso ya te fuiste antes de que los socios voten.
-  if(correrEleccion())return;    // perdiste la elección: fin de la carrera
+  if(G._eleccionHecha!==G.season){ G._eleccionHecha=G.season; if(correrEleccion())return; }
   // La foto de la temporada va ANTES de G.season++, si no queda archivada con
   // el año siguiente.
   G.squad.forEach(seasonSnapshot);
@@ -16322,6 +16479,7 @@ function nextSeason(){
   // La CD fija el tope salarial de la nueva temporada
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   youthSafetyNet();          // la cantera cubre el hueco antes de armar el calendario
+  try{ aplicarCategoria(); }catch(e){ console.error('aplicarCategoria',e); }   // Fase 78: sube o baja ANTES del fixture
   G.calendar = buildCal(G.teamName);
   // Las copas que se ganan un año y se juegan al siguiente
   armarRecopa();
@@ -16822,7 +16980,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     const racha=res==='W'?1:res==='D'?0.92:0.84;
     // dMul es para moral/rep/confianza: si entra acá, un clásico de local
     // triplicaba la recaudación. El clásico llena la cancha, no la triplica.
-    const bruto=G.stadium.income*humor*racha*(derby?1.35:1);
+    const bruto=G.stadium.income*humor*racha*(derby?1.35:1)*clasicoTaquilla(m);
     matchOps=G.stadium.income*0.42;                       // operativo del día de partido
     matchGate=Math.round((bruto-matchOps)*10)/10;
     G.budget=Math.round((G.budget+matchGate)*10)/10;
@@ -16848,6 +17006,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     addPhoneMsg('board','Secretaría del Club',`${res==='W'?'🔥 ¡GANAMOS EL '+derby.toUpperCase()+'! La hinchada está en la gloria.':res==='L'?'😔 Perdimos el '+derby+'. La hinchada está dolida, presidente.':'🤝 Empate en el '+derby+'. Un punto que sabe a poco.'}`,'🏛️');
     lg(res==='W'?'🔥':res==='L'?'😔':'🤝',`${derby}: ${res==='W'?'victoria':res==='L'?'derrota':'empate'} (vale doble)`);
   }
+  if(derby) try{ clasicoResultado(m,res,gf,ga,derby); }catch(e){ console.error('clasicoResultado',e); }
   updateFans(res,derby,gf);
   pushHeadline(res,gf,ga,derby,m);
   G.gf+=gf; G.ga+=ga;
@@ -16920,6 +17079,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const usedMins = new Set();
   // Track apps for all XI
   xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  if(!m.friendly) try{ infiltradosPartido(xiPlayers); }catch(e){}   // Fase 78: el que juega infiltrado arriesga
   // El salto a leyenda se avisa CUANDO PASA, no seis meses después al cerrar
   // la temporada: es el partido 100 el que se festeja.
   if(typeof registrarLeyendas==='function') registrarLeyendas();
@@ -17199,6 +17359,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
 
   // La valoración del DT se mueve con lo que sacó contra lo esperado (Fase 75)
   try{ dtEvaluarPartido(m,gf,ga); }catch(e){}
+  try{ dtHistPartido(res); }catch(e){}   // la galería de técnicos (Fase 78)
   // Board confidence update from match result
   if(!G.boardConf) G.boardConf=50;
   if(res==='W'){G.boardConf=Math.min(100,G.boardConf+3);}
@@ -17403,6 +17564,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     lg(it.emo,`${ip.name}: ${it.t} (${ip.injuredWeeks} sem)`);
     addPhoneMsg('player', ip.name, `${it.emo} Parte médico: <b>${it.t}</b>. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.${grave?' Voy a pelearla para volver lo antes posible.':''}`, it.emo);
     if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
+    try{ lesionDecision(ip); }catch(e){ console.error('lesionDecision',e); }   // Fase 78: operar o infiltrar
   }
   // Heal injured players (con riesgo de recaída si se apuró el regreso)
   // Red de seguridad: si algún camino marcó la lesión sin ponerle duración, el
@@ -17417,6 +17579,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
       addPhoneMsg('board','Cuerpo Médico',`🔁 Presidente, <b>${p.name}</b> recayó de su lesión por apurar el regreso. ${p.injuredWeeks} semanas más de baja.`,'⚕️');
     } else { p.injured=false; p.injuredWeeks=0; p.recPlan=null; p.reinjuryRisk=0; }
   } } });
+  try{ infiltradosSemana(); }catch(e){}
   if(G.week%6===0){
     G.squad.forEach(p=>{
       if(p.contract&&p.contract<=G.season&&!p._contractWarned){
@@ -17444,6 +17607,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   G.day=1; G._daysTicked=0;
   weeklyAITransfers();
   weeklyDtMoves();
+  try{ clasicoPrevia(); }catch(e){ console.error('clasicoPrevia',e); }   // Fase 78: la semana del clásico
   processInstallments();
   processIncoming();
   processScouts();
@@ -19081,6 +19245,90 @@ function chemLabel(v){
   return v>=80?{t:'Aceitada',c:'var(--green)'}:v>=60?{t:'Buena',c:'var(--green)'}:v>=42?{t:'En formación',c:'var(--gold)'}:{t:'Descompaginada',c:'var(--red)'};
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 78: LESIONES CON DECISIÓN — OPERAR O INFILTRAR
+// ═══════════════════════════════════════════════════════════════════════
+// Cuando se lesiona un TITULAR por 3 semanas o más, el médico te pone la
+// decisión sobre la mesa y el club se frena hasta que la tomes:
+//  🔪 Operar: más tiempo afuera (×1,4) pero vuelve entero, sin recaída.
+//  ➖ Tratamiento normal: los tiempos de siempre.
+//  💉 Infiltrar: juega YA, pero cada partido que juega infiltrado tiene
+//     LES_INF_RECAE de chance de romperse peor (la lesión vuelve ×1,6).
+//     Pasadas las semanas que le tocaba, el riesgo se termina.
+// La lesión grave (9+ semanas) no se infiltra: el médico no firma eso.
+// A los suplentes no se les pregunta: frenar el club por el tercer arquero
+// sería un peaje. El plan de recuperación del parte médico sigue para todos.
+const LES_DECIDE_SEM=3;
+const LES_INF_MAX=8;        // hasta cuántas semanas de baja se puede infiltrar
+const LES_INF_RECAE=0.18;   // por partido jugado infiltrado
+const LES_OPERA=1.4;
+function _esTitular(p){ return !!(G&&G.slots&&p&&Object.values(G.slots).includes(p.id)); }
+function lesionDecision(p){
+  if(!p||!p.injured||!_esTitular(p)) return false;
+  if((p.injuredWeeks||0)<LES_DECIDE_SEM) return false;
+  if(G._dilemaAbierto||(typeof dilemaBloqueante==='function'&&dilemaBloqueante())) return false;
+  const sem=p.injuredWeeks, infOk=sem<=LES_INF_MAX;
+  const id='les'+(G._lesSeq=(G._lesSeq||0)+1)+'_'+(G.week||0);
+  const txt=`${p.injEmo||'🏥'} <b>${p.name}</b> (${p.pos}, ${p.rat}) tiene <b>${p.injType||'una lesión'}</b>: ${sem} semanas afuera. El cuerpo médico necesita que usted decida.`;
+  G.dilemas=G.dilemas||[];
+  G.dilemas.push({id,did:'_lesion',pid:p.id,txt,resuelto:null,week:G.week,bloquea:true,de:'Cuerpo Médico',ic:'⚕️',
+    ops:[{i:0,t:`🔪 Operar (${Math.round(sem*LES_OPERA)} sem)`,d:'Más tiempo afuera, pero vuelve entero y sin riesgo de recaída.'},
+         {i:1,t:`➖ Tratamiento normal (${sem} sem)`,d:'Los tiempos de siempre del cuerpo médico.'},
+         {i:2,t:infOk?'💉 Infiltrarlo y que juegue':'💉 Infiltrar (el médico se niega)',
+          d:infOk?`Juega ya. Cada partido infiltrado tiene ${Math.round(LES_INF_RECAE*100)}% de romperse peor, durante ${sem} semanas.`
+                 :'Con una lesión así no se infiltra: queda en tratamiento normal.'}]});
+  G._dilemaAbierto=id;
+  _DIL_FX[id]=_lesFx(p.id);
+  addPhoneMsg('board','Cuerpo Médico',txt,'⚕️',{dilema:id});
+  try{ dilemaModal(id); }catch(e){}
+  return true;
+}
+function _lesFx(pid){
+  const P=()=>(G.squad||[]).find(q=>q.id===pid);
+  return [
+    ()=>{ const p=P(); if(!p||!p.injured) return 'El jugador ya no está lesionado.';
+          p.injuredWeeks=Math.round(p.injuredWeeks*LES_OPERA); p.injTotal=p.injuredWeeks;
+          p.reinjuryRisk=0; p.recPlan='conserv'; p._accelCut=0;
+          lg('🔪',`${p.name} se opera: ${p.injuredWeeks} semanas`);
+          return `${p.name} se opera. ${p.injuredWeeks} semanas afuera y vuelve entero.`; },
+    ()=>{ const p=P(); return p?`${p.name} hace el tratamiento normal: ${p.injuredWeeks} semanas.`:'Decisión tomada.'; },
+    ()=>{ const p=P(); if(!p||!p.injured) return 'El jugador ya no está lesionado.';
+          if(p.injuredWeeks>LES_INF_MAX) return `El médico se negó a infiltrar a ${p.name}: hace el tratamiento normal.`;
+          p._infil={sem:p.injuredWeeks,orig:p.injuredWeeks,tipo:p.injType||'lesión'};
+          p.injured=false; p.injuredWeeks=0; p.recPlan=null; p.reinjuryRisk=0;
+          p.fit=Math.min(p.fit===undefined?100:p.fit,82);
+          if(typeof setDtRel==='function') setDtRel(3);       // el DT recupera a un titular
+          autSuma(-2);                                        // el médico no estaba de acuerdo
+          lg('💉',`${p.name} juega infiltrado`);
+          return `${p.name} juega infiltrado. Cada partido es un riesgo hasta dentro de ${p._infil.sem} semanas.`; },
+  ];
+}
+// Cada semana que pasa, la lesión de fondo sana un poco: al llegar a 0 se
+// termina el riesgo. Mientras, el físico no pasa de 85.
+function infiltradosSemana(){
+  (G.squad||[]).forEach(p=>{
+    if(!p._infil) return;
+    p._infil.sem--;
+    if(p._infil.sem<=0){ delete p._infil;
+      addPhoneMsg('board','Cuerpo Médico',`✅ <b>${p.name}</b> ya no necesita infiltraciones: la lesión sanó.`,'⚕️'); return; }
+    if(p.fit!==undefined) p.fit=Math.min(p.fit,85);
+  });
+}
+// Se llama con el once que jugó el partido.
+function infiltradosPartido(xi){
+  (xi||[]).forEach(p=>{
+    if(!p||!p._infil) return;
+    if(Math.random()>=LES_INF_RECAE) return;
+    const sem=Math.max(2,Math.round(p._infil.orig*1.6));
+    p.injured=true; p.injuredWeeks=sem; p.injTotal=sem; p.injEmo='🚑';
+    p.injType=(p._infil.tipo||'Lesión')+' (se agravó)'; p.reinjuryRisk=0; p.recPlan=null;
+    delete p._infil;
+    lg('🚑',`${p.name} se rompió jugando infiltrado: ${sem} semanas`);
+    addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, lo que temíamos: <b>${p.name}</b> se rompió jugando infiltrado. Ahora son <b>${sem} semanas</b>.`,'⚕️');
+    G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-2);
+  });
+}
+
 // ═══ PARTE MÉDICO ═══
 function rMedReport(){
   const el=document.getElementById('medReport');const card=document.getElementById('medCard');
@@ -19120,16 +19368,131 @@ function setRecovery(id,plan){
   const prev=p.recPlan||'normal';
   if(prev===plan){closeMod();return;}
   const docLv=(G.staffLevels&&G.staffLevels.doctor)||0;
-  if(plan==='conserv'&&prev!=='conserv'){p.injuredWeeks+=1;p.reinjuryRisk=0;}
+  // ⚠️ Fase 78: primero se DESHACE el plan anterior. Antes pasar de
+  // "acelerado" a "normal" dejaba las semanas recortadas y borraba el riesgo
+  // de recaída: volvía antes y sin pagar nada.
+  if(prev==='conserv') p.injuredWeeks=Math.max(1,p.injuredWeeks-1);
+  if(prev==='accel') p.injuredWeeks+=(p._accelCut||0);
+  p._accelCut=0;
+  if(plan==='conserv'){p.injuredWeeks+=1;p.reinjuryRisk=0;}
   if(plan==='accel'){
-    const cut=Math.random()<0.5?1:2;
-    p.injuredWeeks=Math.max(1,p.injuredWeeks-cut);
+    const cut=Math.min(Math.random()<0.5?1:2,Math.max(0,p.injuredWeeks-1));
+    p.injuredWeeks=Math.max(1,p.injuredWeeks-cut); p._accelCut=cut;
     p.reinjuryRisk=Math.max(0.10,0.35-docLv*0.08); // menor con médico
   }
   if(plan==='normal')p.reinjuryRisk=0;
   p.recPlan=plan;
   lg('⚕️',`${p.name}: plan de recuperación ${plan==='accel'?'acelerado':plan==='conserv'?'conservador':'normal'}`);
   closeMod();updateUI();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 78: LA SEMANA DEL CLÁSICO
+// ═══════════════════════════════════════════════════════════════════════
+// El clásico ya valía doble en moral, reputación y confianza (`dMul`) y
+// llenaba la cancha (×1,35). Lo que faltaba era la SEMANA: la barra que
+// aprieta, qué se dice en la previa, cuánto cobrás la entrada. Al arrancar la
+// semana del clásico llega la previa, que frena el club como un dilema:
+//  🔥 Calentar la previa: moral arriba, pero todo lo que pase pesa ×1,6
+//     (y la tribuna se calienta: más riesgo de incidentes).
+//  🎟️ Entradas del partido del año: el borderó ×1,6 si sos local, la gente
+//     se queja, y lo que pase pesa ×1,3.
+//  🤝 Bajar el tono y arreglar con la barra: plata y autoridad, pero no hay
+//     incidentes y todo pesa lo normal.
+// En `G` queda sólo `G._clasico` (números planos + la clave del partido).
+const CLAS_APUESTA={calentar:1.6,entradas:1.3,calma:1.0};
+const CLAS_INCIDENTE={calentar:0.25,entradas:0.15,calma:0};
+function _clasKey(m){ return m?`${m.week}|${m.home}|${m.away}|${m.comp}`:''; }
+function clasicoProximo(){
+  if(!G||!G.calendar) return null;
+  const m=G.calendar.filter(x=>!x.played&&!x.friendly&&x.week===G.week).sort((a,b)=>a.week-b.week)[0];
+  if(!m) return null;
+  const rival=m.home===G.teamName?m.away:m.home;
+  // ⚠️ Sólo el clásico DE VERDAD (`esClasico`: AR_CLASICOS + CLASICOS_MUNDO).
+  // `DERBIES` también cuenta como "clásico histórico" cualquier cruce entre los
+  // cinco grandes argentinos, y con eso la previa salía 12 veces por temporada
+  // con Boca (medido): un peaje, no una semana especial. Esos siguen valiendo
+  // doble en el partido; la previa es para el Superclásico.
+  if(!esClasico(G.teamName,rival)) return null;
+  const nom=derbyOf(G.teamName,rival)||'clásico';
+  return {m,rival,nom};
+}
+function clasicoTaquilla(m){
+  const c=G&&G._clasico;
+  return (c&&c.key===_clasKey(m)&&c.taq)?c.taq:1;
+}
+function clasicoPrevia(){
+  if(!G||G._dilemaAbierto) return false;
+  if(typeof dilemaBloqueante==='function'&&dilemaBloqueante()) return false;
+  const c=clasicoProximo(); if(!c) return false;
+  const key=_clasKey(c.m);
+  if(G._clasPrevKey===key) return false;
+  G._clasPrevKey=key;
+  const local=c.m.home===G.teamName;
+  const hum=G.fanMood===undefined?55:G.fanMood;
+  const ult=G.calendar.filter(x=>x.played&&!x.friendly).slice(-3).map(x=>x.result);
+  const malas=ult.filter(r=>r==='L').length;
+  const barra=hum<40||malas>=2
+    ?`La barra está caliente: <i>"Si perdemos este partido, que no vuelvan a pisar el club."</i> Piden 400 entradas y una reunión con el plantel.`
+    :`La barra pide 300 entradas y que los jugadores <i>"sientan la camiseta"</i>.`;
+  const costo=Math.max(0.1,Math.round((G.rep||60)/78*0.25*10)/10);
+  const id='cla'+(G._clasSeq=(G._clasSeq||0)+1)+'_'+(G.week||0);
+  const txt=`🔥 <b>Semana del ${c.nom}</b>: ${G.teamName} ${local?'recibe a':'visita a'} <b>${c.rival}</b>. ${barra} La prensa espera tus declaraciones.`;
+  G.dilemas=G.dilemas||[];
+  G.dilemas.push({id,did:'_clasico',key,local,costo,txt,resuelto:null,week:G.week,bloquea:true,de:'Semana del clásico',ic:'🔥',
+    ops:[{i:0,t:'🔥 Calentar la previa',d:'Declaraciones picantes: el plantel se enciende, pero ganar o perder pesa ×1,6 y la tribuna se recalienta.'},
+         {i:1,t:local?'🎟️ Entradas del partido del año':'🎟️ Vender caras las entradas visitantes',d:local?'El borderó ×1,6. La gente se queja y lo que pase pesa ×1,3.':'Poca plata (sos visitante) y la gente se queja. Pesa ×1,3.'},
+         {i:2,t:`🤝 Bajar el tono y arreglar con la barra (−${fv(costo)})`,d:'Plata y autoridad, pero no hay incidentes y el resultado pesa lo normal.'}]});
+  G._dilemaAbierto=id;
+  _DIL_FX[id]=_clasFx(key,local,costo);
+  addPhoneMsg('board','Semana del clásico',txt,'🔥',{dilema:id});
+  lg('🔥',`Semana del ${c.nom} vs ${c.rival}`);
+  try{ dilemaModal(id); }catch(e){}
+  return true;
+}
+function _clasFx(key,local,costo){
+  const pon=(k,taq)=>{ G._clasico={key,modo:k,apuesta:CLAS_APUESTA[k],taq:taq||1,inc:CLAS_INCIDENTE[k]}; };
+  return [
+    ()=>{ pon('calentar');
+          (G.squad||[]).forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?65:p.morale)+5); });
+          G.morale=Math.min(100,(G.morale===undefined?70:G.morale)+4);
+          G.fanMood=Math.min(100,(G.fanMood===undefined?55:G.fanMood)+3);
+          newsPush({w:'S'+(G.week||1),ic:'🔥',type:'club',msg:'El presidente calentó la previa del clásico: "Vamos a ir a ganar a cualquier cancha".'});
+          return 'Calentaste la previa. El plantel está encendido; ahora hay que ganarlo.'; },
+    ()=>{ pon('entradas',local?1.6:1.1);
+          G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-5);
+          return local?'Las entradas del clásico salen al precio del partido del año. La tribuna protesta, la caja sonríe.'
+                      :'Las entradas visitantes salieron caras. Poca plata y la gente protesta.'; },
+    ()=>{ pon('calma');
+          G.budget=Math.round((G.budget-costo)*10)/10;
+          finAnota('otros_out',costo,'Entradas y micros para la barra (clásico)');
+          autSuma(-5);
+          return 'Bajaste el tono y arreglaste con la barra. Semana tranquila, al precio de siempre.'; },
+  ];
+}
+function clasicoResultado(m,res,gf,ga,nom){
+  const c=G._clasico&&G._clasico.key===_clasKey(m)?G._clasico:{apuesta:1,inc:0.10,modo:null};
+  const goleada=Math.abs(gf-ga)>=3?1.5:1;
+  const a=c.apuesta*goleada;
+  const mueve=(k,d)=>{ G[k]=Math.max(0,Math.min(100,(G[k]===undefined?55:G[k])+d)); };
+  if(res==='W'){ mueve('fanMood',Math.round(5*a)); mueve('boardConf',Math.round(3*a)); autSuma(2);
+    (G.squad||[]).forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?65:p.morale)+Math.round(3*a)); }); }
+  else if(res==='L'){ mueve('fanMood',-Math.round(6*a)); mueve('boardConf',-Math.round(4*a));
+    (G.squad||[]).forEach(p=>{ p.morale=Math.max(10,(p.morale===undefined?65:p.morale)-Math.round(3*a)); }); }
+  // Incidentes en la tribuna: la multa la paga el local, la sanción a los dos
+  if(c.inc&&Math.random()<c.inc){
+    const multa=Math.round((0.2+Math.random()*0.4)*10)/10;
+    G.budget=Math.round((G.budget-multa)*10)/10;
+    finAnota('otros_out',multa,'Multa por incidentes en el '+nom);
+    mueve('boardConf',-3);
+    addPhoneMsg('board','Secretaría del Club',`🚨 Hubo incidentes en la tribuna durante el ${nom}. Multa de <b>${fv(multa)}</b>.`,'🚨');
+    newsPush({w:'S'+(G.week||1),ic:'🚨',type:'club',msg:`Incidentes en el ${nom}: ${G.teamName} recibió una multa de ${fv(multa)}.`});
+  }
+  newsPush({w:'S'+(G.week||1),ic:res==='W'?'🔥':res==='L'?'😔':'🤝',type:'club',
+    msg:res==='W'?`¡${G.teamName} ganó el ${nom} ${gf}-${ga}! Fiesta en la ciudad.`
+       :res==='L'?`${G.teamName} perdió el ${nom} ${gf}-${ga}. Bronca en la tribuna.`
+       :`Empate ${gf}-${ga} en el ${nom}.`});
+  G._clasico=null;
 }
 
 // ═══ CLÁSICOS Y RIVALIDADES ═══
@@ -19155,7 +19518,11 @@ const DERBIES=[
 ];
 function derbyOf(a,b){
   const d=DERBIES.find(x=>(x[0]===a&&x[1]===b)||(x[0]===b&&x[1]===a));
-  return d?d[2]:null;
+  if(d) return d[2];
+  // ⚠️ Fase 78: `DERBIES` es casi toda argentina, así que un Real Madrid–
+  // Barcelona o un Inter–Milan no valían doble ni llenaban la cancha. La
+  // tabla de clásicos del mundo ya existía (`esClasico`); ahora cuenta.
+  return (typeof esClasico==='function'&&esClasico(a,b))?'clásico':null;
 }
 function isDerby(m){return m&&derbyOf(m.home,m.away);}
 
@@ -21709,7 +22076,7 @@ function confirmClause(id){
       addPhoneMsg('agent','Mercado de pases',`💥 Bombazo: <b>${G.teamName}</b> depositó la cláusula de <b>${p.name}</b> (${fv(cl)}). Su ex club no pudo hacer nada.`,'📰');
       addPhoneMsg('player',p.name,'¡Presidente! Cuando supe que pagaron mi cláusula no lo podía creer. Firmé y acá estoy.','⭐');
       // Robarle a un vecino tiene consecuencias; a uno de otra liga, no tanto.
-      if(esLigaLocal(p.lg)||p.lg===ligaMia())
+      if(esLigaLocal(p.lg)||esLgMia(p.lg))
         enojarClub(p.club,'les pagamos la cláusula de '+p.name);
       updateUI();
       flash('💥 '+p.name+' — cláusula pagada y contrato firmado','win');
@@ -27913,6 +28280,7 @@ function toggleDelegar(){ delegarToggle('renov'); }
 function rPresTab(){
   if(!G) return;
   // Memoria de la carrera: vitrina + curva del patrimonio
+  try{ rDtGaleria(); }catch(e){ console.error('rDtGaleria',e); }
   try{ registrarLeyendas(); rVitrina(); finChartBind(); rFinChart(); rSocios(); rAprob(); rJunta(); }catch(e){}
   const conf=G.boardConf||50;
   const col=conf>=70?'var(--green)':conf>=45?'var(--gold)':'var(--red)';
@@ -28727,6 +29095,7 @@ function avanzarHastaPartido(){
 function advanceDay(silencioso){
   if(!G)return;
   if(finFrena())return;                        // te echaron: el club no se mueve
+  try{ clasicoPrevia(); }catch(e){}            // Fase 78: si esta semana hay clásico, primero la previa
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   if(curDay()>=7){
@@ -29580,31 +29949,263 @@ function processIncoming(){
   G.pendingIncome=G.pendingIncome.filter(c=>!due.includes(c));
 }
 
-// ═══ CARRUSEL DE DTs: los otros clubes también despiden y contratan ═══
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 78: EL MERCADO DE TÉCNICOS VIVE
+// ═══════════════════════════════════════════════════════════════════════
+// El carrusel de antes echaba a un DT al azar (10% por semana, sin mirar
+// resultados) y contrataba a un libre en un club AL AZAR de la base, aunque
+// ese club ya tuviera técnico: podía haber dos DTs en el mismo banco.
+// Ahora:
+//  • En TU liga echan al que va muy por debajo de lo que da su plantel
+//    (puesto real contra puesto esperado por `clubPower`), cada 4 semanas.
+//  • Afuera sigue el goteo al azar, más lento.
+//  • El club que echa queda con la VACANTE (`G.dtVacantes`) y contrata a un
+//    libre de su nivel unas semanas después. Sólo contrata quien tiene vacante.
+//  • Si la vacante es de un club más grande que el tuyo y tu DT viene bien,
+//    van a buscarlo: llega una oferta que frena el club (dejarlo ir y cobrar
+//    la cláusula, mejorarle el contrato o negarte).
+const DTM_CADA=4;           // cada cuántas semanas se mira la tabla de tu liga
+const DTM_AFUERA=0.06;      // despidos al azar por semana fuera de tu liga
+const DTM_CONTRATA=0.45;    // por semana, cada vacante se cubre con esta chance
+const DTM_OFERTA=0.45;      // chance de que un club más grande vaya por tu DT
+const DTM_GRANDE=3;         // cuántos puntos de nivel tiene que sacarte ese club
+function dtVacantes(){ return (G&&G.dtVacantes)||[]; }
+// ⚠️ Hay homónimos entre ligas (Racing Club en Argentina y Uruguay, tres
+// 'Nacional', Independiente en Argentina y Ecuador): el DT de un club de TU
+// liga se busca por club Y liga, o se termina echando al del otro país.
+function _dtDelClub(club){
+  const c=(G.dtPool||[]).filter(x=>x.club===club);
+  if(c.length<=1) return c[0]||null;
+  const tag=ligaDB(ligaMia());
+  return c.find(x=>x.league===ligaMia()||x.league===tag)||c[0];
+}
+function _dtSemAbs(){ return (G.season||2026)*100+(G.week||1); }
+function _dtEsMioPropio(){ const d=G&&G.dt; return !d||d.custom||/Interino/.test(d.name||''); }
+function _dtPonerInterino(){
+  G.dt={name:'DT Interino',nat:'ARG',age:52,rat:62,style:G.formation||'4-4-2',
+        str:'Interinato hasta contratar',salary:15,trait:'Equilibrado',
+        wantedPos:['DC'],philosophy:'Aguantar el barco'};
+}
+function _dtDespedirIA(d,motivo,enMiLiga){
+  if(!d||!d.club) return;
+  const club=d.club;
+  d.club=null; d.until=0; d.desdeW=0;
+  G.dtVacantes=G.dtVacantes||[];
+  if(!G.dtVacantes.some(v=>v.club===club)) G.dtVacantes.push({club,w:_dtSemAbs(),ex:d.name});
+  lg('🚪',`${club} despidió a ${d.name} — ${motivo}`);
+  if(enMiLiga){
+    addPhoneMsg('agent','Mercado de DTs',`🚪 <b>${club}</b> echó a <b>${d.name}</b>: ${motivo}. ${club} sale a buscar técnico.`,'📰');
+    newsPush({w:'S'+(G.week||1),ic:'🚪',type:'misc',msg:`${club} despidió a ${d.name}: ${motivo}.`});
+  } else if(Math.random()<0.3){
+    addPhoneMsg('agent','Mercado de DTs',`🚪 <b>${club}</b> despidió a <b>${d.name}</b>. Queda libre — puede ser una oportunidad.`,'📰');
+  }
+  try{ dtOfertaPorElMio(club); }catch(e){ console.error('dtOfertaPorElMio',e); }
+}
+// Los que van muy por debajo de su plantel, en tu liga. Devuelve el peor.
+function dtCandidatoDespido(){
+  if(!G.league||!G.league.table) return null;
+  const t=leagueSorted();
+  const n=t.length; if(n<8) return null;
+  const pjMed=t.reduce((a,r)=>a+(r.pj||0),0)/n;
+  if(pjMed<8) return null;
+  const pow=t.map(r=>({club:r.club,p:clubPower(r.club)})).sort((a,b)=>b.p-a.p);
+  const esp={}; pow.forEach((x,i)=>esp[x.club]=i+1);
+  let peor=null;
+  t.forEach(r=>{
+    if(r.club===G.teamName||!r.pj) return;
+    const d=_dtDelClub(r.club); if(!d) return;
+    if(d.desdeW&&_dtSemAbs()-d.desdeW<8) return;       // recién llegado: tiene crédito
+    const ppg=r.pts/r.pj, gap=r.pos-esp[r.club];
+    const malo=(gap>=Math.max(5,Math.round(n*0.28))&&ppg<1.15)||(r.pos===n&&r.pj>=10);
+    if(!malo) return;
+    const peso=gap+(1.2-ppg)*6;
+    if(!peor||peso>peor.peso) peor={d,r,gap,ppg,peso};
+  });
+  return peor;
+}
+function dtContratarVacantes(){
+  const vs=dtVacantes(); if(!vs.length) return;
+  const libres=(G.dtPool||[]).filter(d=>!d.club&&d.name!==(G.dt&&G.dt.name));
+  G.dtVacantes=vs.filter(v=>{
+    if(_dtSemAbs()-v.w<1||Math.random()>=DTM_CONTRATA) return true;
+    const niv=nivelClub(v.club);
+    let opc=libres.filter(d=>!d.club&&d.name!==v.ex&&(d.rat||70)<=niv+6)
+                    .sort((a,b)=>(b.rat||0)-(a.rat||0)).slice(0,3);
+    // Si no hay nadie de su nivel y ya pasaron 4 semanas, se conforma con
+    // el que haya: medido, sin esto las vacantes se apilaban (8 abiertas).
+    if(!opc.length&&_dtSemAbs()-v.w>=4)
+      opc=libres.filter(d=>!d.club&&d.name!==v.ex).sort((a,b)=>(a.rat||0)-(b.rat||0)).slice(0,3);
+    const d=opc.length?opc[~~(Math.random()*opc.length)]:null;
+    if(!d) return true;                                 // nadie de su nivel libre: sigue buscando
+    d.club=v.club; d.until=(G.season||2026)+1+~~(Math.random()*2); d.desdeW=_dtSemAbs();
+    if(G.league&&G.league.table&&G.league.table[v.club]) d.league=ligaDB(ligaMia());
+    lg('🤝',`${v.club} contrató a ${d.name} como nuevo DT`);
+    if(G.league&&G.league.table&&G.league.table[v.club])
+      addPhoneMsg('agent','Mercado de DTs',`🤝 <b>${v.club}</b> ya tiene técnico: <b>${d.name}</b>.`,'📰');
+    return false;
+  });
+}
 function weeklyDtMoves(){
   ensureDtPool();
   if(!G.dtPool||G.dtPool.length<4)return;
-  // Un club echa a su DT por resultados
-  if(Math.random()<0.10){
-    const emp=G.dtPool.filter(d=>d.club&&d.club!==G.teamName);
-    if(emp.length){
-      const d=emp[~~(Math.random()*emp.length)];
-      lg('🚪',`${d.club} despidió a ${d.name} por malos resultados`);
-      if(Math.random()<0.4)addPhoneMsg('agent','Mercado de DTs',`🚪 <b>${d.club}</b> despidió a <b>${d.name}</b>. Queda libre — puede ser una oportunidad.`,'📰');
-      d.club=null;d.until=0;
-    }
+  // 1) En tu liga, cada 4 semanas, se mira la tabla
+  if((G.week||1)%DTM_CADA===0){
+    const c=dtCandidatoDespido();
+    if(c&&Math.random()<0.40)
+      _dtDespedirIA(c.d,`va ${c.r.pos}º con ${c.r.pts} puntos en ${c.r.pj} partidos`,true);
   }
-  // Un club contrata a un DT libre
-  if(Math.random()<0.10){
-    const free=G.dtPool.filter(d=>!d.club&&d.name!==(G.dt&&G.dt.name));
-    const clubs=[...new Set((window.PLAYERS_DB||[]).map(r=>r[5]))].filter(c=>c!==G.teamName);
-    if(free.length&&clubs.length){
-      const d=free[~~(Math.random()*free.length)];
-      const c=clubs[~~(Math.random()*clubs.length)];
-      d.club=c;d.until=2027+~~(Math.random()*2);
-      lg('🤝',`${c} contrató a ${d.name} como nuevo DT`);
+  // 2) Afuera, el goteo de siempre (más lento y nunca en tu liga)
+  if(Math.random()<DTM_AFUERA){
+    const mios=new Set((G.league&&G.league.clubs)||[]);
+    let emp=G.dtPool.filter(d=>d.club&&d.club!==G.teamName&&!mios.has(d.club));
+    // Un tercio de las veces el que echa es un club más grande que el tuyo:
+    // si no, con 600 clubes en la base, el grande no cambiaba de DT nunca y
+    // nadie podía venir a buscar al tuyo (medido: 0 ofertas en 2 temporadas).
+    if(Math.random()<0.35){
+      const mio=nivelClub(G.teamName);
+      const gr=emp.filter(d=>nivelClub(d.club)>=mio+DTM_GRANDE);
+      if(gr.length) emp=gr;
     }
+    if(emp.length) _dtDespedirIA(emp[~~(Math.random()*emp.length)],'por malos resultados',false);
   }
+  // 3) Las vacantes se cubren con libres de su nivel
+  dtContratarVacantes();
+}
+// ¿Viene bien tu DT? Lo miran los de afuera: nivel, y si saca más de lo esperado.
+function dtVieneBien(dt){
+  if(!dt) return false;
+  const u=(dt._ult||[]), x=(dt._xpUlt||[]);
+  const sobre=u.reduce((a,b)=>a+b,0)-x.reduce((a,b)=>a+b,0);
+  const pos=(typeof myLeaguePos==='function')?myLeaguePos():0;
+  const n=(G.league&&G.league.clubs&&G.league.clubs.length)||20;
+  return (dt.rat||0)>=70 && (sobre>=0 || (pos>0&&pos<=Math.ceil(n/3)));
+}
+function dtCompensacion(dt){
+  const sem={baja:10,media:20,alta:35}[(dt&&dt.contract&&dt.contract.clause)||'media']||20;
+  return Math.max(0.5,Math.round((dt.salary||40)*sem*1.4/1000*10)/10);
+}
+function dtOfertaPorElMio(club){
+  if(_dtEsMioPropio()||G._dilemaAbierto||G._dtQuit) return false;
+  if(!club||club===G.teamName) return false;
+  if(G._dtOfertaSem&&_dtSemAbs()-G._dtOfertaSem<12) return false;   // una cada tanto
+  const niv=nivelClub(club), mio=nivelClub(G.teamName);
+  if(niv<mio+DTM_GRANDE||niv<68) return false;
+  if(!dtVieneBien(G.dt)) return false;
+  if(Math.random()>=DTM_OFERTA) return false;
+  const dt=G.dt, fee=dtCompensacion(dt);
+  G._dtOfertaSem=_dtSemAbs();
+  const id='dto'+(G._dtOfSeq=(G._dtOfSeq||0)+1)+'_'+(G.week||0);
+  const txt=`<b>${club}</b> se quedó sin técnico y quiere a <b>${dt.name}</b>. Están dispuestos a pagar la cláusula: <b>${fv(fee)}</b>. ${dt.name} te pide una respuesta: <i>"Presidente, es un club grande. Usted sabe lo que hice acá; quiero escuchar qué piensa."</i>`;
+  G.dilemas=G.dilemas||[];
+  G.dilemas.push({id,did:'_dtofe',club,fee,txt,resuelto:null,week:G.week,bloquea:true,de:'Mercado de DTs',ic:'📨',
+    ops:[{i:0,t:`💰 Dejarlo ir (+${fv(fee)})`,d:'Cobrás la cláusula y queda un interino hasta que contrates.'},
+         {i:1,t:'📝 Mejorarle el contrato',d:'Sueldo +30% y más años. Lo más probable es que se quede.'},
+         {i:2,t:'🚫 No lo dejo salir',d:'Se queda, pero la relación se resiente y pierde motivación.'}]});
+  G._dilemaAbierto=id;
+  _DIL_FX[id]=_dtOfeFx(club,fee);
+  addPhoneMsg('board','Mercado de DTs',txt,'📨',{dilema:id});
+  lg('📨',`${club} va por ${dt.name}`);
+  try{ dilemaModal(id); }catch(e){}
+  return true;
+}
+function _dtVaA(club,porque){
+  const dt=G.dt; if(!dt) return;
+  const nom=dt.name;
+  dtGuardarEnPool(dt);
+  ensureDtPool();
+  const o=G.dtPool.find(x=>x.name===nom);
+  if(o){ o.club=club; o.until=(G.season||2026)+2; o.desdeW=_dtSemAbs(); }
+  G.dtVacantes=dtVacantes().filter(v=>v.club!==club);
+  G._dtSalida=`se fue a ${club}`;
+  G._dtQuit=true;
+  _dtPonerInterino();
+  lg('✈️',`${nom} dejó ${G.teamName}: ${porque}`);
+  newsPush({w:'S'+(G.week||1),ic:'✈️',type:'club',msg:`${nom} deja ${G.teamName} y se va a ${club}.`});
+  if(typeof rStaff==='function') try{ rStaff(); }catch(e){}
+}
+function _dtOfeFx(club,fee){
+  return [
+    ()=>{ const n=(G.dt&&G.dt.name)||'El DT';
+          G.budget=Math.round((G.budget+fee)*10)/10;
+          finAnota('otros_in',fee,'Cláusula del DT pagada por '+club);
+          _dtVaA(club,'aceptaste la oferta');
+          G.fanMood=Math.max(0,(G.fanMood===undefined?55:G.fanMood)-3);
+          return `${n} se va a ${club}. Entraron ${fv(fee)}; queda un interino hasta que contrates.`; },
+    ()=>{ const dt=G.dt; if(!dt) return 'Decisión tomada.';
+          const n=dt.name;
+          if(Math.random()<0.25){ _dtVaA(club,'ya tenía la cabeza allá');
+            return `Le mejoraste el contrato, pero ${n} ya tenía la cabeza en ${club} y se fue igual. Sin cláusula: se fue con la carta de libertad.`; }
+          dt.salary=Math.round((dt.salary||40)*1.30);
+          if(dt.contract){ dt.contract.salary=dt.salary; dt.contract.until=Math.max(dt.contract.until||G.season,G.season)+1; }
+          if(typeof setDtRel==='function') setDtRel(8);
+          return `${n} se queda: sueldo a $${dt.salary}K por semana y un año más de contrato.`; },
+    ()=>{ const dt=G.dt; if(!dt) return 'Decisión tomada.';
+          if(!dt.attrs) dt.attrs=Object.assign({},dtAttrs(dt));
+          dt.attrs.mot=Math.max(DT_ATTR_MIN,dt.attrs.mot-3); dtRecalc(dt);
+          if(typeof setDtRel==='function') setDtRel(-15);
+          autSuma(4);
+          return `${dt.name} se queda porque no lo dejaste salir. No le gustó nada: la relación y su motivación bajaron.`; },
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 78: GALERÍA DE TÉCNICOS DEL CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// Quién dirigió, cuánto duró, qué hizo y qué ganó. No se engancha en cada
+// lugar donde cambia el DT (contratar, echar, renuncia, interino, DT propio,
+// la oferta de otro club…): es un VIGÍA que compara el DT de ahora con el
+// último anotado, igual que `sociosTitulos` con los trofeos. Así no se escapa
+// ninguno. Las filas son objetos planos.
+const DTHIST_MAX=40;
+function dtHist(){ return (G&&G.dtHist)||[]; }
+function _dtTrofTotal(){ return ((G.trophies||[]).length)+((G.history||[]).filter(h=>h&&h.champion).length); }
+function dtHistTick(){
+  if(!G||!G.dt) return;
+  G.dtHist=G.dtHist||[];
+  const H=G.dtHist, cur=H[H.length-1], nom=G.dt.name||'DT';
+  const marca=_dtTrofTotal();
+  if(G._dtHistTrof===undefined) G._dtHistTrof=marca;   // save viejo: ancla sin atribuir copas viejas
+  // Copas nuevas desde la última vez: son del que estaba sentado
+  if(cur&&!cur.hasta&&marca>G._dtHistTrof){
+    const nuevas=[];
+    (G.trophies||[]).slice(-(marca-G._dtHistTrof)).forEach(t=>nuevas.push(t.name||String(t)));
+    const hc=(G.history||[]).filter(h=>h&&h.champion);
+    while(nuevas.length<marca-G._dtHistTrof&&hc.length) nuevas.push((LIGA_NOMBRE[(hc[hc.length-1].cat)||ligaMia()]||'Liga')+' '+hc.pop().season);
+    cur.tit=(cur.tit||[]).concat(nuevas.slice(0,marca-G._dtHistTrof));
+  }
+  G._dtHistTrof=marca;
+  if(cur&&!cur.hasta&&cur.name===nom) return;
+  if(cur&&!cur.hasta){
+    cur.hasta=`${G.season} S${G.week||1}`;
+    cur.motivo=G._dtSalida||cur.motivo||'dejó el cargo';
+  }
+  G._dtSalida=null;
+  H.push({name:nom,nat:G.dt.nat||'—',desde:`${G.season} S${G.week||1}`,s0:G.season,
+          pj:0,g:0,e:0,p:0,tit:[],interino:/Interino/.test(nom),propio:!!G.dt.custom,hasta:null});
+  if(H.length>DTHIST_MAX) G.dtHist=H.slice(-DTHIST_MAX);
+}
+function dtHistPartido(res){
+  try{ dtHistTick(); }catch(e){}
+  const cur=dtHist()[dtHist().length-1]; if(!cur||cur.hasta) return;
+  cur.pj++; if(res==='W')cur.g++; else if(res==='D')cur.e++; else cur.p++;
+}
+function rDtGaleria(){
+  const el=document.getElementById('presDtGal'); if(!el||!G) return;
+  const H=dtHist().slice().reverse();
+  if(!H.length){ el.innerHTML='<div class="note" style="margin:0">Todavía no hay técnicos en la historia del club.</div>'; return; }
+  el.innerHTML=H.map(h=>{
+    const pts=h.pj?Math.round((h.g*3+h.e)/(h.pj*3)*100):0;
+    const ef=h.pj?`<span style="color:${pts>=60?'var(--green)':pts>=45?'var(--gold)':'var(--red)'}">${pts}%</span>`:'—';
+    return `<div class="mpanel" style="margin-bottom:6px;padding:8px 10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-family:'Rajdhani';font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.name}${h.hasta?'':' <span style="font-size:9px;color:var(--green)">● en el cargo</span>'}${h.interino?' <span style="font-size:9px;color:var(--t3)">(interino)</span>':''}${h.propio?' <span style="font-size:9px;color:var(--gold)">(propio)</span>':''}</div>
+          <div style="font-size:9px;color:var(--t3)">${h.desde} → ${h.hasta||'hoy'}${h.motivo?' · '+h.motivo:''}</div>
+        </div>
+        <div style="text-align:right;font-family:'Chakra Petch';font-size:11px;flex-shrink:0">${h.pj} PJ · ${h.g}-${h.e}-${h.p} · ${ef}</div>
+      </div>
+      ${(h.tit&&h.tit.length)?`<div style="font-size:10px;color:var(--gold);margin-top:3px">🏆 ${h.tit.join(' · ')}</div>`:''}
+    </div>`;}).join('');
 }
 
 // ═══ EL DT TE HABLA ═══

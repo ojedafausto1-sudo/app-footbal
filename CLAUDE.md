@@ -16,7 +16,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78` |
 
 ## Formato de `players-db.js`
 
@@ -101,10 +101,10 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Quedar en zona de descenso es el fin del ciclo**: tu club no baja de
   categoría, pero `checkFired` te pide la renuncia si terminás en los puestos
   que descienden. Antes sólo te echaban saliendo último.
-  ⚠️ Desde la Fase 38 la **Primera Nacional sí se puede dirigir**, pero es una
-  liga que se ELIGE al empezar: no hay ascenso ni descenso entre las dos
-  todavía. Descender sigue siendo el final del ciclo, no un cambio de
-  categoría.
+  ⚠️ **Desde la Fase 78 hay ascenso y descenso de verdad** entre Primera y la
+  Primera Nacional: descendiendo, la asamblea te deja quedarte si la
+  aprobación llega a 30 (`ASAMBLEA_SIGUE`); si no, es el fin del ciclo como
+  antes. Bajar de la Nacional sigue terminando el ciclo (no hay Federal A).
 - **En la Liga ARG la tabla anual NO da título**: los campeones son el Apertura
   y el Clausura, que ya van a `G.trophies`. `archiveSeason` guarda
   `champion:false` y `anual1:true` para no contar doble. Usá `titulosLiga()`
@@ -7150,6 +7150,121 @@ este cambio.
 `tests/fase77.js`, **9 checks**: el reloj monótono, que sólo vaya el destino
 del último pase (determinista, con `fmAI` aislado), dos partidos del Inter
 sin un solo montón de 8+, remates en rango y 0 errores.
+
+## Fase 78: ascenso, mercado de técnicos, lesiones, clásico y galería
+
+Las cinco ideas que quedaron anotadas en la Fase 75, más tres bugs que
+aparecieron al hacerlas.
+
+### Ascenso y descenso de verdad
+
+- **Descender ya no es siempre el final.** `checkFired` abre `descensoAsamblea`:
+  con `aprobacion() >= ASAMBLEA_SIGUE` (30) podés quedarte y jugar la Primera
+  Nacional (−8 de reputación, objetivo "ascender, Top 2"); con menos, o si el
+  año no tiene Nacional jugable (antes de 2008), te piden la renuncia igual que
+  antes. Desde la Nacional **suben los dos primeros** (`ASC_NAC`).
+- Todo se apoya en lo que ya existía: `G.miLiga` dice la categoría
+  (`buildCal`/`squadFromDB` ya lo leen) y **`G.arClubs`** los 30 de Primera
+  (`clubesPrimera()` ya lo leía primero y no lo escribía nadie). La Nacional se
+  deriva sola: los clubes argentinos de la base que no están en esa lista.
+- El cambio se aplica en `aplicarCategoria()`, dentro de `nextSeason`, justo
+  antes de `buildCal`. Lo anota `archiveSeason` en `G._catMov` y en la fila del
+  historial (`descenso`/`ascenso`/`cat`).
+- ⚠️ **`nextSeason` ahora se puede RETOMAR**: el botón "me quedo" la vuelve a
+  llamar. `G._cierreHecho`/`G._cierrePos` saltean el cierre (historial, mercado,
+  reunión) y `G._eleccionHecha` la elección: si no, la temporada se archivaba
+  dos veces. La asamblea **no pone `G._fired`**: si cerrás el modal, "Iniciar
+  temporada" la vuelve a mostrar.
+- ⚠️ **Bug viejo: los ascensos de la IA se perdían al recargar.**
+  `archiveSeason` escribía en `AR_CLUBS`, que es una constante del archivo y no
+  se guarda. Ahora escribe `G.arClubs`.
+- ⚠️ Salir 1º de la Nacional **no** te mete en la Libertadores (la Copa
+  Argentina sí).
+
+### ⚠️ Jugando la Primera Nacional, todos los rivales valían 66
+
+La Nacional vive en la base bajo la etiqueta `Liga ARG` (`LIGA_DB`), y
+`clubPower`, `creditScorers` y `isKnown` comparaban `p.lg===ligaMia()`, que da
+falso para todos. Medido: los 19 rivales en 66 exacto, ningún goleador
+acreditado y la niebla de guerra tapándote tu propia liga. `esLgMia(lg)` es el
+portero nuevo (acepta la liga y su etiqueta en la base).
+
+### Mercado de técnicos vivo
+
+- En **tu liga**, cada 4 semanas (`DTM_CADA`), se echa al que va muy por
+  debajo de su plantel: puesto real contra puesto esperado por `clubPower`
+  (`dtCandidatoDespido`), con 40% de chance. Medido: ~4 por temporada.
+- Afuera sigue el goteo al azar (`DTM_AFUERA` 6%/semana), y un tercio de las
+  veces es un club más grande que el tuyo.
+- **El que echa queda con la vacante** (`G.dtVacantes`, objetos planos) y la
+  cubre con un libre de su nivel; a las 4 semanas se conforma con el que haya.
+  ⚠️ Antes contrataba un club AL AZAR de la base, aunque ya tuviera técnico.
+- ⚠️ **Hay homónimos entre ligas** (Racing Club, Independiente, tres
+  'Nacional'): el DT de un club de tu liga se busca con `_dtDelClub` (club Y
+  liga). Los "dobles" que se ven en el pool son eso, no un bug.
+- **Si la vacante es de un club más grande** (`DTM_GRANDE` 3 puntos de nivel,
+  nivel 68+) y tu DT viene bien (`dtVieneBien`: 70+ y saca lo esperado, o va
+  en el tercio de arriba), 45% de que vayan por él: dilema `_dtofe` que frena
+  el club — dejarlo ir y cobrar la cláusula (`dtCompensacion`, que sale de la
+  cláusula que firmaste), mejorarle el contrato (+30%, 25% de que se vaya
+  igual) o negarte (`dtRel` −15, motivación −3). Una oferta cada 12 semanas
+  como mucho. Medido: 2 en 3 temporadas con Boca y con Lanús.
+- ⚠️ La oferta (y la renuncia de la Fase 75) no sale con `G._dilemaAbierto`
+  puesto, y **una indisciplina sin contestar en el celular lo deja tomado**. Un
+  arnés que no contesta los dilemas no bloqueantes mide 0 ofertas.
+
+### Lesiones con decisión
+
+- Si un **titular** se lesiona 3+ semanas, `lesionDecision` abre un dilema
+  `_lesion` que frena el club: 🔪 operar (×1,4, sin recaída) · ➖ normal ·
+  💉 infiltrar (juega ya; cada partido infiltrado tiene 18% de romperse peor,
+  ×1,6, hasta que pasen las semanas que le tocaban). Lo grave (9+) no se
+  infiltra. Al suplente no se le pregunta.
+- `p._infil` = `{sem,orig,tipo}`; lo descuenta `infiltradosSemana` y lo juega
+  `infiltradosPartido` desde `applyMatchResult`.
+- ⚠️ **Bug del plan de recuperación**: pasar de "acelerado" a "normal" dejaba
+  las semanas recortadas y borraba el riesgo de recaída. `setRecovery` ahora
+  deshace el plan anterior (`p._accelCut`).
+
+### La semana del clásico
+
+- `clasicoPrevia()` (bloque semanal y `advanceDay`) abre la previa del clásico
+  de esta semana como dilema `_clasico`: 🔥 calentarla (moral, pesa ×1,6) ·
+  🎟️ entradas del partido del año (borderó ×1,6 de local, pesa ×1,3) ·
+  🤝 arreglar con la barra (plata y autoridad, sin incidentes). Una vez por
+  partido (`G._clasPrevKey`).
+- `clasicoResultado` mueve hinchada, CD y moral del plantel escalado por esa
+  apuesta (y ×1,5 si es goleada), con chance de incidentes y multa. Va ENCIMA
+  del "vale doble" de siempre (`dMul`).
+- ⚠️ **La previa es sólo para el clásico de verdad (`esClasico`).** Con
+  `DERBIES` —que cuenta "clásico histórico" a cualquier cruce entre los cinco
+  grandes— salía 12 veces por temporada con Boca (medido).
+- `derbyOf` ahora cae a `esClasico`: un Madrid–Barsa o un Inter–Milan no valían
+  doble porque `DERBIES` es casi toda argentina.
+
+### Galería de técnicos
+
+- Tarjeta **👔 Galería de técnicos** en Presidente (`#presDtGal` →
+  `rDtGaleria`). `G.dtHist` son filas planas `{name,desde,hasta,pj,g,e,p,tit,
+  motivo,interino,propio}`, tope 40.
+- No se engancha en cada lugar donde cambia el DT: `dtHistTick` (desde
+  `updateUI`, no desde el dibujo) es un vigía que compara el DT de ahora con
+  el último anotado, y atribuye las copas nuevas por el total de trofeos, igual
+  que `sociosTitulos`. El motivo de salida lo dejan `G._dtSalida` en
+  `confirmFireDT`, `dtRenuncia` y la oferta de otro club.
+- Retro-compatible: un save viejo no trae `dtHist`, y en el primer tick se
+  ancla sin atribuir las copas viejas al DT de hoy.
+
+`tests/fase78.js`, **36 checks**.
+
+⚠️ `fase72` ("el partido corre con el 3D") se puso rojo y **no era el
+producto**: la versión anterior y la nueva hacen los mismos ticks en el saque
+inicial, pero a 5 fps el saque tarda 3-6 s y la foto a los 4 s caía en el
+borde. Ahora el check espera hasta 8 s a que algo se mueva.
+
+⚠️ **Medido de paso y sin tocar**: con Boca y con Lanús, el arnés gana todo
+(Boca 156-18-5 en tres temporadas). Es la dificultad del juego, no de esta
+fase; si hay que mirarla, el lugar es `G.diff` y la fuerza del rival.
 
 ## Deploy
 

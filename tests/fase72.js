@@ -95,8 +95,13 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   });
   chk('cámaras de platea: el joystick no cambia', joy.cerca === null && joy.tv === null);
   chk('cámara detrás: arriba es hacia el arco rival', joy.der[0] > 0 && joy.izq[0] < 0 && joy.derR[1] > 0, JSON.stringify(joy));
-  const corre = await pg.evaluate(() => new Promise(r => { const m0 = FM.minute, x0 = FM.ball.x, y0 = FM.ball.y;
-    setTimeout(() => r(FM.minute > m0 || Math.hypot(FM.ball.x - x0, FM.ball.y - y0) > 1), 4000); }));
+  // ⚠️ Fase 78: se espera HASTA 8 s a que algo se mueva, en vez de una foto a
+  // los 4 s. A 5 fps el saque inicial tarda 3-6 s en soltarse y la foto caía
+  // justo en el borde: medido, la versión anterior y la nueva hacen los MISMOS
+  // ticks (la pelota arranca a los ~92 en las dos) y una daba verde y otra rojo.
+  const corre = await pg.evaluate(() => new Promise(r => { const m0 = FM.minute, x0 = FM.ball.x, y0 = FM.ball.y, t0 = Date.now();
+    const mira = () => { if (FM && (FM.minute > m0 || Math.hypot(FM.ball.x - x0, FM.ball.y - y0) > 1)) return r(true);
+      if (Date.now() - t0 > 8000) return r(false); setTimeout(mira, 250); }; mira(); }));
   // ⚠️ 4 s y no 1,5: sin placa de video el 3D va a ~5 fps, el motor a media
   // velocidad, y un tiro libre (120 ticks) puede durar más de 2 s quieto.
   chk('el partido corre con el 3D', corre);
