@@ -3507,6 +3507,38 @@ function esLigaARG(){ return ligaMia()==='Liga ARG'; }
 function juegaZonas(){
   return !!(typeof G==='object'&&G&&G.arPhases&&G.arPhases.apertura);
 }
+// ═══════════════════════════════════════════════════════════════════════
+// EL FORMATO DE LA LIGA ARGENTINA DEPENDE DE LA ÉPOCA (Fase 80)
+// ═══════════════════════════════════════════════════════════════════════
+// Antes un año histórico jugaba zonas si traía 30 clubes y, si no, un todos
+// contra todos IDA Y VUELTA que no existió nunca en el fútbol argentino.
+// Cada era tiene ahora su torneo, aproximado al real:
+//   ≤2013     Apertura + Clausura CORTOS: una rueda cada uno, campeón por puntos
+//   2014-2019 torneo LARGO de una rueda (2015 con 30, la Superliga con 26-28)
+//   2020-2024 Copa de la Liga (zonas + playoffs desde cuartos) + Liga de una rueda
+//   ≥2025     el formato de hoy: zonas, Apertura y Clausura con playoffs
+// En todas las eras viejas se baja por PROMEDIOS (los últimos 3 años), que
+// es el descenso que tuvo la Argentina hasta 2024.
+// ⚠️ El año sale de `anioBase()` (la BASE cargada), no de `G.season`: una
+// carrera que arrancó en 2000 sigue jugando con los planteles de 2000.
+function formatoARG(lg){
+  lg=lg||((typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'&&_LIGA_ELEGIDA)||'Liga ARG');
+  if(lg!=='Liga ARG')return null;
+  if(!esHistorica())return 'zonas';
+  const y=anioBase();
+  if(y<=2013)return 'cortos';
+  if(y<=2019)return 'largo';
+  if(y<=2024)return 'ligacopa';
+  return 'zonas';
+}
+const FORMATO_NOMBRE={cortos:'Apertura y Clausura (torneos cortos)',largo:'Torneo largo de una rueda',
+  ligacopa:'Copa de la Liga + Liga Profesional',zonas:'Apertura y Clausura con zonas y playoffs'};
+// ¿Desciende por promedios? (todas las eras viejas de la Liga ARG)
+function descPromedios(){ const f=formatoARG(); return !!f&&f!=='zonas'; }
+// ¿La tabla anual da el título? En el torneo largo sí: es UN torneo.
+function tablaDaTituloARG(){ return formatoARG()==='largo'; }
+// ¿Hubo Copa Argentina ese año? Volvió en la temporada 2011-12.
+function hayCopaArgentina(){ return !esHistorica()||anioBase()>=2011; }
 function esLigaLocal(c){ return c===ligaComp(); }
 // Los clubes que juegan la primera de esa liga, por valor de plantel
 // ═══════════════════════════════════════════════════════════════════════
@@ -3813,6 +3845,163 @@ function _copaNacArmar(teamName,lg,clubsLiga,sch,semana,poolChicos,poolGrandes){
   return pref;
 }
 
+// ═══ LOS TORNEOS DE OTRAS ÉPOCAS (Fase 80) ═══
+// `tipo:'tabla'` = el campeón es el primero de la tabla de ESA fase (sin
+// playoffs). Las fases nuevas llevan `v:80`: `arChequearFases` sólo cierra
+// esas, así una partida guardada con el formato viejo sigue por su camino.
+const ARG_RECESO=5;      // semanas de receso entre el Apertura y el Clausura cortos
+function arBuildEra(fmt,teamName,startWeek){
+  const L='Liga Profesional';
+  let clubs=clubesDeLiga('Liga ARG');
+  if(!clubs.includes(teamName))clubs=[teamName,...clubs.slice(0,Math.max(1,clubs.length-1))];
+  const fx=[], push=(r,phase,w0,flip)=>r.forEach((par,i)=>par.forEach(([h,a])=>fx.push({
+    week:w0+i,comp:L,phase,fecha:i+1,home:flip?a:h,away:flip?h:a,played:false,result:null,score:null})));
+  if(fmt==='largo'){
+    const r=arRoundRobin(_shuf(clubs.slice()));
+    push(r,undefined,startWeek,false);
+    fx.forEach(f=>{delete f.phase;});
+    // La Superliga (desde 2016) arrancaba en agosto y paraba en el verano:
+    // después de la fecha 18 hay un receso, así termina en mayo y no en febrero.
+    if(anioBase()>=2016&&r.length>18) fx.forEach(f=>{ if(f.fecha>18)f.week+=ARG_RECESO+2; });
+    return {zones:null,clubs,fixtures:fx,phases:null};
+  }
+  if(fmt==='cortos'){
+    const r=arRoundRobin(_shuf(clubs.slice())), nR=r.length;
+    push(r,'apertura',startWeek,false);
+    const cs=startWeek+nR+ARG_RECESO;
+    push(r,'clausura',cs,true);                 // la vuelta: misma fecha, otra cancha
+    return {zones:null,clubs,fixtures:fx,phases:{
+      apertura:{v:80,tipo:'tabla',label:'Apertura',start:startWeek,last:startWeek+nR-1,fechas:nR},
+      clausura:{v:80,tipo:'tabla',label:'Clausura',start:cs,last:cs+nR-1,fechas:nR}}};
+  }
+  // 'ligacopa': Copa de la Liga (2 zonas + fecha de clásicos + playoffs desde
+  // cuartos con 4 por zona) y después la Liga, una rueda, campeón por puntos.
+  const zones=arBuildZones(teamName);
+  const ap=arBuildTournament(zones,'apertura',startWeek);
+  ap.fixtures.forEach(f=>fx.push(f));
+  const rondas=['Cuartos','Semifinal','Final'];
+  const pw=ap.playoffWeeks.slice(0,rondas.length);
+  const cs=ap.lastWeek+1+rondas.length;
+  const todos=[...zones.A,...zones.B];
+  const r=arRoundRobin(_shuf(todos.slice()));
+  push(r,'clausura',cs,false);
+  return {zones,clubs:todos,fixtures:fx,phases:{
+    apertura:{v:80,label:'Copa de la Liga',trofeo:'Copa de la Liga',clasif:4,rondas,
+      start:startWeek,last:ap.lastWeek,fechas:ap.fechas,playoffWeeks:pw},
+    clausura:{v:80,tipo:'tabla',label:'Liga Profesional',trofeo:'Liga Profesional',
+      start:cs,last:cs+r.length-1,fechas:r.length}}};
+}
+// 'del Apertura' / 'de la Copa de la Liga'
+function delFase(lab){ return /^(Copa|Liga)/.test(lab||'')?'de la '+lab:'del '+lab; }
+function arFaseLabel(phase){
+  const ph=G&&G.arPhases&&G.arPhases[phase];
+  return (ph&&ph.label)||(phase==='clausura'?'Clausura':'Apertura');
+}
+function arFaseTrofeo(phase){
+  const ph=G&&G.arPhases&&G.arPhases[phase];
+  return (ph&&ph.trofeo)||('Torneo '+arFaseLabel(phase));
+}
+// Tabla de UNA fase: la anual menos lo que había al terminar el Apertura.
+function arTablaFase(phase){
+  ensureLeague();
+  const T=G.league.table, snap=(phase==='clausura'&&G.arSnap&&G.arSnap.season===G.season)?G.arSnap.apertura:null;
+  return G.league.clubs.map(c=>{
+    const r=T[c]||{pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0}, b=(snap&&snap[c])||{pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0};
+    return {club:c,pj:r.pj-b.pj,g:r.g-b.g,e:r.e-b.e,p:r.p-b.p,gf:r.gf-b.gf,gc:r.gc-b.gc,pts:r.pts-b.pts};
+  }).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf).map((r,i)=>({pos:i+1,...r}));
+}
+function arCampeonTabla(phase){
+  const t=arTablaFase(phase); if(!t.length)return;
+  const champ=t[0].club, nom=arFaseTrofeo(phase);
+  G.arCampeones=(G.arCampeones&&G.arCampeones.season===G.season)?G.arCampeones:{season:G.season};
+  G.arCampeones[phase]=champ;
+  if(champ===G.teamName){
+    lg('🏆',`¡${G.teamName} CAMPEÓN ${delFase(nom)} ${G.season}!`);
+    flash(`🏆 ¡CAMPEONES DEL ${nom.toUpperCase()}!`,'win');
+    repSuma(7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
+    (G.trophies=G.trophies||[]).push({name:nom,season:G.season});
+    addPhoneMsg('board','Comisión Directiva',`🏆 ¡CAMPEONES DEL ${nom.toUpperCase()}, PRESIDENTE! ${t[0].pts} puntos, ${t[0].pts-(t[1]?t[1].pts:0)} de ventaja.`,'🏛️');
+    newsPush({w:'S'+G.week,ic:'🏆',type:'club',msg:`¡${G.teamName} es campeón ${delFase(nom)}! Terminó primero con ${t[0].pts} puntos.`});
+  } else {
+    const yo=t.find(r=>r.club===G.teamName);
+    lg('🏆',`${champ} campeón ${delFase(nom)} (${G.teamName} ${yo?yo.pos+'º':'—'})`);
+    newsPush({w:'S'+G.week,ic:'🏆',type:'misc',msg:`${champ} se consagró campeón ${delFase(nom)} con ${t[0].pts} puntos.`});
+  }
+}
+// Cierra las fases que terminaron. También pone al día las fechas de la IA de
+// semanas que ya pasaron: con un número impar de clubes tu fecha libre podía
+// ser la última, y esa fecha no se jugaba nunca (sólo la dispara TU partido).
+function arChequearFases(){
+  if(!G||!G.arPhases||!G.arFix)return;
+  try{
+    G.arFix.filter(f=>!f.played&&f.week<(G.week||1)&&f.home!==G.teamName&&f.away!==G.teamName).forEach(f=>{
+      ensureLeague();
+      const [ga,gb]=arSimPair(f.home,f.away,f.week);
+      f.played=true;f.score=ga+'-'+gb;f.result=ga>gb?'H':ga===gb?'D':'A';
+      tallyLeague(f.home,f.away,ga,gb);creditScorers(f.home,ga);creditScorers(f.away,gb);
+    });
+  }catch(e){}
+  ['apertura','clausura'].forEach(phase=>{
+    const ph=G.arPhases[phase];
+    if(!ph||ph.v!==80||ph.cerrada)return;
+    if(G.arFix.some(f=>f.phase===phase&&!f.played))return;
+    ph.cerrada=true;
+    if(phase==='apertura'){ ensureLeague(); G.arSnap={season:G.season,apertura:JSON.parse(JSON.stringify(G.league.table))}; }
+    if(ph.tipo==='tabla')arCampeonTabla(phase); else arStartPlayoff(phase);
+  });
+}
+function formatoTablaTxt(){
+  const f=(typeof formatoARG==='function')?formatoARG():null;
+  if(f==='cortos')return 'Suma el Apertura y el Clausura: no da título (cada torneo tiene su campeón). Los descensos son por promedios.';
+  if(f==='largo')return 'Torneo largo de una rueda: el primero es el campeón. Los descensos son por promedios.';
+  if(f==='ligacopa')return 'Suma la Copa de la Liga y la Liga Profesional. Los descensos son por promedios.';
+  if(juegaZonas())return 'Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.';
+  return 'Todos contra todos, ida y vuelta. Define el campeón y los descensos.';
+}
+// La tabla del torneo que se está jugando, cuando el campeón sale de ahí
+function faseTablaHTML(sn){
+  if(!G||!G.arPhases)return '';
+  const cur=['clausura','apertura'].find(ph=>G.arPhases[ph]&&G.arPhases[ph].tipo==='tabla'&&(G.arFix||[]).some(f=>f.phase===ph&&f.played));
+  if(!cur)return '';
+  const t=arTablaFase(cur), tn=G.teamName, ch=G.arCampeones&&G.arCampeones.season===G.season&&G.arCampeones[cur];
+  sn=sn||(c=>c);
+  return `<div class="card" style="margin-bottom:9px"><div class="ctitle">🏆 ${arFaseLabel(cur)} ${G.season}${ch?' — campeón: '+sn(ch):''}</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">Una rueda; el primero es campeón, sin playoffs.</div>
+    ${t.slice(0,10).map(r=>`<div style="display:grid;grid-template-columns:22px 1fr 26px 30px;gap:2px;font-size:10px;padding:2px 4px;${r.club===tn?'background:rgba(var(--gold-rgb),.10);color:var(--gold);font-weight:700':''}">
+      <span>${r.pos}</span><span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${sn(r.club)}</span><span>${r.pj}</span><span style="font-weight:700">${r.pts}</span></div>`).join('')}
+  </div>`;
+}
+function promediosHTML(sn,nDown){
+  if(!G||!descPromedios())return '';
+  sn=sn||(c=>c); const tn=G.teamName;
+  const p=promediosTabla(leagueSorted());
+  const yo=p.findIndex(r=>r.club===tn);
+  const muestra=p.slice(0,Math.max(6,nDown+3));
+  if(yo>=muestra.length)muestra.push(p[yo]);
+  return `<div class="card" style="margin-bottom:9px"><div class="ctitle">📉 Promedios — el descenso</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">Puntos sobre partidos de las últimas tres temporadas en Primera. Bajan los ${nDown} peores.</div>
+    ${muestra.map(r=>{const i=p.indexOf(r);return `<div style="display:grid;grid-template-columns:22px 1fr 40px 44px;gap:2px;font-size:10px;padding:2px 4px;border-left:3px solid ${i<nDown?'var(--red)':'transparent'};${r.club===tn?'background:rgba(var(--gold-rgb),.10);color:var(--gold);font-weight:700':''}">
+      <span>${p.length-i}</span><span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${sn(r.club)}</span><span>${r.pts}/${r.pj}</span><span style="font-weight:700">${r.prom.toFixed(3)}</span></div>`;}).join('')}
+  </div>`;
+}
+// ═══ DESCENSO POR PROMEDIOS ═══
+// Puntos sobre partidos de las últimas tres temporadas en Primera (el que
+// recién subió cuenta sólo las que jugó). `G.promHist` = {club:[{s,pts,pj}]}.
+function promediosTabla(t){
+  const H=(G&&G.promHist)||{};
+  return (t||leagueSorted()).map(r=>{
+    const h=(H[r.club]||[]).filter(x=>x.s<G.season).slice(-2);
+    const pts=r.pts+h.reduce((a,x)=>a+x.pts,0), pj=r.pj+h.reduce((a,x)=>a+x.pj,0);
+    return {club:r.club,pts,pj,temps:h.length+1,prom:pj?Math.round(pts/pj*1000)/1000:0};
+  }).sort((a,b)=>a.prom-b.prom||a.pts-b.pts);
+}
+function promediosGuardar(t){
+  G.promHist=G.promHist||{};
+  (t||[]).forEach(r=>{ const h=(G.promHist[r.club]=G.promHist[r.club]||[]);
+    if(!h.some(x=>x.s===G.season))h.push({s:G.season,pts:r.pts,pj:r.pj});
+    G.promHist[r.club]=h.slice(-2); });
+}
+
 function buildCal(teamName, teamId){
   teamName = teamName || (G&&G.teamName) || 'Boca Juniors';
   function shuf(a){for(let i=a.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -3891,7 +4080,9 @@ function buildCal(teamName, teamId){
   // reproducir el formato REAL de cada año es un motor por temporada, no un
   // parámetro — la misma razón por la que Colombia y México no tienen zonas.
   const _zonasOK=(_lgMia==='Liga ARG')&&(clubesPrimera().length>=30);
-  if(_lgMia!=='Liga ARG'||!_zonasOK){
+  // Fase 80: cada época de la Liga ARG tiene su torneo (ver formatoARG)
+  const _fmt=formatoARG(_lgMia);
+  if(_lgMia!=='Liga ARG'||(_fmt==='zonas'&&!_zonasOK)){
     const L=buildCalOtra(teamName,_lgMia,1+PRE_SEMANAS);
     buildCal._league={zones:null,fixtures:L.fixtures,clubs:L.clubs,liga:_lgMia,
       phases:null};
@@ -3911,19 +4102,25 @@ function buildCal(teamName, teamId){
     if(typeof G==='object'&&G)G.intGrp=buildCal._intGrp||null;
     return sch.sort((a,b)=>a.week-b.week);
   }
+  let zones=null, allFix, _phases, _ligaClubs=null;
+  if(_fmt==='zonas'){
   // ═══ LIGA: Apertura + Clausura con 2 zonas de 15 ═══
-  const zones=arBuildZones(teamName);
+  zones=arBuildZones(teamName);
   const ap=arBuildTournament(zones,'apertura',1+PRE_SEMANAS);
   // ⚠️ EL HUECO SON 4 SEMANAS, NO 3: los playoffs son 4 rondas (Octavos,
   // Cuartos, Semifinal, Final) y va una por semana. Con 3 semanas la final
   // caería sí o sí encima de la primera fecha del Clausura.
   const cl=arBuildTournament(zones,'clausura',ap.lastWeek+1+PLAYOFF_RONDAS);
-  const allFix=[...ap.fixtures,...cl.fixtures];
+  allFix=[...ap.fixtures,...cl.fixtures];
+  _phases={apertura:{start:1,last:ap.lastWeek,fechas:ap.fechas,playoffWeeks:ap.playoffWeeks},
+           clausura:{start:cl.lastWeek-cl.fechas+1,last:cl.lastWeek,fechas:cl.fechas,playoffWeeks:cl.playoffWeeks}};
+  } else {
+    const E=arBuildEra(_fmt,teamName,1+PRE_SEMANAS);
+    zones=E.zones; allFix=E.fixtures; _phases=E.phases; _ligaClubs=E.clubs;
+  }
   // buildCal corre DENTRO del literal que crea G, así que G todavía no existe:
   // se deja en la función y initGame lo levanta después (ver arAttachLeague).
-  buildCal._league={zones,fixtures:allFix,
-    phases:{apertura:{start:1,last:ap.lastWeek,fechas:ap.fechas,playoffWeeks:ap.playoffWeeks},
-            clausura:{start:cl.lastWeek-cl.fechas+1,last:cl.lastWeek,fechas:cl.fechas,playoffWeeks:cl.playoffWeeks}}};
+  buildCal._league={zones,fixtures:allFix,clubs:_ligaClubs,phases:_phases};
   if(typeof G==='object'&&G)arAttachLeague();
   // Mis partidos van al calendario (el resto los juega la liga en paralelo)
   allFix
@@ -3964,6 +4161,8 @@ function buildCal(teamName, teamId){
   // recién cuando ganás (ver caProximaRonda, llamada desde resolveKO).
   // La Liga ARG pasa sus DOS bombos curados a mano (los clubes reales del
   // ascenso y los cinco grandes); el resto de las ligas los deriva.
+  // La Copa Argentina volvió en 2011-12: antes de eso, no hay copa nacional.
+  if(hayCopaArgentina())
   _copaNacArmar(teamName,'Liga ARG',clubesDeCategoria('Liga ARG'),sch,3+PRE_SEMANAS,
                 null,caFinalRivals.slice());
   // arAttachLeague corrió más arriba, cuando el grupo todavía no estaba armado
@@ -7263,10 +7462,11 @@ function updateUI(){
   // Y que la pretemporada tenga partidos: si no, `advanceDay` se traba en el
   // día 7 de la semana 1 (ver preseasonGarantizar).
   try{ preseasonGarantizar(); }catch(e){}
+  try{ arChequearFases(); }catch(e){ console.error('arChequearFases',e); }
   try{ dtHistTick(); }catch(e){}          // Fase 78: la galería de técnicos (estado, no dibujo)
   const $ = id => document.getElementById(id);
   $('bTop').textContent='$'+G.budget+'M';
-  $('wTop').textContent=(DIAS[curDay()-1]||'').slice(0,3)+' S'+G.week;
+  $('wTop').textContent=hoyTxt(false);$('wTop').title='Semana '+G.week+' · '+hoyTxt(true);
   $('rTop').textContent=G.wins+'-'+G.draws+'-'+G.losses;
   $('repTop').textContent=G.rep;
   if($('stadTop'))$('stadTop').textContent=G.stadium.name.replace('La ','').replace('El ','');
@@ -7307,7 +7507,7 @@ function updateUI(){
   }
   if($('sqCount'))$('sqCount').textContent='('+G.squad.length+' jugadores)';
   if($('offCnt'))$('offCnt').textContent=G.offers.length;
-  if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=dayLabel()+(q>0?' · faltan '+q+' d':' · día de partido');}
+  if($('dayLbl')){const q=7-curDay();$('dayLbl').textContent=hoyTxt(true)+' · S'+(G.week||1)+(q>0?' · faltan '+q+' d':' · día de partido');}
   if($('dayBtn'))$('dayBtn').style.opacity=curDay()>=7?'.4':'1';
   // ⚠️ `G.league` se construía como EFECTO SECUNDARIO de dibujar la tabla
   // (`rStand` llama a `ensureLeague`). Al pasar las pestañas a dibujarse sólo
@@ -7361,6 +7561,193 @@ function rFormDots(){
     Array(Math.max(0,5-res.length)).fill('<span class="form-dot fd-n"></span>').join('');
 }
 
+// ═══ TOPE SALARIAL (Fase 80) ═══════════════════════════════════════════
+// Antes el tope era `G.wageCap` a secas: 1,35× la masa salarial del primer
+// día de la temporada, SIN MIRAR LA CAJA. Medido con Boca: 875k/sem de
+// sueldos y tope 1.181k, o sea ~300k de margen — los mismos con 28M que con
+// 200M en el banco. El presidente juntaba plata vendiendo y no podía usarla.
+// Ahora el tope es lo que aprobó la CD MÁS lo que la caja banca: la plata por
+// encima de una reserva (12 semanas de sueldos) paga sueldos extra durante dos
+// temporadas (`TOPE_SEMANAS_CAJA`). Con caja en rojo vale sólo lo aprobado.
+// `G.wageCap` sigue siendo la parte aprobada (los saves viejos la traen).
+const TOPE_SEMANAS_CAJA=100, TOPE_RESERVA_SEM=12;
+function masaSalarial(){ return Math.round((G&&G.squad||[]).reduce((a,p)=>a+(p.wage||0),0)); }
+function topeDetalle(){
+  const masa=masaSalarial();
+  const base=(G&&G.wageCap)||Math.round(masa*1.35);
+  const amp=(G&&G.wageAmp&&G.wageAmp.season===G.season)?(G.wageAmp.k||0):0;
+  const reserva=masa*TOPE_RESERVA_SEM/1000;          // en millones
+  const libre=Math.max(0,((G&&G.budget)||0)-reserva);
+  const caja=Math.round(libre*1000/TOPE_SEMANAS_CAJA);
+  return {masa,base,amp,caja,reserva:Math.round(reserva*10)/10,tope:base+amp+caja,margen:base+amp+caja-masa};
+}
+function topeSalarial(){ return topeDetalle().tope; }
+// Mensaje único para las vías de fichaje: dice POR QUÉ no autoriza.
+function topeBloquea(sueldo,ahorro){
+  const d=topeDetalle(), nuevo=d.masa-(ahorro||0)+sueldo;
+  if(nuevo<=d.tope)return false;
+  flash(`❌ La CD no autoriza: con ${sueldo}k la masa salarial queda en ${nuevo}k/sem y el tope es ${d.tope}k `+
+        `(${d.base}k aprobados${d.amp?' + '+d.amp+'k de ampliación':''}${d.caja?' + '+d.caja+'k que banca la caja':''}). `+
+        `Vendé, bajá el sueldo o pedile una ampliación a la CD.`,'loss');
+  return true;
+}
+// El presidente puede pedir UNA ampliación por temporada. La da la CD según
+// la confianza y tu autoridad; si te dicen que no, te cuesta confianza.
+function pedirAmpliacion(){
+  if(!G)return;
+  if(G.wageAmp&&G.wageAmp.season===G.season){flash('Ya pediste la ampliación de esta temporada','draw');return;}
+  const d=topeDetalle();
+  const chance=Math.max(0.10,Math.min(0.92,((G.boardConf||50)-30)/60+(autoridad()-50)/200));
+  const ok=Math.random()<chance;
+  const k=ok?Math.round(d.base*0.15):0;
+  G.wageAmp={season:G.season,k,ok};
+  if(ok){
+    G.boardConf=Math.max(0,(G.boardConf||50)-3);
+    addPhoneMsg('board','Comisión Directiva',`✅ Aprobamos la ampliación: el tope salarial sube <b>${k}k/sem</b> por esta temporada. Que rinda, presidente.`,'🏛️');
+    flash(`✅ La CD amplió el tope en ${k}k/sem`,'win');
+  } else {
+    G.boardConf=Math.max(0,(G.boardConf||50)-6);
+    addPhoneMsg('board','Comisión Directiva',`❌ No hay ampliación. Con la confianza que tenemos hoy no vamos a firmar más sueldos. Cuando los resultados acompañen, volvé.`,'🏛️');
+    flash('❌ La CD rechazó la ampliación (−6 de confianza)','loss');
+  }
+  try{updateUI();}catch(e){}
+}
+function topeHTML(){
+  if(!G)return '';
+  const d=topeDetalle(), pct=Math.round(d.masa/Math.max(1,d.tope)*100);
+  const col=pct>=95?'var(--red)':pct>=80?'var(--ora)':'var(--green)';
+  const pedido=G.wageAmp&&G.wageAmp.season===G.season;
+  return `<div class="mpanel" id="topeBox">
+    <div class="mpanel-t">💵 Tope salarial</div>
+    <div class="sr"><span class="sl">Sueldos hoy</span><span class="sv">${d.masa}k/sem (${pct}%)</span></div>
+    <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin:4px 0 6px"><div style="height:100%;width:${Math.min(100,pct)}%;background:${col};border-radius:4px"></div></div>
+    <div class="sr"><span class="sl">Aprobado por la CD</span><span class="sv">${d.base}k</span></div>
+    ${d.amp?`<div class="sr"><span class="sl">Ampliación de esta temporada</span><span class="sv">+${d.amp}k</span></div>`:''}
+    <div class="sr"><span class="sl">Lo que banca la caja</span><span class="sv" style="color:${d.caja?'var(--green)':'var(--t3)'}">+${d.caja}k</span></div>
+    <div class="sr"><span class="sl">Tope total / margen</span><span class="sv" style="color:${col}">${d.tope}k · quedan ${Math.max(0,d.margen)}k</span></div>
+    <div class="note" style="font-size:10px;margin-top:4px">La caja suma tope con lo que sobra arriba de una reserva de ${fv(d.reserva)} (12 semanas de sueldos): cada 10M libres son 100k/sem más, porque tienen que alcanzar para dos temporadas.</div>
+    <button class="btn" style="margin-top:6px;width:100%" ${pedido?'disabled':''} onclick="pedirAmpliacion()">${pedido?(G.wageAmp.ok?'✅ Ampliación concedida':'❌ La CD ya dijo que no'):'🏛️ Pedir ampliación a la CD (+15%)'}</button>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MERCADO INTERACTIVO Y GESTIÓN (Fase 80)
+// ═══════════════════════════════════════════════════════════════════════
+// 1) LA PUJA. Si otro club ofertaba por tu objetivo, a los N días lo perdías
+//    con 55% de chance hicieras lo que hicieras. Ahora podés subir la apuesta:
+//    el rival tiene un techo oculto (`n.rivalTope`, sorteado una vez) y contesta
+//    en el acto — sube otra vez o se baja. Si al vencer el plazo tu oferta es la
+//    más alta, el rival se va y el jugador sigue siendo tuyo.
+const PUJA_PASO=0.06;
+function negPujaMonto(n){ const base=Math.max(n.bid||0,(typeof negCashOut==='function'?negCashOut(n):0)||0,n.topRival||0);
+  return Math.round(base*(1+PUJA_PASO)*100)/100; }
+function negPujar(pid){
+  const n=negFind(pid), p=G.market.find(x=>x.id===pid);
+  if(!n||!p||!n.topRival)return;
+  const monto=negPujaMonto(n);
+  if(monto>G.budget){flash('❌ No te alcanza para pujar '+fv(monto),'loss');return;}
+  n.bid=monto; n.miPuja=monto;
+  if(n.stage==='contraoferta'&&n.want&&monto>=n.want){ n.stage='esperando_club'; n.wait=1; }
+  const rv=(n.rivals||['otro club'])[0];
+  const tope=n.rivalTope||n.topRival*1.2;
+  if(monto*(1+PUJA_PASO*0.5)<=tope&&Math.random()<0.62){
+    n.topRival=Math.round(Math.min(tope,monto*(1.03+Math.random()*0.06))*100)/100;
+    if(n.rivalBids&&n.rivalBids[0])n.rivalBids[0].bid=n.topRival;
+    n.deadline=Math.max(n.deadline||0,4);
+    addPhoneMsg('agent',p.club,`🔥 <b>${rv}</b> no se queda atrás: ahora pone <b style="color:var(--gold)">${fv(n.topRival)}</b> por ${p.name}.`,'⏳');
+    flash(`🔥 ${rv} subió a ${fv(n.topRival)}`,'draw');
+  } else {
+    addPhoneMsg('agent',p.club,`✅ <b>${rv}</b> se bajó de la pelea por ${p.name}. Tu oferta de <b>${fv(monto)}</b> es la que vale.`,'💼');
+    flash(`✅ ${rv} se bajó: ${p.name} es tuyo si cerrás con ${p.club}`,'win');
+    n.rivals=(n.rivals||[]).slice(1); n.rivalBids=(n.rivalBids||[]).slice(1);
+    n.topRival=(n.rivalBids||[]).reduce((a,r)=>Math.max(a,r.bid),0)||0;
+    if(!n.rivals.length)n.deadline=0;
+  }
+  lg('🔥',`Pujaste ${fv(monto)} por ${p.name}`);
+  try{openNegsPanel();}catch(e){}
+}
+// 2) OPORTUNIDADES. Lo que el Director Deportivo (o la secretaría) te marca
+//    del mercado, recalculado cada semana. Respeta la niebla: la "ganga" y la
+//    "joya" sólo salen de jugadores que conocés.
+let _opCache=null;
+function oportunidades(){
+  if(!G||!G.market)return [];
+  const k=G.season+'|'+G.week+'|'+G.squad.length;
+  if(_opCache&&_opCache.k===k)return _opCache.l.map(id=>G.market.find(p=>p.id===id)).filter(Boolean).map((p,i)=>({p,tag:_opCache.t[i]}));
+  const xi=G.squad.map(p=>p.rat).sort((a,b)=>b-a).slice(0,11);
+  const nivel=xi.length?xi.reduce((a,r)=>a+r,0)/xi.length:70;
+  const mios=new Set(G.squad.map(p=>p.name));
+  // ⚠️ NO `jerarquiaBloquea`: manda mensajes al celular. Se usan sus dos
+  // preguntas puras (clásico y si el jugador te atiende).
+  const ok=p=>!mios.has(p.name)&&p.club!==G.teamName&&!esClasico(G.teamName,p.club)&&jugadorTeAtiende(p).ok;
+  const out=[], usado=new Set();
+  const pick=(arr,tag)=>{ const p=arr.find(x=>!usado.has(x.id)); if(p){usado.add(p.id);out.push({p,tag});} };
+  const M=G.market.filter(ok);
+  pick(M.filter(p=>esLibre(p)&&p.rat>=nivel-6).sort((a,b)=>b.rat-a.rat),'🆓 Libre: sólo el contrato');
+  pick(M.filter(p=>!esLibre(p)&&contractMonths(p)<=6&&ratEst(p)>=nivel-4).sort((a,b)=>ratEst(b)-ratEst(a)),'📝 Contrato por vencer: precontrato');
+  pick(M.filter(p=>p.forceSale||(p.pressuring||0)>=2).sort((a,b)=>b.rat-a.rat),'😤 Quiere irse de su club: lo bajaron de precio');
+  pick(M.filter(p=>isKnown(p)&&!esLibre(p)&&p.rat>=nivel-2).sort((a,b)=>(b.rat/(askingPrice(b)+1))-(a.rat/(askingPrice(a)+1))),'💎 Ganga: rinde más de lo que cuesta');
+  pick(M.filter(p=>isKnown(p)&&p.age<=20&&(p.pot||0)>=nivel+4).sort((a,b)=>(b.pot||0)-(a.pot||0)),'🌱 Joya: techo alto');
+  _opCache={k,l:out.map(o=>o.p.id),t:out.map(o=>o.tag)};
+  return out;
+}
+function oportunidadesHTML(){
+  const L=oportunidades(); if(!L.length)return '';
+  const dir=(typeof dirDeportivo==='function')?dirDeportivo():null;
+  return `<div class="mpanel" id="opBox" style="margin-bottom:8px"><div class="mpanel-t">🎯 Oportunidades de la semana${dir?' — las marca '+dir.name:''}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">
+    ${L.map(({p,tag})=>`<div onclick="openP('${p.id}')" style="cursor:pointer;min-width:0;overflow:hidden;background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:8px;padding:6px 8px">
+      <div style="font-size:9px;color:var(--gold);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${tag}</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:3px;min-width:0">${(typeof rbK==='function')?rbK(p):p.rat}<b style="font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0">${p.name}</b></div>
+      <div style="font-size:9px;color:var(--t3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.pos} · ${p.age} años · ${p.club}</div>
+      <div style="font-size:10px;margin-top:2px">${esLibre(p)?'sin ficha':fv(askingPrice(p))}</div></div>`).join('')}
+    </div></div>`;
+}
+// 3) EL DIRECTOR DEPORTIVO PROPONE VENTAS. Una por mes, a la Carpeta: el
+//    veterano caro que casi no juega, el que pidió irse o el que sobra en una
+//    línea con mucha gente. Firmar lo pone EN VENTA (no lo vende: eso lo
+//    deciden las ofertas que lleguen), rechazar lo deja tranquilo.
+function juntaVentas(dir){
+  if(!G||!dir||aprobaciones().some(a=>a.k==='venta'))return;
+  const L=G.squad.filter(p=>!p.listed&&!p._ventaNo&&!p.onLoan&&!p.injured);
+  if(L.length<20)return;
+  const porLinea={}; G.squad.forEach(p=>{const g=pgr(p.pos);porLinea[g]=(porLinea[g]||0)+1;});
+  const cupoL={ARQ:3,DEF:9,MED:9,DEL:6};
+  const pj=p=>(p.apps||0)-(p._appsIni||0);
+  const cand=L.map(p=>{
+    let sc=0, por='';
+    if(p.wantsOut){sc+=40;por='pidió irse';}
+    if(p.age>=31&&(p.wage||0)>=40&&p.rat<78){sc+=25;por=por||`tiene ${p.age} años y cobra ${p.wage}k`;}
+    if((porLinea[pgr(p.pos)]||0)>(cupoL[pgr(p.pos)]||9)&&p.rat<75){sc+=15;por=por||'sobra en su línea';}
+    if(p.rendim!==undefined&&p.rendim<=-0.35){sc+=10;por=por||'no tiene minutos';}
+    return {p,sc,por};
+  }).filter(c=>c.sc>=25).sort((a,b)=>b.sc-a.sc);
+  if(!cand.length)return;
+  const {p,por}=cand[0];
+  const ask=Math.round(Math.max(0.1,(p.val||1)*0.95)*10)/10;
+  _aprobPush({k:'venta',pid:p.id,nombre:p.name,cost:0,ask,titulo:'Poner en venta a '+p.name,
+    detalle:`${p.pos} · ${p.age} años · ${p.wage||0}k/sem · ${por} · pedirían ${fv(ask)}`});
+  addPhoneMsg('board',dir.name,`🏷️ Presi, le sugiero poner en venta a <b>${p.name}</b> (${por}). Libera sueldo y lugar. Está en la carpeta.`,'🗂️');
+}
+// 4) CAMPAÑA DE SOCIOS. El presidente invierte en una campaña (una por
+//    temporada): suma socios ya y levanta el humor. Es plata hoy contra cuotas
+//    de todo el año, y no se recupera si la gente está enojada.
+function campanaCosto(){ return Math.round(Math.max(0.3,((G.socios||sociosBase())/100000)*1.2)*10)/10; }
+function campanaSocios(){
+  if(!G)return;
+  if(G.campana&&G.campana.season===G.season){flash('Ya hiciste la campaña de esta temporada','draw');return;}
+  const c=campanaCosto(); if(G.budget<c){flash('❌ Sin caja para la campaña ('+fv(c)+')','loss');return;}
+  const mood=(G.fanMood===undefined?55:G.fanMood);
+  const pct=Math.max(0.01,Math.min(0.08,0.02+(mood-40)/600));
+  const antes=G.socios||sociosBase(), alta=Math.round(antes*pct);
+  G.budget=Math.round((G.budget-c)*10)/10; finAnota('otros_out',c,'Campaña de socios');
+  G.socios=antes+alta; G.fanMood=Math.min(100,mood+3);
+  G.campana={season:G.season,alta,costo:c};
+  addPhoneMsg('board','Marketing',`📣 La campaña de socios salió a la calle: <b>+${alta.toLocaleString('es-AR')}</b> socios nuevos.`,'📣');
+  lg('📣',`Campaña de socios: +${alta} socios por ${fv(c)}`);
+  flash(`📣 +${alta.toLocaleString('es-AR')} socios`,'win'); try{updateUI();}catch(e){}
+}
+
 // ═══ ESTADO DEL PLANTEL: lo que hay que mirar antes de que sea tarde ═══
 // Resume envejecimiento, contratos por vencer, gente sin minutos y lesionados.
 // Antes había que ir jugador por jugador para darse cuenta de estas cosas.
@@ -7374,7 +7761,7 @@ function squadHealthPanel(){
   const benched=sq.filter(p=>p.rendim!==undefined&&p.rendim<=-0.35&&(p.age||0)>=26);
   const inj=sq.filter(p=>p.injured).length;
   const wage=Math.round(sq.reduce((a,p)=>a+(p.wage||0),0));
-  const cap=G.wageCap||0;
+  const cap=topeSalarial()||0;
   const capPct=cap?Math.round(wage/cap*100):0;
   const chip=(ico,txt,col,tip)=>`<span title="${tip||''}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border:1px solid ${col};border-radius:20px;padding:2px 8px;font-size:9px;color:${col};cursor:help">${ico} ${txt}</span>`;
   const items=[
@@ -8302,11 +8689,7 @@ function submitNegTerms(id){
   const payNow=Math.round((cuota+bonus)*10)/10;
   if(G.budget<payNow){flash('❌ Sin presupuesto para la primera cuota + bono ('+fv(payNow)+')','loss');return;}
   // Tope salarial fijado por la CD
-  const curWages=G.squad.reduce((a,q)=>a+(q.wage||0),0);
-  if(G.wageCap&&curWages+wage>G.wageCap){
-    flash(`❌ La CD no autoriza: tope salarial ${G.wageCap}k/sem (hoy ${curWages}k + ${wage}k). Vendé o bajá la oferta.`,'loss');
-    return;
-  }
+  if(topeBloquea(wage))return;
   const wageRatio=wage/wageExp;
   const roleExpect=wageExp>=47?0:wageExp>=44?1:wageExp>=41?2:3;
   const roleDiff=role-roleExpect;
@@ -8621,19 +9004,83 @@ function renderMktSafe(){
   renderMkt();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FECHAS DE VERDAD Y VENTANAS DE PASES (Fase 80)
+// ═══════════════════════════════════════════════════════════════════════
+// El juego contaba en "semanas" y nunca decía un día. Ahora cada semana cae en
+// un calendario real: Sudamérica y la MLS juegan el año calendario (la
+// pretemporada arranca en enero); Europa, México y Arabia de julio a mayo. En
+// la Argentina depende de la época: los torneos cortos y la Superliga
+// arrancaban en agosto. El partido se juega el domingo (día 7).
+const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const DIAS_C=['lun','mar','mié','jue','vie','sáb','dom'];
+const LIGAS_ENERO=['Brasil','Chile','Uruguay','Colombia','Paraguay','Perú','Ecuador','Bolivia','Venezuela','MLS'];
+function temporadaEnero(){
+  const lg=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  if(lg==='Liga ARG'||lg==='Primera Nacional'){
+    const f=formatoARG('Liga ARG');
+    return !(f==='cortos'||(f==='largo'&&anioBase()>=2016));
+  }
+  return LIGAS_ENERO.includes(lg);
+}
+// Lunes de la semana 1 de la temporada
+function inicioTemporada(){
+  const y=(G&&G.season)||2026;
+  const d=temporadaEnero()?new Date(y,0,5):new Date(y,6,14);
+  while(d.getDay()!==1)d.setDate(d.getDate()+1);
+  return d;
+}
+function fechaDe(week,day){
+  const d=inicioTemporada();
+  d.setDate(d.getDate()+((week||1)-1)*7+((day||7)-1));
+  return d;
+}
+function fechaTxt(week,day,conAnio){
+  const d=fechaDe(week,day);
+  return `${DIAS_C[(d.getDay()+6)%7]} ${d.getDate()} ${MESES[d.getMonth()]}${conAnio===false?'':' '+d.getFullYear()}`;
+}
+function hoyTxt(conAnio){ return G?fechaTxt(G.week||1,curDay(),conAnio):''; }
+// Primera semana cuyo lunes cae en o después de esa fecha
+function _semanaDeFecha(y,mes,dia){
+  const ini=inicioTemporada(), obj=new Date(y,mes,dia);
+  return Math.max(1,1+Math.ceil((obj-ini)/(7*864e5)));
+}
+// Las dos ventanas, en semanas. La de verano es la pretemporada y las dos
+// primeras fechas (como siempre: 1-5). La de mitad de temporada sale del
+// CALENDARIO: en la Liga ARG cae en el hueco entre los dos torneos; en el resto,
+// en enero (Europa) o en julio (año calendario). Antes era 24-28 fijo, y en la
+// Liga ARG eso caía encima del arranque del Clausura.
+const VENTANA_LARGO=5;
+function ventanasPases(){
+  const v=[{k:'verano',nom:'Ventana de pases de pretemporada',ini:1,fin:5}];
+  let ini=24;
+  try{
+    const ph=G&&G.arPhases&&G.arPhases.clausura;
+    if(ph&&ph.start>8) ini=Math.max(6,ph.start-4);
+    else if(G){
+      const y=G.season||2026;
+      ini=temporadaEnero()?_semanaDeFecha(y,5,22):_semanaDeFecha(y+1,0,2);
+      const {fin}=_ligaSpan(); ini=Math.min(ini,Math.max(8,fin-8));
+    }
+  }catch(e){}
+  v.push({k:'invierno',nom:'Ventana de pases de mitad de temporada',ini,fin:ini+VENTANA_LARGO-1});
+  return v;
+}
+function ventanaActual(w){
+  w=w||(G&&G.week)||1;
+  return ventanasPases().find(x=>w>=x.ini&&w<=x.fin)||null;
+}
 function isTransferWindowOpen(){
   if(!G) return false;
-  const w=G.week||1;
-  // Summer window: weeks 1-5 | Winter window: weeks 24-28
-  return (w>=1&&w<=5)||(w>=24&&w<=28);
+  return !!ventanaActual();
 }
 function getWindowStatus(){
   if(!G) return '';
-  const w=G.week||1;
-  if(w>=1&&w<=5) return '☀️ Ventana de verano abierta (sem 1-5)';
-  if(w>=24&&w<=28) return '❄️ Ventana de invierno abierta (sem 24-28)';
-  const next=w<24?24-w:53-w+1;
-  return `🔒 Mercado cerrado — próxima ventana en ${next} sem`;
+  const w=G.week||1, v=ventanaActual(w);
+  if(v) return `${v.k==='verano'?'☀️':'❄️'} Mercado abierto — cierra el ${fechaTxt(v.fin,7,false)} (${(v.fin-w)*7+(7-curDay())} días)`;
+  const prox=ventanasPases().find(x=>x.ini>w);
+  if(!prox) return `🔒 Mercado cerrado — abre con la pretemporada que viene`;
+  return `🔒 Mercado cerrado — abre el ${fechaTxt(prox.ini,1,false)} (en ${prox.ini-w} sem)`;
 }
 
 // Estado del filtro de libres: es de la PANTALLA, no de la partida, así que
@@ -8742,7 +9189,7 @@ function renderMkt(){
   ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openTransferLog()">📰 Últimos pases del mercado${(G.transferLog||[]).length?` <span style="color:var(--gold)">(${G.transferLog.length})</span>`:''}</button>
   <button class="btn bo bs" style="width:100%;margin-bottom:8px" onclick="openNegsPanel()">📋 Mis negociaciones abiertas${(()=>{const n=(G.negs||[]).filter(x=>x.stage!=='cerrada').length;return n?` <span style="color:var(--gold)">(${n})</span>`:'';})()}</button>`;
-  el.innerHTML = winBanner+pl.map(p=>{
+  el.innerHTML = winBanner+oportunidadesHTML()+pl.map(p=>{
     // NIEBLA DE GUERRA: la chapa (⭐/🌟/💡) sale del rating real, así que sin
     // informe se reemplaza por 🔎 SIN INFORME, y las insignias no se muestran.
     const tag = tagK(p);
@@ -12565,7 +13012,7 @@ function rStand(){
         ${hdrHtml}${rows.map((t,i)=>rowHtml(t,i,zcut)).join('')}
       </div>`;
     };
-    const ph=G.arPlayoff?`<div class="note" style="margin-bottom:8px">🏆 <b>Playoffs del Torneo ${G.arPlayoff.phase==='apertura'?'Apertura':'Clausura'}</b> — instancia: <b style="color:var(--gold)">${G.arPlayoff.round}</b></div>`:'';
+    const ph=G.arPlayoff?`<div class="note" style="margin-bottom:8px">🏆 <b>Playoffs ${delFase(arFaseLabel(G.arPlayoff.phase))}</b> — instancia: <b style="color:var(--gold)">${G.arPlayoff.round}</b></div>`:'';
     const lastR=(G.arLastRound||[]).slice(0,10);
     const live=lastR.length?`<div class="card" style="margin-bottom:9px"><div class="ctitle">📋 Resultados de la fecha</div>
       ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
@@ -13077,7 +13524,7 @@ function rCal(){
   const lastPhase=playedFix.length?(playedFix.filter(f=>(f.fecha||0)===lastFecha).slice(-1)[0]||{}).phase:null;
   const roundFix=playedFix.filter(f=>(f.fecha||0)===lastFecha&&f.phase===lastPhase);
   const zoneBlock=(z,label)=>{
-    const fs=roundFix.filter(f=>f.zone===z);
+    const fs=roundFix.filter(f=>z==='-'?!f.zone:f.zone===z);
     if(!fs.length)return '';
     return `<div style="font-size:9px;color:var(--t3);font-family:'Rajdhani';font-weight:700;letter-spacing:.06em;margin:5px 0 2px">${label}</div>`+
       fs.map(f=>{
@@ -13095,8 +13542,8 @@ function rCal(){
   const nextRound=nextFix.filter(f=>f.week===nextWk).slice(0,10);
   const tableHtml=`
   ${roundFix.length?`<div class="card" style="margin-bottom:9px">
-    <div class="ctitle">📋 Fecha ${lastFecha} · Torneo ${lastPhase==='clausura'?'Clausura':'Apertura'} — resultados</div>
-    ${zoneBlock('A','ZONA A')}${zoneBlock('B','ZONA B')}${zoneBlock('INT','INTERZONAL')}
+    <div class="ctitle">📋 Fecha ${lastFecha} · ${lastPhase?arFaseLabel(lastPhase):''} — resultados</div>
+    ${zoneBlock('A','ZONA A')}${zoneBlock('B','ZONA B')}${zoneBlock('INT','INTERZONAL')}${zoneBlock('-','')}
   </div>`:(lastR.length?`<div class="card" style="margin-bottom:9px">
     <div class="ctitle">📋 Última fecha — otros resultados</div>
     ${lastR.map(r=>`<div style="display:flex;gap:6px;font-size:9px;color:var(--t2);padding:2px 4px">
@@ -13104,7 +13551,7 @@ function rCal(){
     </div>`).join('')}
   </div>`:'')}
   ${nextRound.length?`<div class="card" style="margin-bottom:9px">
-    <div class="ctitle">📅 Próxima fecha (semana ${nextWk})</div>
+    <div class="ctitle">📅 Próxima fecha — ${fechaTxt(nextWk,7)}</div>
     ${nextRound.map(f=>{
       const mine=f.home===tn||f.away===tn;
       return `<div style="display:flex;gap:6px;font-size:10px;padding:2px 4px;border-radius:4px;${mine?'background:rgba(var(--gold-rgb),.10);color:var(--gold);font-weight:700':'color:var(--t2)'}">
@@ -13115,23 +13562,23 @@ function rCal(){
   </div>`:''}
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">📅 ${juegaZonas()?'Tabla anual':'Tabla'} — ${ligaComp()}</div>
-    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">${juegaZonas()
-      ?'Suma el Apertura y el Clausura. Define los descensos. Las zonas se ven en la pestaña Inicio.'
-      :'Todos contra todos, ida y vuelta. Define el campeón y los descensos.'}</div>
+    <div style="font-size:8px;color:var(--t3);margin-bottom:3px">${formatoTablaTxt()}</div>
     <div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:9px;color:var(--t3);padding:2px 4px;border-bottom:1px solid var(--bdr)">
       <span>#</span><span>Club</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>DIF</span><span>PTS</span>
     </div>
     ${rows.map(r=>{
       const mine=r.club===tn;
-      const zone=r.pos===1?'var(--gold)':r.pos<=8?'var(--green)':r.pos>rows.length-nDown?'var(--red)':'transparent';
+      const zone=r.pos===1?'var(--gold)':r.pos<=8?'var(--green)':(!descPromedios()&&r.pos>rows.length-nDown)?'var(--red)':'transparent';
       return `<div style="display:grid;grid-template-columns:22px 1fr 24px 24px 24px 24px 30px 30px;gap:2px;font-size:10px;padding:3px 4px;border-left:3px solid ${zone};${mine?'background:rgba(var(--gold-rgb),.10);font-weight:700;color:var(--gold)':''}">
         <span>${r.pos}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sn2(r.club)}</span>
         <span>${r.pj}</span><span style="color:var(--green)">${r.g}</span><span>${r.e}</span><span style="color:var(--red)">${r.p}</span>
         <span>${r.gf-r.gc>=0?'+':''}${r.gf-r.gc}</span><span style="font-weight:700">${r.pts}</span>
       </div>`;
     }).join('')}
-    <div style="font-size:8px;color:var(--t3);margin-top:4px">🟡 Puntero · 🟢 Zona de copas · 🔴 Descenso (últimos ${nDown})</div>
+    <div style="font-size:8px;color:var(--t3);margin-top:4px">🟡 Puntero · 🟢 Zona de copas · ${descPromedios()?'📉 Se desciende por promedios (abajo)':'🔴 Descenso (últimos '+nDown+')'}</div>
   </div>
+  ${faseTablaHTML(sn2)}
+  ${promediosHTML(sn2,nDown)}
   ${scor.length?`<div class="card" style="margin-bottom:9px">
     <div class="ctitle">⚽ Goleadores de la Liga</div>
     ${scor.map(([nm,s],i)=>{
@@ -13161,7 +13608,7 @@ function rCal(){
     </div>`;})()}
   <div id="otherLeaguesBox"></div>`;
   setTimeout(()=>{try{rOtherLeagues();}catch(e){}},0);
-  el.innerHTML=banner+tableHtml+Object.entries(byC).map(([c,ms])=>`
+  el.innerHTML=banner+agendaHTML()+tableHtml+Object.entries(byC).map(([c,ms])=>`
     <div class="card" style="margin-bottom:9px">
       <div class="ctitle">${c}</div>
       ${ms.map(m=>{
@@ -13171,7 +13618,7 @@ function rCal(){
         const isHome=m.home===tn;
         const badgeCls=m.played?(m.result==='W'?'baG':m.result==='D'?'bau':'baR'):'';
         return `<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:4px;margin-bottom:2px;${isNext?'background:rgba(var(--gold-rgb),.12);border-left:3px solid var(--gold);padding-left:7px':m.played?'':'border-left:3px solid transparent;padding-left:7px'}">
-          <span style="font-size:9px;color:var(--t3);min-width:18px">S${m.week}</span>
+          <span style="font-size:9px;color:var(--t3);min-width:52px" title="Semana ${m.week}">${fechaTxt(m.week,7,false)}</span>
           <span style="font-size:8px;color:var(--t3);min-width:26px">${isHome?'🏠 LOC':'✈️ VIS'}</span>
           <span style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isMine&&m.home===tn?'color:var(--gold);font-weight:600':''}">${m.home}</span>
           <span style="font-size:9px;color:var(--t3)">vs</span>
@@ -13183,6 +13630,53 @@ function rCal(){
       }).join('')}
     </div>
   `).join('');
+}
+
+// ═══ AGENDA DE LA TEMPORADA (Fase 80) ═══
+// Cuándo abre y cierra el mercado, cuándo se define cada torneo, las finales.
+// Lo que ya está sorteado sale del calendario (fecha exacta); lo que todavía
+// no, se estima con el mismo reparto que usa el sorteo (`KO_FRAC`) y se dice.
+function agendaTemporada(){
+  if(!G)return [];
+  const A=[], cal=G.calendar||[], {ini,fin}=_ligaSpan();
+  const add=(w,d,ic,txt,est)=>A.push({w,d,ic,txt,est:!!est});
+  add(1,1,'🏃','Arranca la pretemporada');
+  ventanasPases().forEach(v=>{ add(v.ini,1,'🟢','Abre el mercado de pases'+(v.k==='verano'?'':' (mitad de temporada)'));
+                               add(v.fin,7,'🔴','Cierra el mercado de pases'+(v.k==='verano'?'':' (mitad de temporada)')); });
+  add(ini,7,'⚽','Primera fecha de '+ligaComp());
+  const P=G.arPhases;
+  if(P)['apertura','clausura'].forEach(ph=>{ const x=P[ph]; if(!x)return;
+    const lab=arFaseLabel(ph);
+    if(x.tipo==='tabla') add(x.last,7,'🏁','Última fecha '+delFase(lab)+' (se define el campeón)');
+    else { add(x.last,7,'🏁','Termina la fase regular '+delFase(lab));
+           const pw=x.playoffWeeks||[]; if(pw.length) add(pw[pw.length-1],7,'🏆','Final '+delFase(lab),!cal.some(m=>m.comp==='Liga Profesional - '+lab+' Final')); }
+  });
+  add(fin,7,'🏁','Última fecha de '+ligaComp());
+  // Copas: la final sorteada va con fecha exacta; si no, estimada
+  const prefs=new Set(); cal.forEach(m=>{ const k=intCopaDe(m.comp); if(k)prefs.add(INT_COPAS[k].pref); if(esCopaNac(m.comp))prefs.add(copaNacPref()); });
+  prefs.forEach(p=>{
+    const fm=cal.find(m=>m.comp===p+' Final'||m.comp===p+' - Final'||(m.comp.startsWith(p)&&/Final$/.test(m.comp)&&!/Semi/.test(m.comp)));
+    const viva=cal.some(m=>m.comp.startsWith(p)&&!m.played);
+    if(fm) add(fm.week,7,'🏆','Final de la '+p+(fm.played?' ('+fm.score+')':''));
+    else if(viva) add(esCopaNac(p+' R32')?Math.min(fin,Math.round(ini+0.92*(fin-ini))):Math.round(ini+KO_FRAC[5][0]*(fin-ini)),7,'🏆','Final de la '+p,true);
+  });
+  try{ if(typeof proximaEleccion==='function'&&proximaEleccion()===G.season) add(fin+1,7,'🗳️','Elecciones en el club (al cerrar la temporada)'); }catch(e){}
+  try{ if(G.reunion&&!G.reunion.hecha&&!G.reunion.cerrada&&G.reunion.season===G.season) add(REUNION_VENCE,7,'🏛️','Vence la reunión de pretemporada con la CD'); }catch(e){}
+  return A.sort((a,b)=>a.w-b.w||a.d-b.d);
+}
+function agendaHTML(){
+  const A=agendaTemporada(); if(!A.length)return '';
+  const w=G.week||1, d=curDay();
+  const prox=A.find(x=>x.w>w||(x.w===w&&x.d>=d));
+  return `<div class="card" style="margin-bottom:9px" id="agendaBox"><div class="ctitle">📆 Agenda de la temporada ${G.season}</div>
+    <div style="font-size:9px;color:var(--t3);margin-bottom:4px">Hoy: <b style="color:var(--t1)">${hoyTxt(true)}</b> · ${getWindowStatus()}</div>
+    ${A.map(x=>{ const pas=x.w<w||(x.w===w&&x.d<d), es=x===prox;
+      const falta=es?Math.max(0,(x.w-w)*7+(x.d-d)):0;
+      return `<div style="display:flex;gap:6px;align-items:center;font-size:10px;padding:3px 4px;border-radius:4px;${pas?'opacity:.45':''}${es?';background:rgba(var(--gold-rgb),.12);border-left:3px solid var(--gold)':''}">
+        <span>${x.ic}</span><span style="min-width:86px;color:var(--t3)">${fechaTxt(x.w,x.d)}</span>
+        <span style="flex:1">${x.txt}${x.est?' <span style="color:var(--t3)">(estimada)</span>':''}</span>
+        ${es?`<span style="color:var(--gold);font-weight:700">${falta?'en '+falta+' d':'hoy'}</span>`:''}</div>`;}).join('')}
+  </div>`;
 }
 
 // =============================================
@@ -13697,30 +14191,29 @@ function arPlayoffWeek(phase,idx){
 function arStartPlayoff(phase){
   if(!G.arZones)return;
   if(G.arPlayoff&&G.arPlayoff.phase===phase)return;
-  const A=arZoneTable('A').slice(0,8), B=arZoneTable('B').slice(0,8);
-  if(A.length<8||B.length<8)return;
-  const ties=[];
-  for(let i=0;i<8;i++){
-    ties.push({home:A[i].club,away:B[7-i].club,seedH:`A${i+1}`,seedA:`B${8-i}`});
-    ties.push({home:B[i].club,away:A[7-i].club,seedH:`B${i+1}`,seedA:`A${8-i}`});
-  }
-  // 16 clasificados → 8 llaves de octavos (cruce clásico entre zonas)
+  // Fase 80: cuántos clasifican y desde qué ronda salen de la fase (la Copa
+  // de la Liga arranca en cuartos con 4 por zona); por defecto 8 y octavos.
+  const _ph=(G.arPhases&&G.arPhases[phase])||{};
+  const nC=_ph.clasif||8, rondas=_ph.rondas||['Octavos','Cuartos','Semifinal','Final'];
+  const A=arZoneTable('A').slice(0,nC), B=arZoneTable('B').slice(0,nC);
+  if(A.length<nC||B.length<nC)return;
+  // 2·nC clasificados → nC llaves (cruce clásico entre zonas)
   const bracket=[];
-  for(let i=0;i<8;i++)bracket.push({home:A[i].club,away:B[7-i].club});
-  G.arPlayoff={phase,round:'Octavos',ties:bracket,alive:[...A.map(r=>r.club),...B.map(r=>r.club)],champion:null};
-  const label=phase==='apertura'?'Apertura':'Clausura';
+  for(let i=0;i<nC;i++)bracket.push({home:A[i].club,away:B[nC-1-i].club});
+  G.arPlayoff={phase,round:rondas[0],ties:bracket,alive:[...A.map(r=>r.club),...B.map(r=>r.club)],champion:null};
+  const label=arFaseLabel(phase);
   const meIn=G.arPlayoff.alive.includes(G.teamName);
-  lg('🏆',`Playoffs del Torneo ${label}: clasificaron los 8 de cada zona`);
+  lg('🏆',`Playoffs ${delFase(label)}: clasificaron los ${nC} de cada zona`);
   if(meIn){
     const my=bracket.find(t=>t.home===G.teamName||t.away===G.teamName);
-    addPhoneMsg('board','Secretaría del Club',`🏆 ¡Clasificamos a los playoffs del Torneo ${label}! En octavos nos toca <b>${my?(my.home===G.teamName?my.away:my.home):'—'}</b>.`,'🏛️');
+    addPhoneMsg('board','Secretaría del Club',`🏆 ¡Clasificamos a los playoffs ${delFase(label)}! En ${rondas[0].toLowerCase()} nos toca <b>${my?(my.home===G.teamName?my.away:my.home):'—'}</b>.`,'🏛️');
     // Se agrega la llave al calendario para que la juegues, en la semana
     // RESERVADA del hueco entre los dos torneos (ver arPlayoffWeek).
     const wk=arPlayoffWeek(phase,0);
-    if(my)G.calendar.push({week:wk,comp:`Liga Profesional - ${label} Octavos`,home:my.home,away:my.away,played:false,result:null,score:null});
+    if(my)G.calendar.push({week:wk,comp:`Liga Profesional - ${label} ${rondas[0]}`,home:my.home,away:my.away,played:false,result:null,score:null});
     G.calendar.sort((a,b)=>a.week-b.week);
   } else {
-    addPhoneMsg('board','Comisión Directiva',`😞 No clasificamos a los playoffs del Torneo ${label}. Quedamos afuera de la pelea por el título.`,'🏛️');
+    addPhoneMsg('board','Comisión Directiva',`😞 No clasificamos a los playoffs ${delFase(label)}. Quedamos afuera de la pelea por el título.`,'🏛️');
   }
 }
 function myLeaguePos(){
@@ -14650,6 +15143,7 @@ function weeklyJunta(){
   // de "delegar obras" y una recomendación no compromete plata — la firma sí,
   // y la firma la das vos. Las RENOVACIONES siguen atadas a su switch.
   juntaObras(dir);
+  try{ juntaVentas(dir); }catch(e){ console.error('juntaVentas',e); }   // Fase 80
   encargoBuscar(dir);                  // y busca lo que le encargaste
   if(!delegado('renov')) return;
   // Sólo los que se vencen a fin de esta temporada
@@ -14891,6 +15385,13 @@ function aprobFirmar(aid){
     firmaProgramar(p,{price:a.price,wage:a.wage,years:a.years,
                       motivo:'encargo al Consejo'});
     lg('✍️',`Firmaste el fichaje de ${p.name}: ${fv(a.price)} + ${fv(a.wage/1000)}/sem`);
+  } else if(a.k==='venta'){
+    const p=(G.squad||[]).find(x=>x.id===a.pid);
+    if(!p){ flash('❌ '+a.nombre+' ya no está en el plantel','loss'); G.boardApprovals.splice(i,1); rPhone(); return; }
+    p.listed='sale'; p.askPrice=a.ask; p.listedWeek=G.week;
+    if(isTransferWindowOpen()&&Math.random()<0.45){ G.offers=G.offers||[]; G.offers.push(buildBuyOffer(p,true)); }
+    lg('🏷️',`${p.name} en venta por ${fv(a.ask)} (propuesta del Director Deportivo)`);
+    flash('🏷️ '+p.name+' en venta por '+fv(a.ask),'draw');
   } else if(a.k==='obra'){
     const arr=a.tipo==='youth'?(G.youth&&G.youth.upgrades):(G.stadium&&G.stadium.upgrades);
     const u=(arr||[]).find(x=>x.id===a.id);
@@ -14913,7 +15414,9 @@ function aprobRechazar(aid){
   const dir=dirDeportivo();
   // ⚠️ Rechazar una renovación marca al jugador (`_delegNo`): si no, el
   // Mánager te lo volvía a proponer al mes siguiente, para siempre.
-  if(a.k==='renov'){
+  if(a.k==='venta'){
+    const p=(G.squad||[]).find(x=>x.id===a.pid); if(p)p._ventaNo=true;
+  } else if(a.k==='renov'){
     const p=(G.squad||[]).find(x=>x.id===a.pid);
     if(p){ p._delegNo=true; p.morale=Math.max(0,(p.morale===undefined?60:p.morale)-4); }
     if(dir)addPhoneMsg('board',dir.name,
@@ -15461,7 +15964,10 @@ function arMovimientoCategorias(t){
   if(ligaMia()==='Liga ARG'){
     const nDown=cuposDescenso();
     if(nDown<=0) return null;
-    bajan=[...t].reverse().slice(0,nDown).map(r=>r.club);   // tu club incluido
+    // Fase 80: en las eras viejas se baja por PROMEDIOS, no por la tabla anual
+    bajan=descPromedios()?promediosTabla(t).slice(0,nDown).map(r=>r.club)
+         :[...t].reverse().slice(0,nDown).map(r=>r.club);   // tu club incluido
+    if(descPromedios()){ promediosGuardar(t); bajan.forEach(c=>{ if(G.promHist)delete G.promHist[c]; }); }
     // La Nacional no se simula fecha a fecha: suben los más fuertes, con
     // sorteo entre los seis de arriba (es lo que hacía el código de antes).
     const nac=clubesDeCategoria('Primera Nacional').filter(c=>!prim.includes(c)&&c!==G.teamName);
@@ -15568,7 +16074,10 @@ function checkFired(pos){
   // renuncia igual que en cualquier club de verdad: si quedaste en los
   // puestos que bajan, se terminó.
   const nDown=cuposDescenso();
-  const descendio=nDown>0&&pos>nClubs-nDown;
+  // Fase 80: en las eras viejas manda el PROMEDIO, no el puesto
+  const descendio=nDown>0&&(descPromedios()
+    ? promediosTabla(leagueSorted()).slice(0,nDown).some(r=>r.club===G.teamName)
+    : pos>nClubs-nDown);
   const fracaso=pos>meta+4&&conf<30;
   // Fase 78: ascender nunca termina el ciclo, y bajar de Primera abre la asamblea
   if(catMovEsta('sube')) return false;
@@ -15841,7 +16350,7 @@ function archiveSeason(){
   // un tercer título fantasma, "Liga Argentina", y el palmarés de la
   // tarjeta de carrera contaba doble. En las otras 23 ligas el campeón SÍ es
   // el primero de la tabla, así que ahí champion sigue valiendo.
-  const _tablaDaTitulo = !(typeof esLigaLocal==='function'&&ligaMia()==='Liga ARG');
+  const _tablaDaTitulo = !(typeof esLigaLocal==='function'&&ligaMia()==='Liga ARG')||tablaDaTituloARG();
   // Los títulos que se ganaron ESTE año (G.trophies es de toda la carrera)
   const _titAnio=(G.trophies||[]).filter(x=>x.season===G.season).map(x=>x.name);
   G.history.push({season:G.season,pos,clubs:t.length,pts:G.wins*3+G.draws,w:G.wins,d:G.draws,l:G.losses,
@@ -15895,6 +16404,7 @@ function archiveSeason(){
   const _iAmLast=t.length&&t[t.length-1].club===G.teamName;
   let _mov=null;
   try{ _mov=arMovimientoCategorias(t); }catch(e){ console.error('arMovimientoCategorias',e); }
+  try{ if(ligaMia()==='Liga ARG'&&descPromedios())promediosGuardar(t); }catch(e){}
   if(_mov){
     const _yo=G.teamName, _hist=G.history[G.history.length-1];
     if(_mov.bajan.includes(_yo)){ G._catMov={season:G.season,tipo:'baja'}; if(_hist)_hist.descenso=true; }
@@ -16886,23 +17396,23 @@ function matchStrengths(m){
 // El resto del cuadro se juega en paralelo, así que siempre tenés rival.
 function arAdvancePlayoff(m,res){
   const P=G.arPlayoff;if(!P)return;
-  const label=P.phase==='apertura'?'Apertura':'Clausura';
-  const order=['Octavos','Cuartos','Semifinal','Final'];
+  const label=arFaseLabel(P.phase), _trof=arFaseTrofeo(P.phase);
+  const order=((G.arPhases&&G.arPhases[P.phase]&&G.arPhases[P.phase].rondas)||['Octavos','Cuartos','Semifinal','Final']);
   const cur=order.find(r=>m.comp.includes(r));
   if(!cur)return;
   const rival=m.home===G.teamName?m.away:m.home;
   if(res==='L'||(res==='D'&&Math.random()<0.5)){        // empate → penales
-    lg('❌',`Eliminados en ${cur.toLowerCase()} del Torneo ${label} ante ${rival}`);
-    flash(`❌ Eliminados en ${cur.toLowerCase()} del ${label}`,'loss');
+    lg('❌',`Eliminados en ${cur.toLowerCase()} ${delFase(label)} ante ${rival}`);
+    flash(`❌ Eliminados en ${cur.toLowerCase()} ${delFase(label)}`,'loss');
     G.boardConf=Math.max(0,(G.boardConf||50)-(cur==='Final'?6:4));
     G.arPlayoff=null;return;
   }
   if(cur==='Final'){
-    lg('🏆',`¡${G.teamName} CAMPEÓN del Torneo ${label} ${G.season}!`);
-    flash(`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}!`,'win');
+    lg('🏆',`¡${G.teamName} CAMPEÓN ${delFase(_trof)} ${G.season}!`);
+    flash(`🏆 ¡CAMPEONES DEL ${_trof.toUpperCase()}!`,'win');
     repSuma(7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
-    (G.trophies=G.trophies||[]).push({name:`Torneo ${label}`,season:G.season});
-    addPhoneMsg('board','Comisión Directiva',`🏆 ¡CAMPEONES DEL TORNEO ${label.toUpperCase()}, PRESIDENTE! Una gestión histórica.`,'🏛️');
+    (G.trophies=G.trophies||[]).push({name:_trof,season:G.season});
+    addPhoneMsg('board','Comisión Directiva',`🏆 ¡CAMPEONES DEL ${_trof.toUpperCase()}, PRESIDENTE! Una gestión histórica.`,'🏛️');
     G.arPlayoff=null;return;
   }
   // Pasa de ronda: se sortea el próximo rival entre los que siguen vivos
@@ -16919,7 +17429,7 @@ function arAdvancePlayoff(m,res){
   G.calendar.push({week:wk,comp:`Liga Profesional - ${label} ${next}`,
     home:iHome?G.teamName:opp,away:iHome?opp:G.teamName,played:false,result:null,score:null});
   G.calendar.sort((a,b)=>a.week-b.week);
-  lg('✅',`${G.teamName} avanza a ${next.toLowerCase()} del Torneo ${label}: rival ${opp}`);
+  lg('✅',`${G.teamName} avanza a ${next.toLowerCase()} ${delFase(label)}: rival ${opp}`);
   flash(`✅ ¡A ${next.toLowerCase()}! Rival: ${opp}`,'win');
 }
 
@@ -17174,11 +17684,14 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(G.arPhases&&m.phase){
       const ph=G.arPhases[m.phase];
       const pend=(G.arFix||[]).filter(f=>f.phase===m.phase&&!f.played).length;
-      if(ph&&pend===0)arStartPlayoff(m.phase);
+      // Las fases de la Fase 80 (v:80) las cierra arChequearFases; las de un
+      // save viejo siguen por el camino de siempre.
+      if(ph&&ph.v!==80&&pend===0)arStartPlayoff(m.phase);
     }
+    arChequearFases();
   }
-  // Llaves de los playoffs del Apertura/Clausura
-  if(/Liga Profesional - (Apertura|Clausura)/.test(m.comp))arAdvancePlayoff(m,res);
+  // Llaves de los playoffs del torneo local (Apertura, Clausura, Copa de la Liga)
+  if(/^Liga Profesional - /.test(m.comp))arAdvancePlayoff(m,res);
 
   // El resto del grupo juega su fecha en la misma semana que vos
   if(esFaseInt(m.comp))intGrpPlay(m.fecha||99);
@@ -17844,7 +18357,12 @@ function openContinuousSim(){
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">⏩ Simulación continua</div>
-    <div class="note" style="margin-bottom:10px">Se juegan varios partidos seguidos sin cortar. Al final ves el resumen de toda la seguidilla. Quedan <b>${pend}</b> partidos.</div>
+    <div class="note" style="margin-bottom:8px">Quedan <b>${pend}</b> partidos. Próximo: <b>${(G.calendar.find(m=>!m.played)||{}).comp||''}</b> — ${fechaTxt((G.calendar.find(m=>!m.played)||{}).week,7)}.</div>
+    <div class="ctitle" style="font-size:11px">¿Cómo querés verlo?</div>
+    <div style="display:flex;gap:5px;margin-bottom:8px" id="csModos">
+      <button class="btn ${_csModo==='paso'?'bg':'bo'}" style="flex:1" onclick="csModo('paso')">🎬 Partido a partido<div style="font-size:9px;font-weight:400">te muestra cada resultado y seguís cuando quieras</div></button>
+      <button class="btn ${_csModo==='todo'?'bg':'bo'}" style="flex:1" onclick="csModo('todo')">⏩ Todo junto<div style="font-size:9px;font-weight:400">juega la seguidilla y te da el resumen al final</div></button>
+    </div>
     <div style="display:flex;gap:5px;margin-bottom:8px">${opt(3)}${opt(5)}${opt(10)}</div>
     <div style="display:flex;gap:5px;align-items:center;margin-bottom:10px">
       <input type="number" id="contN" min="1" max="${pend}" value="${Math.min(15,pend)}"
@@ -17854,8 +18372,106 @@ function openContinuousSim(){
     <button class="btn bo bs" style="width:100%" onclick="runContinuousSim(${pend})">⏭️ Hasta el final de la temporada</button>
   `);
 }
-function runContinuousSim(n){
+// ═══ PARTIDO A PARTIDO (Fase 80) ═══
+// El modo y la seguidilla en curso son de la PANTALLA: viven fuera de `G`
+// (el modo se recuerda en el navegador, como el 3D).
+let _csModo=(()=>{try{return localStorage.getItem('dt_csmodo')||'paso';}catch(e){return 'paso';}})();
+let _CS=null;
+function csModo(m){ _csModo=m; try{localStorage.setItem('dt_csmodo',m);}catch(e){}
+  const b=document.getElementById('csModos'); if(b)[...b.children].forEach((x,i)=>x.className='btn '+((i===0)===(m==='paso')?'bg':'bo')); }
+// Juega UN partido de la seguidilla. Devuelve la fila o el motivo del corte.
+function _csJugarUno(){
+  const m=G.calendar.find(x=>!x.played);
+  if(!m)return {stop:'fin'};
+  const home=m.home,away=m.away,comp=m.comp,week=m.week;
+  simMatch(true);
+  if(dilemaBloqueante())return {stop:'dilema',m};
+  if(prensaPend())return {stop:'prensa',m};
+  if(juegoTerminado&&juegoTerminado())return {stop:'fin'};
+  if(!m.played){G.week++;return {stop:'nada'};}
+  if(m.week>G.week)G.week=m.week;
+  const row={comp,home,away,week,score:m.score,res:m.result,friendly:!!m.friendly,
+    gol:(m===G._lastMatch?(G._lastScorers||[]):[]).map(x=>x.name+' '+x.min+"'"),mvp:(m===G._lastMatch&&G._lastMVP)?G._lastMVP:null};
+  if(!G.calendar.some(x=>!x.played&&x.week<=G.week)){
+    try{ if(typeof nextWeek==='function')nextWeek(); else G.week++; }catch(e){G.week++;}
+  }
+  return {row};
+}
+// Al contestar el dilema o la conferencia, la seguidilla vuelve a aparecer.
+// Se envuelve recién acá (no al parsear) porque esas funciones pueden vivir
+// en otro <script> que todavía no corrió.
+let _csHooks=false;
+function _csEnganchar(){
+  if(_csHooks)return; _csHooks=true;
+  const vuelve=()=>{ if(_CS&&!dilemaBloqueante()&&!prensaPend())setTimeout(()=>{ if(_CS)csCarta(); },350); };
+  ['dilemaResolver','prensaResolver'].forEach(k=>{ const f0=window[k]; if(typeof f0!=='function')return;
+    window[k]=function(){ const r=f0.apply(this,arguments); try{vuelve();}catch(e){} return r; }; });
+}
+function csArrancar(n){
+  _csEnganchar();
+  _CS={left:n,total:n,rows:[],auto:false,timer:null,
+       start:{w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week},tr0:(G.trophies||[]).length};
+  csPaso();
+}
+function csPaso(){
+  if(!_CS||!G)return;
+  clearTimeout(_CS.timer);
+  if(finFrena()||dilemaFrena()||prensaFrena())return;   // se reabre la decisión; la seguidilla espera
+  if(_CS.left<=0||!G.calendar.some(x=>!x.played)){ csTerminar(); return; }
+  const r=_csJugarUno();
+  if(r.row){ _CS.rows.push(r.row); _CS.left--; }
+  updateUI();
+  if(r.stop==='fin'){ csTerminar(); return; }
+  if(r.stop==='dilema'||r.stop==='prensa'){ _CS.auto=false; csCarta(r.stop); return; }
+  if(_CS.left<=0||!G.calendar.some(x=>!x.played)){ csTerminar(); return; }
+  csCarta();
+  if(_CS.auto)_CS.timer=setTimeout(csPaso,1600);
+}
+function csAuto(){ if(!_CS)return; _CS.auto=!_CS.auto; if(_CS.auto)csPaso(); else csCarta(); }
+function csResto(){ if(!_CS)return; const n=_CS.left; const rows=_CS.rows.slice(), st=_CS.start, tr0=_CS.tr0; _CS=null; runContinuousSim(n,{rows,start:st,tr0}); }
+function csTerminar(){ if(!_CS)return; const c=_CS; _CS=null; clearTimeout(c.timer); csResumen(c.rows,c.start,c.tr0); }
+function csCarta(stop){
+  const c=_CS; if(!c)return;
+  const r=c.rows[c.rows.length-1];
+  const sig=G.calendar.find(x=>!x.played);
+  const col=x=>x==='W'?'var(--green)':x==='D'?'var(--gold)':'var(--red)';
+  const txt=x=>x==='W'?'GANAMOS':x==='D'?'EMPATE':'PERDIMOS';
+  const pos=(typeof myLeaguePos==='function')?myLeaguePos():0;
+  const aviso=stop==='dilema'?'⏸️ Pasó algo en el club y hay que decidir. La seguidilla espera.':stop==='prensa'?'⏸️ Te esperan en la sala de prensa.':'';
+  showMod(`
+    <button class="mclose" onclick="csTerminar()">✕</button>
+    <div class="mtitle">🎬 Partido ${c.rows.length} de ${c.total}</div>
+    ${r?`<div style="text-align:center;padding:6px 0 8px">
+      <div style="font-size:10px;color:var(--t3)">${r.comp} · ${fechaTxt(r.week,7)}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px">
+        <span style="flex:1;text-align:right;font-weight:700;font-size:13px">${r.home}</span>
+        <span style="font-family:'Rajdhani';font-size:30px;font-weight:900;color:${col(r.res)}">${r.score||'-'}</span>
+        <span style="flex:1;text-align:left;font-weight:700;font-size:13px">${r.away}</span></div>
+      <div style="font-size:11px;font-weight:800;color:${col(r.res)};letter-spacing:.08em">${r.friendly?'AMISTOSO':txt(r.res)}</div>
+      ${r.gol.length?`<div style="font-size:10px;color:var(--t2);margin-top:4px">⚽ ${r.gol.join(' · ')}</div>`:''}
+      ${r.mvp?`<div style="font-size:10px;color:var(--gold);margin-top:2px">⭐ Figura: ${r.mvp.name||r.mvp}</div>`:''}
+    </div>`:''}
+    <div class="sr"><span class="sl">Seguidilla</span><span class="sv">${G.wins-c.start.w}G · ${G.draws-c.start.d}E · ${G.losses-c.start.l}P</span></div>
+    ${pos?`<div class="sr"><span class="sl">Posición en ${ligaComp()}</span><span class="sv">${pos}º</span></div>`:''}
+    ${sig?`<div class="sr"><span class="sl">Próximo</span><span class="sv">${sig.home===G.teamName?sig.away+' (L)':sig.home+' (V)'} · ${fechaTxt(sig.week,7,false)}</span></div>`:''}
+    ${aviso?`<div class="note R" style="margin-top:6px">${aviso}</div>`:''}
+    <div style="display:flex;gap:5px;margin-top:10px">
+      ${aviso?`<button class="btn bg" style="flex:2" onclick="csPaso()">Resolver y seguir</button>`
+        :`<button class="btn bg" style="flex:2" onclick="csPaso()">▶ Siguiente partido</button>
+          <button class="btn bo" style="flex:1" onclick="csAuto()">${c.auto?'⏸ Pausa':'▶▶ Auto'}</button>`}
+    </div>
+    <div style="display:flex;gap:5px;margin-top:5px">
+      <button class="btn bo bs" style="flex:1" onclick="csResto()">⏩ Jugar el resto (${c.left}) juntos</button>
+      <button class="btn bR bs" style="flex:1" onclick="csTerminar()">⏹ Parar acá</button>
+    </div>
+  `);
+}
+function runContinuousSim(n,prev){
   if(!G)return;
+  if(!prev&&_csModo==='paso'){            // Fase 80: partido a partido
+    if(finFrena()||dilemaFrena()||prensaFrena())return;
+    closeMod(); csArrancar(Math.max(1,Math.min(200,~~n||1))); return;
+  }
   // Sin este portero el bucle llamaría a simMatch bloqueado y avanzaría las
   // semanas igual con su `G.week++` de fallback.
   if(finFrena())return;                        // te echaron: el club no se mueve
@@ -17863,9 +18479,9 @@ function runContinuousSim(n){
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   closeMod();
   n=Math.max(1,Math.min(200,~~n||1));
-  const start={w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week};
-  const rows=[]; const titles=[];
-  const trophies0=(G.trophies||[]).length;
+  const start=(prev&&prev.start)||{w:G.wins,d:G.draws,l:G.losses,gf:G.gf,ga:G.ga,budget:G.budget,week:G.week};
+  const rows=(prev&&prev.rows)||[];
+  const trophies0=(prev&&prev.tr0!==undefined)?prev.tr0:(G.trophies||[]).length;
   for(let i=0;i<n;i++){
     const m=G.calendar.find(x=>!x.played);
     if(!m)break;
@@ -17884,14 +18500,19 @@ function runContinuousSim(n){
     if(prensaPend())break;
     if(!m.played){G.week++;continue;}
     if(m.week>G.week)G.week=m.week;
-    rows.push({comp,home,away,score:m.score,res:m.result});
+    rows.push({comp,home,away,week:m.week,score:m.score,res:m.result});
     // si terminó una fecha, avanza la semana para que corra la vida del club
     if(!G.calendar.some(x=>!x.played&&x.week<=G.week)){
       try{ if(typeof nextWeek==='function')nextWeek(); else G.week++; }catch(e){G.week++;}
     }
   }
+  csResumen(rows,start,trophies0);
+}
+function csResumen(rows,start,trophies0){
+  const titles=[];
   (G.trophies||[]).slice(trophies0).forEach(t=>titles.push(t.name));
   updateUI();
+  if(!rows.length&&G.calendar.every(m=>m.played)){ setTimeout(()=>checkSeasonEnd(),400); return; }
   const W=G.wins-start.w,D=G.draws-start.d,L=G.losses-start.l;
   const dGf=G.gf-start.gf,dGa=G.ga-start.ga;
   const dBud=Math.round((G.budget-start.budget)*10)/10;
@@ -17907,7 +18528,7 @@ function runContinuousSim(n){
     </div>
     <div class="sr"><span class="sl">Goles</span><span class="sv">${dGf} a favor · ${dGa} en contra</span></div>
     <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${dBud>=0?'var(--green)':'var(--red)'}">${dBud>=0?'+':''}${fv(dBud)}</span></div>
-    <div class="sr"><span class="sl">Semana</span><span class="sv">${start.week} → ${G.week}</span></div>
+    <div class="sr"><span class="sl">Fechas</span><span class="sv">${fechaTxt(start.week,1,false)} → ${hoyTxt(true)}</span></div>
     ${titles.length?`<div class="note" style="margin:8px 0;border-color:var(--gold)">🏆 <b>${titles.join(' · ')}</b></div>`:''}
     <div class="ctitle" style="margin-top:10px">📋 Resultados</div>
     <div style="max-height:230px;overflow:auto">
@@ -17916,7 +18537,7 @@ function runContinuousSim(n){
         <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;color:var(--t2)">${r.home}</span>
         <span style="min-width:34px;text-align:center;font-weight:800;color:${col(r.res)}">${r.score||'-'}</span>
         <span style="flex:1;overflow:hidden;white-space:nowrap;color:var(--t2)">${r.away}</span>
-      </div><div style="font-size:8px;color:var(--t3);padding:0 4px 3px 22px">${r.comp}</div>`).join('')}
+      </div><div style="font-size:8px;color:var(--t3);padding:0 4px 3px 22px">${r.comp}${r.week?' · '+fechaTxt(r.week,7,false):''}</div>`).join('')}
     </div>
     <button class="btn bg" style="width:100%;margin-top:10px" onclick="closeMod()">Continuar</button>
   `);
@@ -18006,6 +18627,7 @@ function simMatch(auto){
     G._lastMatch=m; G._lastScorers=R.scorersList; G._lastStats=R.stats;
     showMatchSummary(m, R.res, gf, ga, R.scorersList, R.stats, R.isLastMatch);
   } else {
+    G._lastMatch=m; G._lastScorers=R.scorersList; G._lastStats=R.stats;   // Fase 80: lo lee el paso a paso
     if(R.isLastMatch) checkSeasonEnd();
   }
 }
@@ -21638,7 +22260,7 @@ function rStats(){
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">💰 Finanzas del club</div>
     <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${G.budget>=0?'var(--green)':'var(--red)'}">$${G.budget}M${G.budget<0?' ⚠️ FFP: fichajes bloqueados':''}</span></div>
-    <div class="sr"><span class="sl">Masa salarial</span><span class="sv" style="color:${G.wageCap&&curWages>G.wageCap?'var(--red)':'var(--t2)'}">${curWages}k/sem${G.wageCap?' (tope CD: '+G.wageCap+'k)':''}</span></div>
+    <div class="sr"><span class="sl">Masa salarial</span><span class="sv" style="color:${curWages>topeSalarial()?'var(--red)':'var(--t2)'}">${curWages}k/sem (tope ${topeSalarial()}k)</span></div>
     ${cuotasPend?`<div class="sr"><span class="sl">Cuotas de pases pendientes</span><span class="sv" style="color:var(--ora)">${fv(cuotasPend)}</span></div>`:''}
     ${fin?`<div class="sr"><span class="sl">Último balance mensual</span><span class="sv" style="color:${fin.neto>=0?'var(--green)':'var(--red)'}">${fin.neto>=0?'+':''}${fv(fin.neto)} (TV +${fv(fin.tv)} / sueldos −${fv(fin.wages)})</span></div>`:''}
   </div>`;
@@ -22119,10 +22741,7 @@ function ptSubmit(){
   const s=_PT; if(!s)return;
   const p=s.p,t=ptTerms();
   // El tope salarial de la CD manda: ni siquiera llega a la mesa
-  const cur=G.squad.reduce((a,q)=>a+(q.wage||0),0);
-  if(G.wageCap&&cur+t.wage>G.wageCap){
-    flash(`❌ La CD no autoriza: tope ${G.wageCap}k/sem (hoy ${cur}k + ${t.wage}k)`,'loss');return;
-  }
+  if(topeBloquea(t.wage))return;
   const sc=ptScore(p,t), rnd=Math.random();
   const ok=sc>=3.5||(sc>=2&&rnd>0.35)||(sc>=0.5&&rnd>0.7);
   const _seguro=s.contraOk&&sc>=3.5;   // le diste lo que pidió: firma
@@ -28330,7 +28949,10 @@ function rSocios(){
     <div class="sr"><span class="sl">Contra la base del club</span><span class="sv" style="color:${col}">${dif>=0?'+':''}${dif}%</span></div>
     <div class="sr"><span class="sl">Cobranza (humor de la gente)</span><span class="sv" style="color:${mc}">${Math.round(65+mood*0.65)}% de la cuota</span></div>
     <div class="sr"><span class="sl">Proyección por temporada</span><span class="sv">${fv(Math.round(inc*12*10)/10)}</span></div>
-    <div style="font-size:9px;color:var(--t3);margin-top:6px">Se cobra en el balance de cada mes, adentro del rubro <b>Cuotas de socios</b>. Un título suma 15% de altas, una figura 5%; tres derrotas al hilo o vender al capitán se llevan 5%.</div>`;
+    <div style="font-size:9px;color:var(--t3);margin-top:6px">Se cobra en el balance de cada mes, adentro del rubro <b>Cuotas de socios</b>. Un título suma 15% de altas, una figura 5%; tres derrotas al hilo o vender al capitán se llevan 5%.</div>
+    ${(G.campana&&G.campana.season===G.season)
+      ?`<div class="note" style="margin-top:6px">📣 Campaña de esta temporada: +${(G.campana.alta||0).toLocaleString('es-AR')} socios por ${fv(G.campana.costo)}.</div>`
+      :`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="campanaSocios()">📣 Lanzar campaña de socios (${fv(campanaCosto())})</button>`}`;
 }
 // La barra de aprobación. El contenedor (.card) ya es vidrio real, así que las
 // filas van en .mpanel: sin backdrop-filter, para no anidar blur.
@@ -28431,6 +29053,7 @@ function rPresTab(){
       ${conf<25?'<div class="note R">La directiva esta muy disconforme. Si no mejoran los resultados, tu puesto peligra.</div>':''}
       ${conf>=85?'<div class="note G">La directiva esta encantada con tu gestion. Segui asi.</div>':''}
       ${G.boardTarget?`<div class="note" style="margin-top:6px">🎯 <b>Objetivo de la dirigencia:</b> ${G.boardTarget.desc}.</div>`:''}
+      <div style="margin-top:8px">${topeHTML()}</div>
       <button class="btn bo bs" style="margin-top:8px" onclick="openThemePicker()">🎨 Cambiar tema de color</button>
       ${(G.careerOffers&&G.careerOffers.length)?`
         <div class="ctitle" style="margin-top:10px">📨 Ofertas de otros clubes</div>
@@ -29420,9 +30043,10 @@ function weeklyNegotiations(){
         n.rivals=(n.rivals||[]).concat([rv]);
         n.rivalBids=(n.rivalBids||[]).concat([{club:rv,bid:suOferta}]);
         n.topRival=Math.max(n.topRival||0,suOferta);
+        n.rivalTope=Math.max(n.rivalTope||0,Math.round(suOferta*(1.10+Math.random()*0.40)*100)/100);
         n.deadline=8+~~(Math.random()*10);
         addPhoneMsg('agent',(G.dt&&G.dt.name)||'Secretaría',
-          `⚠️ <b>${rv}</b> ofertó <b style="color:var(--gold)">${fv(suOferta)}</b> por ${p.name}. Tenés <b>${n.deadline} días</b> para mejorarla o lo perdemos.`,'⏳');
+          `⚠️ <b>${rv}</b> ofertó <b style="color:var(--gold)">${fv(suOferta)}</b> por ${p.name}. Tenés <b>${n.deadline} días</b> para mejorarla o lo perdemos. Pujá desde 📋 Negociaciones.`,'⏳');
         lg('⚠️',`${rv} ofertó ${fv(suOferta)} por ${p.name}`);
       }
     }
@@ -29519,6 +30143,12 @@ function weeklyNegotiations(){
     if(n.deadline>0){
       n.deadline--;
       if(n.deadline===0){
+        // Fase 80: si tu oferta es la más alta, el rival se va con las manos vacías
+        const _mia=Math.max(n.miPuja||0,n.bid||0);
+        if(n.topRival&&_mia>=n.topRival){
+          addPhoneMsg('agent',p.club,`✅ ${(n.rivals||['El otro club'])[0]} no igualó tu oferta por <b>${p.name}</b>: se bajó.`,'💼');
+          n.rivals=[]; n.rivalBids=[]; n.topRival=0;
+        } else
         // Un rival se lo lleva
         if(Math.random()<0.55){
           const rv=(n.rivals||['un club del exterior'])[0];
@@ -29751,7 +30381,8 @@ function openNegsPanel(){
             <div style="font-size:9px;color:var(--t3)">${n.kind&&n.kind!=='compra'?KIND_LBL[n.kind]+' · ':''}${n.club} · ${n.wage}k/sem${n.kind==='prestamo'?'':' · '+n.years+' años'}</div></div>
             <div style="font-size:10px;color:var(--gold);text-align:right">${label[n.stage]||n.stage}${n.wait>0?`<br><span style="font-size:9px;color:var(--t3)">responde en ${n.wait} d</span>`:''}</div>
           </div>
-          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${(n.rivalBids||[]).length?n.rivalBids.map(r=>r.club+' '+fv(r.bid)).join(' · '):n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} d`:''}</div>`:''}
+          ${n.rivals&&n.rivals.length?`<div style="font-size:9px;color:var(--red);margin-top:3px">⚠️ Compiten: ${(n.rivalBids||[]).length?n.rivalBids.map(r=>r.club+' '+fv(r.bid)).join(' · '):n.rivals.join(', ')}${n.deadline?` · quedan ${n.deadline} d`:''}${n.miPuja?` · tu puja: ${fv(n.miPuja)}`:''}</div>
+            ${n.topRival&&p&&n.stage!=='rechazada'?`<button class="btn bo bs" style="width:100%;margin-top:4px;border-color:var(--red);color:var(--red)" onclick="negPujar('${n.pid}')">🔥 Pujar: ofrecer ${fv(negPujaMonto(n))}</button>`:''}`:''}
           ${n.stage==='jugador_ok'&&p?`<button class="btn bg bs" style="width:100%;margin-top:6px" onclick="closeMod();negOpenClub('${n.pid}')">💰 Ofertar a ${n.club}</button>`:''}
           ${n.stage==='contraoferta'&&p?`<button class="btn bo bs" style="width:100%;margin-top:6px" onclick="negAcceptCounter('${n.pid}')">✅ Igualar ${fv(n.want)}</button>
             <button class="btn bR bs" style="width:100%;margin-top:4px" onclick="negDrop('${n.pid}')">✗ Abandonar</button>`:''}
@@ -30588,7 +31219,7 @@ function rPhone(){
         return `<div class="mpanel" style="margin-bottom:7px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
             <div style="flex:1;min-width:0">
-              <div style="font-size:11.5px;font-weight:700">${a.k==='obra'?'🏗️':'🖊️'} ${a.titulo}</div>
+              <div style="font-size:11.5px;font-weight:700">${a.k==='obra'?'🏗️':a.k==='venta'?'🏷️':'🖊️'} ${a.titulo}</div>
               <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${a.detalle}</div>
             </div>
             <div style="text-align:right">

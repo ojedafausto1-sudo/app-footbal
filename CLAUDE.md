@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80` |
 
 ## Formato de `players-db.js`
 
@@ -7349,6 +7349,117 @@ Medido a 360 px antes de tocar nada (`scratchpad/mob.js`):
 (104 px en un tick) en una corrida y verde en las tres siguientes, sin tocar
 el motor: depende del partido que salga. Si lo ves rojo, corré de nuevo
 antes de creerle.
+
+## Fase 80: tope salarial con la caja, simulación partido a partido, fechas reales, formato por época
+
+### ⚠️ El tope salarial no miraba la caja
+
+`G.wageCap` era 1,35× la masa salarial del primer día de la temporada y nada
+más. Medido con Boca: 875k/sem de sueldos y tope 1.181k — **300k de margen con
+28M en el banco y los mismos 300k con 200M**. Por eso "tengo 200 millones y no
+me deja fichar".
+
+`topeDetalle()` / `topeSalarial()`: tope = lo aprobado por la CD (`G.wageCap`,
+que los saves ya traen) + una ampliación (`G.wageAmp`, una por temporada, la da
+la CD según confianza y autoridad, +15%) + **lo que banca la caja**: la plata
+arriba de una reserva de 12 semanas de sueldos paga sueldos extra durante dos
+temporadas (`TOPE_SEMANAS_CAJA=100`), o sea **10M libres = 100k/sem más**. Con
+200M el tope de Boca pasa de 1.356k a 3.076k; con la caja en rojo vale sólo lo
+aprobado. `topeBloquea(sueldo)` es el único portero (las dos vías de fichaje lo
+usan) y el mensaje dice de qué está hecho el tope. Tarjeta en Presidente
+(`topeHTML`).
+
+### Simulación continua: partido a partido o todo junto
+
+`openContinuousSim` pregunta el modo (`_csModo`, en `localStorage`
+`dt_csmodo`, no en `G`). **Partido a partido** (`csArrancar` → `csPaso` →
+`csCarta`): juega uno, muestra el resultado con fecha, goleadores, figura,
+posición y el próximo rival, con ▶ Siguiente, ▶▶ Auto (1,6 s), ⏩ el resto
+juntos y ⏹ parar. Si salta un dilema o la prensa, la seguidilla espera y
+**vuelve sola** al contestar (`_csEnganchar` envuelve `dilemaResolver` /
+`prensaResolver` la primera vez que se usa, porque pueden vivir en otro
+`<script>`). **Todo junto** es el de siempre; el resumen es `csResumen`.
+`simMatch(true)` ahora deja `G._lastScorers` también en automático.
+
+### Fechas de verdad y ventanas de pases
+
+`fechaDe(semana,día)` / `fechaTxt` / `hoyTxt`: Sudamérica y la MLS juegan el
+año calendario (la semana 1 es el primer lunes desde el 5 de enero); Europa,
+México y Arabia de julio a mayo (desde el 14 de julio). En la Argentina depende
+de la época: los torneos cortos y la Superliga arrancaban en agosto. El partido
+es el domingo. La cabecera muestra la fecha (`wTop`).
+
+`ventanasPases()`: la de pretemporada sigue en las semanas 1-5; la de mitad de
+temporada era **24-28 fijo**, que en la Liga ARG caía encima del arranque del
+Clausura. Ahora sale del calendario: en el hueco entre los dos torneos, y si no
+hay fases, en enero (Europa) o a fines de junio (año calendario).
+`isTransferWindowOpen` y `getWindowStatus` (que ahora dice "cierra el dom 21
+jun (34 días)") la leen. ⚠️ En una partida en curso de la Liga ARG la ventana
+de mitad de año se corre de 24-28 a 20-24.
+
+`agendaTemporada()` / `agendaHTML()` (arriba del Calendario): pretemporada,
+abre/cierra el mercado, primera y última fecha, fin de cada torneo, finales
+(con fecha exacta si ya están sorteadas, **estimada** y marcada si no),
+elecciones y la reunión con la CD.
+
+### El formato de la Liga ARG depende de la época (`formatoARG()`)
+
+| base | formato |
+|---|---|
+| ≤2013 | `cortos`: Apertura + Clausura de una rueda, campeón por puntos, 5 semanas de receso (`ARG_RECESO`) |
+| 2014-2019 | `largo`: una rueda, el primero es campeón (desde 2016 con receso después de la fecha 18) |
+| 2020-2024 | `ligacopa`: Copa de la Liga (zonas + fecha de clásicos + playoffs desde cuartos con 4 por zona) + Liga Profesional de una rueda |
+| ≥2025 y 2026 | `zonas`, el de siempre |
+
+- Antes un año histórico jugaba zonas si traía 30 clubes y, si no, **todos
+  contra todos ida y vuelta**, que en la Argentina no existió nunca.
+- El año es el de la BASE (`anioBase()`), no `G.season`.
+- `arBuildEra` arma las tres eras viejas. Las fases nuevas llevan **`v:80`** y
+  las cierra **`arChequearFases()`** (desde `applyMatchResult` y `updateUI`):
+  `tipo:'tabla'` → `arCampeonTabla` (el primero de `arTablaFase`, que es la
+  anual menos la foto del cierre del Apertura, `G.arSnap`); si no,
+  `arStartPlayoff`. ⚠️ Una fase sin `v:80` (save viejo) sigue por el camino de
+  antes: si no, el Apertura de una partida en curso podía volver a arrancar sus
+  playoffs en pleno Clausura.
+- `arChequearFases` también juega las fechas de la IA de semanas ya pasadas: con
+  un número impar de clubes tu fecha libre podía ser la última y esa fecha no se
+  jugaba nunca (sólo la dispara TU partido).
+- `arStartPlayoff` / `arAdvancePlayoff` leen `clasif`, `rondas`, `label` y
+  `trofeo` de la fase (`arFaseLabel`, `arFaseTrofeo`, `delFase` para "del
+  Apertura" / "de la Copa de la Liga").
+- **Descenso por promedios** en las tres eras viejas (`descPromedios`,
+  `promediosTabla`, `promediosGuardar` → `G.promHist`, últimas 3 temporadas en
+  Primera). Lo usan `arMovimientoCategorias` y `checkFired`, y el Calendario
+  muestra la tabla de promedios. ⚠️ La franja roja por puesto se apaga.
+- En el torneo largo la tabla da el título (`tablaDaTituloARG`).
+- **Sin Copa Argentina antes de 2011** (`hayCopaArgentina`).
+
+Medido con Boca: 2005 juega 45 partidos y sale campeón de los dos cortos;
+2017, 27 fechas; 2022, Copa de la Liga + Liga, 60 partidos. ⚠️ Las copas
+internacionales siguen con el formato de hoy salvo la Champions (Fase 73).
+
+### Mercado interactivo y más gestión
+
+- **La puja** (`negPujar`): cuando otro club oferta por tu objetivo aparece
+  🔥 Pujar en 📋 Negociaciones (+6% sobre la oferta más alta). El rival tiene un
+  techo oculto (`n.rivalTope`, sorteado una vez) y contesta en el acto: sube o
+  se baja. Si al vencer el plazo tu oferta es la más alta, **no lo perdés**
+  (antes era 55% de perderlo ofrecieras lo que ofrecieras).
+- **🎯 Oportunidades de la semana** (`oportunidades`, arriba del Mercado): libre,
+  contrato por vencer, el que quiere irse, ganga y joya. La ganga y la joya
+  sólo de jugadores conocidos. ⚠️ **NO usa `jerarquiaBloquea`**: manda mensajes
+  al celular; se usan `esClasico` y `jugadorTeAtiende`.
+- **El Director Deportivo propone ventas** (`juntaVentas`, una por mes, Carpeta
+  `k:'venta'`): el que pidió irse, el veterano caro que no rinde, el que sobra en
+  su línea. Firmar lo pone en venta; rechazar lo marca (`_ventaNo`).
+- **📣 Campaña de socios** (`campanaSocios`, en la tarjeta de socios): una por
+  temporada, cuesta ~1,2M por cada 100.000 socios y suma 1-8% según el humor.
+
+Retro-compatible sin migrar: `wageAmp`, `campana`, `promHist`, `arSnap` y
+`arCampeones` faltan en un save viejo y eso es "no pasó todavía". Verificado
+borrándolos del JSON.
+
+`tests/fase80.js`, **36 checks**.
 
 ## Deploy
 
