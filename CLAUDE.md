@@ -16,7 +16,10 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78` |
+| `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
+| `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
+| `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79` |
 
 ## Formato de `players-db.js`
 
@@ -3271,6 +3274,10 @@ y ahora **blindados en la regresión** para que no puedan volver en silencio:
   regresión verifica que nunca se pase, no que siempre llene 11.
 
 ## El juego NO pide nada por red
+
+⚠️ **Desde la Fase 79 tampoco las tipografías**: antes venían de Google Fonts
+(lo único externo que quedaba) y ahora están en `fonts/`. Desde el sitio,
+`sw.js` guarda el juego en el teléfono y abre sin conexión.
 
 `director-tecnico.html` no tiene un solo `fetch` ni `XMLHttpRequest`: la base
 entra por `<script src="players-db.js">` y `<script src="dts-db.js">`, ambos
@@ -7265,6 +7272,83 @@ borde. Ahora el check espera hasta 8 s a que algo se mueva.
 ⚠️ **Medido de paso y sin tocar**: con Boca y con Lanús, el arnés gana todo
 (Boca 156-18-5 en tres temporadas). Es la dificultad del juego, no de esta
 fase; si hay que mirarla, el lugar es `G.diff` y la fuerza del rival.
+
+## Fase 79: jugar sin internet, y la interfaz del celular
+
+### Sin internet
+
+El juego no pedía nada por red para JUGAR (la partida vive en `localStorage`),
+pero sí para **abrirse** desde el sitio, y además traía las tipografías de
+Google: sin señal caía a Arial. Ahora:
+
+- **Tipografías locales** en `fonts/` (32 woff2, 614 KB, sólo latin +
+  latin-ext). Ya no queda un solo pedido a otro sitio.
+- **`manifest.webmanifest`** + íconos: se instala en la pantalla de inicio
+  ("Agregar a inicio" / "Instalar aplicación") y abre como app.
+- **`sw.js`**: guarda el núcleo (juego, base, DTs, three.js, tipografías,
+  íconos: ~4,9 MB) la primera vez que entrás con conexión. El HTML va **red
+  primero** (con conexión siempre abre la versión nueva) y el resto **caché
+  primero, actualizado por atrás**.
+- Las **temporadas históricas** (51 MB los 26 años) **no se bajan solas**: se
+  guardan al elegir el año, o todas con **⬇️ Descargar temporadas** de la
+  tarjeta **📴 Sin internet** (Oficina). Su caché (`dt-hist`) **no se borra**
+  al cambiar de versión: re-bajar 51 MB por un deploy sería un castigo.
+- ⚠️ **Subí `DT_VER` en `sw.js` en cada deploy que toque el núcleo**: es lo que
+  dispara la reinstalación y limpia el caché viejo. Sin eso igual se
+  actualiza (por atrás), pero con una carga de demora.
+- ⚠️ `netlify.toml` le pone `Cache-Control: no-cache` a `sw.js`: si el
+  navegador lo cacheara, un deploy tardaría días en llegar al celular.
+- Con **file://** no hay service worker (no existe ahí) y no hace falta: ya es
+  local. La tarjeta lo explica en vez de mostrar un estado falso.
+- El estado de la pantalla vive en `_OFF`, fuera de `G`: es del navegador, no
+  de la partida.
+
+⚠️ **`context.setOffline(true)` de Playwright NO corta la red del service
+worker.** La primera versión del test "pasaba" porque el SW seguía bajando del
+servidor una temporada que no estaba guardada. `tests/fase79.js` **apaga el
+servidor** antes de recargar, y verifica que de verdad no responda.
+
+Medido con el servidor apagado: el juego abre con las 17.388 fichas y sus
+tipografías, se arranca una partida y se juegan 4 partidos, el 3D carga, la
+temporada guardada carga y la que no avisa, y **0 pedidos** fuera del sitio.
+
+### La interfaz del celular (≤600 px)
+
+Medido a 360 px antes de tocar nada (`scratchpad/mob.js`):
+
+| | antes | ahora |
+|---|---|---|
+| pantallas con algo que se sale por la derecha | **9 de 23** (filas del Mercado hasta 457 px) | **0** |
+| barra de secciones | arriba, cortada ("Temporada" no se veía), botones de 29 px | **abajo, fija, 5 botones de 54 px** |
+| cabecera | dos pastillas apiladas, ~200 px, flotando sobre el contenido | **una línea, 58 px, con fondo** |
+| textos de menos de 10 px | ~3.000 | **0** en Plantel, Mercado, CT, Calendario y Juveniles |
+| filtros del Mercado | una pantalla entera antes del primer jugador | **plegados**, con el conteo de los que están puestos |
+| botones del partido | 8 de 22 px al lado del marcador | renglón propio, **46 px** |
+
+- **La barra de abajo son los MISMOS botones** (`#fnav .fs`): sólo cambia
+  dónde se dibujan, y el ícono sale del `data-sec` por CSS. No hay HTML
+  duplicado que se desincronice.
+- **El piso de letra va por atributo** (`[style*="font-size:8px"]` →10px,
+  9px →10,5px): casi toda la letra chica son estilos en línea, y una hoja con
+  `!important` le gana a un `style` sin él. ⚠️ Si agregás texto con
+  `font-size` en línea de menos de 10px, en el celular se va a agrandar solo;
+  está bien que pase.
+- **La fila del Mercado** pasa de 7 columnas a dos renglones (media · nombre ·
+  valor / liga · edad · potencial). Los botones de fichar se esconden: tocar
+  la fila abre la ficha, que los tiene. ⚠️ Ese contenedor trae
+  `display:flex` en línea: la regla que lo esconde necesita `!important`.
+- Las grillas `.g4` (las cajitas de media/potencial/moral/contrato) pasan a
+  2 columnas: desde los 680 px quedaban en una.
+- **Acostado** (`max-height:500px`) se achican la cabecera y la barra.
+- ⚠️ **En la compu no cambia nada**: el test lo verifica a 1280 px (barra
+  arriba, filtros a la vista, fila de 7 columnas).
+
+`tests/fase79.js`, **30 checks**.
+
+🔶 `fase76` ("la pelota llega a las manos deslizándose") dio **un** rojo
+(104 px en un tick) en una corrida y verde en las tres siguientes, sin tocar
+el motor: depende del partido que salga. Si lo ves rojo, corré de nuevo
+antes de creerle.
 
 ## Deploy
 

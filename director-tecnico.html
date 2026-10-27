@@ -4,7 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Archivo:ital,wght@0,600;0,800;1,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Fase 79: tipografías LOCALES (antes salían de Google y sin internet el juego caía a Arial) -->
+<link href="fonts/fonts.css" rel="stylesheet">
+<!-- Fase 79: instalable y jugable sin internet (PWA) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0e14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Director Técnico">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <style>
 :root{--gold:#f59e0b;--gold-d:#d97706;--gold-rgb:245,158,11;--dark:#0b0e14;--d2:#0f1420;--d3:#141a28;--mid:#1c2334;--tx:#f2f4f8;--t2:#9aa6b8;--t3:#7c8798;--green:#10b981;--green-d:#059669;--red:#e84545;--ora:#f59e0b;--pur:#a78bfa;--bdr:rgba(255,255,255,.08);--card:rgba(6,24,48,.80);--card-2:rgba(12,40,80,.55);--blur:blur(12px) saturate(1.2);--r:13px;--sh:0 6px 26px rgba(0,0,0,.55);--sh-deep:0 14px 42px rgba(0,0,0,.66),0 2px 8px rgba(0,0,0,.5);--sh-lift:0 20px 54px rgba(0,0,0,.72),0 3px 12px rgba(0,0,0,.55)}.stat-tile{background:var(--card);border:1px solid var(--bdr);border-radius:11px;padding:11px 6px;text-align:center}.stat-tile .sv-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;color:#fff;letter-spacing:-.01em}.stat-tile .sv-l{font-size:8.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.11em;margin-top:5px;font-family:'Rajdhani',sans-serif;font-weight:600}/* El tag de leyenda: oro metálico con brillo, para que se vea distinto
    de los demás badges de la ficha. */
@@ -802,6 +812,114 @@ body.bg3d-on .main{background:transparent}
 .f3-mm{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:190px;height:99px;opacity:.88;border-radius:4px}
 @media (max-width:600px){ .f3-mm{width:150px;height:78px} .f3-chip{bottom:128px} }
 </style>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   FASE 79: EL CELULAR (≤600px de ancho)
+   Medido a 360px antes de tocar nada: la barra de secciones se cortaba
+   ("Temporada" no se veía) con botones de 29px de alto; la cabecera eran
+   dos pastillas apiladas que ocupaban ~200px y, al scrollear, flotaban
+   sobre el contenido; las filas del Mercado medían 457px y cortaban el
+   valor y el potencial; y había ~3.000 textos de menos de 10px.
+   ═══════════════════════════════════════════════════════════════════ */
+.mkfbtn{display:none}
+@media(max-width:600px){
+  /* 1 · Las cinco secciones van ABAJO, al alcance del pulgar, como en
+     cualquier app. Son los mismos botones (#fnav .fs), sólo cambia dónde
+     se dibujan: el ícono sale del data-sec, no hay HTML duplicado. */
+  #fnav.fnav{position:fixed;left:0;right:0;bottom:0;z-index:95;display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+    padding:3px 2px calc(3px + env(safe-area-inset-bottom));overflow:visible;align-items:stretch;
+    background:linear-gradient(180deg,rgba(12,20,34,.95),rgba(6,10,18,.99));border-top:1px solid rgba(255,255,255,.10);
+    box-shadow:0 -8px 24px rgba(0,0,0,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  #fnav .fs,#fnav .fs.on{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;
+    font-size:11px;font-weight:700;letter-spacing:.03em;padding:4px 0 3px;text-shadow:none;color:rgba(255,255,255,.62);min-width:0}
+  #fnav .fs::before{font-size:22px;line-height:1;filter:grayscale(.55);opacity:.8;transition:transform .15s}
+  #fnav .fs[data-sec=central]::before{content:'🏠'}
+  #fnav .fs[data-sec=plantel]::before{content:'👥'}
+  #fnav .fs[data-sec=mercado]::before{content:'💰'}
+  #fnav .fs[data-sec=oficina]::before{content:'🏛️'}
+  #fnav .fs[data-sec=temporada]::before{content:'📅'}
+  #fnav .fs.on{color:var(--gold)}
+  #fnav .fs.on::before{filter:none;opacity:1;transform:translateY(-1px) scale(1.08)}
+  #fnav .fs.on::after{left:28%;right:28%;top:0;bottom:auto;height:3px}
+  #fnav .fs .fs-n{top:2px;right:calc(50% - 25px);box-shadow:0 0 0 2px #0b0e14}
+  .main{padding-bottom:calc(78px + env(safe-area-inset-bottom))!important}
+  #phoneBtn{bottom:calc(70px + env(safe-area-inset-bottom))!important}
+  .flash{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+
+  /* 2 · Cabecera en UNA línea, con fondo propio: antes eran dos pastillas
+     apiladas que, al scrollear, dejaban ver el texto por detrás. */
+  .fhead{flex-wrap:nowrap!important;gap:6px;padding:max(6px,env(safe-area-inset-top)) 8px 6px max(8px,env(safe-area-inset-left));
+    background:linear-gradient(180deg,rgba(6,10,18,.97),rgba(6,10,18,.90));border-bottom:1px solid rgba(255,255,255,.08);
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .fhead>.fpill{flex:1 1 auto;min-width:0;padding:4px 10px 4px 4px;border-radius:10px 22px 22px 10px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  .fpill .cbadge{width:32px!important;height:32px!important;font-size:11px!important}
+  .fp-n{font-size:14px;max-width:none}.fp-s{font-size:11px;max-width:none}
+  #winStatusTop,#fBadge2,.fr-niv,.fr-bar{display:none!important}
+  .fhead>div:last-child{flex:0 0 auto;gap:4px!important}
+  .fpill.r{margin-left:0!important;padding:4px 10px;border-radius:22px 10px 10px 22px}
+  .fr-col{gap:2px}.fr-top{font-size:12px;gap:6px}
+  .fhbtn{width:30px;height:30px;font-size:13px}
+
+  /* 3 · Mercado: los filtros se pliegan (ocupaban la pantalla entera antes
+     del primer jugador) y la fila pasa de 7 columnas a dos renglones. */
+  .mkfbtn{display:block;width:100%;margin-bottom:8px}
+  #mk-buy .frow{display:none}
+  #mk-buy.fopen .frow{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  #mk-buy.fopen .frow>*{width:100%;min-width:0;margin:0}
+  .mkhd{display:none!important}
+  #mkList .mkrow{grid-template-columns:46px minmax(0,1fr) auto auto;grid-template-areas:"r n n v" "r l a p";
+    column-gap:8px;row-gap:3px;padding:9px 8px;border-color:rgba(255,255,255,.05)}
+  #mkList .mkrow>:nth-child(1){grid-area:r}
+  #mkList .mkrow>:nth-child(2){grid-area:n;min-width:0}
+  #mkList .mkrow>:nth-child(3){grid-area:l;min-width:0}
+  #mkList .mkrow>:nth-child(4){grid-area:a;flex-direction:row!important;gap:4px!important}
+  #mkList .mkrow>:nth-child(5){grid-area:v;text-align:right}
+  #mkList .mkrow>:nth-child(6){grid-area:p;text-align:right}
+  #mkList .mkrow>:nth-child(7){display:none!important}   /* trae display:flex en línea */
+  #mkList .mkrow .pn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #mkList .mkrow [title=Comparar],#mkList .mkrow [title=Seguir]{font-size:13px!important;padding:6px;margin:-6px}
+
+  /* 4 · Piso de letra. ~3.000 textos de 7-9,5px a 360px son ilegibles en
+     un teléfono. La mayoría son estilos en línea, así que el piso se aplica
+     por atributo (una hoja con !important le gana a un style sin él). */
+  [style*="font-size:7px"],[style*="font-size:7.5px"],[style*="font-size:8px"],[style*="font-size:8.5px"]{font-size:10px!important}
+  [style*="font-size:9px"],[style*="font-size:9.5px"]{font-size:10.5px!important}
+  .ptag,.age-peak,.age-young,.age-vet,.plc-en,.plc-con,.mpanel-t{font-size:10px!important}
+  .vbadge,.plc-num{font-size:10px!important}
+  .stat-tile .sv-l{font-size:9px}
+
+  /* Las grillas de 4 cajitas (media, potencial, moral, contrato…) quedaban
+     en UNA columna desde los 680px: cuatro renglones para cuatro números. */
+  .g4{grid-template-columns:1fr 1fr!important}
+  /* 5 · Botones cómodos para el dedo */
+  .btn.bs{min-height:36px}
+  .tab{min-height:40px}
+  .fcb{min-width:44px;min-height:36px;font-size:15px}
+  .fc-s,.fc-p{padding:8px 0}
+  .mclose{min-width:40px;min-height:40px;font-size:17px}
+
+  /* 6 · El partido: los botones van en su propio renglón (antes eran 8 de
+     22px apretados al lado del marcador, y el "4-3-3" se partía en columna)
+     y el cartel de "¡INICIO!" puede ir en dos líneas en vez de cortarse. */
+  #fm-ov .fm-hd{flex-wrap:wrap;row-gap:5px;padding:max(5px,env(safe-area-inset-top)) 8px 6px}
+  #fm-ov .fm-tl,#fm-ov .fm-tr{flex:1 1 0}
+  #fm-ov .fm-btns{order:3;width:100%;gap:4px!important}
+  #fm-ov .fm-btns button{flex:1 1 0;min-height:36px;font-size:14px!important;padding:4px 0!important}
+  #fm-msg{white-space:normal!important;width:94%;font-size:30px!important}
+}
+/* El teléfono acostado: 360px de alto y la cabecera + la barra se comían un
+   tercio. Se achican, sin esconder nada que haga falta. */
+@media(max-height:500px) and (orientation:landscape){
+  .fhead{padding:max(4px,env(safe-area-inset-top)) 12px 2px max(12px,env(safe-area-inset-left))}
+  .fpill .cbadge{width:30px!important;height:30px!important;font-size:10px!important}
+  .fpill{padding:3px 12px 3px 4px}.fpill.r{padding:3px 4px 3px 12px}
+  #winStatusTop,.fr-mini{display:none!important}
+  .fp-n{font-size:15px}.fp-s{font-size:10.5px}
+  #fnav.fnav{padding:2px 16px 4px;gap:22px}
+  #fnav .fs{font-size:15px}#fnav .fs.on{font-size:18px}
+  #fm-msg{font-size:30px!important}
+}
+</style>
 </head>
 <body>
 
@@ -1074,6 +1192,7 @@ body.bg3d-on .main{background:transparent}
       <div id="mk-buy" class="tc on">
         <button class="btn bg" id="mkEncargo" style="width:100%;margin-bottom:8px"
           onclick="encargoModal()">🤝 Encargar fichaje al Consejo</button>
+        <button class="btn bo bs mkfbtn" id="mkFBtn" onclick="mkFiltrosToggle()">🔧 Filtros y orden</button>
         <input class="mksearch" type="text" id="mkQ" placeholder="🔍 Buscar por nombre, club o liga — las tildes no importan (tevez, gutierrez, muñoz)" oninput="renderMkt()">
         <div class="frow">
           <button class="fchip" id="mkFree" onclick="mkToggleLibres(this)" title="Sólo jugadores sin club: llegan sin pagar ficha">🆓 Libres</button>
@@ -1091,7 +1210,7 @@ body.bg3d-on .main{background:transparent}
           <select class="fs" id="mkVirt" onchange="renderMkt()"><option value="">Toda virtud</option><option value="VEL">⚡ Velocistas</option><option value="TIR">🎯 Goleadores</option><option value="PAS">🎩 Cerebros</option><option value="REG">🪄 Gambeteadores</option><option value="DEF">🧱 Murallas</option><option value="FIS">💪 Tanques</option></select>
           <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="pos">Por puesto</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option><option value="ganga">💎 Gangas</option></select>
         </div>
-        <div style="display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;padding:4px 10px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">
+        <div class="mkhd" style="display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;padding:4px 10px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">
           <span>RAT</span><span>Jugador</span><span>Liga</span><span>Edad</span><span>Valor</span><span>POT</span><span>Acción</span>
         </div>
         <div id="mkList"></div>
@@ -8525,9 +8644,24 @@ function mkToggleLibres(btn){
   if(btn) btn.classList.toggle('on',_mkLibres);
   renderMkt();
 }
+// Fase 79: en el celular los filtros del Mercado van plegados. El botón dice
+// cuántos hay puestos, así no se pierde que la lista está filtrada.
+function mkFiltrosToggle(){
+  const b=document.getElementById('mk-buy'); if(!b) return;
+  b.classList.toggle('fopen'); mkFiltrosCuenta();
+}
+function mkFiltrosCuenta(){
+  const btn=document.getElementById('mkFBtn'); if(!btn) return;
+  const ids=['mkPos','mkLg','mkTeam','mkNat','mkMaxV','mkMinV','mkMaxAge','mkMinAge','mkMinR','mkMinPot','mkEstado','mkVirt'];
+  let n=ids.filter(i=>{const e=document.getElementById(i);return e&&String(e.value||'').trim()!=='';}).length;
+  if(typeof _mkLibres!=='undefined'&&_mkLibres) n++;
+  const abierto=document.getElementById('mk-buy').classList.contains('fopen');
+  btn.textContent=(abierto?'▲ Ocultar filtros':'🔧 Filtros y orden')+(n?` (${n} activo${n===1?'':'s'})`:'');
+}
 function renderMkt(){
   const el = document.getElementById('mkList');
   if(!el||!G) return;
+  try{ mkFiltrosCuenta(); }catch(e){}
   const qEl = document.getElementById('mkQ');
   if(!qEl) return; // not visible yet
   // ⚠️ Se normaliza con `_tsNorm`, que YA existe y es el mismo que usa el
@@ -23382,8 +23516,8 @@ function startFullMatch(watch){
   ov.id='fm-ov';
   ov.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#0a1628;overflow:hidden;touch-action:none';
   ov.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.9);flex-shrink:0;gap:6px">
-      <div style="font-family:'Rajdhani',sans-serif;line-height:1.3;min-width:0">
+    <div class="fm-hd" style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.9);flex-shrink:0;gap:6px">
+      <div class="fm-tl" style="font-family:'Rajdhani',sans-serif;line-height:1.3;min-width:0">
         <div style="font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${G.teamName}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${myRat} · ${myTac}</div>
       </div>
@@ -23392,11 +23526,11 @@ function startFullMatch(watch){
         <div id="fm-tm" style="font-size:10px;color:rgba(255,255,255,.45);font-family:'Rajdhani',sans-serif">0' · 1T</div>
         <div style="font-size:9.5px;color:rgba(255,255,255,.55);font-family:'Rajdhani',sans-serif" title="${wxNow().desc}">${wxLabel()}</div>
       </div>
-      <div style="font-family:'Rajdhani',sans-serif;line-height:1.3;text-align:right;min-width:0">
+      <div class="fm-tr" style="font-family:'Rajdhani',sans-serif;line-height:1.3;text-align:right;min-width:0">
         <div style="font-size:12px;font-weight:700;color:rgba(180,210,255,1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${opp}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${oppRat} · 4-4-2</div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0">
+      <div class="fm-btns" style="display:flex;gap:5px;flex-shrink:0">
         <button onclick="fmToggleMute(this)" id="fm-mutebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔊</button>
         <button onclick="fmShowHelp()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">?</button>
         <button onclick="fm3DToggle()" id="fm-3dbtn" title="Ver el partido en 3D" style="background:rgba(var(--gold-rgb),.15);border:1px solid rgba(var(--gold-rgb),.55);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">3D</button>
@@ -30783,6 +30917,113 @@ function fTemporadaBig(){
       <td>${r.gf-r.gc>0?'+':''}${r.gf-r.gc}</td><td><b>${r.pts}</b></td></tr>`:'<tr><td colspan="5" style="text-align:center;opacity:.5">⋯</td></tr>').join('')}
     </table>`;
 }
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 79: JUGAR SIN INTERNET
+// ═══════════════════════════════════════════════════════════════════════
+// El juego no pide nada por red para JUGAR, pero sí para ABRIRSE desde el
+// sitio. `sw.js` guarda el núcleo (juego, base, three.js, tipografías) la
+// primera vez que entrás con conexión, y las temporadas históricas cuando las
+// elegís o con el botón de esta tarjeta. Abriendo el archivo con file:// no
+// hace falta nada de esto: ya es local (y un service worker ahí no existe).
+// El estado vive en `_OFF`, fuera de `G`: es del navegador, no de la partida.
+const _OFF={core:false,hist:0,bajando:false,prog:'',inst:null,reg:false};
+function offlineSoportado(){
+  try{ return /^https?:$/.test(location.protocol) && ('serviceWorker' in navigator) && ('caches' in window); }catch(e){ return false; }
+}
+function offlineRegistrar(){
+  if(!offlineSoportado()||_OFF.reg) return;
+  _OFF.reg=true;
+  navigator.serviceWorker.register('sw.js').then(r=>{
+    const listo=()=>offlineRefrescar();
+    if(r.active) listo();
+    navigator.serviceWorker.ready.then(listo);
+  }).catch(e=>console.warn('service worker',e));
+  // Que el navegador no borre la caché cuando le falta lugar
+  try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){}
+}
+async function offlineRefrescar(){
+  if(!offlineSoportado()) return;
+  try{
+    const ks=await caches.keys();
+    _OFF.core=false;
+    for(const k of ks){ if(!k.startsWith('dt-core-')) continue;
+      const c=await caches.open(k); if(await c.match('director-tecnico.html')){ _OFF.core=true; break; } }
+    const h=await caches.open('dt-hist');
+    _OFF.hist=(await h.keys()).length;
+  }catch(e){}
+  try{ if(document.getElementById('offBox')) offlineDibujar(); }catch(e){}
+}
+function _offAnios(){ try{ return (typeof temporadasDB==='function'?temporadasDB():[]).filter(y=>y!==2026); }catch(e){ return []; } }
+function _offMB(anios){
+  const idx=(window.PLAYERS_DB_HIST_IDX)||{};
+  // ~93 bytes por ficha, medido sobre los 26 archivos (51 MB / 549.143 filas)
+  return Math.round(anios.reduce((a,y)=>a+((idx[y]&&idx[y].j)||20000),0)*93/1e6);
+}
+function offlineResumen(){
+  if(!offlineSoportado()) return 'Archivos locales: no necesita internet';
+  if(!_OFF.core) return 'Preparando…';
+  const n=_offAnios().length;
+  return `Listo · ${_OFF.hist}/${n} temporadas guardadas`;
+}
+async function offlineBajarTemporadas(){
+  if(!offlineSoportado()||_OFF.bajando) return;
+  _OFF.bajando=true;
+  try{
+    const c=await caches.open('dt-hist');
+    const ya=new Set((await c.keys()).map(r=>(r.url.match(/players-hist-(\d{4})\.js/)||[])[1]));
+    const falta=_offAnios().filter(y=>!ya.has(String(y)));
+    let ok=0, mal=0;
+    for(const y of falta){
+      _OFF.prog=`Bajando ${y}… (${ok+mal+1} de ${falta.length})`; offlineDibujar();
+      try{ await c.add('players-hist-'+y+'.js'); ok++; }catch(e){ mal++; }
+    }
+    _OFF.prog=mal?`Se guardaron ${ok}. ${mal} no se pudieron bajar (¿se cortó la conexión?): probá de nuevo.`
+                 :`Listo: ${ok} temporada${ok===1?'':'s'} guardada${ok===1?'':'s'}.`;
+    if(ok) flash('📴 Temporadas guardadas para jugar sin internet','win');
+  }catch(e){ _OFF.prog='No se pudo usar el almacenamiento del navegador.'; }
+  _OFF.bajando=false;
+  await offlineRefrescar();
+}
+async function offlineInstalar(){
+  const e=_OFF.inst; if(!e) return;
+  try{ e.prompt(); await e.userChoice; }catch(x){}
+  _OFF.inst=null; offlineDibujar();
+}
+function offlineDibujar(){
+  const el=document.getElementById('offBox'); if(!el) return;
+  if(!offlineSoportado()){
+    el.innerHTML=`<div class="mpanel" style="font-size:12px;line-height:1.5">✅ Estás jugando desde los archivos de tu carpeta (<b>file://</b>): el juego ya funciona sin internet tal como está.<br><span style="color:var(--t3)">Para instalarlo en el celular, entrá una vez desde el sitio con conexión.</span></div>`;
+    return;
+  }
+  const n=_offAnios().length, faltan=Math.max(0,n-_OFF.hist), mb=_offMB(_offAnios().slice(0,faltan));
+  const enApp=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  el.innerHTML=`
+    <div class="mpanel" style="margin-bottom:8px">
+      <div class="mpanel-row"><span>${_OFF.core?'✅':'⏳'} El juego</span><b>${_OFF.core?'guardado en este dispositivo':'guardándose…'}</b></div>
+      <div class="mpanel-row"><span>${_OFF.hist>=n&&n?'✅':'📦'} Temporadas viejas</span><b>${_OFF.hist} de ${n}</b></div>
+      <div class="mpanel-row"><span>${navigator.onLine?'📶':'📴'} Conexión</span><b>${navigator.onLine?'con internet':'sin internet'}</b></div>
+    </div>
+    <div style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:8px">
+      Tu partida se guarda en el celular, así que con el juego guardado se juega igual sin señal. Las temporadas viejas pesan ~2 MB cada una y se guardan cuando las elegís; si querés tenerlas todas para el viaje, bajalas acá con wifi.
+    </div>
+    ${faltan?`<button class="btn bg" style="width:100%;margin-bottom:6px" ${_OFF.bajando||!navigator.onLine?'disabled':''} onclick="offlineBajarTemporadas()">⬇️ Descargar las ${faltan} temporadas que faltan (~${mb} MB)</button>`:''}
+    ${_OFF.prog?`<div class="note" style="margin-bottom:6px">${_OFF.prog}</div>`:''}
+    ${enApp?`<div class="note G" style="margin:0">📱 Ya lo estás usando como aplicación.</div>`
+      :_OFF.inst?`<button class="btn bo" style="width:100%" onclick="offlineInstalar()">📲 Instalar en la pantalla de inicio</button>`
+      :`<div style="font-size:11px;color:var(--t3);line-height:1.5"><b>Para tenerlo como app:</b> en Android, menú ⋮ → <i>Instalar aplicación</i>. En iPhone, botón Compartir → <i>Agregar a inicio</i>.</div>`}`;
+}
+function abrirOffline(){
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📴 Jugar sin internet</div><div id="offBox"></div>`);
+  offlineDibujar(); offlineRefrescar();
+}
+try{
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _OFF.inst=e; try{offlineDibujar();}catch(x){} });
+  window.addEventListener('load',()=>offlineRegistrar());
+  window.addEventListener('offline',()=>{ try{ flash('📴 Sin conexión: el juego sigue funcionando','draw'); offlineDibujar(); }catch(e){} });
+  window.addEventListener('online',()=>{ try{ offlineDibujar(); }catch(e){} });
+}catch(e){}
+
 const HUBS={
   plantel:{big:fOnceBig,bigTab:'tac',tiles:[
     {t:'Plantel',i:'👥',tab:'sq',s:()=>`${G.squad.length} jugadores`},
@@ -30807,6 +31048,7 @@ const HUBS={
     {t:'Tienda oficial',i:'👕',fn:'abrirTienda()',s:()=>{const m=merchMes();return `${m.precio} € · ${fv(m.neto)}/mes`;}},
     {t:'Patrocinios',i:'🤝',tab:'pat',s:()=>`${(G.sponsors||[]).length} contratos · ${ofertasSponsor().length} ofertas`},
     {t:'Redes',i:'📱',tab:'social',s:()=>'Lo que dice la gente'},
+    {t:'Sin internet',i:'📴',fn:'abrirOffline()',s:()=>offlineResumen()},
   ]},
   temporada:{big:fTemporadaBig,bigTab:'cal',tiles:[
     {t:'Calendario',i:'📅',tab:'cal',s:()=>{const m=(G.calendar||[]).find(x=>!x.played);return m?`Próximo: ${_esc(m.home===G.teamName?m.away:m.home)}`:'';}},
