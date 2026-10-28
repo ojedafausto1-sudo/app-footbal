@@ -10629,15 +10629,46 @@ function pdRelLabel(p){
   if(r>=25)return {t:'Está incómodo',c:'var(--ora)'};
   return {t:'Roto con el DT',c:'var(--red)'};
 }
+// ═══ ¿ESPERABA JUGAR? (Fase 81) ═══
+// Antes la relación bajaba igual para TODO el que no era titular, sin importar
+// si esperaba jugar, y no se reseteaba nunca. Medido con Boca: a la segunda
+// temporada 13 de 29 pedían irse, casi todos suplentes que no tenían por qué
+// ser titulares. Un plantel de 30 tiene 19 que no juegan: eso es normal.
+// Ahora cuenta lo que el jugador cree que le corresponde, por su lugar en SU
+// línea (el ranking de media entre los sanos):
+//   'titular'  — está entre los N mejores de su línea (N = los de esa línea en el once)
+//   'recambio' — el primero que sigue
+//   'suplente' — sabe que es del banco
+function rolEsperado(p,xi){
+  const g=pgr(p.pos);
+  const enXi=(G.squad||[]).filter(q=>xi.includes(q.id)&&pgr(q.pos)===g).length||1;
+  const linea=(G.squad||[]).filter(q=>pgr(q.pos)===g&&!q.injured&&!q.colgado).sort((a,b)=>b.rat-a.rat);
+  const i=linea.findIndex(q=>q.id===p.id);
+  if(p.rolProm===0||p.rolProm===1)return 'titular';   // se lo prometiste al firmar
+  if(i<0)return 'suplente';
+  return i<enXi?'titular':i<enXi+1?'recambio':'suplente';
+}
 function weeklyPlayerDt(){
   if(!G||!G.squad)return;
   const xi=Object.values(G.slots||{}).filter(Boolean);
   G.squad.forEach(p=>{
     pdRel(p);
     const juega=xi.includes(p.id);
-    // Al que juega se le acomoda; al que mira desde afuera se le desgasta,
-    // y más si es bueno: un titular relegado se calienta antes.
-    let d= juega?1.6:(p.colgado?-3.2:-(0.8+Math.max(0,(p.rat-70))*0.05));
+    // Entró desde el banco esta semana: también es jugar
+    const entro=!juega&&(p.apps||0)>(p._appsSemPD===undefined?(p.apps||0):p._appsSemPD);
+    p._appsSemPD=p.apps||0;
+    const rol=rolEsperado(p,xi);
+    // Al que juega se le acomoda. Al que esperaba jugar y mira desde afuera se
+    // le desgasta, y más si es bueno. El que sabe que es suplente se acomoda
+    // alrededor de 50: no se rompe con el DT por cumplir su papel.
+    let d;
+    if(juega) d=1.6;
+    else if(p.colgado) d=-3.2;
+    else if(entro) d=0.4;
+    else if(rol==='titular') d=-(0.8+Math.max(0,(p.rat-70))*0.05);
+    // el recambio bueno y en edad de jugar quiere minutos; el resto lo acepta
+    else if(rol==='recambio') d=(p.rat>=75&&(p.age||26)<=29)?-0.6:(p.dtRel>45?-0.25:0.1);
+    else d=p.dtRel<50?0.3:-0.05;
     if(p.injured)d=0;
     p.dtRel=Math.max(0,Math.min(100,Math.round((p.dtRel+d)*10)/10));
     // Un decimal, como la línea de vestuario de más abajo: redondeando a
@@ -10656,11 +10687,30 @@ function weeklyPlayerDt(){
     p.morale=Math.max(3,Math.min(99,Math.round((_m0+dm)*10)/10));
     // Si se rompe del todo, pide salir y lo dice
     if(p.dtRel<=12&&!p.wantsOut&&Math.random()<0.18){
-      p.wantsOut=true;
+      p.wantsOut=true; p._woSem=0;
       addPhoneMsg('player',p.name,`😤 Con este entrenador no juego más. Le pido que me busque club, presidente.`,'😤');
       lg('😤',`${p.name} se rompió con el DT y pide salir`);
     }
+    // ═══ SE PUEDE ARREPENTIR (Fase 81) ═══
+    // Antes el pedido de salir no se retiraba NUNCA, aunque después jugara
+    // todo y estuviera feliz. Si vuelve a estar contento con la moral y con
+    // el DT varias semanas seguidas, lo piensa de nuevo.
+    else if(p.wantsOut&&!p.colgado&&!p.injured){
+      const bien=(p.morale===undefined?60:p.morale)>=65&&p.dtRel>=58;
+      p._woSem=bien?(p._woSem||0)+1:0;
+      if(p._woSem>=4&&Math.random()<0.35){
+        p.wantsOut=false; p._woSem=0; p._askedMin=false;
+        addPhoneMsg('player',p.name,`🤝 Presidente, lo pensé mejor. Estoy cómodo, juego y el grupo me banca: me quedo. Olvídese de lo que le dije.`,'🤝');
+        lg('🤝',`${p.name} retiró el pedido de salir`);
+      }
+    }
   });
+}
+// Temporada nueva, borrón y cuenta nueva a medias: la pretemporada acerca la
+// relación con el DT a 60 (la mitad del camino). Sin esto el suplente
+// arrastraba la bronca de todos los años y terminaba roto en la segunda.
+function pdRelTemporada(){
+  (G&&G.squad||[]).forEach(p=>{ const r=pdRel(p); p.dtRel=Math.round((r+(60-r)*0.5)*10)/10; p._appsSemPD=undefined; });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -17120,6 +17170,7 @@ function nextSeason(){
     }
   });
   G.promises=(G.promises||[]).filter(pr=>!pr.resolved);
+  try{ pdRelTemporada(); }catch(e){}   // Fase 81
   // La CD fija el tope salarial de la nueva temporada
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
   youthSafetyNet();          // la cantera cubre el hueco antes de armar el calendario
@@ -31109,7 +31160,10 @@ function weeklyChats(){
     addPhoneMsg('player',p.name,'Le escribió por privado — revisá su chat en la pestaña Plantel.','👤');
   }
   // SE PLANTA: moral muy baja o figura tentada por un grande → exige salir
-  const rebels=G.squad.filter(p=>!p.wantsOut&&(((p.morale===undefined?70:p.morale)<32)||((p.rat>=80)&&isTransferWindowOpen()&&Math.random()<0.06)));
+  // ⚠️ La figura "tentada por un grande" se plantaba por sorteo (6% por semana
+  // con la ventana abierta) aunque estuviera feliz y jugando todo: medido, Villa
+  // con moral 97 y Flores con 78 pedían irse. Ahora sólo si además está mal.
+  const rebels=G.squad.filter(p=>!p.wantsOut&&!p.injured&&(((p.morale===undefined?70:p.morale)<32)||((p.rat>=80)&&isTransferWindowOpen()&&(p.morale===undefined?70:p.morale)<55&&Math.random()<0.06)));
   if(rebels.length&&Math.random()<0.6){
     const p=rebels[~~(Math.random()*rebels.length)];
     p.wantsOut=true;

@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81` |
 
 ## Formato de `players-db.js`
 
@@ -7460,6 +7460,43 @@ Retro-compatible sin migrar: `wageAmp`, `campana`, `promHist`, `arSnap` y
 borrándolos del JSON.
 
 `tests/fase80.js`, **36 checks**.
+
+## Fase 81: los jugadores se querían ir todos
+
+El presidente: *"los jugadores se quieren ir todos, jueguen o no"*. Medido con
+Boca, tres temporadas simuladas: **0 → 3 → 13 de 29** pidiendo salir, 17 de
+los casos por la relación con el DT y 3 por "se plantó". Tres causas:
+
+1. **`weeklyPlayerDt` bajaba la relación con el DT igual para TODO el que no
+   era titular** (−0,8 a −1,85 por semana) y **no se reseteaba nunca**. Un
+   plantel de 30 tiene 19 que no juegan: a la segunda temporada todo el banco
+   llegaba al corte de 12 y pedía irse.
+2. **"Se planta" sorteaba 6% por semana a cualquier figura de 80+** con la
+   ventana abierta, aunque estuviera feliz (Villa con moral 97 pidiendo irse).
+3. **`wantsOut` no se retiraba nunca**, aunque después jugara todo.
+
+Arreglado:
+
+- **`rolEsperado(p,xi)`**: por el ranking de media dentro de SU línea (sanos),
+  el jugador es `titular` (entre los N de esa línea en el once, o le
+  prometiste titular/titular habitual al firmar), `recambio` (el que sigue) o
+  `suplente`. Sólo el titular relegado se calienta como antes. El recambio
+  bueno y joven (75+, ≤29) −0,6; el resto −0,25. **El suplente se acomoda
+  alrededor de 50.** Entrar desde el banco (`p.apps` subió) suma +0,4.
+- **`pdRelTemporada()`** en `nextSeason`: la relación va la mitad del camino
+  hacia 60.
+- **La figura se planta sólo con moral < 55** (el 6% sigue, pero hace falta
+  estar mal).
+- **Se arrepiente**: con moral ≥65 y relación ≥58 cuatro semanas seguidas
+  (`p._woSem`), 35% por semana de retirar el pedido, con mensaje al celular.
+
+Medido después, tres temporadas: **Boca 0, Lanús 1, Real Madrid 3** (Arda
+Güler 92 en el banco y Cucurella, los dos casos lógicos; uno se arrepintió).
+⚠️ Boca da 0 porque gana todo y el vestuario está contento; el que juega poco
+y es bueno igual se queja por las otras vías (reclamo de minutos, promesas,
+rechazar una oferta grande).
+
+`tests/fase81.js`, **11 checks**.
 
 ## Deploy
 

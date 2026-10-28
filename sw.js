@@ -18,7 +18,7 @@
 // por atrás", que es lo que hace que abra al instante.
 // ⚠️ Cambiá DT_VER en cada deploy que toque el núcleo: es lo que dispara la
 // instalación nueva y la limpieza del caché viejo.
-const DT_VER = 'v80-1';
+const DT_VER = 'v81-1';
 const CORE = 'dt-core-' + DT_VER;
 const HIST = 'dt-hist';
 const CORE_FILES = [
