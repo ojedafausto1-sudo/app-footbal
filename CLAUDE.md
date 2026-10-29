@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82` |
 
 ## Formato de `players-db.js`
 
@@ -7497,6 +7497,52 @@ y es bueno igual se queja por las otras vías (reclamo de minutos, promesas,
 rechazar una oferta grande).
 
 `tests/fase81.js`, **11 checks**.
+
+## Fase 82: "gano todo" — tus partidos con la misma vara que los de la IA
+
+Medido con puntos ESPERADOS (sin el ruido del Poisson) contra lo que sacaría un
+club de la IA con tu mismo plantel ante el mismo rival (la fórmula de
+`arSimPair`): Boca sacaba **2,47 puntos por partido** donde la IA saca 1,93
+(xG 2,47 a favor y 0,39 en contra: 10 goles recibidos en 30 fechas), y San
+Martín (SJ) 0,40 donde la IA sacaría 0,57. O sea: tus partidos eran más
+extremos que los de la IA **para los dos lados**. Tres causas:
+
+1. **Dos varas distintas**: tu lado era la media del ONCE (`avgR`) y el rival
+   `clubPower`, la media de sus 15 mejores. Al grande le regalaba ~3 puntos.
+2. **La diferencia de plantel entraba dos veces** (`myS−oppS` y `_gapCal`).
+3. **`tacMod` estaba siempre en el techo** (+0,045 en Boca, Lanús y San
+   Martín): un bonus permanente.
+4. Y destapada al medir: **`avgR` trae la RACHA adentro** (`ratNow`), así que
+   el que gana sube y gana más (City +1,6 puntos sobre sus 11 mejores, San
+   Martín −2,1). La IA no tiene racha.
+
+`xgDeS` ahora es **la cuenta de `arSimPair`** (+2 de localía, techo ±8,
+2,6/2,5) con tu fuerza en la escala de la IA: `myRatEq` (en `matchStrengths`)
+= media de tus 15 mejores + (once de hoy − tus 11 mejores) + la mitad de la
+racha, multiplicado por la **raíz** de `modF` (física, puesto, química,
+capitán, clima, relación, moral y DT contra uno de 70, todo junto). El planteo
+suma `(tacMod − TAC_CENTRO)·TAC_PUNTOS` y la dificultad `diffMod·DIF_PUNTOS`
+(±3,2 puntos, más los ±7 del rival que ya había). Una `G._S` vieja sin
+`myRatEq` sigue con la cuenta de antes.
+
+⚠️ **`modF` va a media potencia a propósito**: entero, la moral del que gana lo
+hacía más fuerte (el grande +0,17 puntos esperados sobre la IA, el mediano
+−0,24). Con la raíz queda Boca **2,12 contra 2,13** de la IA y San Martín 0,52
+contra 0,67: el chico sigue un poco abajo porque perdiendo se le cae la moral
+y el DT se devalúa (71 → 61 medido), que es gestión de verdad.
+
+⚠️ **Sólo la simulación de texto.** Las jugadas clave (`pWin`) y el 11v11 no
+usan `xgDeS`.
+
+- La pantalla de inicio marcaba **FÁCIL** aunque sin tocar nada arrancabas en
+  NORMAL: ahora marca NORMAL.
+- La dificultad se cambia en la partida (`setDiffPartida`, tarjeta en
+  Presidente → `difHTML`).
+
+`tests/fase82.js`, **11 checks**: la cuenta da EXACTO lo de la IA con gestión
+neutra (local y visitante), el techo, el planteo, una S vieja, una temporada
+de Boca y una de San Martín contra la vara de la IA, y fácil > normal >
+difícil.
 
 ## Deploy
 

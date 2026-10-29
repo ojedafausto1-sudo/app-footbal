@@ -938,8 +938,8 @@ body.bg3d-on .main{background:transparent}
   <div style="margin-bottom:22px;text-align:center">
     <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px">DIFICULTAD</div>
     <div style="display:flex;gap:8px;justify-content:center">
-      <button onclick="setDiff(0,this)" class="diff-btn diff-sel" id="diff-0">😊 FÁCIL</button>
-      <button onclick="setDiff(1,this)" class="diff-btn" id="diff-1">⚽ NORMAL</button>
+      <button onclick="setDiff(0,this)" class="diff-btn" id="diff-0">😊 FÁCIL</button>
+      <button onclick="setDiff(1,this)" class="diff-btn diff-sel" id="diff-1">⚽ NORMAL</button>
       <button onclick="setDiff(2,this)" class="diff-btn" id="diff-2">💀 DIFÍCIL</button>
     </div>
   </div>
@@ -17433,7 +17433,26 @@ function matchStrengths(m){
   // el visitante es el que corre de atrás. Se acota el total: un buen plan
   // sigue valiendo, pero no reemplaza tener mejores jugadores.
   tacMod=Math.max(-0.045,Math.min(0.045,tacMod));
-  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod, defFit, defCansada};
+  // ═══ MI FUERZA EN LA MISMA VARA QUE LA IA (Fase 82) ═══
+  // `clubPower` (lo que vale el rival) es el promedio de los 15 mejores; avgR
+  // es el del once. Comparar una cosa con la otra le regalaba ~3 puntos al
+  // club grande (Boca: 79,9 contra 76,7). `myRatEq` es mi club en la escala de
+  // la IA —el promedio de mis 15 mejores— corregido por cuánto peor que mi
+  // mejor once es el once de hoy (lesionados, suspendidos, rotación).
+  const _rats=(G.squad||[]).map(p=>p.rat).sort((a,b)=>b-a);
+  const _avgN=n=>{const r=_rats.slice(0,n);return r.length?r.reduce((a,x)=>a+x,0)/r.length:avgR;};
+  // ⚠️ avgR viene con la RACHA adentro (`ratNow`): al que gana le sube la
+  // media del día y eso lo hace ganar más. La IA no tiene racha. Medido: al
+  // City le sumaba +1,6 puntos sobre sus 11 mejores y a San Martín −2,1. La
+  // vara común es la media pelada; la racha entra a la mitad.
+  const _avgRaw = xi.length ? xi.reduce((a,p)=>a+p.rat,0)/xi.length : avgR;
+  const myRatEq = _avgN(15) + (_avgRaw - _avgN(11)) + (avgR - _avgRaw)*0.5;
+  // Lo que pesa todo lo demás (física, puesto, química, capitán, clima,
+  // relación, moral y el DT contra uno promedio de 70) como un factor sobre
+  // esa fuerza: 1 es un club "normal" como los de la IA.
+  const myS0 = avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + 0.70*.13 + 0.70*.14;
+  const modF = myS0>0 ? myS/myS0 : 1;
+  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod, defFit, defCansada, myRatEq, modF};
   // La última medición de fuerzas queda a mano: applyMatchResult arma la
   // planilla del partido con ella y no tiene la S en su scope (lo llaman la
   // simulación rápida, el 11v11 y las jugadas clave, cada uno por su lado).
@@ -18596,12 +18615,41 @@ function csResumen(rows,start,trophies0){
 }
 
 // Los goles esperados de un partido, a partir de las fuerzas de matchStrengths.
+// ═══ MIS PARTIDOS CON LA MISMA FÓRMULA QUE LOS DE LA IA (Fase 82) ═══
+// Antes era una cuenta propia, y medida contra la IA salía más extrema para
+// los dos lados: Boca sacaba 2,47 puntos por partido donde un club de la IA
+// con el mismo plantel saca 1,93 (le hacía 2,47 goles esperados al rival y
+// recibía 0,39), y San Martín (SJ) 0,40 donde la IA sacaría 0,57. Tres
+// causas: mi lado se medía con el once y el rival con sus 15 mejores (+3 al
+// grande), la diferencia de plantel entraba DOS veces (myS−oppS y _gapCal) y
+// el bonus táctico estaba siempre clavado en el techo (+0,045).
+// Ahora: mi fuerza en la escala de la IA (`myRatEq`), por lo que suma o resta
+// la gestión (`modF`), contra el rival tal cual lo ve la IA, y la cuenta es la
+// de `arSimPair` (+2 de localía, techo de ±8, 2,6/2,5). El planteo y la
+// dificultad se suman ahí, en puntos de fuerza.
+const TAC_CENTRO=0.042;    // tacMod típico: medido, queda en el techo (0,045) en Boca, Lanús y San Martín
+const TAC_PUNTOS=60;       // ±0,045 de planteo → ±1,5 puntos alrededor del centro
+const DIF_PUNTOS=20;       // fácil/difícil: ±0,16 → ±3,2 puntos (más los ±7 del rival)
 function xgDeS(S){
-  // Mi calidad tiene que pesar lo mismo que la de la IA: ver el comentario
-  // largo en simMatch (el término _gapCal y su techo de ±8).
-  const _gapCal=Math.max(-8,Math.min(8,(S.avgR||70)-(S.oppRat||70)))/26*0.42;
-  const diff  = (S.myS - S.oppS)*1.65 + _gapCal + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
-  return { my:Math.max(0.22, 1.35 + diff*3.4), op:Math.max(0.22, 1.35 - diff*3.0) };
+  if(S.myRatEq===undefined){
+    // Una S vieja (de antes de la Fase 82, guardada en G._S): la cuenta de antes
+    const _gapCal=Math.max(-8,Math.min(8,(S.avgR||70)-(S.oppRat||70)))/26*0.42;
+    const diff  = (S.myS - S.oppS)*1.65 + _gapCal + S.homeBonus + (S.diffMod||0) + (S.tacMod||0);
+    return { my:Math.max(0.22, 1.35 + diff*3.4), op:Math.max(0.22, 1.35 - diff*3.0) };
+  }
+  const local=(S.homeBonus||0)>=0;
+  // ⚠️ El factor de gestión va a MEDIA potencia (raíz): entero, la moral del
+  // que gana todo lo hacía más fuerte y el grande se escapaba (+0,17 puntos
+  // esperados por partido sobre la IA), y el mediano se hundía (−0,24).
+  const mia=(S.myRatEq||70)*Math.sqrt(S.modF||1)+((S.tacMod||0)-TAC_CENTRO)*TAC_PUNTOS+(S.diffMod||0)*DIF_PUNTOS;
+  const suya=(S.oppRat||70);
+  // Como en arSimPair: el que es local suma 2, d se mide desde el local
+  // las instalaciones del estadio (`homeEdge`) suman encima de los 2 de siempre
+  const _edge=local?Math.max(0,((S.homeBonus||0)-0.032)*60):0;
+  const pa=local?mia+2+_edge:suya+2, pb=local?suya:mia;
+  const d=Math.max(-8,Math.min(8,pa-pb))/26;
+  const xL=Math.max(0.25,1.35+d*2.6), xV=Math.max(0.25,1.35-d*2.5);
+  return local?{my:xL,op:xV}:{my:xV,op:xL};
 }
 function simMatch(auto){
   if(!G) return;
@@ -23650,6 +23698,24 @@ function setDiff(n, btn){
   window._selectedDiff = n;
   document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('diff-sel'));
   btn.classList.add('diff-sel');
+}
+// Fase 82: la dificultad se puede cambiar en medio de la carrera. Antes sólo
+// se elegía en la pantalla de inicio (y ahí FÁCIL aparecía marcado aunque si no
+// tocabas nada el juego arrancaba en NORMAL).
+const DIF_NOM=['😊 Fácil','⚽ Normal','💀 Difícil'];
+function setDiffPartida(n){
+  if(!G||n===G.diff)return;
+  G.diff=n; window._selectedDiff=n;
+  lg('🎚️','Dificultad: '+DIF_NOM[n]);
+  flash('🎚️ Dificultad: '+DIF_NOM[n],'draw');
+  try{updateUI();}catch(e){}
+}
+function difHTML(){
+  if(!G)return '';
+  const d=(G.diff===undefined?1:G.diff);
+  return `<div class="mpanel" id="difBox" style="margin-top:8px"><div class="mpanel-t">🎚️ Dificultad</div>
+    <div style="display:flex;gap:5px">${DIF_NOM.map((t,i)=>`<button class="btn ${i===d?'bg':'bo'} bs" style="flex:1" onclick="setDiffPartida(${i})">${t}</button>`).join('')}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px">Normal: tus partidos se juegan con la misma vara que los de la IA. Difícil: los rivales rinden ~10 puntos más.</div></div>`;
 }
 
 function setTacticM(mentality, btn){
@@ -29105,6 +29171,7 @@ function rPresTab(){
       ${conf>=85?'<div class="note G">La directiva esta encantada con tu gestion. Segui asi.</div>':''}
       ${G.boardTarget?`<div class="note" style="margin-top:6px">🎯 <b>Objetivo de la dirigencia:</b> ${G.boardTarget.desc}.</div>`:''}
       <div style="margin-top:8px">${topeHTML()}</div>
+      ${difHTML()}
       <button class="btn bo bs" style="margin-top:8px" onclick="openThemePicker()">🎨 Cambiar tema de color</button>
       ${(G.careerOffers&&G.careerOffers.length)?`
         <div class="ctitle" style="margin-top:10px">📨 Ofertas de otros clubes</div>
