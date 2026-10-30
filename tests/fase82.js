@@ -84,7 +84,10 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     eval(A); const o = {};
     gTab('pres'); try { rPresTab(); } catch (e) {}
     o.ui = !!document.getElementById('difBox');
-    const m = G.calendar.find(x => !x.played && esLigaLocal(x.comp));
+    // contra el rival MÁS FUERTE: con uno flojo el techo de ±8 iguala fácil y
+    // normal y el check dependía de quién tocaba en la primera fecha
+    const _op = x => x.home === G.teamName ? x.away : x.home;
+    const m = G.calendar.filter(x => !x.played && esLigaLocal(x.comp)).sort((a, b) => clubPower(_op(b)) - clubPower(_op(a)))[0];
     G.diff = 1; const n = xgDeS(matchStrengths(m));
     setDiffPartida(2); const h = xgDeS(matchStrengths(m));
     setDiffPartida(0); const f = xgDeS(matchStrengths(m));

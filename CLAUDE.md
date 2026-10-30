@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83` |
 
 ## Formato de `players-db.js`
 
@@ -35,6 +35,10 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
 - **Sos el presidente**: los cambios en el partido y el once los decide el DT.
   La ÚNICA excepción es un **DT personalizado** (`G.dt.customProf`), donde el
   usuario controla todo. `dtIsMine()` distingue los dos casos.
+  ⚠️ **Desde la Fase 83 hay MODO DT** (`G.modo==='dt'`): ahí el técnico sos vos
+  y el presidente es de la IA (`G.presIA`). Todo lo que sea compra, venta,
+  renovación o plata pasa por `MODO_SOLO_PRES` / `modoInstalar()`. Si agregás
+  una acción de presidente nueva, sumala a esa tabla.
 - Los **DTs reales** juegan como en la vida real: hay una tabla `REAL` en
   `dtProfile()` con perfiles por nombre (Guardiola, Simeone, Gallardo...).
 - **Liga Argentina con formato real**: 30 clubes, 2 zonas de 15, Apertura +
@@ -94,8 +98,8 @@ Las columnas nuevas van **siempre al final** para no romper bases viejas:
   dirigencia, la plata de TV y las ofertas de otros clubes. Medido en 8
   temporadas: ahora hace 77 → 93 → 86 → 88.
 - **Los socios son un stock, no un % del estadio**: `updateFans` los acerca de a
-  8% por partido a un objetivo que sale de la REPUTACIÓN y puede ser 4-5 veces
-  la capacidad (Boca ~220-250k). El arranque lo da `sociosBase()`, la misma
+  2% por partido a `sociosObjetivo()`, anclado en la masa histórica del club
+  (`G._socAncla`) — ver Fase 83: antes ampliar la cancha los multiplicaba. El arranque lo da `sociosBase()`, la misma
   cuenta, así que no hay salto. Si tocás esto, ojo con el divisor de `socInc`
   (42.000) en el balance mensual.
 - **Un club grande cuesta caro**: los gastos operativos suman `_estructura`
@@ -7543,6 +7547,188 @@ usan `xgDeS`.
 neutra (local y visitante), el techo, el planteo, una S vieja, una temporada
 de Boca y una de San Martín contra la vara de la IA, y fácil > normal >
 difícil.
+
+## Fase 83: modo DT, socios de verdad, campaña, retirados, eventos de leyendas
+
+### Los socios se hacen con historia, no con hormigón
+
+El objetivo de `updateFans` era `cap×(0,9+rep×3,6)×humor`: **ampliar la cancha
+multiplicaba la masa societaria**. Medido: Boca con las cuatro tribunas pasaba
+de 190 mil a **670 mil en cuatro años**, y un estadio grande llegaba al millón.
+
+Ahora sale de `sociosObjetivo()`, anclado en `G._socAncla` (la masa con la que
+arrancó la carrera, `sociosBase()` en `initGame`) y `G._repAncla`:
+
+| factor | rango |
+|---|---|
+| reputación ganada desde que llegaste | ±0,9% por punto (0,70-1,35) |
+| humor | 0,85 en rebeldía · 1,00 normal · 1,12 eufórica |
+| títulos | +2% cada uno, hasta +25% |
+| cancha | raíz quinta: duplicarla da +15% |
+| tope | **1,8×** el ancla |
+
+Y se acerca de a `SOC_PASO`=2% por partido (era 8%). Los empujones de
+`SOC_EVENTOS` bajaron: título 15% → **4%**, figura 5% → **2%**. Medido en cinco
+temporadas: Boca con las cuatro tribunas **190 → 308 mil** (antes 670), Real
+Madrid 319 → 360-440 mil, Lanús 132 → 153 mil.
+
+⚠️ **Un save viejo no trae el ancla** y sus socios pueden venir inflados: se
+reconstruye con la cancha ORIGINAL (`_capOriginal()` resta las ampliaciones
+construidas) y la `initRep` del club, nunca con `G.socios`.
+
+⚠️ La elección usaba `sociosBase()` como vara del crecimiento (`crec` en
+`votoEstimado`); ahora usa `sociosAncla()`, si no todo club que crece en
+reputación "perdía socios" para el votante.
+
+### Modo DT / modo presidente
+
+En la pantalla de inicio se elige el rol (`setModo`, `_modoSel`, recordado en
+`localStorage` `dt_modo`; `G.modo` es `'dt'` o `'pres'` y **un save viejo sin el
+campo es presidente**).
+
+- **Modo presidente**: el de siempre. Nuevo: **imponerle un jugador al DT**
+  (`dtReaccionFichaje`, en `firmasTick`). Si el refuerzo es de un puesto que él
+  quería o mejora la línea en 3+, lo recibe bien (+2); si no, `dtRel` −5,
+  autoridad +2, `p._impuesto` y un mensaje "no lo pedí".
+- **Modo DT**: `modoDTArmar()` te pone de técnico (`G.dt` con `customProf`, así
+  que `dtIsMine()` da true y manejás once, táctica y entrenamiento, con la idea
+  de juego del DT que estaba) y crea `G.presIA` (nombre del pool real de la
+  liga y un perfil de `PRES_PERFILES`: ambicioso, austero, populista,
+  equilibrado — cuánto gasta, cuánto pide para vender, cuánto te dice que sí).
+
+⚠️ **Los bloqueos están en UN solo lugar**: `MODO_SOLO_PRES` + `modoInstalar()`
+envuelven ~35 funciones (compra, venta, renovación, plata, contratar DT). Siendo
+DT, tocar "fichar" abre `pedidoModal`. El presidente de la IA usa las originales
+(`_MODO_ORIG`) para no rebotar contra su propio portero. Además se envuelven
+`genDtRequest`, `weeklyJunta`, `juntaRenovFin` (en modo DT no hacen nada),
+`weeklyDilema`/`clasicoPrevia` (los dilemas del club los resuelve él:
+`presDecideDilemas`; la indisciplina y las lesiones quedan para vos),
+`expireContracts` (antes, `presRenovar(true)`), `correrEleccion`
+(`presEleccion`: si la pierde llega otro presidente) y `weeklyAprobacion`
+(siendo DT no te destituye la asamblea: la bronca baja la relación).
+
+`weeklyPresIA()` (bloque semanal): contesta los pedidos (`G.pedidosDT`, planos:
+jugador · puesto · vender · renovar · proteger) a la semana o dos, decide las
+ofertas por tus jugadores (`presOfertasTick`: pide `val×venta`, +25% por
+titular, +40% por top 3, dos titulares por temporada como mucho, y el
+"protegido" sólo sale con 2,2× — ahí la última palabra es suya), firma sponsors,
+renueva cada mes desde la semana 18 al que juega o vale, y a veces **te trae un
+jugador que no pediste** (`presImponeTick`). La relación (`presRel`) sube y baja
+**contra lo esperado** (`puntosEsperados` del partido, como la valoración del
+DT): con −1,6 fijo por derrota, el DT de Lanús llegaba a 15 en una temporada.
+En **12 te echa** (`destituir('presDT')`). Medido: Lanús 47 partidos, relación 58.
+
+⚠️ `topeBloquea` hace `flash`: el presidente pregunta con `_topeOk(w)`, que lee
+`topeDetalle()` en silencio.
+
+### Elecciones con campaña y promesas
+
+En el año de la elección, desde la semana `CAMP_DESDE`=20, la pestaña
+Presidente abre la campaña (`campanaHTML`): hasta 3 promesas de `PROMESAS`
+(título +5, ampliar el estadio +4, una figura 82+ +4, 3 pibes de la cantera +3,
+entradas populares +3, sin deuda +3, no vender al capitán +2), dos actos
+(plata por +2) y un debate (±4 según autoridad y humor). Todo suma en
+`votoEstimado` vía `campanaVotos()`. Al ganar, `promesasAsumir()` las pasa a
+`G.promesas` (planas, con la foto de partida en `base`). `promesasTick`
+(semanal) cumple o rompe las que se deciden en el acto; `promesasVencer` (en
+`nextSeason`, antes de la elección) juzga las que vencen. Cumplida: humor +4.
+Rota: humor −8, CD −4 y **−4 votos en la elección siguiente**
+(`promesasRotasVoto`).
+
+### El que se retira elige
+
+`retiroCamino(p,t)` (determinista por nombre): técnico (al pool, como antes),
+**representante** (`G.agentes`: a sus clientes —~22% del mercado por hash,
+`agenteDe(p)`— les cobra 5 puntos menos de comisión y a veces te acerca uno),
+**staff de la presidencia** (`G.staffPres`: ojeador que revela jugadores,
+coordinador de inferiores con +3 de techo en `youthPotTecho`, embajador con
+sponsors ×1,04, entrenador de arqueros) o su casa. La leyenda sigue yendo a la
+Junta. Tarjeta en Presidente (`staffPresHTML`).
+
+### Más técnicos, y una media que dice algo
+
+`dtDesdeBase` daba `64 + fuerza de liga + hash`: un 65-80 sin relación con el
+club. Ahora `dtRatDerivado` sale de `nivelClub` (70 + (nivel−63)×0,6 ± 4): el
+DT del PSG ronda 88, el de un club chico 64-73. Los curados no se tocan.
+`dtPoolMejorar()` (una vez por partida, `G._dtPoolV`) re-valora y completa
+hasta **140 libres** (antes 87) con técnicos recién recibidos de cada liga;
+`dtPoolTemporada()` suma 4-8 por temporada.
+
+⚠️ El DT inicial de tu club sale de `dtDeClub` DENTRO del literal de `G`, cuando
+`clubRank()` todavía está vacío: ése conserva la media vieja (por hash).
+
+### Negociaciones con contexto
+
+`negFactores(p)` reemplaza la lista de 9 clubes a mano (con 'Man. City', que
+nunca matcheaba) y se **muestra** en la ficha ("📋 Lo que pesa"): club grande
++15% / chico −7%, top 3 de su plantel +20%, fuera de los 18 −15%, contrato ≤12
+meses −18%, pibe con proyección +15%, veterano −10%, cierre de ventana +10%, le
+sobran en el puesto −7%. El ruido de `_negDemand` ahora es un hash de jugador y
+semana: abrir y cerrar no cambia el precio.
+
+- **Paciencia**: una oferta de menos del 60% ofende y el club corta 3 semanas
+  (`negCortar`, `G._negCortes`, semana absoluta por club); rechazar en la última
+  ronda, 2.
+- **El jugador** (`negWageFactores`, dentro de `_negWageExpect`): dejar su país
+  +8%, venir a ser suplente +10%, venir de titular −5%.
+- **Préstamos** (`loanRefusal`): si en tu club no va a jugar, +18% de rechazo.
+- **Ofertas que te llegan** (`o._techo`): si el jugador pidió irse, el comprador
+  estira menos; si se cierra la ventana o viene jugando bárbaro, más.
+
+### Eventos especiales: ligas de leyendas
+
+En el paso 1 del wizard (`eventosHTML`, si hay temporadas en la carpeta):
+**los mejores Bocas**, **los mejores Rivers** y **leyendas argentinas** (el
+mejor año de cada club). `eventoArmar` carga los años de a uno, mide cada
+plantel por la media de los 15 mejores valores **en plata de hoy**
+(`_evFilaHoy`: `valDeFila` con `_DB_SEASON` del año × `getYearInflation`) y arma
+una **base sintética** con la liga `'Leyendas'` y los clubes renombrados
+("Boca Juniors 2000"). Todo el juego sale de `PLAYERS_DB`, así que la liga
+aparece sola; corre con año 2026 (factor 1).
+
+- ⚠️ **Se guarda en `localStorage` aparte** (`dt_evento_db`): `loadGame` es
+  síncrono y no puede bajar 26 temporadas. `G.dbSeason='LEY'` es la marca y
+  `aplicarTemporada('LEY')` / `temporadaCargada('LEY')` la leen de ahí. Un
+  export de esa partida a otro aparato no lleva la base del evento.
+- ⚠️ **`_slugTeam` corta a 14 letras**: "bocajuniors200" juntaba 2000-2009 en un
+  solo id y el wizard mostraba 3 clubes de 20. En el evento el id es el slug
+  entero.
+- ⚠️ **El mercado filtraba por NOMBRE** a los de tu plantel: con Riquelme en
+  Boca 2000 y 2001, elegir uno vaciaba al otro. En el evento se filtra por club.
+- `_leyBase(nombre)` saca el año: estadio (`stadiumDe`), colores
+  (`clubColors`) y camiseta (`_kitBase`) son los del club de verdad.
+- Medido: los mejores Bocas salen 2006, 2000, 2007, 2003… (los años 2003-2008
+  pesan más por la inflación de la tabla); leyendas argentinas, River 2000,
+  Independiente 2007, San Lorenzo 2007. Temporada entera de 38 fechas, guardar
+  y cargar.
+
+### Las copas pagan, los sponsors viven y el presidente tiene más herramientas
+
+- **Premios** (`copaPremio` en `applyMatchResult`, `premiosTitulos` como
+  vigía sobre `G.trophies`): Champions 1,5M por triunfo y 12M el título;
+  Libertadores 0,5 / 10; Sudamericana 0,2 / 4; Europa League 0,6 / 5; copa
+  nacional 0,1 por ronda ganada y 1,2 el título; Mundial de Clubes 8. Antes
+  jugar una copa no daba un peso. Rubro `premios`.
+- **Sponsors** (`weeklySponsorsVida`): 4 semanas antes de vencer la marca
+  propone renovar (semanal ajustado por reputación y `sponsorMood`; firmar
+  reemplaza el contrato); con la gente en rebeldía, 3% semanal de que una use
+  la cláusula de salida; y el contrato de campeón paga 30% por terminar entre
+  los 4 (`sponsorsBonoTop4`).
+- **Herramientas** (`accionesPresHTML`): prima por el próximo partido (moral
+  ya, se paga si ganan), escuelas en el exterior (hasta 3: rep +1 y una cuota
+  semanal) y plan de seguridad por temporada (corta el arreglo con la barra,
+  incidentes del clásico ×0,4, autoridad +4).
+
+⚠️ **El código que se dibuja al ABRIR la página corre antes de que el parseo
+llegue al final del script.** El `PAGE INIT` (`tsIr(1)`) llama a `tsRender`, y
+`eventosHTML` leía variables declaradas con `let` más abajo: zona muerta, el
+`try` se lo comía en silencio y **la pantalla de inicio quedaba en blanco**. Lo
+agarró `fase79` (faltaba la tipografía Chakra Petch porque no se dibujaba nada
+que la usara). Por eso esas variables son `var`, `eventosHTML` sale vacío sin
+la tabla, y el bloque del evento redibuja el paso 1 al terminar de declararse.
+Si agregás algo que dibuje el inicio, ojo con esto.
+
+`tests/fase83.js`, **60 checks**.
 
 ## Deploy
 
