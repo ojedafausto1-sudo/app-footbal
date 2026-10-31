@@ -7841,10 +7841,10 @@ arrancar otra partida del mismo año (o salir de un evento) reusaba el mapa
 club → liga de la anterior. Lo destapó la Supercopa (no encontraba rivales).
 `initGame` los limpia y `aplicarTemporada` limpia `_aiLigaMap`.
 
-`tests/fase84.js`, **42 checks**. 🔶 En 7 corridas dio **un** rojo que no se
-volvió a reproducir (los candidatos son los que miden con dados: retiros del
-plantel, neto del Real Madrid y frecuencia de rojas). Si lo ves rojo, corré de
-nuevo antes de creerle.
+`tests/fase84.js`, **42 checks**. ⚠️ El check de la frecuencia de rojas
+usa un partido común (`simRojas(null)`): tomaba el próximo del calendario y,
+cuando era un clásico, la frecuencia sube a propósito a ~18% y se salía del
+rango (1 rojo cada ~8 corridas).
 
 ## Deploy
 

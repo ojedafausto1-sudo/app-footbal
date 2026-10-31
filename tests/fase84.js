@@ -195,7 +195,7 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     const b2 = rojaMult({ mia: 10, rival: null }, 45, 90); o.b = [b2.my, b2.op];
     const c = rojaMult({ mia: 80, rival: null }, 0, 45); o.c = c.my === 1 && c.op === 1;
     const half = rojaMult({ mia: 67.5, rival: null }, 45, 90); o.half = [half.my, half.op];
-    let n = 0, nr = 0; const m = G.calendar.find(x => !x.played);
+    let n = 0, nr = 0; const m = null;   // partido común: en un clásico la frecuencia sube a propósito (≈18%)
     for (let i = 0; i < 4000; i++) { const R = simRojas(m); if (R.mia) n++; if (R.rival) nr++; }
     o.pM = n / 4000; o.pR = nr / 4000;
     // la tarjeta de verdad es la del sorteo: un expulsado en el once, ni uno más
