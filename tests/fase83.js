@@ -270,7 +270,7 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
       document.getElementById('teamSelect').style.display = 'none';
       setModo('pres'); startGame(ids[0]); try { autoFill(); preseasonSaltear(); closeMod(); } catch (e) { }
       o.club = G.teamName; o.db = G.dbSeason; o.sq = G.squad.length;
-      o.rivales = new Set(G.calendar.filter(m => m.comp === 'Liga de Leyendas').map(m => m.home === G.teamName ? m.away : m.home)).size;
+      o.rivales = new Set(G.calendar.filter(m => m.comp === LIGA_NOMBRE['Leyendas']).map(m => m.home === G.teamName ? m.away : m.home)).size;
       o.mktBocas = new Set(G.market.map(p => p.club)).size;
       o.estadio = G.stadium.name;
       saveGame();

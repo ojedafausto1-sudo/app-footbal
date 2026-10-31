@@ -282,6 +282,10 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
    mismo lenguaje visual y es gratis. */
 .mpanel{background:rgba(255,255,255,.03);border:1px solid var(--bdr);border-radius:8px;padding:10px;box-shadow:0 1px 6px rgba(0,0,0,.18)}
 .mpanel+.mpanel{margin-top:8px}
+/* Fase 84: en modo DT las cosas del presidente se ven pero no se tocan */
+body.modo-dt #tab-pat button,body.modo-dt #tab-stad button,body.modo-dt #loanBox button,
+body.modo-dt #presAccBox button,body.modo-dt #ticketSlider,body.modo-dt #tab-pat input{opacity:.4;pointer-events:none;filter:grayscale(.6)}
+.modo-banner{margin-bottom:8px}
 .mpanel-t{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
 .mpanel-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t2)}
 .mpanel-row+.mpanel-row{margin-top:4px}
@@ -2753,6 +2757,15 @@ function namingFactor(cap){
 // oferta semanal, la prima, el bonus y `signSponsor`); si el factor se
 // aplicara en uno solo, la prima y el bonus quedarían calculados sobre otro
 // número. Es la regla de las cuatro vías de la Fase 16.
+// ═══ FASE 84: EL BONO POR VICTORIA ERA 3,5 SEMANAS DE CONTRATO ═══
+// Con ~45 victorias por temporada eso son ~160 semanas extra: el bono pagaba
+// CUATRO veces el contrato y era, lejos, el mayor ingreso del juego (medido:
+// sponsors de Boca 92 → 202M por temporada, el club ganaba +119 a +192M netos
+// por año). Ahora una victoria paga media semana. ⚠️ Se aplica al LEER
+// (spnWinBonus), así un contrato de un save viejo con el 3,5 guardado cobra
+// igual que uno nuevo: no se migra el save.
+const SPN_WIN_BONUS=0.5;
+function spnWinBonus(s){ if(!s)return 0; return Math.round(Math.min(s.winBonus||0,(s.income||0)*SPN_WIN_BONUS)*1000)/1000; }
 function sponIncome(s){
   if(!s)return 0;
   const base=s.income||0;
@@ -2913,10 +2926,10 @@ function spnFirmar(oid){
   if(G.sponsors.some(x=>x.cat===o.cat)){ flash('❌ Ya tenés un contrato en '+o.cat,'loss'); return; }
   // El contrato entra con la MISMA forma que los de antes (income/winBonus/obj),
   // así que el balance semanal, la vitrina y los saves viejos no se enteran.
-  const winBonus=Math.round(o.weekly*3.5*100)/100;
+  const winBonus=Math.round(o.weekly*SPN_WIN_BONUS*100)/100;
   G.sponsors.push({id:o.id,cat:o.cat,name:o.name,icon:o.icon,region:o.region,dyn:o.dyn,
     income:o.weekly, weeks:o.weeks, reqRep:o.reqRep,
-    weeksLeft:o.weeks, weeksTotal:o.weeks, winBonus, upfront:o.upfront,
+    weeksLeft:o.weeks, weeksTotal:o.weeks, winBonus, upfront:o.upfront, _rep0:(o._rep0!==undefined?o._rep0:(G.rep||50)),
     obj:{id:'champ',desc:'Salir campeón de la Liga',bonus:o.bonus}});
   G.sponsorOffers.splice(i,1);
   if(o.upfront>0){
@@ -2968,7 +2981,7 @@ function rSponsors(){
           <div style="font-size:22px">${s.icon}</div>
           <div style="flex:1">
             <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(s)}</div>
-            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span>${s.winBonus?` · <span style="color:var(--gold)">🏆 +$${s.winBonus}M/victoria</span>`:''}</div>
+            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span>${spnWinBonus(s)?` · <span style="color:var(--gold)">🏆 +$${spnWinBonus(s)}M/victoria</span>`:''}</div>
             ${s.obj?`<div style="font-size:9px;color:${s.obj.done?'var(--green)':'var(--t3)'};margin-top:2px">🎯 ${s.obj.desc} → <b>+${fv(s.obj.bonus)}</b>${s.obj.done?' ✅':''}</div>`:''}
           </div>
           <div style="text-align:right;font-size:9px;color:var(--t3)">${s.weeksLeft}s restantes</div>
@@ -3021,7 +3034,7 @@ function signSponsor(id){
   // Bonos por rendimiento: cada sponsor paga por victoria y por cumplir un objetivo
   // el naming ya viene escalado por la capacidad (ver sponIncome)
   const _inc=sponIncome(sp);
-  const winBonus=Math.round(_inc*3.5*100)/100;
+  const winBonus=Math.round(_inc*SPN_WIN_BONUS*100)/100;
   const OBJS=[
     {id:'champ',desc:'Salir campeón de la Liga',bonus:Math.round(_inc*30*10)/10},
     {id:'top4',desc:'Terminar en el Top 4',bonus:Math.round(_inc*18*10)/10},
@@ -4835,6 +4848,47 @@ function armarRecopa(){
     `🥇 Por ser campeones de la <b>${ganeLib?'Libertadores':'Sudamericana'}</b> jugamos la <b>Recopa Sudamericana</b> contra <b>${rival}</b>, ida y vuelta.`,'🏛️');
   return true;
 }
+// ═══ FASE 84: LA SUPERCOPA ═══
+// El campeón de la liga contra el de la copa nacional, a partido único, al
+// arrancar la temporada siguiente. Si ganaste las dos, el rival es el mejor
+// club de tu liga (en la realidad, el subcampeón). Se resuelve como la Recopa,
+// en resolveCopaCorta.
+const SUPERCOPA={'Liga ARG':'Supercopa Argentina','España':'Supercopa de España','Premier':'Community Shield',
+  'Italia':'Supercoppa Italiana','Alemania':'DFL-Supercup','Francia':'Trophée des Champions',
+  'Portugal':'Supertaça','Holanda':'Johan Cruijff Schaal','Brasil':'Supercopa do Brasil','Turquía':'Süper Kupa',
+  'Bélgica':'Supercopa de Bélgica','Grecia':'Supercopa de Grecia','Rusia':'Supercopa de Rusia','Chile':'Supercopa de Chile',
+  'Colombia':'Superliga de Colombia','Uruguay':'Supercopa Uruguaya','Liga MX':'Campeón de Campeones','Arabia':'Supercopa Saudí'};
+function supercopaNombre(lg){ return SUPERCOPA[lg||ligaMia()]||null; }
+// ¿Qué ganaste la temporada pasada? Liga: la fila del historial o un torneo
+// argentino (Apertura/Clausura/Copa de la Liga). Copa: la copa nacional.
+function supercopaTitulos(t){
+  const trs=((G&&G.trophies)||[]).filter(x=>x.season===t);
+  const h=((G&&G.history)||[]).find(x=>x.season===t);
+  const liga=!!(h&&h.champion)||trs.some(x=>/^(Torneo |Apertura|Clausura|Copa de la Liga|Liga Profesional)/.test(x.name||''));
+  const pref=copaNacPref();
+  const copa=trs.some(x=>(x.name||'').startsWith(pref)||(x.name||'').startsWith('Copa Argentina'));
+  return {liga,copa};
+}
+function armarSupercopa(){
+  if(!G||!G.calendar)return false;
+  if(eventoActivo&&eventoActivo())return false;
+  const nom=supercopaNombre(); if(!nom)return false;
+  if(G.miLiga==='Primera Nacional')return false;
+  if(G.calendar.some(x=>x.comp&&x.comp.startsWith(nom)))return false;
+  const T=supercopaTitulos(G.season-1);
+  if(!T.liga&&!T.copa)return false;
+  const map=_ligaMap(), miLg=ligaMia(), deCat=new Set(clubesDeCategoria(miLg));
+  const cand=clubRank().filter(x=>x.club!==G.teamName&&(map[x.club]===miLg||(typeof esLgMia==='function'&&esLgMia(map[x.club])))
+    &&deCat.has(x.club)).slice(0,3);
+  const rival=(cand[~~(Math.random()*cand.length)]||{}).club; if(!rival)return false;
+  const w=_intSemana(Math.max(1,(typeof PRE_SEMANAS!=='undefined'?PRE_SEMANAS:3)));
+  G.calendar.push({week:w,comp:nom+' - Final',home:G.teamName,away:rival,neutral:true,played:false,result:null,score:null});
+  G.calendar.sort((a,b)=>a.week-b.week);
+  const por=T.liga&&T.copa?'por el doblete':T.liga?'como campeones de la liga':'como campeones de la copa';
+  lg('🏆',`${nom}: ${G.teamName} vs ${rival}`);
+  addPhoneMsg('board','Comisión Directiva',`🏆 ${por[0].toUpperCase()+por.slice(1)} jugamos la <b>${nom}</b> contra <b>${_esc(rival)}</b>, a partido único en cancha neutral.`,'🏛️');
+  return true;
+}
 const MUNDIAL_BOMBO=['Real Madrid','Manchester City','Bayern Munich','Chelsea','PSG','Inter',
   'Al-Hilal','Monterrey','Al-Ahly','Auckland City','Urawa Reds','Wydad Casablanca',
   'Barcelona','Liverpool','Juventus','Flamengo','Palmeiras','Seattle Sounders'];
@@ -4885,7 +4939,8 @@ function resolveCopaCorta(m){
   const c=m.comp;
   const esRecopa=c.startsWith('Recopa');
   const esMundial=c.startsWith('Mundial de Clubes')&&!c.includes('Grupos');
-  if(!esRecopa&&!esMundial)return;
+  const _sc=supercopaNombre(), esSuper=!!(_sc&&c.startsWith(_sc));
+  if(!esRecopa&&!esMundial&&!esSuper)return;
   if(c.includes('IDA'))return;                       // se define en la vuelta
   const g=koGoalsFor(m); if(!g)return;
   let mine=g.mine,theirs=g.theirs;
@@ -4895,9 +4950,9 @@ function resolveCopaCorta(m){
   }
   if(mine===theirs)mine+=Math.random()<0.5?1:-1;     // penales
   const gano=mine>theirs;
-  const nombre=esRecopa?'Recopa Sudamericana':(c.includes('Final')?'Mundial de Clubes':null);
+  const nombre=esSuper?_sc:esRecopa?'Recopa Sudamericana':(c.includes('Final')?'Mundial de Clubes':null);
   if(!gano){
-    lg('❌',`${G.teamName} perdió ${esRecopa?'la Recopa':'en el Mundial de Clubes'} (global ${mine}-${theirs})`);
+    lg('❌',`${G.teamName} perdió ${esSuper?'la '+_sc:esRecopa?'la Recopa':'en el Mundial de Clubes'} (${mine}-${theirs})`);
     flash(`❌ Se escapó: ${mine}-${theirs}`,'loss');
     // si cae en semis del Mundial, se borra la final
     if(esMundial&&c.includes('Semifinal'))
@@ -4911,8 +4966,8 @@ function resolveCopaCorta(m){
   }
   lg('🏆',`¡${G.teamName} CAMPEÓN de la ${nombre}! (${mine}-${theirs})`);
   flash(`🏆 ¡CAMPEÓN DE LA ${String(nombre).toUpperCase()}!`,'win');
-  repSuma(esMundial?9:5);
-  G.boardConf=Math.min(100,(G.boardConf||50)+(esMundial?25:14));
+  repSuma(esMundial?9:esSuper?3:5);
+  G.boardConf=Math.min(100,(G.boardConf||50)+(esMundial?25:esSuper?8:14));
   (G.trophies=G.trophies||[]).push({name:nombre,season:G.season});
 }
 
@@ -5617,6 +5672,7 @@ function aplicarTemporada(y){
   // año. Se borran los `generado:true`; los 5 curados a mano se quedan.
   try{ Object.keys(TEAMS).forEach(k=>{ if(TEAMS[k]&&TEAMS[k].generado) delete TEAMS[k]; }); }catch(e){}
   try{ _rankCache=null; _rankSeason=null; }catch(e){} // prestigio de los 600 clubes
+  try{ _aiLigaMap=null; _aiLigaSeason=null; }catch(e){} // club → liga (Fase 84: sobrevivía de una partida a otra)
   try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
   try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
   try{ _topLiga._lg=null; _topLiga._v=null; }catch(e){} // rivales directos (cachea en la función)
@@ -5626,7 +5682,7 @@ function aplicarTemporada(y){
 }
 let _tsPaso=1,_tsPais=null,_tsLg=null,_tsFiltro='';
 function tsIr(paso,arg){
-  if(paso===1){_tsPaso=1;_tsPais=null;_tsLg=null;}
+  if(paso===1){_tsPaso=1;_tsPais=null;_tsLg=null; if(!(_evMan&&_evMan.on)&&!_evCargando) _salirDelEvento(null);}
   else if(paso===2){_tsPaso=2;_tsPais=arg;_tsLg=null;}
   else if(paso===3){
     _tsPaso=3;_tsLg=arg;
@@ -5833,7 +5889,13 @@ function tsPasos(){
       ${_tsPaso>1?`<button class="ts-back" onclick="tsIr(${_tsPaso-1}${_tsPaso===3?",'"+(_tsPais||'').replace(/'/g,"\\'")+"'":''})">← Volver</button>`:''}
     </div>`;
 }
-function setLigaSel(lg){ _LIGA_ELEGIDA=lg; rOtrosTeams(); }
+// ⚠️ Fase 84: después de armar un evento, la base cargada es la de las
+// leyendas. Elegir cualquier otra liga (o volver al paso 1) vuelve a la de
+// hoy: si no, el inicio sólo ofrecía 'Leyendas' hasta recargar la página.
+function _salirDelEvento(lg){
+  try{ if(lg!==EVENTO_LIGA&&typeof eventoActivo==='function'&&eventoActivo()) aplicarTemporada(2026); }catch(e){}
+}
+function setLigaSel(lg){ _salirDelEvento(lg); _LIGA_ELEGIDA=lg; rOtrosTeams(); }
 // El asistente reemplazó la grilla fija y el <select> de ligas, pero
 // rOtrosTeams sigue siendo el punto por donde se arma el TEAMS de una liga.
 // Se conserva la llamada a buildAllTeams (que es lo que hacía falta) y se
@@ -5917,6 +5979,9 @@ function initGame(teamId){
   // dependa de una global que no se guarda), empezar en el Real Madrid desde
   // una partida de Boca en curso habría armado el calendario argentino.
   G = null;
+  // Fase 84: los cachés por temporada (club → liga, prestigio, nivel) se armaban
+  // con el mercado de la partida ANTERIOR si la nueva era del mismo año.
+  try{ _aiLigaMap=null; _aiLigaSeason=null; _rankCache=null; _rankSeason=null; _nivMap=null; _nivMapSeason=null; _aiClubsCache=null; _aiClubsSeason=null; }catch(e){}
   G = {
     teamId: teamId,
     teamName: tc.name,
@@ -14712,13 +14777,19 @@ function genCareerOffers(){
 function acceptCareerOffer(club){
   const off=(G.careerOffers||[]).find(o=>o.club===club);
   if(!off)return;
-  const teamId=Object.keys(TEAMS).find(k=>TEAMS[k].name===club);
+  // Fase 84: el club puede ser de otra liga; sus TEAMS se arman con setLigaSel.
+  let teamId=Object.keys(TEAMS).find(k=>TEAMS[k].name===club&&(!off.liga||(TEAMS[k].liga||'Liga ARG')===off.liga));
+  if(!teamId&&off.liga){ try{ setLigaSel(off.liga); }catch(e){} teamId=Object.keys(TEAMS).find(k=>TEAMS[k].name===club); }
+  // Y siendo DT, el técnico que se muda sos VOS: nombre, media y atributos.
+  const _modoAnt=G.modo, _dtAnt=(G.modo==='dt'&&G.dt)?JSON.parse(JSON.stringify(G.dt)):null;
+  if(_modoAnt==='dt'){ try{ _modoSel='dt'; }catch(e){} }
   const hist=G.history||[];const career=G.career||[];
   career.push({club:G.teamName,seasons:G.season-2025,titulos:titulosLiga()});
   if(teamId){
     const keepHist=hist,keepCareer=career;
     initGame(teamId);
     G.history=keepHist;G.career=keepCareer;
+    if(_dtAnt&&G.modo==='dt'){ G.dt=_dtAnt; if(typeof FORMS==='object'&&FORMS[_dtAnt.style]) G.formation=_dtAnt.style; }
   }else{
     // Club sin plantel jugable propio: reusar estructura pero cambiar identidad
     G.teamName=club;G.careerOffers=[];
@@ -14894,7 +14965,7 @@ const DILEMAS=[
   {
     id:'ofertaza',
     cuando:()=>!!_dilFigura()&&(G.squad||[]).length>18,
-    arma:()=>{ const p=_dilFigura(); const monto=Math.round(p.val*2.1*10)/10;
+    arma:()=>{ const p=_dilFigura(); const monto=Math.round(Math.min(p.val*2.1,Math.max(p.val*1.25,OFERTAZA_TOPE))*10)/10;
       const club=(typeof pickBuyer==='function')?pickBuyer(p.rat+4):'un club de Europa'; return {
       de:'Tu representante', ic:'💰',
       txt:`💰 Presidente, <b>${club}</b> pone <b style="color:var(--gold)">${fv(monto)}</b> por <b>${p.name}</b>. Es más del doble de lo que vale. El técnico ya me dijo que no lo quiere perder, y la gente lo idolatra. La ventana cierra mañana.`,
@@ -16020,8 +16091,7 @@ function showDestituido(motivo){
       <div style="font-size:54px;line-height:1;margin-bottom:10px">🚨</div>
       <div style="font-family:'Rajdhani';font-size:30px;font-weight:900;letter-spacing:1px;color:var(--red)">DESTITUIDO</div>
       <div style="font-size:12.5px;color:var(--t2);line-height:1.6;margin-top:12px">
-        La Comisión Directiva ha decidido pedir tu renuncia debido a los malos
-        resultados y la crisis institucional.
+        ${(typeof modoDT==='function'&&modoDT())?'El presidente decidió terminar tu ciclo como técnico.':'La Comisión Directiva ha decidido pedir tu renuncia debido a los malos resultados y la crisis institucional.'}
       </div>
       <div class="mpanel" style="margin:14px 0 4px">
         <div style="font-size:11px;color:var(--t3);line-height:1.5">${sub}</div>
@@ -16034,6 +16104,7 @@ function showDestituido(motivo){
         <div class="mpanel-row"><span>Títulos</span>
           <span class="sv-n">${((G.trophies||[]).length)}</span></div>
       </div>
+      ${(typeof modoDT==='function'&&modoDT()&&typeof dtCarreraHTML==='function')?dtCarreraHTML():''}
       <button class="btn bR" style="width:100%;margin-top:14px;padding:13px"
               onclick="volverAlMenu()">🚪 Volver al Menú Principal</button>
     </div>`;
@@ -16686,6 +16757,34 @@ function seRetira(p){
   if(a>=EDAD_RETIRO_TOPE) return true;
   return a>=EDAD_RETIRO_MIN && (p.rat||70)<RAT_RETIRO;
 }
+// ═══ FASE 84: EL RETIRO PASA ═══
+// La regla dura (41 años, o 35+ con menos de 60) casi nunca se cumplía: medido
+// en la Fase 37, 3 retiros en 6 temporadas de Boca. Encima de esa regla va una
+// probabilidad por edad que corre UNA vez por temporada, al cerrarla. El que
+// sigue siendo figura aguanta más; el que ya no juega, menos.
+const RETIRO_PROB={34:0.06,35:0.18,36:0.32,37:0.48,38:0.62,39:0.75,40:0.88};
+function retiroAzar(p){
+  const a=p.age||26; if(a<34) return false;
+  let pr=RETIRO_PROB[Math.min(40,a)]||0.88;
+  const r=p.rat||70;
+  if(r>=82) pr*=0.45; else if(r>=76) pr*=0.70; else if(r<64) pr*=1.35;
+  if(((p._appsUlt!==undefined?p._appsUlt:p.apps)||0)>=20) pr*=0.75;
+  return Math.random()<Math.min(0.95,pr);
+}
+// Los que se retiran en el MERCADO: los conocidos dejan noticia y 4 de cada
+// 10 se hacen técnicos (al pool de libres). Los anónimos se van en silencio.
+var _retMerc=[];
+function retiroMercado(p){
+  _retMerc.push({name:p.name,club:p.club,age:p.age,rat:p.rat});
+  if(_hashN(p.name)%10<4) try{ _staffNuevoDT(p,{apps:250,goals:p.goals||0}); }catch(e){}
+}
+function retiroMercadoNoticias(){
+  if(!_retMerc.length||!G)return;
+  const top=_retMerc.sort((a,b)=>b.rat-a.rat).slice(0,3);
+  top.forEach(r=>newsPush({w:'S'+(G.week||1),ic:'🎓',type:'misc',msg:`Se retira ${r.name} (${r.club}) a los ${r.age} años.`}));
+  lg('🎓',`Se retiraron ${_retMerc.length} jugadores conocidos del mercado: ${top.map(r=>r.name).join(', ')}${_retMerc.length>3?'…':''}`);
+  _retMerc=[];
+}
 function motivoRetiro(p){
   return (p.age||26)>=EDAD_RETIRO_TOPE
     ? 'a los '+p.age+' ya no da para más'
@@ -16772,7 +16871,7 @@ function _retiroAStaff(p,t){
 
 function retiros(){
   if(!G||!G.squad) return;
-  const cuelgan=G.squad.filter(seRetira);
+  const cuelgan=G.squad.filter(p=>seRetira(p)||retiroAzar(p));
   if(!cuelgan.length) return;
   cuelgan.forEach(p=>{
     const t=(typeof careerTotals==='function')?careerTotals(p):{apps:p.apps||0,goals:p.goals||0,assists:0};
@@ -17110,6 +17209,7 @@ function nextSeason(){
     // la regla de la Fase 76 eso ya lo cubre la ventana de 15.)
     if(p.rat !== oldRat) p.val = calcVal(p);
     p._nTAcc=0; p._nTCnt=0;            // las notas de la temporada vuelven a cero
+    p._appsUlt = p.apps||0;   // Fase 84: el retiro mira cuánto jugó la temporada que terminó
     p.goals = 0; p.apps = 0; p.assists = 0;
     // p.contract es el AÑO de vencimiento, no los años que faltan: no se resta.
     // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
@@ -17149,7 +17249,8 @@ function nextSeason(){
     if(p.age <= 23) p.rat = Math.min(p.pot, p.rat + ~~(Math.random()*2));
     else if(p.age >= 35 && Math.random()<0.5) p.rat = Math.max(50, p.rat - 1);   // Fase 75: antes −1 o −2 seguro
     if(p.rat !== oldRat) p.val = calcVal(p);
-    if(seRetira(p)){ p._retirado=true; colgaron++;
+    if(seRetira(p)||retiroAzar(p)){ p._retirado=true; colgaron++;
+      if((p.rat||0)>=74) try{ retiroMercado(p); }catch(e){}
       // me guardo club/liga/nacionalidad para que suba un pibe de ese mismo club
       (G._retiradosMercado=G._retiradosMercado||[]).push({club:p.club,lg:p.lg,nat:p.nat});
       return; }                                                // misma regla que en tu plantel
@@ -17165,6 +17266,7 @@ function nextSeason(){
   // Los que colgaron los botines salen de la base: si no, a las diez temporadas
   // el mercado se llena de jugadores de 50 años que no se van nunca.
   if(colgaron) G.market=G.market.filter(p=>!p._retirado);
+  try{ retiroMercadoNoticias(); }catch(e){}
   // Pero si sólo sacamos, la base se seca: medido, 12.548 → 7.366 en diez
   // temporadas. Los clubes también suben juveniles, así que por cada uno que
   // se retira entra un pibe de las inferiores de ese mismo club.
@@ -17242,6 +17344,7 @@ function nextSeason(){
   // Las copas que se ganan un año y se juegan al siguiente
   armarRecopa();
   armarMundialClubes();
+  try{ armarSupercopa(); }catch(e){ console.error('supercopa',e); }   // Fase 84
   arAttachLeague();          // zonas y fixture nuevos para la temporada que arranca
   G.dtRequests = G.dtRequests.filter(r => !r.approved && !r.rejected);
   G.offers = genOffers();
@@ -17768,7 +17871,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(res==='W'){
     G.wins++; G.morale=Math.min(100,G.morale+(psychLv>=2?5:psychLv>=1?4:3)*dMul); repSuma(0.35*dMul);
     // Bonos de sponsors por victoria
-    const spBonus=(G.sponsors||[]).reduce((a,s)=>a+(s.winBonus||0),0)*facilityFx().sponsorMul*sponsorMood();
+    const spBonus=(G.sponsors||[]).reduce((a,s)=>a+spnWinBonus(s),0)*facilityFx().sponsorMul*sponsorMood();
     if(spBonus>0){G.budget=Math.round((G.budget+spBonus)*10)/10;finAnota('sponsors',spBonus,'Bono de sponsors por ganar');lg('🏆',`Bonos de sponsors por la victoria: +${fv(spBonus)}`);}
   } else if(res==='D'){
     G.draws++; G.morale=Math.max(0,G.morale+(psychLv>=1?0:-1));
@@ -17879,6 +17982,20 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // La tarjeta DE ESTE PARTIDO, aparte del acumulado de la quinta: la
     // calificación necesita saber si lo amonestaron hoy, no cuántas lleva.
     xiPlayers.forEach(p=>{ p._yelMatch=false; p._redMatch=false; });
+    // Fase 84: si el partido se simuló, la roja ya se sorteó (con minuto) y
+    // cambió el marcador: acá se elige a QUIÉN, con peso hacia la defensa.
+    // Desde las jugadas clave o el 11v11 no hay sorteo previo y sigue el dado.
+    let _rojaPre;
+    const _RS=G._rojaSim; G._rojaSim=null;
+    if(_RS){
+      _rojaPre=null;
+      if(_RS.mia){
+        const cand=xiPlayers.filter(p=>!(p.susp>0));
+        const w=cand.map(p=>(pgr(p.pos)==='DEF'||p.pos==='MCD')?1.6:1), tot=w.reduce((a,x)=>a+x,0);
+        let r=Math.random()*tot; for(let i=0;i<cand.length;i++){ r-=w[i]; if(r<=0){ _rojaPre=cand[i]; break; } }
+        if(!_rojaPre&&cand.length)_rojaPre=cand[cand.length-1];
+      }
+    }
     xiPlayers.forEach(p=>{
       if(p.susp>0)return;
       const defish=pgr(p.pos)==='DEF'||p.pos==='MCD';
@@ -17892,7 +18009,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
           addPhoneMsg('board','Cuerpo Técnico',`🟨 <b>${p.name}</b> acumuló la quinta amarilla. No está disponible para la próxima fecha.`,'🟨');
         }
       }
-      if(Math.random()<0.012*heat){
+      if(_rojaPre===undefined?(Math.random()<0.012*heat):(p===_rojaPre)){
         _rojasMias++; p._redMatch=true;
         const games=Math.random()<0.25?2:1;
         p.susp=(p.susp||0)+games;p.yellows=0;
@@ -18445,8 +18562,18 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // arriba ya la cubre `_estructura`, que está calibrada (Fase 23), así que
     // de Boca para arriba no se mueve un peso.
     const ops=Math.max(0.4,Math.round((( 1.1+staffLv*0.22+(G.stadium&&G.stadium.level||1)*0.35+G.squad.length*0.035)*escalaEstructura()+_estructura-_wfx.opsCut)*10)/10);
-    G.budget=Math.round((G.budget-wages+tv+socInc+merch-ops)*10)/10;
+    // ═══ FASE 84: EN UN CLUB GRANDE EL MISMO JUGADOR COBRA MÁS ═══
+    // La curva de sueldos está anclada en Boca (wageDeRat), y la plata de un
+    // grande europeo no: medido, el Real Madrid ganaba +43 a +68M por temporada
+    // ANTES de los sponsors (que suman ~55M más) y llegaba a 1.000M en cinco
+    // años. Arriba de la reputación de Boca (78) se paga una prima sobre la
+    // masa salarial: primas por partido, derechos de imagen, el plus de vestir
+    // esa camiseta. Debajo de 78 vale exactamente cero: el balance calibrado
+    // de Boca y de los chicos no se mueve.
+    const _prima=granClubPrima(wages);
+    G.budget=Math.round((G.budget-wages-_prima+tv+socInc+merch-ops)*10)/10;
     finAnota('sueldos',wages,'Sueldos del plantel');
+    if(_prima>0) finAnota('sueldos',_prima,'Primas e imagen (club grande)');
     finAnota('tv',tv,'Derechos de TV');
     finAnota('socios',socInc,`Cuotas de ${sociosActivos().toLocaleString('es')} socios`);
     finAnota('operativo',ops,'Gastos operativos');
@@ -18454,7 +18581,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // abajo del costo) va como gasto, si no se leería como ingreso.
     if(merch>=0) finAnota('merch',merch,`Tienda oficial: ${merchMes().camisetas.toLocaleString('es')} camisetas`);
     else finAnota('otros_out',-merch,'Tienda oficial: camisetas abajo del costo');
-    const neto=Math.round((tv+socInc+merch-wages-ops)*10)/10;
+    const neto=Math.round((tv+socInc+merch-wages-_prima-ops)*10)/10;
     // `tv` de finLast queda como el ingreso institucional completo: lo lee la
     // tarjeta de Finanzas de Estadísticas, que muestra un solo renglón.
     G.finLast={wages,tv:Math.round((tv+socInc)*10)/10,socios:socInc,merch,neto,wk,ops};
@@ -18473,7 +18600,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
       G.boardConf=Math.min(100,(G.boardConf||50)+5);
     }
     lg('👥',`Cuotas de ${sociosActivos().toLocaleString('es')} socios: +${fv(socInc)}`);
-    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
+    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages+_prima)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
   }
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${m.score} ${m.away} (${m.comp})`);
@@ -18721,6 +18848,30 @@ function xgDeS(S){
   const xL=Math.max(0.25,1.35+d*2.6), xV=Math.max(0.25,1.35-d*2.5);
   return local?{my:xL,op:xV}:{my:xV,op:xL};
 }
+// ═══ FASE 84: LA ROJA CAMBIA EL PARTIDO ═══
+// La misma probabilidad que tenía cards() (1,2% por jugador × lo picante del
+// DT y del partido, once jugadores), ahora con minuto. Con uno menos, lo que
+// queda del partido se genera un 30% menos y se recibe un 35% más (en el
+// fútbol real, el que se queda con diez pierde ~1/3 de su producción).
+const ROJA_P=0.012, ROJA_ATQ=0.30, ROJA_DEF=0.35, ROJA_RIVAL_HEAT=1.0;
+function rojaHeat(m){
+  const prof=(typeof dtProfile==='function')?dtProfile(G.dt):{cyn:0.5,aggr:0.5};
+  const derby=(typeof isDerby==='function')&&m&&isDerby(m);
+  return 0.5+(prof.cyn||0.5)*0.6+(prof.aggr||0.5)*0.4+(derby?0.5:0);
+}
+function simRojas(m){
+  const minuto=()=>1+~~(Math.random()*90);
+  const pM=1-Math.pow(1-ROJA_P*rojaHeat(m),11);
+  const derby=(typeof isDerby==='function')&&m&&isDerby(m);
+  const pR=1-Math.pow(1-ROJA_P*(ROJA_RIVAL_HEAT+(derby?0.5:0)),11);
+  return {mia:Math.random()<pM?minuto():null, rival:Math.random()<pR?minuto():null};
+}
+// Cuánto de la mitad [a,b] se juega con uno menos, y qué le hace a cada xG.
+function rojaMult(R,a,b){
+  const fr=min=>(min===null||min===undefined)?0:Math.max(0,Math.min(1,(b-min)/(b-a)));
+  const fm=fr(R&&R.mia), fo=fr(R&&R.rival);
+  return {my:(1-fm*ROJA_ATQ)*(1+fo*ROJA_DEF), op:(1-fo*ROJA_ATQ)*(1+fm*ROJA_DEF)};
+}
 function simMatch(auto){
   if(!G) return;
   if(finFrena())return;                        // te echaron: el club no se mueve
@@ -18782,13 +18933,19 @@ function simMatch(auto){
   const _myT2f=_myT2*(1-_fat*0.12);
   // El primer tiempo se juega primero: lo que haga el DT en el entretiempo
   // depende de cómo terminó (Lectura de partido, Fase 75).
-  const gf1=pois(_myT1), ga1=pois(_opT1);
+  // FASE 84: la expulsión se sortea ANTES del partido, con su minuto, y el
+  // que se queda con diez genera menos y recibe más el resto del partido.
+  // Antes la roja salía DESPUÉS del resultado y no tocaba el marcador.
+  const _R=simRojas(m);
+  const _rm1=rojaMult(_R,0,45), _rm2=rojaMult(_R,45,90);
+  const gf1=pois(_myT1*_rm1.my), ga1=pois(_opT1*_rm1.op);
   const _lec=dtLecturaMult(gf1,ga1,G.dt);
-  const gf2=pois(_myT2f*_lec.my), ga2=pois(_opT2*_lec.op);
+  const gf2=pois(_myT2f*_lec.my*_rm2.my), ga2=pois(_opT2*_lec.op*_rm2.op);
   let gf=Math.min(6,gf1+gf2), ga=Math.min(6,ga1+ga2);
   // Para el resumen: cuántos goles cayeron en cada tiempo y si te pasaron
   // por encima al final por venir fundido.
-  G._tiempos={gf1,gf2,ga1,ga2,fat:_fat,defFit:Math.round(S.defFit===undefined?100:S.defFit)};
+  G._tiempos={gf1,gf2,ga1,ga2,fat:_fat,defFit:Math.round(S.defFit===undefined?100:S.defFit),rojaMia:_R.mia,rojaRival:_R.rival};
+  G._rojaSim=_R;            // la tarjeta de verdad la pone cards() en applyMatchResult
   const R = applyMatchResult(m, gf, ga);
   updateUI();
   if(!auto){
@@ -19273,6 +19430,8 @@ function cronicaPartido(m,res,gf,ga,scorers,stats){
   if(T){
     if(T.gf2>T.gf1&&T.gf2>0) f.push(`El equipo se soltó después del entretiempo: <b>${T.gf2}</b> de los ${gf} goles llegaron en el complemento.`);
     else if(T.ga2>T.ga1&&T.ga2>=2) f.push(`El segundo tiempo fue otro partido: el rival hizo <b>${T.ga2}</b> en esos 45 minutos.`);
+    if(T.rojaMia) f.push(v([`La expulsión a los <b>${T.rojaMia}'</b> cambió todo: con diez hubo que aguantar.`,`Con uno menos desde los <b>${T.rojaMia}'</b>, el equipo tuvo que sufrir.`],2));
+    if(T.rojaRival) f.push(v([`${rival} se quedó con diez a los <b>${T.rojaRival}'</b> y el partido se abrió.`,`La roja al rival a los <b>${T.rojaRival}'</b> inclinó la cancha.`],2));
     if(T.fat>0.34) f.push(`La línea de fondo salió al <b>${T.defFit}%</b> y se notó: sobre el final ${rival} entraba por donde quería.`);
     // ⚠️ La valla invicta con la defensa entera es MUY frecuente, así que no
     //    puede contarse siempre o la crónica termina diciendo lo mismo. Sale
@@ -19356,6 +19515,8 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       const T=G&&G._tiempos; if(!T)return '';
       const t1=T.gf1+'-'+T.ga1, t2=T.gf2+'-'+T.ga2;
       const dur=T.fat>0.34;
+      const _roja=(T.rojaMia?`<div style="font-size:10px;color:var(--red);margin-top:5px">🟥 Te quedaste con diez a los ${T.rojaMia}': el resto del partido se generó menos y se sufrió más.</div>`:'')
+        +(T.rojaRival?`<div style="font-size:10px;color:var(--green);margin-top:5px">🟥 El rival se quedó con diez a los ${T.rojaRival}'.</div>`:'');
       const aviso = dur
         ? `<div style="font-size:10px;color:var(--red);margin-top:5px;line-height:1.4">🥵 Tu línea de fondo salió al ${T.defFit}% de energía: en el segundo tiempo el rival generó un <b>${Math.round(T.fat*45)}%</b> más de peligro. Con el plantel así, rotar deja de ser opcional.</div>`
         : (T.fat>0.05
@@ -19368,7 +19529,7 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
               <div style="font-family:'Chakra Petch',sans-serif;font-size:19px;font-weight:700;color:${T.gf1>T.ga1?'var(--green)':T.gf1<T.ga1?'var(--red)':'var(--gold)'}">${t1}</div></div>
             <div style="flex:1"><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.1em">2do tiempo</div>
               <div style="font-family:'Chakra Petch',sans-serif;font-size:19px;font-weight:700;color:${T.gf2>T.ga2?'var(--green)':T.gf2<T.ga2?'var(--red)':'var(--gold)'}">${t2}</div></div>
-          </div>${aviso}
+          </div>${aviso}${_roja}
         </div>`;
     })()}
     <div class="ctitle">📊 Estadísticas del partido</div>
@@ -19576,6 +19737,16 @@ function sociosActivos(){
 // Un club de rep 39 paga el 27% de la estructura fija; uno de rep 64, el 69%.
 // Sube sola a medida que el club crece, así que ascender y ganar cosas
 // también encarece la operación — que es justamente lo que se quiere.
+// ⚠️ La "ofertaza" del dilema era 2,1× el valor sin techo: 433M por
+// Bellingham, el doble del récord mundial (222M). Arriba de 240M paga 1,25×.
+const OFERTAZA_TOPE=240;
+const GRAN_REP0=78, GRAN_EXP=1.0, GRAN_K=3.0;
+function granClubPrimaMult(rep){
+  rep=(rep===undefined)?((typeof G==='object'&&G&&G.rep!==undefined)?G.rep:50):rep;
+  if(rep<=GRAN_REP0) return 0;
+  return Math.pow((Math.min(100,rep)-GRAN_REP0)/14,GRAN_EXP)*GRAN_K;
+}
+function granClubPrima(wagesMes){ return Math.round(Math.max(0,wagesMes||0)*granClubPrimaMult()*100)/100; }
 function escalaEstructura(){
   const rep=(typeof G==='object'&&G&&G.rep!==undefined)?G.rep:50;
   return Math.max(0.22,Math.min(1,Math.pow(Math.max(20,rep)/78,1.9)));
@@ -29555,6 +29726,7 @@ function startGame(teamId){
   try{
     const _t=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId||'boca']:null;
     if(_t) _LIGA_ELEGIDA=_t.liga||'Liga ARG';
+    if(_t) _salirDelEvento(_t.liga||'Liga ARG');
   }catch(e){}
   initGame(teamId||'boca');
   let th=null;try{th=localStorage.getItem('dt_theme');}catch(e){}
@@ -33490,7 +33662,7 @@ const MODO_SOLO_PRES={
   renov:['openContract'],
   plata:['signSponsor','spnFirmar','confirmBuildStad','buildYouthUpg','setTicket','takeLoan','takeRescue','campanaSocios',
          'pedirAmpliacion','upgradeStaff','aprobFirmar','merchFijar','merchLanzarAlt','reunionResolver','abrirReunion','dorsalRetirar'],
-  dt:['hireDT','openDtNeg','confirmDtNeg','fireDT','confirmFireDT'],
+  dt:['hireDT','openDtNeg','confirmDtNeg','fireDT','confirmFireDT','openDtTalk'],
 };
 const _MODO_ORIG={};
 function _modoIdDe(args){
@@ -33546,6 +33718,23 @@ function modoInstalar(){
     _MODO_ORIG.clasicoPrevia=_cp;
     window.clasicoPrevia=function(){ const r=_cp.apply(this,arguments); if(modoDT()) presDecideDilemas(); return r; };
     window.clasicoPrevia._modo=true;
+  }
+  // Fase 84: la pantalla se pinta según el rol, la carrera del DT y el despido
+  const _uu=window.updateUI;
+  if(typeof _uu==='function'&&!_uu._modo){
+    window.updateUI=function(){ const r=_uu.apply(this,arguments); try{ modoUI(); }catch(e){} return r; };
+    window.updateUI._modo=true;
+  }
+  const _gc=window.genCareerOffers;
+  if(typeof _gc==='function'&&!_gc._modo){
+    window.genCareerOffers=function(){ if(modoDT()) return dtCarreraOfertas(false); return _gc.apply(this,arguments); };
+    window.genCareerOffers._modo=true;
+  }
+  const _de=window.destituir;
+  if(typeof _de==='function'&&!_de._modo){
+    window.destituir=function(motivo,a){ const r=_de.apply(this,arguments);
+      if(modoDT()){ try{ dtCarreraOfertas(true); showDestituido(motivo); }catch(e){} } return r; };
+    window.destituir._modo=true;
   }
   const _wa=window.weeklyAprobacion;
   if(typeof _wa==='function'&&!_wa._modo){
@@ -34339,18 +34528,46 @@ function negWageFactores(p){
 // síncrono y no puede volver a bajar 26 temporadas. G.dbSeason='LEY' es la
 // marca, y aplicarTemporada('LEY') la lee de ahí.
 var EVENTO_KEY='dt_evento_db', EVENTO_LIGA='Leyendas', EVENTO_TAM=20;
+// FASE 84: los eventos son DATOS, no código. Cada uno dice de qué ligas y
+// años salen los equipos, de qué clubes (o de todos), cuántas versiones del
+// mismo club entran (`porClub`) y cuántos equipos tiene la liga (`total`).
+// El motor (eventoArmar) es uno solo para los quince, y el armador a mano usa
+// la misma cocina (eventoConstruir).
+const _EV_BIG5=['España','Premier','Italia','Alemania','Francia'];
+const _EV_SUDAM=['Liga ARG','Primera Nacional','Brasil','Uruguay','Chile','Colombia','Perú','Paraguay','Ecuador','Bolivia','Venezuela'];
 var EVENTOS={
-  bocas:  {n:'🔵🟡 Los mejores Bocas',      d:'Las 20 mejores versiones de Boca Juniors, de 2000 a hoy, en una sola liga.', club:'Boca Juniors'},
-  rivers: {n:'⚪🔴 Los mejores Rivers',      d:'Las 20 mejores versiones de River Plate, todas contra todas.',             club:'River Plate'},
-  arg:    {n:'🇦🇷 Leyendas argentinas',       d:'El mejor año de cada club argentino: Boca 2000, River 2018, San Lorenzo 2014…', club:null},
+  bocas:   {n:'🔵🟡 Los mejores Bocas',          d:'Las 20 mejores versiones de Boca Juniors en una sola liga.', clubs:['Boca Juniors'], porClub:20},
+  rivers:  {n:'⚪🔴 Los mejores Rivers',          d:'Las 20 mejores versiones de River Plate, todas contra todas.', clubs:['River Plate'], porClub:20},
+  arg:     {n:'🇦🇷 Leyendas argentinas',           d:'El mejor año de cada club argentino.', ligas:['Liga ARG','Primera Nacional'], porClub:1},
+  grandes: {n:'🏛️ Los cinco grandes',             d:'Boca, River, Racing, Independiente y San Lorenzo: sus 4 mejores años cada uno.', clubs:['Boca Juniors','River Plate','Racing Club','Independiente','San Lorenzo'], ligas:['Liga ARG','Primera Nacional'], porClub:4},
+  superclasico:{n:'⚔️ Superclásico eterno',        d:'10 Bocas contra 10 Rivers.', clubs:['Boca Juniors','River Plate'], porClub:10},
+  elclasico:{n:'👑 El Clásico eterno',             d:'10 Real Madrid contra 10 Barcelona.', clubs:['Real Madrid','Barcelona'], porClub:10},
+  madrid:  {n:'⚪ Los mejores Madrid',             d:'Las 20 mejores versiones del Real Madrid: los Galácticos contra los de la Décima.', clubs:['Real Madrid'], porClub:20},
+  europa:  {n:'🇪🇺 Leyendas de Europa',            d:'El mejor año de cada club de las cinco grandes ligas.', ligas:_EV_BIG5, porClub:1},
+  premier: {n:'🏴 Premier de leyendas',            d:'El mejor año de cada club inglés.', ligas:['Premier'], porClub:1},
+  calcio:  {n:'🇮🇹 Calcio de leyendas',            d:'El mejor año de cada club italiano.', ligas:['Italia'], porClub:1},
+  liberta: {n:'🏆 Libertadores de leyendas',       d:'El mejor año de cada club sudamericano.', ligas:_EV_SUDAM, porClub:1},
+  brasil:  {n:'🇧🇷 Brasileirão de leyendas',       d:'El mejor año de cada club brasileño.', ligas:['Brasil'], porClub:1},
+  mundial: {n:'🌍 Mundial de clubes histórico',    d:'Los 20 mejores planteles de la historia, uno por club, de cualquier liga.', porClub:1},
+  d2000:   {n:'📼 La década del 2000',             d:'Los 20 mejores planteles de 2000 a 2009, uno por club.', desde:2000, hasta:2009, porClub:1, hoy:false},
+  d2010:   {n:'📱 La década del 2010',             d:'Los 20 mejores planteles de 2010 a 2019, uno por club.', desde:2010, hasta:2019, porClub:1, hoy:false},
 };
 // ⚠️ var y no let: tsRender corre ANTES de que el parseo llegue acá, y un let
 // en zona muerta tiraba y dejaba el inicio en blanco.
 var _EVENTO_DB=null, _evCargando=null, _evErr=null;
 function _leyBase(n){ return String(n||'').replace(/\s+(19|20)\d{2}$/,''); }
+// Los metadatos de la liga del evento salen de lo que se guardó: cuántos
+// equipos, cómo se llama y de qué nacionalidad es la mayoría (para la cantera).
+function _evMeta(d){
+  try{
+    if(d.n) LIGA_TAM[EVENTO_LIGA]=d.n;
+    if(d.nombre) LIGA_NOMBRE[EVENTO_LIGA]=d.nombre;
+    if(d.nat) LIGA_NAT[EVENTO_LIGA]=[d.nat];
+  }catch(e){}
+}
 function eventoDB(){
   if(_EVENTO_DB)return _EVENTO_DB;
-  try{ const s=localStorage.getItem(EVENTO_KEY); if(s){ const d=JSON.parse(s); if(d&&d.rows&&d.rows.length) _EVENTO_DB=d.rows; } }catch(e){}
+  try{ const s=localStorage.getItem(EVENTO_KEY); if(s){ const d=JSON.parse(s); if(d&&d.rows&&d.rows.length){ _EVENTO_DB=d.rows; _evMeta(d); } } }catch(e){}
   return _EVENTO_DB;
 }
 function eventoActivo(){ return !!(_EVENTO_DB&&window.PLAYERS_DB===_EVENTO_DB); }
@@ -34371,61 +34588,83 @@ function _evFuerza(rows,y){
   if(vs.length<15)return 0;
   return vs.reduce((a,x)=>a+Math.log10(x+0.5),0)/vs.length;   // log: el valor manda en escala de media
 }
-function _evClubesAR(db){
-  const m={};
-  (db||[]).forEach(r=>{ if(r&&(r[6]==='Liga ARG'||r[6]==='Primera Nacional')&&r[5]) (m[r[5]]=m[r[5]]||[]).push(r); });
+// Agrupa por LIGA + nombre: hay homónimos entre países (Arsenal en la Premier
+// y en Argentina, tres 'Nacional') y no se pueden mezclar en un plantel.
+function _evClubes(db,ligas,clubs){
+  const m={}, L=ligas?new Set(ligas):null, C=clubs?new Set(clubs):null;
+  (db||[]).forEach(r=>{
+    if(!r||!r[5]||!r[6]||r[6]==='Libre')return;
+    if(L&&!L.has(r[6]))return;
+    if(C&&!C.has(r[5]))return;
+    const k=r[6]+'|'+r[5];
+    (m[k]=m[k]||[]).push(r);
+  });
   return m;
 }
-// Arma el evento: carga los años de a uno (son archivos de 1-3 MB) y se queda
-// sólo con las filas argentinas; el resto se suelta para no llenar la memoria.
+// El mismo club con dos nombres (el histórico trae 'Arsenal Fc' donde la base
+// de hoy dice 'Arsenal'): para "uno por club" cuentan como uno.
+function _evClave(lg,club){ return lg+'|'+_tsNorm(club).replace(/\b(fc|cf|afc|sc|cd|ac)\b/g,'').replace(/\s+/g,' ').trim(); }
+function _evNomClub(c){ return String(c).replace(/\s+(Fc|Cf|Afc)$/,''); }
+// De una lista [{club,y,rows}] a la base del evento. La usan los quince
+// eventos y el armado a mano. Los planteles se recortan a los 40 de más valor:
+// así la base entra holgada en localStorage (~100-150 KB).
+function eventoConstruir(lista,nombre,tipo){
+  const rows=[], nats={}, usados=new Set();
+  lista.forEach(c=>{
+    let nom=_evNomClub(c.club)+' '+c.y;
+    if(usados.has(nom)) nom=c.club+' '+c.y;          // dos clubes que se llaman igual el mismo año
+    usados.add(nom); c._nom=nom;
+    c.rows.map(r=>({r,v:_evFilaHoy(r,c.y)})).sort((a,b)=>b.v-a.v).slice(0,40).forEach(({r,v})=>{
+      const x=r.slice(0,17);
+      x[5]=nom; x[6]=EVENTO_LIGA; x[7]=v; x[9]=0;
+      rows.push(x); nats[r[4]]=(nats[r[4]]||0)+1;
+    });
+  });
+  const nat=Object.keys(nats).sort((a,b)=>nats[b]-nats[a])[0]||'ARG';
+  const d={tipo,nombre,rows,n:lista.length,nat,equipos:lista.map(c=>c._nom)};
+  _EVENTO_DB=rows; _evMeta(d);
+  try{ localStorage.setItem(EVENTO_KEY,JSON.stringify(d)); }
+  catch(e){ console.error('evento: no entra en localStorage',e); }
+  return d;
+}
+// Recorre los años de a uno (son archivos de 1-3 MB) y en cada club se queda
+// sólo con sus `porClub` mejores versiones: así no se retienen en memoria las
+// 550.000 filas del histórico, sólo los candidatos.
+function _evSoltar(y){
+  if(window.PLAYERS_DB!==window.PLAYERS_DB_HIST[y]&&!(typeof G==='object'&&G&&G.dbSeason===y)) try{ delete window.PLAYERS_DB_HIST[y]; }catch(e){}
+}
 function eventoArmar(tipo,cb){
   const E=EVENTOS[tipo]; if(!E){ cb&&cb(false); return; }
-  const años=(typeof temporadasDB==='function'?temporadasDB():[]).filter(y=>+y>=1990&&+y<=2025);
-  const cand=[];                                   // {club,y,rows,f}
+  const desde=E.desde||1990, hasta=E.hasta||2025, total=E.total||EVENTO_TAM, k=E.porClub||1;
+  const años=(typeof temporadasDB==='function'?temporadasDB():[]).filter(y=>+y>=desde&&+y<=hasta&&+y!==2026);
+  const mejor={};                                   // club → [{club,y,rows,f}] (sus k mejores)
   const sumar=(db,y)=>{
-    const C=_evClubesAR(db);
-    Object.keys(C).forEach(c=>{
-      if(E.club&&c!==E.club)return;
-      const rows=C[c]; if(rows.length<18)return;
-      const f=_evFuerza(rows,y); if(f>0) cand.push({club:c,y,rows,f});
+    const C=_evClubes(db,E.ligas,E.clubs);
+    Object.keys(C).forEach(key=>{
+      const rows=C[key]; if(rows.length<18)return;
+      const c=rows[0][5], ck=_evClave(rows[0][6],c);
+      const f=_evFuerza(rows,y); if(!(f>0))return;
+      const L=(mejor[ck]=mejor[ck]||[]);
+      L.push({club:c,y,rows,f}); L.sort((a,b)=>b.f-a.f); if(L.length>k) L.length=k;
     });
   };
-  sumar(_PDB_ACTUAL||window.PLAYERS_DB,2026);
+  if(E.hoy!==false&&hasta>=2025) sumar(_PDB_ACTUAL||window.PLAYERS_DB,2026);
   let i=0;
   const sig=()=>{
     if(i>=años.length) return cerrar();
     const y=+años[i++];
-    _evCargando={y,i,n:años.length}; try{ tsRender(); }catch(e){}
+    _evCargando={y,i,n:años.length,ev:E.n}; try{ tsRender(); }catch(e){}
     cargarTemporada(y,ok=>{
-      if(ok){ sumar(window.PLAYERS_DB_HIST[y],y);
-        // soltar la temporada si no es la que está en uso
-        if(window.PLAYERS_DB!==window.PLAYERS_DB_HIST[y]&&!(G&&G.dbSeason===y)) try{ delete window.PLAYERS_DB_HIST[y]; }catch(e){} }
+      if(ok){ sumar(window.PLAYERS_DB_HIST[y],y); _evSoltar(y); }
       setTimeout(sig,0);
     });
   };
   const cerrar=()=>{
     _evCargando=null;
-    let elegidos;
-    if(E.club) elegidos=cand.sort((a,b)=>b.f-a.f).slice(0,EVENTO_TAM);
-    else {
-      const mejor={};
-      cand.forEach(c=>{ if(!mejor[c.club]||c.f>mejor[c.club].f) mejor[c.club]=c; });
-      elegidos=Object.values(mejor).sort((a,b)=>b.f-a.f).slice(0,EVENTO_TAM);
-    }
+    const elegidos=[].concat(...Object.values(mejor)).sort((a,b)=>b.f-a.f).slice(0,total);
     if(elegidos.length<10){ _evErr='Hacen falta más temporadas en la carpeta: sólo se armaron '+elegidos.length+' equipos.'; try{tsRender();}catch(e){} cb&&cb(false); return; }
-    const rows=[];
-    elegidos.forEach(c=>{
-      const nom=c.club+' '+c.y;
-      c.rows.forEach(r=>{
-        const x=r.slice(0,17);
-        x[5]=nom; x[6]=EVENTO_LIGA; x[7]=_evFilaHoy(r,c.y); x[9]=0;
-        rows.push(x);
-      });
-    });
-    _EVENTO_DB=rows;
-    try{ localStorage.setItem(EVENTO_KEY,JSON.stringify({tipo,nombre:E.n.replace(/^\S+\s/,''),rows})); }
-    catch(e){ console.error('evento: no entra en localStorage',e); }
-    cb&&cb(true,elegidos.map(c=>c.club+' '+c.y));
+    eventoConstruir(elegidos,E.n.replace(/^\S+\s/,''),tipo);
+    cb&&cb(true,elegidos.map(c=>_evNomClub(c.club)+' '+c.y));
   };
   sig();
 }
@@ -34434,29 +34673,110 @@ function eventoAplicar(){
   aplicarTemporada('LEY');
   return true;
 }
-// El botón del inicio: arma (o reusa) el evento y te lleva al paso de elegir club.
+// El botón del inicio: arma el evento y te lleva al paso de elegir club.
 function eventoElegir(tipo){
   if(_evCargando)return;
   _evErr=null;
   eventoArmar(tipo,(ok)=>{
     if(!ok){ try{tsRender();}catch(e){} return; }
-    eventoAplicar();
-    try{ setLigaSel(EVENTO_LIGA); tsIr(3,EVENTO_LIGA); }catch(e){ console.error(e); }
-    try{ tsRender(); }catch(e){}
+    _evIrAlClub();
   });
+}
+function _evIrAlClub(){
+  eventoAplicar();
+  try{ setLigaSel(EVENTO_LIGA); tsIr(3,EVENTO_LIGA); }catch(e){ console.error(e); }
+  try{ tsRender(); }catch(e){}
+}
+
+// ═══ EL EVENTO ARMADO A MANO ═══
+// Elegís año → liga → club, de a uno, hasta 24 equipos (10 como mínimo: es lo
+// que pide ligasJugables). Todo vive en _evMan, fuera de G: es de la pantalla.
+var _evMan={on:false,y:null,lg:null,q:'',sel:[],cargando:null,nombre:''};
+const EVMAN_MIN=10, EVMAN_MAX=24;
+function evManAbrir(){ _evMan.on=true; _evErr=null; try{ tsRender(); }catch(e){} }
+function evManCerrar(){ _evMan.on=false; try{ tsRender(); }catch(e){} }
+function _evManDB(y){ return (+y===2026)?(_PDB_ACTUAL||window.PLAYERS_DB):((window.PLAYERS_DB_HIST||{})[y]||null); }
+function evManAnio(y){
+  y=+y; _evMan.lg=null; _evMan.q='';
+  if(y===2026||temporadaCargada(y)){ _evMan.y=y; try{ tsRender(); }catch(e){} return; }
+  _evMan.cargando=y; try{ tsRender(); }catch(e){}
+  cargarTemporada(y,ok=>{ _evMan.cargando=null; if(ok) _evMan.y=y; else _evErr='No está el archivo players-hist-'+y+'.js'; try{ tsRender(); }catch(e){} });
+}
+function evManLiga(lg){ _evMan.lg=lg; _evMan.q=''; try{ tsRender(); }catch(e){} }
+function evManAgregar(club){
+  if(_evMan.sel.length>=EVMAN_MAX){ flash('Hasta '+EVMAN_MAX+' equipos','draw'); return; }
+  if(_evMan.sel.some(s=>s.club===club&&s.y===_evMan.y)) return;
+  _evMan.sel.push({club,y:_evMan.y,lg:_evMan.lg});
+  try{ tsRender(); }catch(e){}
+}
+function evManQuitar(i){ _evMan.sel.splice(i,1); try{ tsRender(); }catch(e){} }
+function evManFiltro(v){
+  _evMan.q=v;
+  const el=document.getElementById('evManClubs'); if(el) el.innerHTML=_evManClubsHTML();
+}
+function _evManClubsHTML(){
+  const db=_evManDB(_evMan.y); if(!db||!_evMan.lg)return '';
+  const C=_evClubes(db,[_evMan.lg],null), q=_tsNorm(_evMan.q||'');
+  return Object.keys(C).filter(k=>C[k].length>=15).map(k=>C[k][0][5]).filter(c=>!q||_tsNorm(c).includes(q)).sort().map(c=>{
+    const ya=_evMan.sel.some(s=>s.club===c&&s.y===_evMan.y);
+    return `<button class="btn ${ya?'bg':'bo'} bs" style="margin:2px" onclick="evManAgregar('${c.replace(/'/g,"\\'")}')">${ya?'✓ ':''}${_esc(c)}</button>`;
+  }).join('')||'<div class="note">No hay clubes con plantel completo.</div>';
+}
+// Arma la liga: carga los años elegidos (si se soltaron) y construye.
+function evManArmar(){
+  const sel=_evMan.sel.slice();
+  if(sel.length<EVMAN_MIN){ flash('Elegí al menos '+EVMAN_MIN+' equipos','draw'); return; }
+  const años=[...new Set(sel.map(s=>s.y))];
+  let i=0;
+  const sig=()=>{
+    if(i>=años.length){
+      const lista=sel.map(s=>{ const db=_evManDB(s.y)||[]; return {club:s.club,y:s.y,rows:db.filter(r=>r[5]===s.club&&r[6]===s.lg)}; }).filter(c=>c.rows.length>=15);
+      if(lista.length<EVMAN_MIN){ _evErr='Quedaron '+lista.length+' equipos con plantel: hacen falta '+EVMAN_MIN+'.'; try{tsRender();}catch(e){} return; }
+      eventoConstruir(lista,(_evMan.nombre||'').trim()||'Mi liga de leyendas','manual');
+      _evMan.on=false; _evIrAlClub(); return;
+    }
+    const y=años[i++];
+    if(y===2026||temporadaCargada(y)) return sig();
+    cargarTemporada(y,()=>sig());
+  };
+  sig();
+}
+function _evManHTML(){
+  const años=[2026].concat((typeof temporadasDB==='function'?temporadasDB():[]).map(Number).filter(y=>y!==2026).sort((a,b)=>b-a));
+  const db=_evManDB(_evMan.y);
+  const ligas=db?[...new Set(db.map(r=>r[6]).filter(x=>x&&x!=='Libre'))].sort():[];
+  const sel=_evMan.sel.map((s,i)=>`<span class="btn bg bs" style="margin:2px;cursor:default">${_esc(s.club)} ${s.y} <a href="javascript:void(0)" onclick="evManQuitar(${i})" style="color:inherit;margin-left:4px">✕</a></span>`).join('');
+  return `<div style="margin:14px auto 0;max-width:720px;text-align:left" class="mpanel">
+    <div class="mpanel-t">🛠️ Armá tu propia liga de leyendas <a href="javascript:void(0)" onclick="evManCerrar()" style="float:right;color:var(--t3)">✕ cerrar</a></div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Elegí un año, una liga y los clubes. Podés mezclar años y países. Entre ${EVMAN_MIN} y ${EVMAN_MAX} equipos.</div>
+    <div style="font-size:10px;color:var(--t2)">1 · AÑO</div>
+    <div style="margin-bottom:6px">${años.map(y=>`<button class="btn ${_evMan.y===y?'bg':'bo'} bs" style="margin:2px" onclick="evManAnio(${y})">${_evMan.cargando===y?'⏳ ':''}${y===2026?'Hoy':y}</button>`).join('')}</div>
+    ${db?`<div style="font-size:10px;color:var(--t2)">2 · LIGA</div>
+      <div style="margin-bottom:6px">${ligas.map(l=>`<button class="btn ${_evMan.lg===l?'bg':'bo'} bs" style="margin:2px" onclick="evManLiga('${l.replace(/'/g,"\\'")}')">${_esc((typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[l])||l)}</button>`).join('')}</div>`:''}
+    ${(db&&_evMan.lg)?`<div style="font-size:10px;color:var(--t2)">3 · CLUBES</div>
+      <input class="sb" placeholder="🔎 Buscar club" value="${_esc(_evMan.q||'')}" oninput="evManFiltro(this.value)" style="margin:4px 0">
+      <div id="evManClubs" style="max-height:220px;overflow:auto">${_evManClubsHTML()}</div>`:''}
+    <div style="font-size:10px;color:var(--t2);margin-top:8px">TU LIGA (${_evMan.sel.length}/${EVMAN_MAX})</div>
+    <div>${sel||'<span class="note">Todavía no elegiste equipos.</span>'}</div>
+    <input class="sb" placeholder="Nombre de la liga (opcional)" value="${_esc(_evMan.nombre||'')}" oninput="_evMan.nombre=this.value" style="margin:6px 0">
+    <button class="btn bg" ${_evMan.sel.length<EVMAN_MIN?'disabled':''} onclick="evManArmar()">🏆 Armar la liga (${_evMan.sel.length})</button>
+  </div>`;
 }
 function eventosHTML(){
   // El inicio de la página dibuja el asistente ANTES de que el parseo llegue a
   // este bloque: sin la tabla todavía, no se ofrece nada (se redibuja abajo).
   if(!EVENTOS) return '';
   if(typeof hayHistoricos==='function'&&!hayHistoricos()) return '';
-  const carg=_evCargando?`<div class="note" style="margin-top:6px">⏳ Armando el evento: temporada ${_evCargando.y} (${_evCargando.i}/${_evCargando.n})…</div>`:'';
   const err=_evErr?`<div class="note R" style="margin-top:6px">${_evErr}</div>`:'';
-  return `<div style="margin:14px auto 0;max-width:640px;text-align:center">
+  if(_evMan&&_evMan.on) return _evManHTML()+err;
+  const carg=_evCargando?`<div class="note" style="margin-top:6px">⏳ Armando ${_evCargando.ev||'el evento'}: temporada ${_evCargando.y} (${_evCargando.i}/${_evCargando.n})…</div>`:'';
+  return `<div style="margin:14px auto 0;max-width:720px;text-align:center">
     <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px">🏆 EVENTOS ESPECIALES</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px">
     ${Object.keys(EVENTOS).map(k=>`<button class="btn bo" style="text-align:left;padding:8px" ${_evCargando?'disabled':''} onclick="eventoElegir('${k}')">
       <div style="font-weight:700">${EVENTOS[k].n}</div><div style="font-size:10px;color:var(--t3);white-space:normal">${EVENTOS[k].d}</div></button>`).join('')}
+      <button class="btn bg" style="text-align:left;padding:8px" ${_evCargando?'disabled':''} onclick="evManAbrir()">
+      <div style="font-weight:700">🛠️ Armala a mano</div><div style="font-size:10px;white-space:normal">Elegí vos los equipos y los años.</div></button>
     </div>${carg}${err}</div>`;
 }
 // Metadatos de la liga: va acá y no en las tablas porque es un torneo especial.
@@ -34465,6 +34785,8 @@ try{
   DESCENSOS[EVENTO_LIGA]=0; LIGA_PAIS[EVENTO_LIGA]={p:'Eventos especiales',f:'🏆'};
   LIGA_NOMBRE[EVENTO_LIGA]='Liga de Leyendas';
 }catch(e){ console.error('evento meta',e); }
+// Si ya había un evento guardado, sus metadatos (cuántos equipos, nombre) pisan los genéricos.
+try{ const _d=JSON.parse(localStorage.getItem(EVENTO_KEY)||'null'); if(_d) _evMeta(_d); }catch(e){}
 // Ahora que existe la tabla de eventos, se redibuja el paso 1 del inicio.
 try{ if(_tsPaso===1&&document.getElementById('tsWizard')) tsRender(); }catch(e){ console.error('tsRender eventos',e); }
 
@@ -34481,7 +34803,7 @@ const PREMIO_COPA={
   sud:{w:0.2,d:0.06,tit:4}, ccl:{w:0.3,d:0.1,tit:4}, afc:{w:0.35,d:0.12,tit:4},
 };
 const PREMIO_TROFEO=[
-  [/Mundial de Clubes/i,8],[/Recopa/i,1.5],[/Supercopa/i,1],
+  [/Mundial de Clubes/i,8],[/Recopa/i,1.5],[/Supercop|Supercup|Superliga|Shield|Supertaça|Süper Kupa|Trophée des|Schaal|Campeón de Campeones/i,1],
 ];
 function copaPremio(comp,res){
   if(!G||!comp||res==='L')return 0;
@@ -34521,15 +34843,26 @@ function premiosTitulos(){
 //   semana hay 3% de que una marca use la cláusula de salida.
 // · Además del bonus por campeón, cada contrato paga un 30% de ese bonus por
 //   terminar entre los 4 primeros (archiveSeason ya cobraba sólo 'champ').
+const SPN_RENOV_TOPE=1.45;
 function weeklySponsorsVida(){
   if(!G||!G.sponsors||!G.sponsors.length)return;
   G.sponsorOffers=G.sponsorOffers||[];
   G.sponsors.forEach(s=>{
     if(s.weeksLeft<=4&&s.weeksLeft>0&&!s._renovOf){
       s._renovOf=true;
-      const rep=G.rep||50, rep0=s._rep0!==undefined?s._rep0:(s.reqRep||rep);
-      const f=Math.max(0.75,Math.min(1.35,(1+(rep-rep0)*0.012)*(typeof sponsorMood==='function'?sponsorMood():1)));
-      const weekly=Math.round((s.income||0.05)*f*1000)/1000;
+      // ⚠️ FASE 84: la renovación sale del CATÁLOGO, no del contrato vigente.
+      // Antes multiplicaba s.income por f, y como spnFirmar no guardaba _rep0,
+      // f se calculaba contra el reqRep de la marca (48 contra una rep de 90)
+      // y daba SIEMPRE el tope ×1,35: renovación tras renovación el contrato
+      // crecía exponencial (medido: sponsors de Boca 60 → 208 → 379M por
+      // temporada). Ahora el piso es el contrato de catálogo y el techo, el
+      // mismo margen que una oferta nueva.
+      const rep=G.rep||50, cat=(typeof SPONSORS!=='undefined')&&SPONSORS.find(x=>x.id===s.id);
+      const baseCat=cat?sponIncome(cat):(s.income||0.05);
+      const margen=Math.max(1,Math.min(SPN_RENOV_TOPE,1+(rep-(s.reqRep||rep))*0.012));
+      const mood=(typeof sponsorMood==='function'?sponsorMood():1);
+      const weekly=Math.round(Math.max(0.01,baseCat*margen*Math.max(0.75,Math.min(1.1,mood)))*1000)/1000;
+      const f=weekly/Math.max(0.001,s.income||weekly);
       if(G.sponsorOffers.some(o=>o.cat===s.cat))return;
       G.sponsorOffers.push({oid:'spr'+(G._aprobSeq=(G._aprobSeq||0)+1),id:s.id,cat:s.cat,name:s.name,icon:s.icon,region:s.region,dyn:s.dyn,
         reqRep:s.reqRep,weeks:s.weeksTotal||s.weeks||52,weekly,upfront:Math.round(weekly*4*100)/100,bonus:(s.obj&&s.obj.bonus)||0,
@@ -34626,6 +34959,64 @@ function accionesPresHTML(){
       <span style="font-size:11px">🛡️ <b>Plan de seguridad</b><br><span style="color:var(--t3);font-size:10px">${seguridadActiva()?'En marcha esta temporada':'Corta el arreglo con la barra y baja los incidentes del clásico'}</span></span>
       <button class="btn bo bs" onclick="seguridadPlan()" ${seguridadActiva()?'disabled':''}>${fv(seguridadCosto())}</button></div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 84: EL MODO DT, COMPLETO
+// ═══════════════════════════════════════════════════════════════════════
+// · La pantalla dice de quién es cada cosa: en las pestañas del presidente
+//   (Patrocinadores, Estadio) hay un cartel y los botones van apagados
+//   (body.modo-dt en el CSS). Ya no se tocan "por error" y rebotan.
+// · Una carrera de DT de verdad: si te va bien te buscan clubes más grandes;
+//   si te echan, te llegan ofertas de clubes de tu nivel o de abajo. Aceptar
+//   te lleva al club nuevo con TU técnico (nombre, media y atributos).
+function modoUI(){
+  try{ document.body.classList.toggle('modo-dt', modoDT()); }catch(e){}
+  if(!modoDT())return;
+  const P=presIA();
+  ['tab-pat','tab-stad'].forEach(id=>{
+    const t=document.getElementById(id); if(!t)return;
+    let b=t.querySelector(':scope > .modo-banner');
+    if(!b){ b=document.createElement('div'); b.className='modo-banner note'; t.insertBefore(b,t.firstChild); }
+    b.innerHTML=`🏛️ Esto lo maneja <b>${_esc(P.name)}</b>, el presidente. Vos lo mirás; si hace falta algo, pedíselo desde la pestaña Presidente.`;
+  });
+}
+const DTC_TECHO_TITULO=6, DTC_TECHO_BIEN=4;
+// Ofertas de otros clubes para VOS como técnico. Con `despido`, clubes de tu
+// nivel para abajo (te echaron, nadie te va a dar un grande); si no, más
+// arriba según cómo te fue.
+function dtCarreraOfertas(despido){
+  if(!G||!modoDT())return 0;
+  const mio=nivelClub(G.teamName), map=_ligaMap(), P=presIA();
+  const tit=(typeof _titulosTotales==='function')?_titulosTotales():0;
+  const titTemp=(G.trophies||[]).filter(t=>t.season===G.season).length;
+  let piso, techo, n;
+  if(despido){ piso=mio-12; techo=mio-1; n=3; }
+  else {
+    if((P.rel||55)<58&&!titTemp) return 0;
+    if(Math.random()>(titTemp?0.75:0.40)) return 0;
+    piso=mio-2; techo=mio+(titTemp?DTC_TECHO_TITULO:DTC_TECHO_BIEN); n=1;
+  }
+  const jug=new Set(ligasJugables()), deCat={};
+  const enCat=(lg,c)=>{ if(!deCat[lg]) deCat[lg]=new Set(clubesDeCategoria(lg)); return deCat[lg].has(c); };
+  const cand=clubRank().filter(x=>x.club!==G.teamName&&x.niv>=piso&&x.niv<=techo&&map[x.club]&&jug.has(map[x.club])&&enCat(map[x.club],x.club));
+  G.careerOffers=(G.careerOffers||[]).filter(o=>o.season>=G.season-1);
+  let hechas=0;
+  for(let i=0;i<n&&cand.length;i++){
+    const k=~~(Math.random()*cand.length), c=cand.splice(k,1)[0];
+    if(G.careerOffers.some(o=>o.club===c.club))continue;
+    G.careerOffers.push({club:c.club,liga:map[c.club],rep:Math.round(c.niv),season:G.season,dt:true});
+    hechas++;
+    addPhoneMsg('agent','Tu representante',`📨 Profe, <b>${_esc(c.club)}</b> (${_esc(map[c.club])}) lo quiere como técnico. ${despido?'Es una salida para seguir trabajando.':'Es un salto en su carrera.'} Está en la pestaña Presidente.`,'🤝');
+  }
+  return hechas;
+}
+function dtCarreraHTML(){
+  const O=(G&&G.careerOffers)||[]; if(!O.length)return '';
+  return `<div class="mpanel" style="margin-top:10px;text-align:left"><div class="mpanel-t">📨 Clubes que te quieren como DT</div>`+
+    O.map(o=>`<div class="mpanel-row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0">
+      <span style="font-size:12px"><b>${_esc(o.club)}</b> <span style="color:var(--t3);font-size:10px">${_esc(o.liga||'')} · nivel ${o.rep}</span></span>
+      <button class="btn bg bs" onclick="acceptCareerOffer('${String(o.club).replace(/'/g,"\\'")}')">Aceptar</button></div>`).join('')+`</div>`;
 }
 
 // ═══ ENGANCHES ═══

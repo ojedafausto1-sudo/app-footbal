@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84` |
 
 ## Formato de `players-db.js`
 
@@ -7729,6 +7729,122 @@ la tabla, y el bloque del evento redibuja el paso 1 al terminar de declararse.
 Si agregás algo que dibuje el inicio, ojo con esto.
 
 `tests/fase83.js`, **60 checks**.
+
+## Fase 84: modo DT completo, retiros reales, 15 eventos, la economía de los grandes
+
+### Modo DT: la pantalla dice de quién es cada cosa, y hay carrera
+
+- `openDtTalk` (la charla presidente → DT) entró en `MODO_SOLO_PRES`: siendo
+  DT, el que pide es vos.
+- `modoUI()` (envuelve `updateUI`) pone `body.modo-dt` y un cartel en
+  Patrocinadores y Estadio; el CSS apaga los botones del presidente ahí, en el
+  banco y en las herramientas. Se ven, no se tocan.
+- **Carrera** (`dtCarreraOfertas`, `dtCarreraHTML`): si te va bien (relación
+  con el presidente ≥58 o un título) te buscan clubes de tu nivel −2 a +4
+  (+6 con título); si te echan (`destituir` envuelto), llegan 3 ofertas de
+  clubes de tu nivel −12 a −1, y el cartel de destitución las muestra.
+  `acceptCareerOffer` busca el club por nombre Y liga (arma los `TEAMS` de
+  esa liga si hace falta) y **te lleva con tu técnico**: nombre, media y
+  atributos (`_dtAnt`).
+
+### Los veteranos se retiran (y el mercado también envejece)
+
+`seRetira` (41 años, o 35+ con media <60) casi no disparaba: medido, 3
+retiros en 6 temporadas y **ninguno en el mercado**. `retiroAzar(p)` suma un
+dado por edad (`RETIRO_PROB`: 6% a los 34, 32% a los 36, 75% a los 39, 88% a
+los 40), menor para la figura (×0,45 con 82+) y para el que jugó 20+ partidos
+(`p._appsUlt`, que se guarda antes de resetear `apps` en `nextSeason`). Corre
+en el plantel y en el mercado; los del mercado de 74+ salen en las noticias
+(`retiroMercadoNoticias`, los 3 mejores) y el 40% entra al pool de técnicos.
+Medido con Boca: 5 retiros en 3 temporadas y el pool de DTs crece ~20 por año.
+
+### 15 eventos, y uno armado a mano
+
+`EVENTOS` son DATOS (`clubs`, `ligas`, `porClub`, `desde`/`hasta`, `hoy`) y
+`eventoArmar` es un solo motor para los quince: los mejores Bocas, Rivers,
+Madrid · leyendas argentinas · los cinco grandes · Superclásico eterno (10 y
+10) · El Clásico eterno · Europa · Premier · Calcio · Libertadores ·
+Brasileirão · Mundial de clubes · la década del 2000 · la del 2010.
+
+- Mientras recorre los años se queda **sólo con los `porClub` mejores de cada
+  club** y suelta el año (`_evSoltar`): no se retienen las 550.000 filas.
+- ⚠️ **Agrupa por LIGA + nombre** (`_evClubes`): hay homónimos entre países
+  (Arsenal, tres 'Nacional'). Y para "uno por club" usa `_evClave`, que saca
+  `Fc`/`Cf`/`Ac`: el histórico trae `Arsenal Fc` donde hoy dice `Arsenal`, y
+  sin eso el Arsenal entraba dos veces.
+- `eventoConstruir(lista,nombre,tipo)` es la cocina común: recorta cada
+  plantel a los 40 de más valor (~60-80 KB en `localStorage`) y guarda
+  `{nombre, n, nat}`; `_evMeta` pone `LIGA_TAM`, `LIGA_NOMBRE` y `LIGA_NAT` del
+  evento desde ahí (también al recargar).
+- **Armado a mano** (`_evMan`, fuera de `G`): año → liga → club, de 10 a 24
+  equipos, mezclando años y países, con nombre propio. `evManArmar` carga los
+  años que hagan falta y llama a `eventoConstruir`.
+- ⚠️ **Salir del evento**: después de armar uno, la base cargada es la de las
+  leyendas y el inicio ofrecía sólo 'Leyendas' hasta recargar.
+  `_salirDelEvento` (en `setLigaSel`, `tsIr(1)` y `startGame`) vuelve a la de
+  hoy.
+- ⚠️ Pesa: el primer evento baja todas las temporadas de la carpeta (51 MB);
+  en el celular tarda. El armado a mano baja sólo los años que elegís.
+
+### La economía de los grandes: tres fugas, ninguna era la obvia
+
+Medido con Real Madrid, firmando todo lo que llega: **374 → 2.497M en cuatro
+temporadas**. Las causas, de mayor a menor:
+
+1. **La "oferta irrechazable" del dilema pagaba 2,1× el valor sin techo**:
+   433M por Bellingham, el doble del récord mundial. `OFERTAZA_TOPE=240`
+   (arriba paga 1,25×).
+2. **Renovar un sponsor componía el contrato.** `weeklySponsorsVida`
+   multiplicaba `s.income` por un `f` que, como `spnFirmar` no guardaba
+   `_rep0`, se calculaba contra el `reqRep` de la marca y daba siempre el tope
+   ×1,35. Sponsors de Boca: 60 → 208 → 379M por temporada. Ahora la
+   renovación sale del **catálogo** con el margen de una oferta nueva
+   (`SPN_RENOV_TOPE`) y el contrato guarda `_rep0`.
+3. **El bono por victoria era 3,5 semanas de contrato**: con 45 victorias,
+   ~160 semanas extra. `SPN_WIN_BONUS=0.5`, aplicado al LEER
+   (`spnWinBonus`), así un contrato viejo cobra igual que uno nuevo.
+4. **En un grande el mismo jugador cobra más**: `granClubPrima(wages)` paga
+   una prima sobre la masa salarial arriba de rep 78 (`GRAN_K=3,0` a rep 92,
+   1,5 a rep 85, **0 en Boca y para abajo**).
+
+Medido después, Real Madrid: **374 → 440M en cuatro temporadas**, ganando dos
+Champions, con 205-250M de sueldos. ⚠️ Boca ganándolo todo sigue en +35 a
++65M por temporada (llega a rep 84-88 y empieza a pagar la prima); no se
+recalibró el club chico ni el mediano.
+
+### La Supercopa
+
+`armarSupercopa()` (en `nextSeason`, junto a la Recopa): si la temporada
+pasada saliste campeón de liga o de la copa nacional (`supercopaTitulos`), se
+juega a partido único y neutral contra uno de los 3 más fuertes de tu liga.
+Nombre real por liga (`SUPERCOPA`: Supercopa Argentina, Supercopa de España,
+Community Shield, Supercoppa, DFL-Supercup, Trophée des Champions…). Se
+resuelve en `resolveCopaCorta` (`esSuper`), va a la vitrina y paga 1M
+(`PREMIO_TROFEO`). No hay en la Primera Nacional ni en un evento.
+
+### La roja cambia el partido (simulación de texto)
+
+La expulsión salía en `cards()` DESPUÉS del resultado: suspendía, pero no
+tocaba el marcador. Ahora `simRojas(m)` la sortea ANTES, con minuto y la misma
+frecuencia (1,2% por jugador × lo picante del DT y del partido; medido 11,6%
+mía, 13,3% del rival), y `rojaMult` hace que el que se queda con diez genere
+un **30% menos** y reciba un **35% más** el resto del partido (proporcional a
+lo que queda de cada tiempo). `G._rojaSim` le dice a `cards()` que la tarjeta
+ya está: elige a quién (peso 1,6 a defensores) y no tira el dado. Desde las
+jugadas clave o el 11v11 sigue el dado de siempre. El resumen y la crónica
+cuentan el minuto (`G._tiempos.rojaMia` / `rojaRival`).
+
+### ⚠️ Dos cachés que sobrevivían de una partida a otra
+
+`_ligaMap()` y `clubRank()` cachean por TEMPORADA y se arman con `G.market`:
+arrancar otra partida del mismo año (o salir de un evento) reusaba el mapa
+club → liga de la anterior. Lo destapó la Supercopa (no encontraba rivales).
+`initGame` los limpia y `aplicarTemporada` limpia `_aiLigaMap`.
+
+`tests/fase84.js`, **42 checks**. 🔶 En 7 corridas dio **un** rojo que no se
+volvió a reproducir (los candidatos son los que miden con dados: retiros del
+plantel, neto del Real Madrid y frecuencia de rojas). Si lo ves rojo, corré de
+nuevo antes de creerle.
 
 ## Deploy
 
