@@ -7985,8 +7985,13 @@ los dilemas la caja cae a rojo y el **embargo** (moral de todos a 0) saca al
 plantel entero: la versión ANTERIOR a esta fase falla **2 de 8** corridas así
 (19 y 5 pidiendo irse, con 8 y 1 embargos). Ese check mide la regla de la
 Fase 81, no la economía, así que ahora no deja la caja en rojo. Con eso:
-**8 de 8 en verde**, con una corrida justo en el tope (4): multar a los
-Referentes todo el tiempo tiene precio, y es a propósito.
+**8 de 9 en verde** (una justo en el tope, 4) y **1 en 5 de 26**. 🔶 Ese rojo
+SÍ es de esta fase y no se escondió subiendo el tope: el arnés multa en TODAS
+las indisciplinas (~16 en dos temporadas) y castigar a los Referentes todo el
+tiempo tiene precio — el multado parte de 50 y no de ~80, así que su propio
+−20 lo deja abajo de 32. Queda un resto de espiral porque la multa además le
+resta −1 al azar al 50% del plantel, y 49 ya entra en el ×2,2 de la
+indisciplina. Si hay que aflojarlo, el lugar es `CAM_CASTIGO_REF`.
 
 Medido en dos temporadas simuladas (multando siempre): castigos a Referentes
 **Boca 6, Real Madrid 2, Man City 2, San Martín 0**, y la moral media de los
