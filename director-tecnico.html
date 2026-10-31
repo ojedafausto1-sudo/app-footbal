@@ -3276,7 +3276,7 @@ function buildYouth(){
       id:'y'+(i+1), name:fnames[i]+' '+lnames[i], pos, age:16+~~(Math.random()*3),
       rat:54+~~(Math.random()*14), pot:72+~~(Math.random()*20),
       progress:~~(Math.random()*55), val:Math.round((0.2+Math.random()*.7)*10)/10,
-      person:randPerson()
+      person:randPerson(), nat:(natsLocales(_ligaActual())||['ARG'])[0]
     }))
   };
 }
@@ -3333,7 +3333,8 @@ function weeklyYouth(){
       const pot=gem?85+~~(Math.random()*10):70+~~(Math.random()*16);
       const np={id:'y'+Date.now()+i,name:fn[~~(Math.random()*fn.length)]+' '+ln[~~(Math.random()*ln.length)],
         pos:poss[~~(Math.random()*poss.length)],age:15+~~(Math.random()*3),
-        rat:52+~~(Math.random()*12)+lvl,pot,progress:0,val:Math.round((0.1+Math.random()*0.6)*10)/10,person:randPerson()};
+        rat:52+~~(Math.random()*12)+lvl,pot,progress:0,val:Math.round((0.1+Math.random()*0.6)*10)/10,person:randPerson(),
+        nat:(natsLocales()||['ARG'])[0]};   // Fase 85: nace local, y promOne lo respeta
       y.players.push(np);
       if(gem)joya=np;
     }
@@ -11729,7 +11730,14 @@ function promOne(id){
   // extracomunitario** — el cupo pasaba de 4 a 5 con un tope de 3. Un pibe de
   // la cantera es local por definición. Mismo bug que el 'ARG' de nacionalizar
   // y el naming de la Bombonera.
-  const _nat=(typeof natLocalPrincipal==='function')?natLocalPrincipal():'ARG';
+  // Fase 85: sube con la nacionalidad que le dio la cantera (yp.nat). La
+  // guarda es para dos casos donde esa nat ya no es local: una academia que
+  // viajó con vos a otra liga (acceptCareerOffer conserva G) y un save viejo
+  // cuyo juvenil no tiene nat. Ahí manda la local: un canterano NUNCA ocupa
+  // cupo de extranjero en su propio club.
+  const _loc=(typeof natsLocales==='function')?natsLocales():['ARG'];
+  const _nat=(yp.nat&&_loc.indexOf(yp.nat)>=0)?yp.nat
+            :((typeof natLocalPrincipal==='function')?natLocalPrincipal():'ARG');
   const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,_nat,G.teamName||'Boca Juniors',ligaMia(),yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
   G.squad.push(np); G.bench.push(np);
   movAnota('entra',np,{motivo:'subió de la cantera'});
@@ -11745,7 +11753,7 @@ function promOne(id){
   // Generate replacement — el nombre sale de la liga, no de una lista argentina
   G.youth.players.push({id:'y'+Date.now(),name:_youthName(ligaMia()),
     pos:yp.pos,age:16+~~(Math.random()*3),rat:52+~~(Math.random()*14),pot:70+~~(Math.random()*20),
-    progress:~~(Math.random()*25),val:Math.round((0.2+Math.random()*.6)*10)/10});
+    progress:~~(Math.random()*25),val:Math.round((0.2+Math.random()*.6)*10)/10,nat:(natsLocales()||['ARG'])[0]});
   lg('🌱',`${yp.name} promovido al plantel!`);
   updateUI(); flash('✅ '+yp.name+' sube al plantel!','win');
 }

@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85` |
 
 ## Formato de `players-db.js`
 
@@ -7845,6 +7845,50 @@ club → liga de la anterior. Lo destapó la Supercopa (no encontraba rivales).
 usa un partido común (`simRojas(null)`): tomaba el próximo del calendario y,
 cuando era un clásico, la frecuencia sube a propósito a ~18% y se salía del
 rango (1 rojo cada ~8 corridas).
+
+## Fase 85: el canterano nace local y sube local
+
+⚠️ **El pedido venía numerado "Fase 58" y ese número ya estaba usado**
+(los checks de la regresión). Va como 85.
+
+⚠️ **La mitad del pedido ya estaba hecha desde la Fase 59**: `weeklyYouth`
+no tenía arreglos `fn`/`ln` escritos a mano: los nombres ya salían de
+`_youthNames(ligaMia())`, que arma el pool con los jugadores de `PLAYERS_DB`
+cuya nacionalidad está en `natsLocales()`. No hubo nada que reemplazar.
+
+Lo que sí faltaba era la **nacionalidad**. El juvenil de la cantera no tenía
+`nat` y `promOne` le asignaba `natLocalPrincipal()` recién al subirlo al
+plantel: en la práctica salía local, pero el dato vivía en un solo lugar del
+camino y la cantera no sabía de dónde era su propio pibe.
+
+- **El juvenil nace con `nat`** en los TRES lugares donde se crea: la camada
+  de `weeklyYouth` (`(natsLocales()||['ARG'])[0]`), la academia inicial de
+  `buildYouth` (con `natsLocales(_ligaActual())`, porque corre DENTRO del
+  literal de `G` y `ligaMia()` todavía daría 'Liga ARG') y el reemplazo que
+  deja `promOne`. La camada anual (`generateYouthIntake`) ya la tenía.
+- **`promOne` sube con `yp.nat`**, con una guarda: si esa nacionalidad NO es
+  local en la liga que dirigís hoy, sube con la local. Cubre dos casos
+  reales: la academia que viajó con vos a otra liga (`acceptCareerOffer`
+  conserva `G` en una de sus ramas) y el save viejo, cuyos juveniles no traen
+  `nat`. Un canterano nunca ocupa cupo de extranjero en su propio club.
+- No existe ningún generador de juveniles extranjeros (la mejora `yi`,
+  "Scouting internacional", es sólo texto), así que la guarda no le pisa la
+  nacionalidad a ninguna "perla de afuera".
+
+Retro-compatible sin migrar: el juvenil sin `nat` de un save viejo sube local,
+que es exactamente lo que hacía antes.
+
+`tests/fase85.js`, **40 checks**, en Real Madrid, Man City, Porto y Boca:
+academia inicial local, camada con nombres sacados de jugadores locales de la
+base y `nat` explícita, sube con la nat de la cantera y el cupo no se mueve,
+el reemplazo también es local, las dos guardas (un `BRA` en España y un
+juvenil sin `nat`) y que la nacionalidad sobreviva al guardado.
+
+🔶 **`fase80` es FLAKY y viene de antes**: da un rojo distinto cada tanto
+("todo junto juega los 4 de una", "2005: salen los dos campeones").
+Verificado sobre la versión ANTERIOR a esta fase con `git stash`: 1 rojo en 3
+corridas, igual que con la nueva. Si lo ves rojo, corré de nuevo antes de
+creerle.
 
 ## Deploy
 
