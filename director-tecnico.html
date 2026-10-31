@@ -9088,13 +9088,26 @@ function _fillSel(id,opts,placeholder){
     opts.map(o=>`<option value="${o.v}"${o.v===prev?' selected':''}>${o.t}</option>`).join('');
   if(s.value!==prev)s.value='';
 }
-function fillLeagueFilter(){
-  _fillSel('mkLg',mktLeagues().map(x=>({v:x.lg,t:`${x.lg} (${x.n})`})),'Todas ligas');
+// ⚠️ El VALOR de la opción es la etiqueta exacta de la base ('Premier',
+// 'España', 'Liga ARG'), que es contra lo que compara `renderMkt` con `===`.
+// Lo que se lee es el nombre de la competencia (`LIGA_NOMBRE`) con la bandera:
+// cambiar el valor por el nombre lindo dejaría el filtro vacío.
+function mktLigaTxt(lg){
+  if(lg==='Libre')return '🆓 Libres';
+  const f=(typeof LIGA_PAIS!=='undefined'&&LIGA_PAIS[lg])?LIGA_PAIS[lg].f+' ':'';
+  const n=(typeof LIGA_NOMBRE!=='undefined'&&LIGA_NOMBRE[lg])||lg;
+  return f+n;
 }
+function fillLeagueFilter(){
+  _fillSel('mkLg',mktLeagues().map(x=>({v:x.lg,t:`${mktLigaTxt(x.lg)} (${x.n})`})),'Todas ligas');
+}
+// Antes cortaba en 40 y la base trae 145 (165 en un año histórico): un
+// jugador de Islandia o de Haití no se podía filtrar. Van TODAS, de la más
+// numerosa a la menos.
 function fillNatFilter(){
   const c={};
   (G.market||[]).forEach(p=>{ if(p.nat)c[p.nat]=(c[p.nat]||0)+1; });
-  _fillSel('mkNat',Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,40)
+  _fillSel('mkNat',Object.entries(c).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
     .map(([n,k])=>({v:n,t:`${n} (${k})`})),'Todas naciones');
 }
 // Los equipos dependen de la liga elegida: si no elegiste liga, van todos
@@ -9105,14 +9118,41 @@ function fillTeamFilter(){
   _fillSel('mkTeam',Object.entries(c).sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([club,n])=>({v:club,t:`${club} (${n})`})),'Todos los equipos');
 }
-function refreshMktFilters(){ fillLeagueFilter(); fillNatFilter(); fillTeamFilter(); }
+// ═══ LOS FILTROS SE REARMAN CUANDO CAMBIA EL MERCADO (Fase 86) ═══
+// Antes se llenaban UNA vez por sesión: `renderMktSafe` los armaba sólo si el
+// <select> de ligas estaba vacío. Medido: arrancando el Real Madrid 2015
+// después de una partida de 2026, el filtro ofrecía 4 ligas que ese año no
+// existen (Bolivia, Ecuador, Venezuela, Paraguay) y 254 clubes fantasma, y la
+// lista de equipos no se enteraba de ningún pase de la IA ni de los libres.
+// La firma dice "qué mercado es éste": la partida (una marca no enumerable en
+// `G`, así no viaja al save y cada `loadGame`/`initGame` trae una nueva), la
+// base cargada, la temporada, la semana y el largo del mercado.
+let _mkFiltSig=null, _mkTokN=0;
+function mktFiltrosFirma(){
+  if(!G||!G.market)return '';
+  if(!G._mkTok){ try{ Object.defineProperty(G,'_mkTok',{value:++_mkTokN,enumerable:false,configurable:true}); }catch(e){} }
+  const db=(typeof _DB_SEASON!=='undefined')?_DB_SEASON:'';
+  return [G._mkTok,db,G.season,G.week,G.market.length].join('|');
+}
+function refreshMktFilters(){
+  fillLeagueFilter(); fillNatFilter(); fillTeamFilter();
+  _mkFiltSig=mktFiltrosFirma();
+}
+// Arma los filtros si el mercado cambió desde la última vez (o si nunca se
+// armaron). Lo llaman `gTab('mkt')` y `renderMktSafe`.
+function mktFiltrosAsegurar(forzar){
+  if(!G||!G.market)return false;
+  const lgSel=document.getElementById('mkLg');
+  if(!lgSel)return false;
+  if(forzar||lgSel.options.length<=1||_mkFiltSig!==mktFiltrosFirma()){ refreshMktFilters(); return true; }
+  return false;
+}
 
 function renderMktSafe(){
   // Safe version called from updateUI - only renders if el exists
   const el = document.getElementById('mkList');
   if(!el||!G) return;
-  const lgSel=document.getElementById('mkLg');
-  if(lgSel&&lgSel.options.length<=1) refreshMktFilters();
+  mktFiltrosAsegurar();
   renderMkt();
 }
 
@@ -29646,6 +29686,9 @@ function gTab(name, btn){
   selSlot = null; // clear tactics selection when switching tabs
   // Se dibuja al ENTRAR, que es cuando se mira. Si la pestaña ya está limpia
   // no se toca: entrar y salir de una pestaña no puede costar 58 ms.
+  // El Mercado rearma sus filtros la primera vez que se abre en ESTA partida,
+  // aunque la pestaña esté limpia (Fase 86).
+  if(name==='mkt'){ try{ mktFiltrosAsegurar(); }catch(e){ console.error('mktFiltros',e); } }
   if(_tabSucia[name]!==false) pintarTab(name);
   try{ fUISync(name); }catch(e){ console.error('fUISync',e); }
 }

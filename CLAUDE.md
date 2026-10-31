@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86` |
 
 ## Formato de `players-db.js`
 
@@ -7889,6 +7889,42 @@ juvenil sin `nat`) y que la nacionalidad sobreviva al guardado.
 Verificado sobre la versión ANTERIOR a esta fase con `git stash`: 1 rojo en 3
 corridas, igual que con la nueva. Si lo ves rojo, corré de nuevo antes de
 creerle.
+
+## Fase 86: los filtros del Mercado salen del mercado de ESTA partida
+
+El pedido: "los `<select>` del mercado (`mkLg`, `mkNat`, `mkTeam`) no muestran
+todas las opciones porque no se inicializan bien al abrir la pestaña".
+
+⚠️ **Medido, el primer armado andaba**: en la primera partida de la sesión, al
+abrir el Mercado salían las 25 ligas y los 613 clubes. El bug era que **no se
+volvían a armar nunca**: `renderMktSafe` los llenaba sólo si el `<select>` de
+ligas estaba vacío. Medido:
+
+| escenario | antes |
+|---|---|
+| Real Madrid 2015 arrancado después de una partida de 2026 | **4 ligas que ese año no existen** (Bolivia, Ecuador, Venezuela, Paraguay) y **254 clubes fantasma** |
+| segunda partida en la misma sesión | clubes de la partida anterior |
+| pases de la IA, libres del cierre de temporada | la lista de equipos no se enteraba |
+| naciones | **40 de 145** (40 de 165 en 2015) |
+
+- **`mktFiltrosFirma()`** dice qué mercado es éste: una marca de la partida
+  (`G._mkTok`, **no enumerable**, así no viaja al save y cada
+  `loadGame`/`initGame` trae una nueva), `_DB_SEASON`, la temporada, la semana
+  y el largo de `G.market`. `mktFiltrosAsegurar()` rearma si cambió. Lo llaman
+  **`gTab('mkt')`** (aunque la pestaña esté limpia) y `renderMktSafe`.
+- Rearmar cuesta ~10 ms y pasa una vez por semana como mucho. `_fillSel` ya
+  conservaba la opción elegida si sigue existiendo.
+- **Naciones: van todas**, ordenadas por cantidad.
+- **`mktLeagues()` ya devolvía la etiqueta exacta** (`'Premier'`, `'España'`):
+  no había bug de mayúsculas, y el test lo blinda (ninguna etiqueta difiere de
+  otra sólo en el caso, todas existen tal cual en `G.market`). Lo que cambió es
+  el TEXTO de la opción (`mktLigaTxt`: bandera + `LIGA_NOMBRE`, "🆓 Libres"
+  para `lg:'Libre'`). ⚠️ El VALOR sigue siendo la etiqueta: `renderMkt`
+  compara con `===`.
+- ⚠️ La Premier del filtro tiene **43 clubes**: la base trae la Championship
+  bajo la misma etiqueta (las segundas divisiones son clubes de mercado).
+
+`tests/fase86.js`, **24 checks**.
 
 ## Deploy
 
