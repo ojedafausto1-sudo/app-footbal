@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87` |
 
 ## Formato de `players-db.js`
 
@@ -7925,6 +7925,68 @@ ligas estaba vacío. Medido:
   bajo la misma etiqueta (las segundas divisiones son clubes de mercado).
 
 `tests/fase86.js`, **24 checks**.
+
+## Fase 87: camarillas del vestuario
+
+El plantel se parte en **cuatro grupos excluyentes**, derivados al vuelo
+(`camarillas()` / `camarillaDe(p)` / `camarillaInfo(k)`): **no hay un campo
+nuevo en el jugador**. Cada uno cae en el PRIMERO que le corresponde:
+
+| grupo | quién |
+|---|---|
+| 🎖️ Referentes | 30+, el capitán (`G.roles.captain`) o una leyenda (`G.legends`) |
+| 🌱 Los Pibes | ≤22 **y** (de la cantera, o con más de 2 temporadas en el club) |
+| 🌎 Extranjeros | `pIsForeign(p)` |
+| 👥 El resto | los demás |
+
+- ⚠️ **Extranjeros usa la regla del CUPO** (lo pidió el presidente): en
+  España/Italia/Francia es extracomunitario, así que un francés en el Real
+  Madrid cae en el Resto. El grupo social viejo ("Los de afuera") miraba la
+  nacionalidad local pura; ése se fue.
+- ⚠️ **Los Pibes arranca VACÍO en casi todos los clubes**: el plantel inicial
+  no trae canteranos marcados y `antiguedadInicial` le da 1-2 temporadas a un
+  sub-22. Se llena subiendo pibes. Medido al arranque: Boca 0, Real Madrid 0,
+  San Martín 0, Man City 3. La tarjeta vacía lo explica.
+- `p.canterano` **ya existía** (lo ponía `intakeFirmar`); ahora también lo pone
+  `promOne`. Es el mismo campo, en los pocos que suben.
+- `vestGrupos()` devuelve ahora las camarillas (menos el Resto, que no tiene
+  cabecilla), así que el contagio semanal de `weeklyVestuario` corre sobre
+  ellas. Se fueron "Los de la casa" y "Los que no juegan".
+
+### Lo que mueve la moral de un grupo
+
+| hecho | efecto | dónde |
+|---|---|---|
+| multar / vender a un Referente | Referentes −20, Pibes −10 | `camarillaCastigo` |
+| promover, firmar en las pruebas o hacer debutar a un canterano | Pibes +15 | `camarillaCantera` |
+| ☕ café con los líderes de un grupo con moral <40 | ese grupo +15 | `camCafe` |
+
+- El castigo se engancha en las **cuatro multas** (indisciplina mensual, la
+  misma reconstruida en `dilemaFx` al recargar, el boliche y la fiesta) y en
+  `sacarDelPlantel` con `tipo==='sale'` y plata — una rescisión no cuenta.
+  ⚠️ Va **antes** de sacar al jugador: la camarilla se mide con él adentro.
+- ⚠️ **Se cobra UNA vez por hecho**: la fiesta multa a 3-4 de una y eso son −20,
+  no −60. El castigado no se cobra su propio −20 de grupo (ya tiene el de la
+  multa).
+- **El debut** es el primer partido oficial de la CARRERA (`careerTotals(p).apps
+  === 1`): `p.apps` vuelve a 0 cada temporada y si no "debutaría" todos los años.
+- **El café**: uno por semana en total (`G._cafeSem`, una primitiva; un save
+  viejo sin el campo = libre).
+
+Medido en dos temporadas simuladas (multando siempre): castigos a Referentes
+**Boca 6, Real Madrid 2, Man City 2, San Martín 0**, y la moral media de los
+Referentes toca piso entre **46 y 58** antes de recuperarse. Pega pero no hunde.
+
+### UI
+
+`#vestBox` (pestaña Plantel, `rVestuario`) pasó a **🧑‍🤝‍🧑 Camarillas del
+vestuario**: el clima de siempre arriba y una grilla 2×2 (`.camgrid`, una
+columna en el celular) con cada grupo en un `.mpanel` — vidrio en la `.card`,
+**sin blur en las cuatro de adentro**. Cada una: cuántos son, los 2 líderes
+(media + 2×temporadas, el capitán desempata), la moral promedio con 🟢 Feliz
+(≥65) / 🟡 Neutral / 🔴 Enojado (<40) y el borde del color del estado.
+
+`tests/fase87.js`, **41 checks**.
 
 ## Deploy
 

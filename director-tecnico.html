@@ -282,6 +282,20 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
    mismo lenguaje visual y es gratis. */
 .mpanel{background:rgba(255,255,255,.03);border:1px solid var(--bdr);border-radius:8px;padding:10px;box-shadow:0 1px 6px rgba(0,0,0,.18)}
 .mpanel+.mpanel{margin-top:8px}
+/* Fase 87 — camarillas: vidrio en la .card, las cuatro van en .mpanel (sin blur) */
+.camgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.camgrid .mpanel+.mpanel{margin-top:0}
+.cam-h{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:12px}
+.cam-n{font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums;font-size:10px;color:var(--t3);margin-left:3px}
+.cam-e{font-family:'Chakra Petch',sans-serif;font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;white-space:nowrap}
+.cam-bar{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin:6px 0}
+.cam-bar>div{height:100%}
+.cam-l{font-size:10px;color:var(--t2);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.cam-lid{white-space:nowrap}
+.cam-lid b{font-family:'Chakra Petch',sans-serif;color:var(--gold)}
+.cam-d{font-size:9px;color:var(--t3);margin-top:4px}
+.cam-cafe{width:100%;margin-top:7px}
+@media(max-width:600px){.camgrid{grid-template-columns:1fr}}
 /* Fase 84: en modo DT las cosas del presidente se ven pero no se tocan */
 body.modo-dt #tab-pat button,body.modo-dt #tab-stad button,body.modo-dt #loanBox button,
 body.modo-dt #presAccBox button,body.modo-dt #ticketSlider,body.modo-dt #tab-pat input{opacity:.4;pointer-events:none;filter:grayscale(.6)}
@@ -7381,6 +7395,9 @@ function sacarDelPlantel(p,tipo,det){
       try{ lg('📣','Vender a '+p.name+' costó 15 puntos de aprobación'); }catch(e){}
     }
   }
+  // Fase 87: vender a un Referente se cobra en el vestuario. Antes de sacarlo,
+  // porque la camarilla se mide con él adentro.
+  if(tipo==='sale' && det && (det.monto||0)>0){ try{ camarillaCastigo([p],'La venta'); }catch(e){} }
   const k=Object.keys(G.slots||{}).find(kk=>G.slots[kk]===p.id);
   G.squad=(G.squad||[]).filter(x=>x.id!==p.id);
   G.bench=(G.bench||[]).filter(x=>x.id!==p.id);
@@ -10929,34 +10946,135 @@ function vestLideres(){
     .map(p=>({p,peso:vestPeso(p),animo:vestAnimo(p)}))
     .sort((a,b)=>b.peso-a.peso).slice(0,3);
 }
-// Los grupos que se arman solos, como en cualquier plantel
-function vestGrupos(){
-  const sq=G.squad||[];
-  if(!sq.length) return [];
-  const gr=[];
-  // ⚠️ Acá NO va la regla del cupo. "Los de afuera" es un grupo SOCIAL: un
-  // francés en el Real Madrid hace rancho aparte igual, aunque como comunitario
-  // no ocupe plaza. Se mira la nacionalidad local pura.
-  const _loc=(typeof natsLocales==='function')?natsLocales():['ARG'];
-  const extranjeros=sq.filter(p=>p&&p.nat&&p.nat!=='UNK'&&_loc.indexOf(p.nat)<0&&_loc.indexOf(p.nat2)<0);
-  if(extranjeros.length>=3) gr.push({id:'ext',ic:'🌎',t:'Los de afuera',
-    d:'Extranjeros que hacen rancho aparte',miembros:extranjeros});
-  const casa=sq.filter(p=>(p.seasonsAtClub||0)>=3);
-  if(casa.length>=3) gr.push({id:'casa',ic:'🏠',t:'Los de la casa',
-    d:'Años en el club, se conocen de memoria',miembros:casa});
-  const pibes=sq.filter(p=>(p.age||26)<=22);
-  if(pibes.length>=3) gr.push({id:'pibes',ic:'🌱',t:'La camada joven',
-    d:'Los pibes, siempre juntos',miembros:pibes});
-  const viejos=sq.filter(p=>(p.age||26)>=31);
-  if(viejos.length>=3) gr.push({id:'viejos',ic:'🎖️',t:'Los grandes',
-    d:'Los veteranos que ponen los puntos',miembros:viejos});
-  const relegados=sq.filter(p=>{
-    const xi=Object.values(G.slots||{});
-    return !xi.includes(p.id) && (p.rat||0)>=72 && !p.injured;
+// ═══════════════════════════════════════════════════════════════════════
+// CAMARILLAS DEL VESTUARIO (Fase 87)
+// ═══════════════════════════════════════════════════════════════════════
+// El plantel se parte en cuatro grupos EXCLUYENTES, y la pertenencia se
+// calcula al vuelo: no hay un campo nuevo en el jugador (17.000 fichas en el
+// mercado; ver los 395 KB de `p.personality`). Cada uno cae en el PRIMER grupo
+// que le corresponde, en este orden — un uruguayo de 31 es Referente antes que
+// Extranjero:
+//   1. Referentes: 30+, el capitán, o una leyenda (`G.legends`).
+//   2. Los Pibes: 22 o menos Y (de la cantera, o con más de 2 años en el club).
+//   3. Extranjeros: `pIsForeign(p)`, o sea la regla del CUPO de la liga que
+//      dirigís. ⚠️ En España/Italia/Francia eso es "extracomunitario": un
+//      francés en el Real Madrid cae en el Resto.
+//   4. El resto.
+// `p.canterano` ya existía (lo pone la firma de las pruebas de inferiores) y
+// ahora también lo pone `promOne`: no es un campo nuevo.
+const CAM_DEF={
+  ref:  {ic:'🎖️',t:'Referentes', d:'30+, el capitán y las leyendas. Ponen los puntos.'},
+  pibes:{ic:'🌱',t:'Los Pibes',  d:'Sub-22 de la cantera o con años en la casa.'},
+  ext:  {ic:'🌎',t:'Extranjeros',d:'Los que ocupan cupo. Hacen rancho aparte.'},
+  resto:{ic:'👥',t:'El resto',   d:'Sin bandera: van con el que gane.'},
+};
+const CAM_ORDEN=['ref','pibes','ext','resto'];
+const CAM_CASTIGO_REF=-20, CAM_CASTIGO_PIBES=-10, CAM_CANTERA=+15, CAM_CAFE=+15;
+const CAM_ENOJO=40, CAM_FELIZ=65;      // moral promedio del grupo
+function _camLeyendas(){ const s=new Set(); (G&&G.legends||[]).forEach(l=>{ if(l&&l.id!==undefined)s.add(l.id); }); return s; }
+function camarillaDe(p,_ley){
+  if(!p||!G)return 'resto';
+  const ley=_ley||_camLeyendas();
+  if((p.age||0)>=30 || (G.roles&&G.roles.captain===p.id) || ley.has(p.id)) return 'ref';
+  if((p.age||99)<=22 && (p.canterano===true || (p.seasonsAtClub||0)>2)) return 'pibes';
+  if(typeof pIsForeign==='function' && pIsForeign(p)) return 'ext';
+  return 'resto';
+}
+// Los cuatro grupos como arrays de ids, derivados del plantel de AHORA.
+function camarillas(){
+  const out={ref:[],pibes:[],ext:[],resto:[]};
+  if(!G||!G.squad)return out;
+  const ley=_camLeyendas();
+  G.squad.forEach(p=>{ if(p) out[camarillaDe(p,ley)].push(p.id); });
+  return out;
+}
+const _camMoral=p=>(p.morale===undefined?60:p.morale);
+function camEstado(v){
+  return v>=CAM_FELIZ?{e:'🟢',t:'Feliz',c:'var(--green)'}
+       : v>=CAM_ENOJO?{e:'🟡',t:'Neutral',c:'var(--gold)'}
+       : {e:'🔴',t:'Enojado',c:'var(--red)'};
+}
+// Un grupo con sus miembros, la moral promedio y los 2 líderes (media y
+// antigüedad; el capitán desempata).
+function camarillaInfo(k,_cams){
+  const cams=_cams||camarillas();
+  const ids=cams[k]||[];
+  const miembros=ids.map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  const moral=miembros.length?Math.round(miembros.reduce((a,p)=>a+_camMoral(p),0)/miembros.length):0;
+  const cap=G.roles&&G.roles.captain;
+  const lideres=miembros.slice().sort((a,b)=>
+    ((b.rat||0)+(b.seasonsAtClub||0)*2+(b.id===cap?0.5:0))-((a.rat||0)+(a.seasonsAtClub||0)*2+(a.id===cap?0.5:0))).slice(0,2);
+  return {id:k,...CAM_DEF[k],ids,miembros,moral,lideres,estado:camEstado(moral)};
+}
+// Mueve la moral de un grupo entero (salvo los que se excluyan).
+function camMover(k,d,excluir,_cams){
+  const cams=_cams||camarillas();
+  const fuera=new Set(excluir||[]);
+  let n=0;
+  (cams[k]||[]).forEach(id=>{
+    if(fuera.has(id))return;
+    const p=G.squad.find(x=>x.id===id); if(!p)return;
+    p.morale=Math.max(0,Math.min(99,Math.round((_camMoral(p)+d)*10)/10));
+    n++;
   });
-  if(relegados.length>=3) gr.push({id:'banco',ic:'🪑',t:'Los que no juegan',
-    d:'Buenos jugadores masticando bronca en el banco',miembros:relegados});
-  return gr.map(g=>{
+  return n;
+}
+// Castigar o vender a un Referente: los suyos se ponen de su lado (−20) y los
+// pibes se asustan (−10). Se cobra UNA vez por hecho aunque sean varios
+// (la fiesta multa a 3-4 de una). Los grupos se miden ANTES de que el jugador
+// se vaya, por eso sacarDelPlantel lo llama antes de sacarlo.
+function camarillaCastigo(jugs,motivo){
+  if(!G||!G.squad)return false;
+  const lista=(jugs||[]).filter(Boolean);
+  if(!lista.length)return false;
+  const cams=camarillas(), ley=_camLeyendas();
+  const refs=lista.filter(p=>camarillaDe(p,ley)==='ref');
+  if(!refs.length)return false;
+  const ex=lista.map(p=>p.id);
+  const nR=camMover('ref',CAM_CASTIGO_REF,ex,cams);
+  const nP=camMover('pibes',CAM_CASTIGO_PIBES,ex,cams);
+  const quien=refs.map(p=>p.name).join(', ');
+  try{ addPhoneMsg('board','Vestuario',
+    `🎖️ ${motivo} a <b>${quien}</b> cayó pésimo entre los Referentes (${nR}, moral ${CAM_CASTIGO_REF}). Los Pibes (${nP}) andan con miedo (${CAM_CASTIGO_PIBES}).`,'🎖️'); }catch(e){}
+  try{ lg('🎖️',`Los Referentes se plantan por ${quien}`); }catch(e){}
+  return true;
+}
+// Promover o hacer debutar a un canterano: los Pibes lo festejan (+15).
+function camarillaCantera(p,motivo){
+  if(!G||!G.squad||!p)return 0;
+  const n=camMover('pibes',CAM_CANTERA,[p.id]);
+  if(n){
+    try{ addPhoneMsg('board','Vestuario',`🌱 ${motivo}: <b>${p.name}</b>. Los Pibes (${n}) están chochos: moral +${CAM_CANTERA}.`,'🌱'); }catch(e){}
+    try{ lg('🌱',`Los Pibes festejan: ${p.name} (${motivo.toLowerCase()})`); }catch(e){}
+  }
+  return n;
+}
+// ☕ Un café con los líderes de un grupo enojado. Uno por semana en total: la
+// agenda del presidente no da para más. `G._cafeSem` es una primitiva; un save
+// viejo no la tiene y eso es "esta semana no tomaste ninguno".
+function camCafeSemana(){ return (G.season||0)+'-'+(G.week||1); }
+function camCafeLibre(){ return !G||G._cafeSem!==camCafeSemana(); }
+function camCafe(k){
+  if(!G||!CAM_DEF[k])return false;
+  const g=camarillaInfo(k);
+  if(!g.miembros.length)return false;
+  if(g.moral>=CAM_ENOJO){ flash('El grupo no está enojado: no hace falta el café','draw'); return false; }
+  if(!camCafeLibre()){ flash('☕ Ya tomaste el café de esta semana','draw'); return false; }
+  G._cafeSem=camCafeSemana();
+  camMover(k,CAM_CAFE);
+  const nom=g.lideres.map(p=>p.name).join(' y ')||g.t;
+  try{ addPhoneMsg('board','Vestuario',`☕ Tomaste un café con <b>${nom}</b>. ${g.t}: moral +${CAM_CAFE}.`,'☕'); }catch(e){}
+  try{ lg('☕',`Café con ${nom} (${g.t})`); }catch(e){}
+  flash('☕ '+g.t+': moral +'+CAM_CAFE,'win');
+  if(typeof updateUI==='function')updateUI();
+  return true;
+}
+// Los grupos que contagian el ánimo cada semana (weeklyVestuario) son ahora
+// las camarillas. "El resto" no es un grupo: no tiene cabecilla que arrastre.
+function vestGrupos(){
+  if(!G||!G.squad||!G.squad.length) return [];
+  const cams=camarillas();
+  return ['ref','pibes','ext'].map(k=>camarillaInfo(k,cams)).filter(g=>g.miembros.length>=2).map(g=>{
     const animo=Math.round(g.miembros.reduce((a,p)=>a+vestAnimo(p),0)/g.miembros.length);
     const cabecilla=g.miembros.slice().sort((a,b)=>vestPeso(b)-vestPeso(a))[0];
     return {...g,animo,cabecilla};
@@ -11009,43 +11127,31 @@ function weeklyVestuario(){
 function rVestuario(){
   const el=document.getElementById('vestBox'); if(!el||!G||!G.squad) return;
   const cl=vestClima();
-  const lids=vestLideres();
-  const grupos=vestGrupos();
-  const barra=(v,c)=>`<div style="height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden">
-    <div style="width:${v}%;height:100%;background:${c}"></div></div>`;
-  const colorAnimo=v=>v>=75?'var(--green)':v>=58?'var(--t2)':v>=42?'var(--gold)':v>=26?'var(--ora)':'var(--red)';
+  // Se calcula al ABRIR el Plantel: nada de esto vive en el jugador.
+  const cams=camarillas();
+  const libre=camCafeLibre();
+  const tarjeta=k=>{
+    const g=camarillaInfo(k,cams), e=g.estado;
+    const lid=g.lideres.length?g.lideres.map(p=>`<span class="cam-lid">${(G.roles&&G.roles.captain===p.id)?'🅲 ':''}${p.name} <b>${p.rat}</b></span>`).join('')
+      :'<span class="cam-lid" style="color:var(--t3)">nadie</span>';
+    const cafe=(g.miembros.length&&g.moral<CAM_ENOJO)
+      ?`<button class="btn bg bs cam-cafe" ${libre?'':'disabled'} onclick="camCafe('${k}')">${libre?'☕ Tomar un café con los líderes':'☕ Ya tomaste el café de esta semana'}</button>`:'';
+    return `<div class="mpanel cam" data-cam="${k}" style="border-left:3px solid ${g.miembros.length?e.c:'var(--bdr)'}">
+      <div class="cam-h"><span>${g.ic} <b>${g.t}</b> <span class="cam-n">${g.miembros.length}</span></span>
+        ${g.miembros.length?`<span class="cam-e" style="color:${e.c}">${e.e} ${e.t} · ${g.moral}</span>`:'<span class="cam-e" style="color:var(--t3)">vacío</span>'}</div>
+      <div class="cam-bar"><div style="width:${g.moral}%;background:${e.c}"></div></div>
+      <div class="cam-l">Líderes: ${lid}</div>
+      <div class="cam-d">${g.miembros.length?g.d:(k==='pibes'?'Todavía no hay: se arma con los que suban de la cantera y con los sub-22 que pasen 2 temporadas en el club.':'Nadie en este grupo hoy.')}</div>${cafe}
+    </div>`;
+  };
   el.innerHTML=`
-    <div class="ctitle">🧑‍🤝‍🧑 Vestuario</div>
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 3px">
+    <div class="ctitle">🧑‍🤝‍🧑 Camarillas del vestuario</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 8px">
       <span style="font-size:11px;color:var(--t2)">Clima del grupo</span>
       <span style="font-size:12px;font-weight:700;color:${cl.c}">${cl.t} · ${cl.v}/100</span>
     </div>
-    ${barra(cl.v,cl.c)}
-    <div style="font-size:9px;color:var(--t3);margin-top:4px">Pesa más lo que sienten los referentes que el promedio del plantel.</div>
-
-    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:11px 0 5px">Referentes</div>
-    ${lids.map(l=>{const pi=personaInfo(l.p);return `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)">
-        <div style="min-width:0">
-          <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(G.roles&&G.roles.captain===l.p.id)?'🅲 ':''}${l.p.name}</div>
-          <div style="font-size:9px;color:var(--t3)">${pi.e} ${pi.t} · peso ${l.peso}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:11px;font-weight:700;color:${colorAnimo(l.animo)}">${l.animo}/100</div>
-          <div style="font-size:9px;color:var(--t3)">${l.animo>=70?'tranquilo':l.animo>=45?'incómodo':'caliente'}</div>
-        </div>
-      </div>`;}).join('')}
-
-    <div style="font-size:9px;color:var(--t3);letter-spacing:.14em;text-transform:uppercase;margin:11px 0 5px">Grupos</div>
-    ${grupos.length?grupos.map(g=>`
-      <div style="padding:5px 0;border-top:1px solid rgba(255,255,255,.05)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline">
-          <span style="font-size:11px;font-weight:700">${g.ic} ${g.t} <span style="font-size:9px;color:var(--t3);font-weight:400">(${g.miembros.length})</span></span>
-          <span style="font-size:11px;font-weight:700;color:${colorAnimo(g.animo)}">${g.animo}/100</span>
-        </div>
-        <div style="font-size:9px;color:var(--t3)">${g.d} · los lleva <b>${g.cabecilla.name}</b></div>
-      </div>`).join('')
-      :'<div class="note" style="margin:0">Todavía no se armó ningún grupo definido.</div>'}`;
+    <div class="camgrid">${CAM_ORDEN.map(tarjeta).join('')}</div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">Castigar o vender a un Referente: su grupo ${CAM_CASTIGO_REF}, los Pibes ${CAM_CASTIGO_PIBES}. Subir o hacer debutar a un canterano: los Pibes +${CAM_CANTERA}. Un café por semana con los líderes de un grupo enojado (moral &lt;${CAM_ENOJO}): +${CAM_CAFE}.</div>`;
 }
 
 function facilityFx(){
@@ -11779,8 +11885,10 @@ function promOne(id){
   const _nat=(yp.nat&&_loc.indexOf(yp.nat)>=0)?yp.nat
             :((typeof natLocalPrincipal==='function')?natLocalPrincipal():'ARG');
   const np = P(~~(Math.random()*90)+1,yp.name,yp.pos,yp.age,_nat,G.teamName||'Boca Juniors',ligaMia(),yp.val,yp.rat,~~(yp.rat*.3),yp.pot);
+  np.canterano=true;   // el mismo campo que ya pone la firma de las pruebas
   G.squad.push(np); G.bench.push(np);
   movAnota('entra',np,{motivo:'subió de la cantera'});
+  try{ camarillaCantera(np,'Subió de la cantera'); }catch(e){}   // Fase 87
   G.youth.players = G.youth.players.filter(x=>x.id!==id);
   // Check if any president demand for debut_youth is fulfilled
   if(G.pressDemands) G.pressDemands.forEach(d=>{
@@ -11923,6 +12031,7 @@ function intakeFirmar(id){
   np.pot=j.pot; np.seasonsAtClub=0; np.canterano=true;
   G.squad.push(np); if(G.bench)G.bench.push(np);
   movAnota('entra',np,{motivo:'firmó en las pruebas de inferiores'});
+  try{ camarillaCantera(np,'Firmó su primer contrato'); }catch(e){}   // Fase 87
   G.youthIntake.splice(i,1);
   lg('🌱',`${j.name} (${j.pos}, ${j.age}) firmó su primer contrato`);
   flash('✅ '+j.name+' firmó con el club','win');
@@ -14993,6 +15102,7 @@ const DILEMAS=[
         {t:'⚖️ Multa y lo dejo afuera un partido',
          d:'Disciplina para todos. El vestuario mira.',
          fx:()=>{ p.morale=Math.max(15,(p.morale===undefined?70:p.morale)-18); p.susp=(p.susp||0)+1;
+           try{ camarillaCastigo([p],'La multa y la suspensión'); }catch(e){}   // Fase 87
            G.boardConf=Math.min(100,(G.boardConf||50)+6); setDtRel&&setDtRel(6);
            G.fanMood=Math.min(100,(G.fanMood||55)+3);
            return `Multaste a ${p.name} y se pierde la próxima. El plantel entendió el mensaje.`; }},
@@ -15165,6 +15275,7 @@ const DILEMAS=[
          fx:()=>{ G.budget=Math.round((G.budget+0.2)*10)/10;
            finAnota&&finAnota('otros_in',0.2,'Multas por indisciplina');
            n.forEach(p=>{ p.morale=Math.max(5,(p.morale===undefined?70:p.morale)-45); });
+           try{ camarillaCastigo(n,'La multa'); }catch(e){}   // Fase 87
            autSuma(12); G.boardConf=Math.min(100,(G.boardConf||50)+8);
            setDtRel&&setDtRel(7); repSuma&&repSuma(1);
            return `Multaste a los ${n.length} y saliste a decirlo. El vestuario quedó helado, pero nadie va a dudar de quién manda.`; }},
@@ -15735,6 +15846,7 @@ function weeklyIndisciplina(){
       G.boardConf=Math.min(100,(G.boardConf||50)+4);
       if(typeof setDtRel==='function')setDtRel(4);
       G.squad.forEach(q=>{ if(q!==jug&&Math.random()<0.5)q.morale=Math.max(12,(q.morale===undefined?70:q.morale)-1); });
+      try{ camarillaCastigo([jug],'La multa'); }catch(e){}   // Fase 87
       return `Multaste a ${jug.name} (${fv(multa)}). El plantel tomó nota de que hay un límite.`;
     },
     // PROTEGERLO: te lo ganás a él y perdés autoridad sobre el resto.
@@ -15867,6 +15979,7 @@ function dilemaFx(id){
     if(!jug)return null;
     _DIL_FX[id]=[
       ()=>{ jug.morale=Math.max(10,(jug.morale===undefined?70:jug.morale)-20); autSuma(7);
+            try{ camarillaCastigo([jug],'La multa'); }catch(e){}   // Fase 87
             G.boardConf=Math.min(100,(G.boardConf||50)+4);
             if(typeof setDtRel==='function')setDtRel(4);
             return `Multaste a ${jug.name}. El plantel tomó nota de que hay un límite.`; },
@@ -18011,6 +18124,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const usedMins = new Set();
   // Track apps for all XI
   xiPlayers.forEach(p => { if(!p.apps) p.apps=0; p.apps++; });
+  // Fase 87: un canterano que debuta. `careerTotals` porque `p.apps` vuelve a 0
+  // cada temporada y si no "debutaría" todos los años.
+  if(!m.friendly) xiPlayers.forEach(p=>{ try{ if(p.canterano===true && careerTotals(p).apps===1) camarillaCantera(p,'Debutó en Primera'); }catch(e){} });
   if(!m.friendly) try{ infiltradosPartido(xiPlayers); }catch(e){}   // Fase 78: el que juega infiltrado arriesga
   // El salto a leyenda se avisa CUANDO PASA, no seis meses después al cerrar
   // la temporada: es el partido 100 el que se festeja.
