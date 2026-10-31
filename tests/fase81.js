@@ -92,7 +92,12 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     let max = 0;
     for (let tt = 0; tt < 2; tt++) {
       let g = 0;
-      while (G.calendar.some(m => !m.played) && g++ < 400) { dr(); G.day = 7; simMatch(true); closeMod();
+      // ⚠️ Fase 87: la caja no se deja ir a rojo. Este check mide la regla de
+      // la Fase 81 (rol y relación con el DT); contestando "sí" a todos los
+      // dilemas la caja caía y el EMBARGO (moral de todos a 0) sacaba al plantel
+      // entero por otro camino. Medido con la versión anterior a la Fase 87:
+      // 2 de 8 corridas en rojo por eso (19 y 5 pidiendo irse, con 8 y 1 embargos).
+      while (G.calendar.some(m => !m.played) && g++ < 400) { dr(); if (G.budget < 0) G.budget = 0; G.day = 7; simMatch(true); closeMod();
         max = Math.max(max, G.squad.filter(p => p.wantsOut).length); }
       if (tt === 0) { try { nextSeason(); } catch (e) {} dr(); try { closeMod(); preseasonSaltear(); closeMod(); } catch (e) {} }
     }

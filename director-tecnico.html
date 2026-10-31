@@ -293,7 +293,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .cam-l{font-size:10px;color:var(--t2);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
 .cam-lid{white-space:nowrap}
 .cam-lid b{font-family:'Chakra Petch',sans-serif;color:var(--gold)}
-.cam-d{font-size:9px;color:var(--t3);margin-top:4px}
+.cam-d{font-size:10px;color:var(--t3);margin-top:4px}
 .cam-cafe{width:100%;margin-top:7px}
 @media(max-width:600px){.camgrid{grid-template-columns:1fr}}
 /* Fase 84: en modo DT las cosas del presidente se ven pero no se tocan */
@@ -10971,6 +10971,16 @@ const CAM_DEF={
 const CAM_ORDEN=['ref','pibes','ext','resto'];
 const CAM_CASTIGO_REF=-20, CAM_CASTIGO_PIBES=-10, CAM_CANTERA=+15, CAM_CAFE=+15;
 const CAM_ENOJO=40, CAM_FELIZ=65;      // moral promedio del grupo
+// ⚠️ PISO de los castigos de grupo: la bronca SOLIDARIA no se apila abajo de
+// 50. Sobre un grupo sano el −20 pega entero (70 → 50); un segundo castigo no
+// lo hunde más. Sin piso se armaba un círculo vicioso, medido en fase81 (dos
+// temporadas multando siempre): la indisciplina mensual elige ×2,2 a los de
+// moral <50, así que el próximo multado era casi siempre otro Referente; ése
+// caía abajo de 32 con su propio −20 y el "se plantó" (moral <32) lo hacía
+// pedir salir. Con piso 0: 8 · 10 · 15 de 26 pidiendo irse (el tope es 4, la
+// versión anterior 0 de 7 corridas). Con piso 35: 5 de 8 corridas en rojo.
+// El castigado se sigue cobrando su −20 de la multa: eso es de antes.
+const CAM_PISO=50;
 function _camLeyendas(){ const s=new Set(); (G&&G.legends||[]).forEach(l=>{ if(l&&l.id!==undefined)s.add(l.id); }); return s; }
 function camarillaDe(p,_ley){
   if(!p||!G)return 'resto';
@@ -11014,7 +11024,10 @@ function camMover(k,d,excluir,_cams){
   (cams[k]||[]).forEach(id=>{
     if(fuera.has(id))return;
     const p=G.squad.find(x=>x.id===id); if(!p)return;
-    p.morale=Math.max(0,Math.min(99,Math.round((_camMoral(p)+d)*10)/10));
+    const m0=_camMoral(p);
+    // Al bajar no se pasa del piso (y al que ya estaba abajo no se lo toca).
+    const m1=d<0?Math.max(Math.min(m0,CAM_PISO),m0+d):m0+d;
+    p.morale=Math.max(0,Math.min(99,Math.round(m1*10)/10));
     n++;
   });
   return n;

@@ -95,6 +95,11 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
       ops: [{ i: 0, t: 'Multar' }, { i: 1, t: 'Proteger' }] });
     m0 = mor(); dilemaResolver('indTest', 0); m1 = mor();
     r.recarga = delta(m0, m1, cams.ref.filter(id => id !== refs[2].id));
+    // piso: la bronca solidaria no se apila abajo de 50, y al que ya está abajo no lo toca
+    G.squad.forEach(p=>p.morale=70); const rr=camarillas().ref;
+    G.squad.find(p=>p.id===rr[1]).morale=45; G.squad.find(p=>p.id===rr[2]).morale=30;   // los dos ya abajo del piso
+    camarillaCastigo([G.squad.find(p=>p.id===rr[0])],'La multa');
+    r.piso=[rr[1],rr[2],rr[3]].map(id=>G.squad.find(p=>p.id===id).morale);
     // 5. venta de un Referente vs rescisión
     set(70); m0 = mor();
     const vend = refs[3];
@@ -121,6 +126,7 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   chk('castigar a uno del Resto no mueve ningún grupo', k.restoNada);
   chk('la fiesta con tres (uno Referente) se cobra una sola vez', k.fiestaUna.every(x => x === -20), k.fiestaUna.join(','));
   chk('la indisciplina recargada desde el save también aplica', k.recarga.every(x => x === -20), k.recarga.join(','));
+  chk('piso de 50: de 45 no baja (ya estaba abajo), el de 30 tampoco, de 70 baja a 50', k.piso[0]===45&&k.piso[1]===30&&k.piso[2]===50, k.piso.join(','));
   chk('vender a un Referente: −20 a los suyos', k.venta.every(x => x === -20), k.venta.join(','));
   chk('…−10 a los Pibes', k.ventaPib.every(x => x === -10));
   chk('una rescisión no es una venta: nada', k.rescision);

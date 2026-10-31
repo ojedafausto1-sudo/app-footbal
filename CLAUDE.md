@@ -7961,6 +7961,13 @@ nuevo en el jugador**. Cada uno cae en el PRIMERO que le corresponde:
 | promover, firmar en las pruebas o hacer debutar a un canterano | Pibes +15 | `camarillaCantera` |
 | ☕ café con los líderes de un grupo con moral <40 | ese grupo +15 | `camCafe` |
 
+- ⚠️ **La bronca solidaria tiene PISO en 50** (`CAM_PISO`): sobre un grupo
+  sano el −20 pega entero (70 → 50), pero un segundo castigo no se apila
+  abajo. Sin piso se armaba un círculo vicioso, medido: la indisciplina
+  mensual elige ×2,2 a los de moral <50, así que el próximo multado era casi
+  siempre otro Referente, caía abajo de 32 con su propio −20 y el "se plantó"
+  (moral <32) lo hacía pedir salir. `fase81` dio **8 · 10 · 15 de 26** pidiendo
+  irse sin piso, y **5 de 8 corridas en rojo** con piso 35.
 - El castigo se engancha en las **cuatro multas** (indisciplina mensual, la
   misma reconstruida en `dilemaFx` al recargar, el boliche y la fiesta) y en
   `sacarDelPlantel` con `tipo==='sale'` y plata — una rescisión no cuenta.
@@ -7972,6 +7979,14 @@ nuevo en el jugador**. Cada uno cae en el PRIMERO que le corresponde:
   === 1`): `p.apps` vuelve a 0 cada temporada y si no "debutaría" todos los años.
 - **El café**: uno por semana en total (`G._cafeSem`, una primitiva; un save
   viejo sin el campo = libre).
+
+⚠️ **`fase81` era flaky por OTRA cosa, y se aisló.** Contestando "sí" a todos
+los dilemas la caja cae a rojo y el **embargo** (moral de todos a 0) saca al
+plantel entero: la versión ANTERIOR a esta fase falla **2 de 8** corridas así
+(19 y 5 pidiendo irse, con 8 y 1 embargos). Ese check mide la regla de la
+Fase 81, no la economía, así que ahora no deja la caja en rojo. Con eso:
+**8 de 8 en verde**, con una corrida justo en el tope (4): multar a los
+Referentes todo el tiempo tiene precio, y es a propósito.
 
 Medido en dos temporadas simuladas (multando siempre): castigos a Referentes
 **Boca 6, Real Madrid 2, Man City 2, San Martín 0**, y la moral media de los
