@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89` |
 
 ## Formato de `players-db.js`
 
@@ -8094,6 +8094,27 @@ Corrido aparte, la versión nueva dio **4 de 4 en verde** y la anterior
 nada de lo que mide (sin base importada, la base es la misma fila por fila).
 La medida es una temporada simulada del club chico, que tiene varianza. Si lo
 ves rojo, corré de nuevo antes de creerle.
+
+## Fase 89: ☕ Apoyar el proyecto
+
+El presidente pensó en comercializar el juego. La charla dejó claro que lo que
+lo frena no es cómo cobrar sino los datos: nombres reales de jugadores, clubes
+y camisetas, y valores sacados de Transfermarkt, cuyas condiciones prohíben el
+uso comercial. Por eso el primer paso es una **donación**, no una venta.
+
+- Botón **☕ Apoyar el proyecto** en la pantalla de inicio (`#apoyoBtn` →
+  `apoyoModal()`, en el overlay `#baseOv` de la Fase 88). Links a Cafecito
+  (pesos) y/o Ko-fi (dólares), en otra pestaña con `noopener noreferrer`.
+- **No desbloquea nada** y el modal lo dice. Nada se guarda en `G` ni en
+  `localStorage`, y no hay ningún pedido a la red hasta que se toca el link.
+- ⚠️ **Se configura con el USUARIO, no con la URL**: `APOYO={cafecito,kofi}`.
+  La dirección la arma `apoyoLinks()` con el dominio fijo, y un valor que no
+  sea `[A-Za-z0-9_.-]{2,40}` no arma link (ni HTML ni una URL entera).
+- ⚠️ **Con los dos vacíos el botón no aparece**: un botón que no lleva a
+  ningún lado se lee como un bug. Así quedó deployado hasta que el presidente
+  pase su usuario.
+
+`tests/fase89.js`, **13 checks**.
 
 ## Deploy
 

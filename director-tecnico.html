@@ -979,6 +979,7 @@ body.bg3d-on .main{background:transparent}
     <button class="btn bo bs" onclick="exportSave()">💾 Exportar partida</button>
     <button class="btn bo bs" onclick="document.getElementById('impSave').click()">📂 Importar partida</button>
     <input type="file" id="impSave" accept=".json,.txt" style="display:none" onchange="importSave(this)">
+    <button id="apoyoBtn" class="btn bo bs" onclick="apoyoModal()" style="display:none" title="Invitar un café a quien hace el juego (no desbloquea nada)">☕ Apoyar el proyecto</button>
     <button class="btn bo bs" onclick="baseModal()" title="Exportar la base de jugadores a un archivo o cargar una de la comunidad">🗃️ Base de jugadores</button>
   </div>
   <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
@@ -32279,6 +32280,35 @@ function baseVolverOriginal(){
   });
 }
 baseArranque();
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 89: ☕ APOYAR EL PROYECTO
+// ═══════════════════════════════════════════════════════════════════════
+// Un link a Cafecito (pesos) y/o Ko-fi (dólares) en la pantalla de inicio.
+// Es una DONACIÓN: no desbloquea nada ni cambia nada del juego, a propósito
+// (ver la charla de la Fase 88 sobre por qué no se vende con datos reales).
+// ⚠️ Va el USUARIO, no la URL: la dirección la arma `apoyoLinks` con el
+// dominio fijo, así un valor mal pegado no puede mandar a cualquier sitio.
+// Con los dos vacíos el botón no aparece: un botón que no lleva a ningún
+// lado se lee como un bug.
+const APOYO={cafecito:'', kofi:''};
+function apoyoLinks(){
+  const ok=u=>typeof u==='string'&&/^[A-Za-z0-9_.-]{2,40}$/.test(u);
+  const L=[];
+  if(ok(APOYO.cafecito)) L.push({id:'cafecito',t:'☕ Cafecito',d:'En pesos, con Mercado Pago o tarjeta. Para Argentina.',url:'https://cafecito.app/'+APOYO.cafecito});
+  if(ok(APOYO.kofi)) L.push({id:'kofi',t:'💛 Ko-fi',d:'En dólares, con PayPal o tarjeta. Desde cualquier país.',url:'https://ko-fi.com/'+APOYO.kofi});
+  return L;
+}
+function apoyoBoton(){ const el=document.getElementById('apoyoBtn'); if(el) el.style.display=apoyoLinks().length?'':'none'; }
+function apoyoModal(){
+  const L=apoyoLinks(); if(!L.length) return;
+  baseOv(`<div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;margin-bottom:4px">☕ Apoyar el proyecto</div>
+  <div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">El juego es gratis y lo va a seguir siendo: aportar <b>no desbloquea nada</b> ni cambia nada de tu partida. Si te gusta y querés dar una mano con el hosting y las horas de trabajo, podés invitar un café.</div>
+  ${L.map(x=>`<a class="mpanel" href="${x.url}" target="_blank" rel="noopener noreferrer" data-apoyo="${x.id}" style="display:block;text-decoration:none;color:inherit;margin-bottom:6px">
+    <div style="font-weight:800;font-size:14px">${x.t}</div><div style="font-size:11px;color:var(--t2)">${x.d}</div></a>`).join('')}
+  <div style="font-size:10px;color:var(--t3);margin-top:6px">Se abre en otra pestaña y necesita internet. El juego no se entera de nada: no guarda ni manda ningún dato.</div>
+  <div style="text-align:right;margin-top:10px"><button class="btn bs" onclick="baseCerrar()">Cerrar</button></div>`);
+}
+try{ apoyoBoton(); }catch(e){}
 // ═══════════════════════════════════════════════════════════════════════
 // FASE 71: LA INTERFAZ ESTILO FIFA, EL 3D Y TRES FUNCIONES DE GESTIÓN
 // ═══════════════════════════════════════════════════════════════════════
