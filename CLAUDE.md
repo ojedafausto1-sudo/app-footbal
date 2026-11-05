@@ -8087,6 +8087,14 @@ Un array pelado (lo que trae `players-db.js`) se lee como base completa.
 
 `tests/fase88.js`, **36 checks**.
 
+🔶 **`fase82` dio un rojo en la regresión de esta fase** (San Martín (SJ) 0,56
+puntos esperados contra 0,82 de la vara de la IA, con tolerancia ±0,25).
+Corrido aparte, la versión nueva dio **4 de 4 en verde** y la anterior
+(64cb494) también **4 de 4**: es 1 rojo en 5 corridas, y esta fase no toca
+nada de lo que mide (sin base importada, la base es la misma fila por fila).
+La medida es una temporada simulada del club chico, que tiene varianza. Si lo
+ves rojo, corré de nuevo antes de creerle.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
