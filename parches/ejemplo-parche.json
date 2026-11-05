@@ -1,0 +1,17 @@
+{
+  "formato": "dt-base",
+  "version": 1,
+  "nombre": "Ejemplo de parche",
+  "modo": "parche",
+  "columnas": ["num","nombre","pos","edad","nac","club","liga","valorM","pie","contratoHasta","alturaCm","pos2","clausulaM","goles","asistencias","partidos","nac2"],
+  "jugadores": [
+    [10, "Juan Inventado", "MCO", 21, "ARG", "Boca Juniors", "Liga ARG", 8.5, "izq", 2029, 174, "MC", 0, 0, 0, 0, ""],
+    [9, "Pedro Ejemplo", "DC", 26, "URU", "River Plate", "Liga ARG", 4, "der"]
+  ],
+  "bajas": [
+    ["Nombre Exacto Del Que Se Va", "Club Exacto"]
+  ],
+  "dts": [
+    ["DT Inventado", 48, "ARG", "", ""]
+  ]
+}

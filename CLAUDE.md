@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88` |
 
 ## Formato de `players-db.js`
 
@@ -8007,6 +8007,85 @@ columna en el celular) con cada grupo en un `.mpanel` — vidrio en la `.card`,
 (≥65) / 🟡 Neutral / 🔴 Enojado (<40) y el borde del color del estado.
 
 `tests/fase87.js`, **41 checks**.
+
+## Fase 88: la base de jugadores entra y sale en JSON
+
+Es la Fase 1 del plan de Google Play que trajo el presidente (el PDF "Plan
+Estratégico y Técnico"): que la base se pueda sacar a un archivo y entrar desde
+un archivo o una URL, para que se armen y compartan bases. Botón **🗃️ Base de
+jugadores** en la pantalla de inicio, con su propio overlay (`#baseOv`,
+z-index 10000: `#modOv` está en 200 y la pantalla de inicio en 9999, así que
+el modal del juego quedaba tapado).
+
+Formato (`BASE_FMT`, ejemplo en `parches/ejemplo-parche.json`):
+
+```
+{ formato:'dt-base', version:1, nombre, modo:'reemplazar'|'parche',
+  jugadores:[ las 17 columnas de players-db.js ], dts:[ [nombre,edad,nac,club,liga] ],
+  bajas:[ [nombre,club] ] }          // bajas sólo en un parche
+```
+
+Un array pelado (lo que trae `players-db.js`) se lee como base completa.
+
+- **Validación por fila** (`baseValidarFila`): puesto de `BASE_POS`, edad 14-50,
+  valor 0-300M (arriba es el bug ×1000 de la Fase 69), club y liga. Lo que no
+  entra se cuenta y se muestra por motivo. Una fila corta se completa a 17.
+  ⚠️ El pie es `ambi` en la base de hoy y `amb` en las históricas: valen los
+  dos. Con sólo `amb`, 439 jugadores volvían diestros.
+- ⚠️ **Los textos terminan en `innerHTML`**: se les sacan los menor/mayor, las comillas dobles,
+  el acento grave, la barra invertida y los caracteres de control (`_baseTxt`). El apóstrofo se queda (157 en la base).
+- **Parche** (`baseAplicar`, pura): primero las bajas; después, mismo nombre +
+  club = cambio; mismo nombre + nacionalidad con edad ±1 y uno solo = cambio
+  de club (no se duplica); si no, alta. Los DTs se pisan por nombre.
+- **Vista previa obligatoria** (`basePrevia`): altas, cambios, cambios de club,
+  bajas, descartadas y ligas jugables después. Sin ninguna liga jugable (las
+  reglas de `ligasJugables`) no se ofrece aplicar.
+- ⚠️ **NO renombra clubes.** El nombre del club es la clave de ~40 tablas
+  escritas a mano (estadios, clásicos, camisetas, `AR_CLUBS`, bombos, TEAMS
+  curados, `replace` de abreviaturas): un parche que cambiara "Boca Juniors"
+  dejaría todo eso colgado sin avisar. Un club NUEVO sí entra y se arma solo.
+  Para la idea del PDF de una base con nombres ficticios hay que reescribir
+  esas tablas, no la base.
+- ⚠️ **Va a IndexedDB, no a localStorage**: la partida ya ocupa ~3 MB ahí y la
+  base son 1,6 MB más, contra un límite de 5. En localStorage queda sólo una
+  ficha (`BASE_META`) para que el arranque sepa, **síncrono**, que tiene que
+  esperar: tapa la pantalla (`#baseCarga`) hasta que la base entra. Sin ficha
+  no hay nada asíncrono y el juego arranca como siempre. Una ficha sin base en
+  IndexedDB se limpia sola.
+- **Se guardan los ARCHIVOS, no la base resultante**, y `baseInstalar` los
+  aplica en orden sobre la original al arrancar. Una actualización del juego
+  más un parche viejo dan la base nueva parchada; una base completa descarta
+  los anteriores; ↩️ "volver a la original" es borrar la lista. Importar
+  recarga la página: es el mismo camino que el arranque.
+- ⚠️ **La base se cambia en el MISMO array** (`D.length=0` + push): así
+  `_PDB_ACTUAL` sigue siendo la base de hoy y `esHistorica()` no se rompe.
+- Los cachés derivados de la base salieron de `aplicarTemporada` a
+  **`basePurgar()`**, que usan los dos. Si agregás un caché, va ahí.
+- **La URL es lo único del juego que sale a la red**, sólo cuando la tocás, y
+  sólo `http(s)`. Desde `file://` anda si el sitio manda CORS (GitHub raw sí);
+  si no, el mensaje manda a bajar el archivo.
+- Exporta la base de hoy (no las históricas) con los DTs: 1,6 MB. Ida y vuelta
+  da la misma base fila por fila.
+- La partida guardada no se toca: una hecha con la base importada carga igual
+  después de volver a la original (el club pierde lo que no exista, como los
+  renombres de la Fase de septiembre).
+
+### Lo del PDF que no se hizo, y por qué
+
+- **Anuncios, compra in-app, Firebase y sincronización**: chocan con dos cosas
+  que este archivo dice desde el principio — es un proyecto personal, no
+  comercial, y el juego **no pide nada por red** (Fase 79). Además necesitan
+  cuentas de AdMob, Firebase y Play Console que se crean afuera.
+- **Capacitor, Android Studio y el `.aab`**: el contenedor no tiene el SDK de
+  Android ni salida a esos servicios. El juego ya se instala como app desde el
+  sitio (manifest + service worker, Fase 79).
+- **Orientación "portrait"**: el PDF también pide la cancha horizontal; el
+  11v11 y las jugadas clave usan el ancho. Es una decisión, no un parámetro.
+- **Nombres ficticios** (La Ribera, Núñez…) y "nombres fonéticamente
+  modificados": ver arriba, son las ~40 tablas. Y los datos reales vienen de
+  Transfermarkt vía el extractor.
+
+`tests/fase88.js`, **36 checks**.
 
 ## Deploy
 

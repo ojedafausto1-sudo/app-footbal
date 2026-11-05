@@ -979,6 +979,7 @@ body.bg3d-on .main{background:transparent}
     <button class="btn bo bs" onclick="exportSave()">💾 Exportar partida</button>
     <button class="btn bo bs" onclick="document.getElementById('impSave').click()">📂 Importar partida</button>
     <input type="file" id="impSave" accept=".json,.txt" style="display:none" onchange="importSave(this)">
+    <button class="btn bo bs" onclick="baseModal()" title="Exportar la base de jugadores a un archivo o cargar una de la comunidad">🗃️ Base de jugadores</button>
   </div>
   <div id="continueSaveBtn" style="display:none;margin-top:24px;text-align:center">
     <button onclick="loadGame()" style="cursor:pointer;background:linear-gradient(135deg,rgba(var(--gold-rgb),.15),rgba(var(--gold-rgb),.06));border:2px solid rgba(var(--gold-rgb),.5);border-radius:12px;padding:14px 32px;font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:800;color:var(--gold);letter-spacing:.08em;transition:.2s;text-shadow:0 0 20px rgba(var(--gold-rgb),.3)" onmouseover="this.style.background='linear-gradient(135deg,rgba(var(--gold-rgb),.25),rgba(var(--gold-rgb),.1))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(var(--gold-rgb),.15),rgba(var(--gold-rgb),.06))'">▶ CONTINUAR PARTIDA</button>
@@ -5656,6 +5657,27 @@ function anioBase(){
   return 2026;
 }
 function inflFactor(){ return getYearInflation(anioBase()); }
+// Fase 88: la lista de cachés derivados de la base vive acá, así la usan
+// las dos cosas que cambian la base: el cambio de temporada y la base
+// importada (`baseCom`).
+function basePurgar(){
+  try{ _tagsDB=null; }catch(e){}                     // qué etiquetas de liga trae la base
+  try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
+  try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard
+  try{ _arClubsHist=null; _arClubsHistDe=null; }catch(e){} // los clubes de Primera de ese año
+  // ⚠️ Y TEAMS, que NO se limpia solo: `buildAllTeams` sólo agrega
+  // (`if(TEAMS[id])return`), así que los clubes de la temporada anterior
+  // quedaban pegados con su reputación, su presupuesto y su estadio del otro
+  // año. Se borran los `generado:true`; los 5 curados a mano se quedan.
+  try{ Object.keys(TEAMS).forEach(k=>{ if(TEAMS[k]&&TEAMS[k].generado) delete TEAMS[k]; }); }catch(e){}
+  try{ _rankCache=null; _rankSeason=null; }catch(e){} // prestigio de los 600 clubes
+  try{ _aiLigaMap=null; _aiLigaSeason=null; }catch(e){} // club → liga (Fase 84: sobrevivía de una partida a otra)
+  try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
+  try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
+  try{ _topLiga._lg=null; _topLiga._v=null; }catch(e){} // rivales directos (cachea en la función)
+  try{ _nivMap=null; _nivMapSeason=null; }catch(e){}  // club → nivel (mapa de clubRank)
+  try{ _valMedCache=null; _valMedSeason=null; }catch(e){} // mediana de valor por rating
+}
 function aplicarTemporada(y){
   // Fase 83: 'LEY' es la base sintética de un evento especial (ver eventoDB).
   const _ley=(y==='LEY')&&(typeof eventoDB==='function')&&eventoDB();
@@ -5677,22 +5699,7 @@ function aplicarTemporada(y){
   // ⚠️ La inflación ya NO deja caché que tirar: `getYearInflation` es una
   // tabla y el factor se lee en cada `ratValPts`, así que no hay copia de la
   // base que pueda quedar desincronizada.
-  try{ _tagsDB=null; }catch(e){}                     // qué etiquetas de liga trae la base
-  try{ _tsValCache=null; }catch(e){}                 // valor de plantel del wizard
-  try{ _tsLigasCache=null; }catch(e){}               // la LISTA de ligas del wizard
-  try{ _arClubsHist=null; _arClubsHistDe=null; }catch(e){} // los clubes de Primera de ese año
-  // ⚠️ Y TEAMS, que NO se limpia solo: `buildAllTeams` sólo agrega
-  // (`if(TEAMS[id])return`), así que los clubes de la temporada anterior
-  // quedaban pegados con su reputación, su presupuesto y su estadio del otro
-  // año. Se borran los `generado:true`; los 5 curados a mano se quedan.
-  try{ Object.keys(TEAMS).forEach(k=>{ if(TEAMS[k]&&TEAMS[k].generado) delete TEAMS[k]; }); }catch(e){}
-  try{ _rankCache=null; _rankSeason=null; }catch(e){} // prestigio de los 600 clubes
-  try{ _aiLigaMap=null; _aiLigaSeason=null; }catch(e){} // club → liga (Fase 84: sobrevivía de una partida a otra)
-  try{ _ynCache={}; }catch(e){}                       // nombres de la cantera por liga
-  try{ _aiClubsCache=null; _aiClubsSeason=null; }catch(e){} // mercado de la IA
-  try{ _topLiga._lg=null; _topLiga._v=null; }catch(e){} // rivales directos (cachea en la función)
-  try{ _nivMap=null; _nivMapSeason=null; }catch(e){}  // club → nivel (mapa de clubRank)
-  try{ _valMedCache=null; _valMedSeason=null; }catch(e){} // mediana de valor por rating
+  basePurgar();
   return _DB_SEASON;
 }
 let _tsPaso=1,_tsPais=null,_tsLg=null,_tsFiltro='';
@@ -31953,6 +31960,325 @@ function rejectDtReqPhone(id){
     if(tc) document.getElementById('teamSelect').style.borderTop = '4px solid ' + tc.color;
   } catch(e){}
 })();
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 88: BASES DE LA COMUNIDAD — exportar e importar la base en JSON
+// ═══════════════════════════════════════════════════════════════════════
+// Es la Fase 1 del plan de Google Play: que la base de jugadores se pueda
+// sacar a un archivo y entrar desde un archivo (o una URL), para que la gente
+// arme y comparta las suyas.
+//
+// Formato del archivo (`BASE_FMT`):
+//   { formato:'dt-base', version:1, nombre:'...', modo:'reemplazar'|'parche',
+//     jugadores:[ fila, ... ],   // las mismas 17 columnas de players-db.js
+//     dts:[ [nombre,edad,nac,club,liga], ... ],
+//     bajas:[ [nombre,club], ... ] }        // sólo en un parche
+//
+// ⚠️ NO RENOMBRA CLUBES, y es a propósito. El nombre del club es la clave de
+// unas 40 tablas escritas a mano (STADIUMS_DB, AR_CLUBS, AR_CLASICOS,
+// CLASICOS_MUNDO, KITS_MUNDO, los TEAMS curados, los bombos, `replace` de
+// abreviaturas…). Un parche que cambie "Boca Juniors" por otro nombre deja a
+// todas apuntando a un club que no existe y no avisa nada (el bug de las
+// claves mal escritas de la Fase 23). Un club NUEVO sí entra: se arma solo.
+//
+// ⚠️ La base importada va a IndexedDB, NO a localStorage: la partida ya pesa
+// ~3 MB ahí y la base son 1,5 MB más; juntas rozan el límite de 5 MB del
+// navegador. En localStorage queda sólo una ficha chica (`BASE_META`) que
+// dice que hay una, así el arranque sabe —de forma SÍNCRONA— que tiene que
+// esperar.
+//
+// ⚠️ Se guardan los ARCHIVOS importados, no la base resultante, y al arrancar
+// se aplican en orden sobre la base original. Así una actualización del juego
+// (players-db.js nuevo) más un parche viejo dan la base nueva parchada, y
+// "volver a la original" es borrar la lista.
+//
+// ⚠️ Los textos del archivo terminan en `innerHTML` en todo el juego: se les
+// sacan `< > " \` \\` y los caracteres de control. El apóstrofo se queda
+// (la base trae 157: N'Golo, Newell's).
+const BASE_FMT='dt-base', BASE_VER=1;
+const BASE_META='dt_basecom_meta';
+const BASE_IDB='dt-basecom', BASE_IDB_STORE='kv';
+const BASE_MAX_BYTES=25*1024*1024;
+const BASE_POS=['ARQ','DFC','DFI','DFD','MCD','MC','MCO','MI','MD','EI','ED','DC'];
+const BASE_VAL_MAX=300;          // el techo histórico de TM es 222 (Neymar); arriba es un error de parseo (Fase 69)
+var _baseCom={estado:'nada', imports:[], pend:null, error:null};   // estado de PANTALLA, fuera de G
+
+function _baseTxt(v,max){
+  if(typeof v!=='string')return '';
+  return v.replace(/[<>"`\\\u0000-\u001f\u007f]/g,'').trim().slice(0,max||60);
+}
+function _baseNum(v,def){ const n=+v; return (typeof v==='number'||typeof v==='string')&&isFinite(n)?n:def; }
+
+// Una fila del archivo → una fila de la base, o el motivo por el que no entra.
+function baseValidarFila(r){
+  if(!Array.isArray(r)||r.length<7) return {err:'formato'};
+  const nombre=_baseTxt(r[1]), pos=_baseTxt(r[2],4).toUpperCase(), club=_baseTxt(r[5]), liga=_baseTxt(r[6],40);
+  if(nombre.length<2) return {err:'nombre'};
+  if(!BASE_POS.includes(pos)) return {err:'puesto'};
+  const edad=Math.round(_baseNum(r[3],NaN));
+  if(!(edad>=14&&edad<=50)) return {err:'edad'};
+  if(!club||!liga) return {err:'club'};
+  const val=_baseNum(r[7],0.1);
+  if(val<0||val>BASE_VAL_MAX) return {err:'valor'};
+  const nat=(_baseTxt(r[4],4).toUpperCase()||'UNK');
+  // La base de hoy escribe 'ambi' y las históricas 'amb': las dos valen.
+  const pie=['der','izq','amb','ambi'].includes(r[8])?r[8]:'der';
+  const pos2=BASE_POS.includes(_baseTxt(r[11],4).toUpperCase())?_baseTxt(r[11],4).toUpperCase():'';
+  const ent=(i,a,b)=>{ const n=Math.round(_baseNum(r[i],0)); return (n>=a&&n<=b)?n:0; };
+  const f=[ent(0,0,99)||1, nombre, pos, edad, nat, club, liga, Math.round(val*1000)/1000, pie,
+           ent(9,0,2100), ent(10,0,230), pos2, Math.max(0,_baseNum(r[12],0)),
+           ent(13,0,2000), ent(14,0,2000), ent(15,0,3000), _baseTxt(r[16],4).toUpperCase()];
+  // La tasación de referencia de la Fase 74 (columnas 17-18), si viene.
+  if(r.length>=19 && _baseNum(r[17],-1)>=0 && _baseNum(r[18],0)>1990) f.push(+r[17], Math.round(+r[18]));
+  return {fila:f};
+}
+function baseValidarDT(r){
+  if(!Array.isArray(r)||r.length<4) return null;
+  const nombre=_baseTxt(r[0]), club=_baseTxt(r[3]);
+  if(nombre.length<2) return null;
+  const edad=Math.round(_baseNum(r[1],0));
+  return [nombre, (edad>=25&&edad<=90)?edad:0, _baseTxt(r[2],4).toUpperCase(), club, _baseTxt(r[4],40)];
+}
+
+// Lee el JSON y lo deja listo para aplicar. No toca nada del juego.
+function baseLeer(texto){
+  if(typeof texto!=='string'||!texto.trim()) throw new Error('El archivo está vacío.');
+  if(texto.length>BASE_MAX_BYTES) throw new Error('El archivo pasa los 25 MB.');
+  let d; try{ d=JSON.parse(texto); }catch(e){ throw new Error('No es un JSON válido.'); }
+  // Un array pelado de filas es una base completa (lo que trae players-db.js).
+  if(Array.isArray(d)) d={formato:BASE_FMT,version:1,modo:'reemplazar',jugadores:d};
+  if(!d||typeof d!=='object') throw new Error('No es una base de Director Técnico.');
+  if(d.formato!==BASE_FMT) throw new Error('No es una base de Director Técnico (falta "formato":"dt-base").');
+  if(+d.version>BASE_VER) throw new Error('La base es de una versión más nueva del juego ('+d.version+').');
+  const modo=d.modo==='parche'?'parche':'reemplazar';
+  const desc={}, jugadores=[];
+  (Array.isArray(d.jugadores)?d.jugadores:[]).forEach(r=>{ const v=baseValidarFila(r); if(v.fila) jugadores.push(v.fila); else desc[v.err]=(desc[v.err]||0)+1; });
+  const dts=(Array.isArray(d.dts)?d.dts:[]).map(baseValidarDT).filter(Boolean);
+  const bajas=modo==='parche'?(Array.isArray(d.bajas)?d.bajas:[]).filter(b=>Array.isArray(b)&&b[0]).map(b=>[_baseTxt(b[0]),_baseTxt(b[1])]):[];
+  if(!jugadores.length&&!dts.length&&!bajas.length) throw new Error('No trae ninguna fila válida'+(Object.keys(desc).length?' ('+baseDescTxt(desc)+')':'')+'.');
+  return {nombre:_baseTxt(d.nombre,60)||'Base sin nombre', modo, jugadores, dts, bajas, desc, fecha:new Date().toISOString().slice(0,10)};
+}
+function baseDescTxt(desc){
+  const N={formato:'filas mal armadas',nombre:'sin nombre',puesto:'puesto desconocido',edad:'edad fuera de 14-50',club:'sin club o liga',valor:'valor fuera de 0-'+BASE_VAL_MAX+'M'};
+  return Object.keys(desc).map(k=>desc[k]+' '+(N[k]||k)).join(' · ');
+}
+
+// Aplica un import sobre una base (arrays de filas) y devuelve la nueva + el
+// reporte. Es PURA: no toca window.PLAYERS_DB, así sirve para la vista previa.
+function baseAplicar(D, DT, imp){
+  const rep={altas:0,cambios:0,traspasos:0,bajas:0,dtAltas:0,dtCambios:0};
+  let nd, ndt;
+  if(imp.modo==='reemplazar'){
+    nd=imp.jugadores.slice(); rep.altas=nd.length;
+    ndt=imp.dts.length?imp.dts.slice():DT.slice(); rep.dtAltas=imp.dts.length;
+  } else {
+    nd=D.slice(); ndt=DT.slice();
+    const k1=r=>_tsNorm(r[1])+'|'+r[5], kn=r=>_tsNorm(r[1])+'|'+r[4];
+    const idx1=new Map(), idxN=new Map();
+    const reindex=()=>{ idx1.clear(); idxN.clear(); nd.forEach((r,i)=>{ idx1.set(k1(r),i); const a=idxN.get(kn(r)); if(a)a.push(i); else idxN.set(kn(r),[i]); }); };
+    reindex();
+    // Bajas primero: un traspaso puede venir como baja + alta.
+    if(imp.bajas.length){
+      const fuera=new Set(imp.bajas.map(b=>_tsNorm(b[0])+'|'+b[1]));
+      const antes=nd.length; nd=nd.filter(r=>!fuera.has(k1(r))); rep.bajas=antes-nd.length; reindex();
+    }
+    imp.jugadores.forEach(f=>{
+      let i=idx1.get(k1(f));
+      if(i!==undefined){ nd[i]=f; rep.cambios++; return; }
+      // Mismo nombre y nacionalidad, edad ±1 y uno solo: es él, cambió de club.
+      const cand=(idxN.get(kn(f))||[]).filter(j=>Math.abs(nd[j][3]-f[3])<=1);
+      if(cand.length===1){ i=cand[0]; idx1.delete(k1(nd[i])); nd[i]=f; idx1.set(k1(f),i); rep.traspasos++; return; }
+      nd.push(f); idx1.set(k1(f),nd.length-1); rep.altas++;
+    });
+    imp.dts.forEach(t=>{
+      const i=ndt.findIndex(x=>_tsNorm(x[0])===_tsNorm(t[0]));
+      if(i>=0){ ndt[i]=t; rep.dtCambios++; } else { ndt.push(t); rep.dtAltas++; }
+    });
+  }
+  return {D:nd, DT:ndt, rep};
+}
+// Las mismas reglas que ligasJugables(), contadas sobre una base cualquiera.
+function baseLigasJugables(D){
+  const m={}; D.forEach(r=>{ (m[r[6]]=m[r[6]]||{})[r[5]]=((m[r[6]]||{})[r[5]]||0)+1; });
+  return Object.keys(m).filter(l=>Object.values(m[l]).filter(n=>n>=LIGA_MIN_PLANTEL).length>=LIGA_MIN_CLUBES).sort();
+}
+function baseResumen(D){ return {j:D.length, clubes:new Set(D.map(r=>r[6]+'|'+r[5])).size, ligas:baseLigasJugables(D)}; }
+
+// ─── IndexedDB, en promesas ───
+function _baseIDB(){
+  return new Promise((ok,mal)=>{
+    if(typeof indexedDB==='undefined') return mal(new Error('Este navegador no tiene IndexedDB.'));
+    const rq=indexedDB.open(BASE_IDB,1);
+    rq.onupgradeneeded=()=>{ try{ rq.result.createObjectStore(BASE_IDB_STORE); }catch(e){} };
+    rq.onsuccess=()=>ok(rq.result); rq.onerror=()=>mal(rq.error||new Error('IndexedDB no abrió.'));
+  });
+}
+function _baseIDBop(modo,fn){
+  return _baseIDB().then(db=>new Promise((ok,mal)=>{
+    const tx=db.transaction(BASE_IDB_STORE,modo), st=tx.objectStore(BASE_IDB_STORE); let res;
+    const rq=fn(st); if(rq) rq.onsuccess=()=>{res=rq.result;};
+    tx.oncomplete=()=>{ db.close(); ok(res); }; tx.onerror=tx.onabort=()=>{ db.close(); mal(tx.error||new Error('No se pudo guardar la base.')); };
+  }));
+}
+const baseIDBLeer=()=>_baseIDBop('readonly',st=>st.get('imports'));
+const baseIDBGuardar=lista=>_baseIDBop('readwrite',st=>st.put(lista,'imports'));
+const baseIDBBorrar=()=>_baseIDBop('readwrite',st=>st.delete('imports'));
+function baseMeta(){ try{ return JSON.parse(localStorage.getItem(BASE_META)||'null'); }catch(e){ return null; } }
+
+// ─── Al arrancar ───
+// Sin ficha en localStorage no hay nada que esperar y el juego arranca como
+// siempre, síncrono. Con ficha, se tapa la pantalla hasta que la base esté.
+function baseArranque(){
+  const meta=baseMeta();
+  if(!meta) return;
+  _baseCom.estado='cargando';
+  let ov=null;
+  try{
+    ov=document.createElement('div'); ov.id='baseCarga';
+    ov.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(7,9,14,.92);display:flex;align-items:center;justify-content:center;color:#fff;font:600 14px "Plus Jakarta Sans",sans-serif;text-align:center;padding:16px';
+    ov.innerHTML='🗃️ Cargando la base "'+_baseTxt(meta.nombre||'',60)+'"…';
+    document.body.appendChild(ov);
+  }catch(e){}
+  const fin=()=>{ try{ ov&&ov.remove(); }catch(e){} };
+  baseIDBLeer().then(lista=>{
+    if(!Array.isArray(lista)||!lista.length){ localStorage.removeItem(BASE_META); _baseCom.estado='nada'; fin(); return; }
+    _baseCom.imports=lista;
+    baseInstalar(lista);
+    _baseCom.estado='lista'; fin();
+  }).catch(e=>{
+    _baseCom.estado='error'; _baseCom.error=e.message; fin();
+    try{ alert('No se pudo leer la base importada ('+e.message+'). Se juega con la base original.'); }catch(_){}
+  });
+}
+// Aplica la lista sobre la base ORIGINAL, en el mismo array (así no cambia
+// la referencia que guarda `_PDB_ACTUAL` y `esHistorica()` sigue andando).
+function baseInstalar(lista){
+  const D=(_PDB_ACTUAL||window.PLAYERS_DB||[]), DT=(window.DTS_DB||[]);
+  if(!_baseCom.orig) _baseCom.orig={D:D.slice(), DT:DT.slice()};
+  let cur={D:_baseCom.orig.D, DT:_baseCom.orig.DT};
+  lista.forEach(imp=>{ cur=baseAplicar(cur.D,cur.DT,imp); });
+  D.length=0; cur.D.forEach(r=>D.push(r));
+  DT.length=0; cur.DT.forEach(r=>DT.push(r));
+  basePurgar();
+  try{ buildAllTeams(); rOtrosTeams(); }catch(e){}
+  try{ if(document.getElementById('teamSelect').style.display!=='none') tsIr(1); }catch(e){}
+}
+// El juego no se puede empezar mientras la base no terminó de entrar.
+function baseLista(){ return _baseCom.estado!=='cargando'; }
+
+// ─── La pantalla ───
+function baseOv(html){
+  let ov=document.getElementById('baseOv');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='baseOv'; ov.className='ov'; ov.style.zIndex='10000';
+    ov.onclick=e=>{ if(e.target===ov) baseCerrar(); };
+    ov.innerHTML='<div class="modal" id="baseBody"></div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('baseBody').innerHTML=html; ov.style.display='flex';
+}
+function baseCerrar(){ const ov=document.getElementById('baseOv'); if(ov) ov.style.display='none'; _baseCom.pend=null; }
+function baseModal(){
+  const D=(_PDB_ACTUAL||window.PLAYERS_DB||[]), r=baseResumen(D), L=_baseCom.imports||[];
+  const fila=(t,v)=>`<div class="mpanel-row" style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span style="color:var(--t2)">${t}</span><b>${v}</b></div>`;
+  baseOv(`<div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;margin-bottom:2px">🗃️ Base de jugadores</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Sacá la base a un archivo para editarla o compartirla, o cargá una que te pasaron. La partida guardada no se toca.</div>
+  <div class="mpanel">
+    ${fila('Origen', L.length?('Importada · '+L.length+' archivo'+(L.length>1?'s':'')):'Original del juego')}
+    ${fila('Jugadores', r.j.toLocaleString('es-AR'))}
+    ${fila('Clubes', r.clubes.toLocaleString('es-AR'))}
+    ${fila('Ligas jugables', r.ligas.length)}
+    ${L.length?'<div style="font-size:11px;color:var(--t2);margin-top:6px">'+L.map(x=>'· '+_baseTxt(x.nombre)+' ('+(x.modo==='parche'?'parche':'base completa')+', '+x.fecha+')').join('<br>')+'</div>':''}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+    <button class="btn bo bs" onclick="baseExportar()">💾 Exportar base</button>
+    <button class="btn bo bs" onclick="document.getElementById('baseArch').click()">📂 Importar archivo</button>
+    <input type="file" id="baseArch" accept=".json,.txt" style="display:none" onchange="baseImportarArchivo(this)">
+    ${L.length?'<button class="btn bo bs" onclick="baseVolverOriginal()">↩️ Volver a la original</button>':''}
+  </div>
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <input id="baseUrl" type="url" placeholder="https://… (un .json)" style="flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid var(--bdr);background:rgba(0,0,0,.25);color:var(--t1);font-size:12px">
+    <button class="btn bo bs" onclick="baseImportarUrl()">🌐 Desde URL</button>
+  </div>
+  <div style="font-size:10px;color:var(--t3);margin-top:8px">Una URL es lo único del juego que sale a internet, y sólo cuando la tocás vos. El sitio tiene que permitirlo (GitHub "raw" sí).</div>
+  <div id="baseMsg" style="font-size:12px;margin-top:8px"></div>
+  <div style="text-align:right;margin-top:10px"><button class="btn bs" onclick="baseCerrar()">Cerrar</button></div>`);
+}
+function baseExportar(){
+  try{
+    const D=(_PDB_ACTUAL||window.PLAYERS_DB||[]);
+    const L=_baseCom.imports||[];
+    const obj={formato:BASE_FMT, version:BASE_VER, nombre:L.length?('Mi base ('+L.map(x=>x.nombre).join(' + ')+')'):'Base original del juego',
+      modo:'reemplazar', fecha:new Date().toISOString().slice(0,10),
+      columnas:['num','nombre','pos','edad','nac','club','liga','valorM','pie','contratoHasta','alturaCm','pos2','clausulaM','goles','asistencias','partidos','nac2'],
+      jugadores:D, dts:(window.DTS_DB||[])};
+    const blob=new Blob([JSON.stringify(obj)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='director-tecnico-base-'+obj.fecha+'.json';
+    document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    return obj;
+  }catch(e){ baseMsg('No se pudo exportar: '+e.message,true); return null; }
+}
+function baseMsg(t,err){ const el=document.getElementById('baseMsg'); if(el){ el.style.color=err?'var(--red)':'var(--t2)'; el.innerHTML=t; } }
+// Lee, valida y muestra qué va a pasar. Recién "Aplicar" guarda.
+function basePrevia(texto){
+  let imp;
+  try{ imp=baseLeer(texto); }catch(e){ baseMsg('❌ '+e.message,true); return null; }
+  const D=(_PDB_ACTUAL||window.PLAYERS_DB||[]), DT=(window.DTS_DB||[]);
+  const res=baseAplicar(D,DT,imp), r=baseResumen(res.D), rp=res.rep;
+  _baseCom.pend=imp;
+  const sinLiga=r.ligas.length===0;
+  const det=imp.modo==='reemplazar'
+    ? `Reemplaza la base entera: <b>${r.j.toLocaleString('es-AR')}</b> jugadores en ${r.clubes} clubes.`
+    : `Parche: <b>${rp.altas}</b> altas · <b>${rp.cambios}</b> cambios · <b>${rp.traspasos}</b> cambios de club · <b>${rp.bajas}</b> bajas.`;
+  baseMsg(`<div class="mpanel">
+    <div style="font-weight:700;margin-bottom:4px">📄 ${_baseTxt(imp.nombre)}</div>
+    <div>${det}</div>
+    ${(rp.dtAltas||rp.dtCambios)?`<div>Técnicos: ${rp.dtAltas} altas · ${rp.dtCambios} cambios.</div>`:''}
+    <div>Ligas jugables después: <b>${r.ligas.length}</b>${r.ligas.length?' ('+r.ligas.slice(0,8).join(', ')+(r.ligas.length>8?'…':'')+')':''}</div>
+    ${Object.keys(imp.desc).length?`<div style="color:var(--gold)">⚠️ Filas descartadas: ${baseDescTxt(imp.desc)}</div>`:''}
+    ${sinLiga?'<div style="color:var(--red)">❌ Con esta base no queda ninguna liga jugable (hacen falta 10 clubes con 15+ jugadores). No se aplica.</div>':''}
+    <div style="display:flex;gap:6px;margin-top:8px">
+      ${sinLiga?'':'<button class="btn bs" onclick="baseConfirmar()">✅ Aplicar y recargar</button>'}
+      <button class="btn bo bs" onclick="_baseCom.pend=null;baseMsg(\'\')">Cancelar</button>
+    </div></div>`);
+  return {imp, rep:rp, resumen:r, aplicable:!sinLiga};
+}
+function baseImportarArchivo(input){
+  const f=input&&input.files&&input.files[0]; if(!f)return;
+  if(f.size>BASE_MAX_BYTES){ baseMsg('❌ El archivo pasa los 25 MB.',true); input.value=''; return; }
+  const rd=new FileReader();
+  rd.onload=()=>basePrevia(String(rd.result));
+  rd.onerror=()=>baseMsg('❌ No se pudo leer el archivo.',true);
+  rd.readAsText(f); input.value='';
+}
+function baseImportarUrl(){
+  const u=((document.getElementById('baseUrl')||{}).value||'').trim();
+  if(!/^https?:\/\//i.test(u)){ baseMsg('❌ Poné una dirección que empiece con https://',true); return; }
+  baseMsg('⏳ Bajando…');
+  fetch(u,{cache:'no-store'}).then(r=>{ if(!r.ok) throw new Error('el sitio respondió '+r.status); return r.text(); })
+    .then(t=>basePrevia(t))
+    .catch(e=>baseMsg('❌ No se pudo bajar: '+_baseTxt(e.message||'',120)+'. Si el sitio no deja leerlo desde otra página (CORS), bajá el archivo y usá 📂.',true));
+}
+function baseConfirmar(){
+  const imp=_baseCom.pend; if(!imp)return Promise.resolve(false);
+  // Un archivo que reemplaza la base entera hace inútiles los anteriores.
+  const lista=imp.modo==='reemplazar'?[imp]:(_baseCom.imports||[]).concat([imp]);
+  return baseIDBGuardar(lista).then(()=>{
+    localStorage.setItem(BASE_META, JSON.stringify({nombre:imp.nombre, n:lista.length, fecha:imp.fecha}));
+    _baseCom.pend=null; baseMsg('✅ Guardada. Recargando…');
+    setTimeout(()=>{ try{ location.reload(); }catch(e){} },300);
+    return true;
+  }).catch(e=>{ baseMsg('❌ No se pudo guardar: '+e.message,true); return false; });
+}
+function baseVolverOriginal(){
+  return baseIDBBorrar().catch(()=>{}).then(()=>{
+    try{ localStorage.removeItem(BASE_META); }catch(e){}
+    baseMsg('✅ Volvés a la base original. Recargando…');
+    setTimeout(()=>{ try{ location.reload(); }catch(e){} },300);
+    return true;
+  });
+}
+baseArranque();
 // ═══════════════════════════════════════════════════════════════════════
 // FASE 71: LA INTERFAZ ESTILO FIFA, EL 3D Y TRES FUNCIONES DE GESTIÓN
 // ═══════════════════════════════════════════════════════════════════════
