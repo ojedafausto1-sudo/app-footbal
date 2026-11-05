@@ -27,7 +27,16 @@ exports.handler = async function (event) {
   const api = params.api || 'flashscore';
 
   if (!['transfermarkt', 'flashscore', 'tmapi', 'tmcoach'].includes(api)) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'api debe ser transfermarkt, flashscore, tmapi o tmcoach' }) };
+    // ⚠️ Las fuentes HISTÓRICAS (tmkader / tmclubs, Fase 39) viven SÓLO en el
+    // Worker de Cloudflare, y a propósito: su parser son ~150 líneas y tenerlo
+    // acá también serían dos copias que se desincronizan — el bug que este
+    // proyecto ya se comió seis veces. Además el histórico vive del caché KV,
+    // que esta función no tiene: re-bajar una temporada sería gratis allá y
+    // caro acá.
+    const hist = (api === 'tmkader' || api === 'tmclubs');
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: hist
+      ? `api=${api} (planteles históricos) sólo está en el Worker de Cloudflare: pegá su URL en el campo "Worker de Cloudflare" del extractor`
+      : 'api debe ser transfermarkt, flashscore, tmapi o tmcoach' }) };
   }
   // Sólo SportDB necesita key; las dos fuentes libres no
   if (!key && api !== 'tmapi' && api !== 'tmcoach') {
