@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91` |
 
 ## Formato de `players-db.js`
 
@@ -8187,6 +8187,64 @@ con `fundarRestaurar(saved.fundado, …)`, colores incluidos (`CLUB_COLORS`).
 `G.fundado` y `G.armado` son planos.
 
 `tests/fase90.js`, **46 checks**.
+
+## Fase 91: tres jugadas clave nuevas
+
+Al ▶ partido de jugadas clave (`playMatch`) se le suman **⚡ mano a mano**
+(`sitSetupMano`), **🏃 contraataque 3 contra 2** (`sitSetupContra`) y **🛡️
+córner en contra** (`sitSetupCornerDef`). Las tres son cenitales (arco arriba,
+como el ataque y la defensa): misma cancha, misma cámara 3D, mismos controles.
+
+| ocasión propia | antes | ahora |
+|---|---|---|
+| penal | 9% | 9% |
+| centro (córner) | 35% | 29% |
+| tiro libre | 14% | 12% |
+| **contraataque** | — | **12%** |
+| **mano a mano** | — | **10%** |
+| ataque | 42% | 28% |
+
+Las del rival: penal 12% · **córner en contra 26%** · defensa el resto.
+
+- **Mano a mano**: te vas solo con un defensor que te corre de atrás y el
+  arquero que sale a achicar. Z patea al palo contrario del arquero; X amaga
+  cuando lo tenés encima (`0,36 + (REG−oR)×0,012`). Meterse con pelota y todo
+  sólo vale con el arquero vencido.
+- **Contraataque**: llevás la pelota con dos compañeros que pican al área; un
+  defensor sale al portador y el otro tapa la línea de pase. X pasa al más libre
+  (se marca "LIBRE"), y un pase que pasa cerca de un defensor se corta.
+- **Córner en contra**: aparece dónde cae la pelota; hay que llegar antes que
+  el cabezeador rival y **saltar (Z) en los últimos 14 cuadros**. Saltar antes
+  te deja en el piso. El cabezazo va al palo contrario del arquero y el
+  arquero reacciona tarde.
+- **Se juegan tocando la cancha**, también en 3D: tocar el arco patea ahí,
+  tocar un compañero le pasa, tocar el pasto te lleva. `s.onTap` lo reciben
+  los listeners del canvas; en 3D `s._s2g` (en `sit3DConfig`) pasa de la
+  pantalla al pasto con la cámara, ida y vuelta a 0 px.
+- **3D genérico**: `_s3Escena` lee `s.figs3d()` / `s.aro3d()` si la jugada los
+  define, así una jugada cenital nueva no necesita tocar el renderizador. La
+  altura de la pelota es `b.h`. Dibujar no gasta azar (0 llamadas medidas).
+- El nivel entra igual que en las otras cinco: atributos del ejecutante (TIR,
+  VEL, REG, PAS, DEF, FIS) contra la media del rival (`_s91Alcance` del arquero
+  14 px con 60, 19 con 80).
+
+### Medido con un robot, 120-200 jugadas por estrategia
+
+| jugada | jugando bien | jugando mal |
+|---|---|---|
+| mano a mano | 50% gol (patear al palo lejano) · 59-63% (amagar) | 0% (quedarse quieto) |
+| contraataque | 42-44% gol (tocar) | 20-30% (ir solo; te la sacan el 49-53%) |
+| córner en contra | te hacen 10-19% | 33-62% sin hacer nada · 31% sin saltar |
+
+⚠️ **Los porcentajes se mueven con el rival** (cada corrida juega contra el
+próximo del fixture): el mismo robot de córner da 33% o 62% de goles en contra
+según el `oR`. El test afirma la DIFERENCIA entre jugar bien y mal, no el número.
+
+⚠️ Primera versión del córner: sin hacer NADA te hacían **1%** de goles (el
+cabezazo iba al medio y el arquero llegaba siempre). Y el mano a mano dejaba
+entrar caminando al que no tocaba nada (24% de goles quedándose quieto).
+
+`tests/fase91.js`, **19 checks** (5 de 5 corridas en verde).
 
 ## Deploy
 
