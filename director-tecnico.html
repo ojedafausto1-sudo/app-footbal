@@ -543,6 +543,23 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .ts-sep{color:var(--t3);font-size:11px}
 .ts-grid{display:grid;gap:9px}
 /* Cada opción del asistente: la misma superficie de vidrio del resto del juego */
+/* Fase 90: armado del plantel y fundar club */
+.arm-card{margin-bottom:12px;border-color:rgba(var(--gold-rgb),.32)}
+.arm-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.arm-t{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:18px;color:var(--gold)}
+.arm-s{font-size:12px;color:var(--t2);line-height:1.45}
+.arm-caja{text-align:right;font-size:11px;color:var(--t3)}.arm-caja b{display:block;font-family:'Chakra Petch',sans-serif;font-size:18px;color:var(--t1);font-variant-numeric:tabular-nums}
+.arm-bar{height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin:10px 0;overflow:hidden}.arm-bar i{display:block;height:100%;background:var(--gold);border-radius:inherit}
+.arm-lin{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.arm-l{text-align:center;padding:6px 2px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--bdr)}
+.arm-l b{display:block;font-family:'Chakra Petch',sans-serif;font-size:18px;font-variant-numeric:tabular-nums}.arm-l span{font-size:10px;color:var(--t3)}
+.arm-btns{display:flex;flex-wrap:wrap;gap:6px}
+body.armando #btnPlay,body.armando #hmAlts,body.armando #hmMent,body.armando #hmEspera{display:none!important}
+.ts-fundar{width:100%;margin-bottom:10px;border-style:dashed;border-color:rgba(var(--gold-rgb),.45)}
+.fund-prev{display:flex;gap:12px;align-items:center;margin-bottom:10px}.fund-n{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:20px}
+.fund-lbl{display:block;font-size:12px;color:var(--t2);margin-top:8px}.fund-lbl input{display:block;margin-top:4px;width:100%}
+.fund-lbl input[type=color]{height:36px;padding:2px;border-radius:8px;border:1px solid var(--bdr);background:transparent}
+.fund-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ts-opt{cursor:pointer;text-align:left;border-radius:13px;padding:12px 13px;border:1px solid var(--bdr);
   background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   box-shadow:var(--sh-deep);transition:transform .18s cubic-bezier(.2,.7,.3,1),border-color .18s,box-shadow .18s;
@@ -1055,6 +1072,7 @@ body.bg3d-on .main{background:transparent}
     <!-- RESUMEN -->
     <div id="tab-ov" class="tc on">
       <div class="stitle">🏠 Inicio <span style="font-size:12px;color:var(--t3);font-weight:400" id="ovSeason"></span></div>
+      <div class="armadoBox" id="armadoOv" style="display:none"></div>
       <div class="hubgrid" id="ovGrid"><div class="ht big notilt ovbig">
       <div class="hero-match" style="margin-bottom:10px">
         <div class="hm-comp" id="nComp">PRÓXIMO PARTIDO</div>
@@ -1211,6 +1229,7 @@ body.bg3d-on .main{background:transparent}
     <!-- MERCADO -->
     <div id="tab-mkt" class="tc">
       <div class="stitle">💰 Mercado</div>
+      <div class="armadoBox" id="armadoMkt" style="display:none"></div>
       <div class="tabs">
         <button class="tab on" onclick="mkTab('buy',this)">Comprar</button>
         <button class="tab" onclick="mkTab('sell',this)">Vender / Ceder</button>
@@ -2246,6 +2265,7 @@ function _buildSquad(teamId){
   // Los 25 clubes generados caían todos acá y arrancaban con el plantel de
   // Boca. Cada uno tiene sus jugadores en la base: se arma desde ahí.
   const t=(typeof TEAMS!=='undefined')&&TEAMS[teamId];
+  if(t&&t.fundado) return fundarCantera(t);          // Fase 90: un club fundado arranca con su cantera
   if(t&&t.name) return squadFromDB(t.name, buildBoca, null, t.liga);
   return buildBoca();
 }
@@ -3828,6 +3848,10 @@ function _tierCont(teamId){
 // Arma el grupo continental de la liga que dirigís. Devuelve la clave de la
 // copa o null si esa categoría no juega ninguna (la 2ª división argentina).
 function _copaIntArmar(teamName,lg,teamId,sch,weeks){
+  // Fase 90: un club recién fundado no juega copa continental en su primer año;
+  // desde el segundo, la que se gane en la tabla (`G.qualifiedLib`, archiveSeason).
+  try{ const _tf=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId]:null;
+    if(_tf&&_tf.fundado&&!(typeof G==='object'&&G&&G.qualifiedLib!==undefined)) return null; }catch(e){}
   const copa=copaIntDeLiga(lg,_tierCont(teamId));
   if(!copa)return null;
   // Desde 2025 la Champions es una fase liga de 36 (Fase 73)
@@ -4178,7 +4202,10 @@ function buildCal(teamName, teamId){
   // ═══ EL GRUPO ES UN GRUPO: 4 CLUBES, TODOS CONTRA TODOS, IDA Y VUELTA ═══
   // Los otros tres también juegan entre ellos (intBuildGroup deja ese fixture
   // aparte y lo levanta arAttachLeague en G.intGrp).
-  if(qualifiesLib){
+  // Fase 90: un club recién fundado no juega copa continental en su primer año
+  const _sinCopa=!!(tc&&tc.fundado&&!(typeof G==='object'&&G&&G.qualifiedLib!==undefined));
+  if(_sinCopa){ buildCal._intGrp=null; }
+  else if(qualifiesLib){
     const libWeeks=[2,4,6,8,11,13].map(w=>w+PRE_SEMANAS);
     // libG son los bombos 2, 3 y 4 del sorteo: el índice es la jerarquía
     const {mios,grupo}=intBuildGroup('lib',teamName,libG.map((r,i)=>[r,i+1]),libWeeks);
@@ -5220,6 +5247,8 @@ function loadGame(){
     // Sin esto, continuar con un club generado dejaba TEAMS[G.teamId] indefinido
     // (sin color, sin escudo, sin chequeo de Libertadores).
     try{ buildAllTeams(_LIGA_ELEGIDA); }catch(e){}
+    // Fase 90: el club fundado no está en la base, así que buildAllTeams no lo arma
+    try{ if(saved.fundado) fundarRestaurar(saved.fundado, saved.teamId, saved.rep); }catch(e){}
     // Saves viejos guardaban el mercado como objetos: se aceptan igual
     if(saved._mktPacked && Array.isArray(saved.market))
       saved.market = saved.market.map(r=>Array.isArray(r)?unpackPlayer(r):r);
@@ -5829,7 +5858,7 @@ function tsRender(soloLista){
   if(soloLista){
     const cont=document.getElementById('tsLista'); if(cont){cont.innerHTML=lista;return;}
   }
-  el.innerHTML=tsPasos()+`
+  el.innerHTML=tsPasos()+((typeof fundarCardHTML==='function')?fundarCardHTML():'')+`
     <input class="ts-buscar" type="text" placeholder="🔍 Buscar club…" value="${_tsFiltro}"
       oninput="tsFiltrar(this.value)" autocomplete="off">
     <div id="tsLista">${lista}</div>`;
@@ -6097,6 +6126,7 @@ function initGame(teamId){
   G.offers = genOffers();
   autoFill();
   G.wageCap=Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*1.35);
+  if(tc.fundado) try{ fundarInit(tc); }catch(e){ console.error('fundar',e); }   // Fase 90
   setBoardTarget();
   try{ uclAsegurarFormato(); }catch(e){ console.error('ucl',e); }
   try{ reunionAbrir(); }catch(e){}
@@ -7665,6 +7695,10 @@ function updateUI(){
   rPressDemands();
   rFormDots();
   updatePhoneBadge();
+  // Fase 90: durante el armado no hay fecha que contar, hay días que faltan
+  try{ document.body.classList.toggle('armando',armadoActivo()); }catch(e){}
+  try{ if(armadoActivo()){ if($('wTop')) $('wTop').textContent='🛠️ Armado · faltan '+armadoQuedan()+' d';
+    if($('dayLbl')) $('dayLbl').textContent='Armado del plantel · día '+(G.armado.dia||0)+' de '+(G.armado.total||ARMADO_DIAS); } }catch(e){}
   saveSoon();                  // agrupado: ver saveGame / SAVE_DEBOUNCE
 }
 
@@ -9249,10 +9283,12 @@ function ventanaActual(w){
 }
 function isTransferWindowOpen(){
   if(!G) return false;
+  if(armadoActivo()) return true;              // Fase 90: el armado es todo mercado
   return !!ventanaActual();
 }
 function getWindowStatus(){
   if(!G) return '';
+  if(armadoActivo()) return `🛠️ Armado del plantel — el mercado está abierto (faltan ${armadoQuedan()} días para la primera fecha)`;
   const w=G.week||1, v=ventanaActual(w);
   if(v) return `${v.k==='verano'?'☀️':'❄️'} Mercado abierto — cierra el ${fechaTxt(v.fin,7,false)} (${(v.fin-w)*7+(7-curDay())} días)`;
   const prox=ventanasPases().find(x=>x.ini>w);
@@ -18927,6 +18963,7 @@ function runContinuousSim(n,prev){
   // Sin este portero el bucle llamaría a simMatch bloqueado y avanzaría las
   // semanas igual con su `G.week++` de fallback.
   if(finFrena())return;                        // te echaron: el club no se mueve
+  if(armadoFrena())return;                     // Fase 90: todavía se está armando el plantel
   if(dilemaFrena())return;
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   closeMod();
@@ -19060,6 +19097,7 @@ function rojaMult(R,a,b){
 function simMatch(auto){
   if(!G) return;
   if(finFrena())return;                        // te echaron: el club no se mueve
+  if(armadoFrena())return;                     // Fase 90: todavía se está armando el plantel
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
@@ -20386,6 +20424,7 @@ function rFriendlies(){
 
 function offerPreseason(){
   if(!G||G._preseasonDone===G.season)return;
+  if(armadoActivo())return;                    // Fase 90: la gira se ofrece al cerrar el armado
   const chip=(txt,col)=>`<span style="display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;margin:3px 3px 0 0;background:rgba(${col},.14);border:1px solid rgba(${col},.5);color:rgb(${col})">${txt}</span>`;
   const VERDE='16,185,129', ORO='245,158,11', ROJO='239,68,68';
   showMod(`
@@ -20928,6 +20967,7 @@ function doTeamTalk(id,good){
 
 function playMatch(){
   if(finFrena())return;                        // te echaron: el club no se mueve
+  if(armadoFrena())return;                     // Fase 90: todavía se está armando el plantel
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
@@ -24700,6 +24740,7 @@ function fmMove(body,dx,dy,dt,acc){
 
 function startFullMatch(watch){
   if(finFrena())return;                        // te echaron: el club no se mueve
+  if(armadoFrena())return;                     // Fase 90: todavía se está armando el plantel
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
   dilFitTick();                                // el viaje en micro se cobra acá
@@ -29776,11 +29817,11 @@ function rTacticaTab(){
 // rDtPedidos, rPressDemands) lo dibuja `updateUI` siempre, porque está a la
 // vista en cualquier pestaña.
 const _TAB_R={
-  ov:    ['rStand'],
+  ov:    ['rArmado','rStand'],
   sq:    ['rSq','rVestuario','rRetirados'],
   dt:    ['rDtTab'],
   tac:   ['rFormation','rXI','rStyle','rTacOpts','rSetPieces'],
-  mkt:   ['renderMktSafe','rSell','rOffs','rMovs'],
+  mkt:   ['rArmado','renderMktSafe','rSell','rOffs','rMovs'],
   trn:   ['rTrain','rInd'],
   stad:  ['rStad','rTicket'],
   juv:   ['rJuv'],
@@ -30462,6 +30503,7 @@ function avanzarHastaPartido(){
 function advanceDay(silencioso){
   if(!G)return;
   if(finFrena())return;                        // te echaron: el club no se mueve
+  if(armadoActivo()){ armadoDia(silencioso); return; }   // Fase 90: los días del armado no tienen partido
   try{ clasicoPrevia(); }catch(e){}            // Fase 78: si esta semana hay clásico, primero la previa
   if(dilemaFrena())return;                     // hay una decisión sin tomar
   if(prensaFrena())return;                     // te esperan en la sala de prensa
@@ -32309,6 +32351,283 @@ function apoyoModal(){
   <div style="text-align:right;margin-top:10px"><button class="btn bs" onclick="baseCerrar()">Cerrar</button></div>`);
 }
 try{ apoyoBoton(); }catch(e){}
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 90: FUNDÁ TU CLUB — el plantel se arma negociando, no se sortea
+// ═══════════════════════════════════════════════════════════════════════
+// Elegís una liga y en vez de un club existente fundás uno propio. Ocupa la
+// plaza del más flojo de esa liga (`buildCalOtra` y `arBuildZones` ya meten a
+// un club que no está en la base y sacan al último), arranca con pibes de la
+// cantera de nivel muy bajo y tiene ARMADO_DIAS para completar el plantel con
+// el mercado abierto. Los fichajes pasan por el MISMO embudo de siempre
+// (negociación con el club, términos personales, `firmaProgramar`): el armado
+// sólo frena el reloj de los partidos, no inventa un camino nuevo.
+// ⚠️ El presupuesto sale de la liga, no de una tabla: el 90% del valor del
+// club mediano (Liga ARG 25,5M · España 118M · Premier 462M). Un club normal
+// arranca con ~30% de su valor; uno fundado tiene que comprar el plantel entero.
+// Medido con un comprador que gasta todo en el mejor nivel por plata, dos
+// temporadas por liga: con el 60% terminaba 29º-30º de 30 en Argentina y
+// 16º-17º de 20 en España (plantel de nivel mediano, y la moral se hunde al
+// perder); con el 90%, 23º y 7º en Argentina, 9º y 7º en España.
+// ⚠️ En G va `G.fundado` (nombre, colores, liga) y `G.armado` (días), todo plano.
+const ARMADO_DIAS=70;              // 10 semanas, dos meses y medio
+const FUNDAR_PRESU=0.90;           // × valor del club mediano de la liga
+const FUNDAR_CANTERA=['ARQ','ARQ','DFC','DFC','DFC','DFI','DFD','DFD','MCD','MC','MC','MCO','MI','MD','EI','ED','DC','DC'];
+const FUNDAR_MIN={total:18, ARQ:2};
+const FUNDAR_RAT=[40,51];          // la cantera de un club nuevo: muy bajo
+const FUNDAR_ID='fundado';
+const ARMADO_JUNTOS=21;           // días de armado que hacen falta para no contar como recién llegado
+var _fundar={nombre:'',abbr:'',c1:'#1f6feb',c2:'#f4f4f4',err:''};   // estado del modal, fuera de G
+
+function armadoActivo(){ return !!(typeof G==='object'&&G&&G.armado&&!G.armado.cerrado); }
+function armadoQuedan(){ return armadoActivo()?Math.max(0,(G.armado.total||ARMADO_DIAS)-(G.armado.dia||0)):0; }
+
+// Los números del club fundado en una liga, antes de fundarlo
+function fundarNumeros(lg){
+  const cl=(clubesDeCategoria(lg)||[]).slice();
+  const vals=cl.map(c=>tsValClub(c)).sort((a,b)=>a-b);
+  const med=vals.length?vals[~~(vals.length/2)]:10;
+  const ts=Object.values(TEAMS).filter(t=>(t.liga||'Liga ARG')===lg&&cl.includes(t.name)&&!t.fundado);
+  const reps=ts.map(t=>t.initRep||50).sort((a,b)=>a-b);
+  return {
+    presu:Math.max(2,Math.round(med*FUNDAR_PRESU*10)/10),
+    rep:Math.max(30,(reps.length?reps[0]:45)-3),
+    med:Math.round(med*10)/10,
+    clubes:cl.length,
+    cede:cl.length?cl[cl.length-1]:null   // el último de la lista es el que queda afuera
+  };
+}
+
+// La cantera inicial: pibes de 16-19 con media de 40-51
+function fundarPibe(pos,t,usados){
+  const lg=(t&&t.liga)||_ligaActual();
+  let nm='', k=0;
+  do{ nm=_youthName(lg); k++; }while(usados&&usados.has(nm)&&k<20);
+  if(usados) usados.add(nm);
+  const nat=(natsLocales(lg)||['ARG'])[0];
+  const rat=FUNDAR_RAT[0]+~~(Math.random()*(FUNDAR_RAT[1]-FUNDAR_RAT[0]+1));
+  const age=16+~~(Math.random()*4);
+  const p=P(0,nm,pos,age,nat,(t&&t.name)||(G&&G.teamName),lg,0.1,rat);
+  p.pot=Math.min(80,rat+8+~~(Math.random()*20));
+  p.val=0.1; p.canterano=true;
+  p.contract=((typeof G==='object'&&G&&G.season)||(typeof tempActual==='function'?tempActual():2026))+2;
+  return p;
+}
+function fundarCantera(t){
+  const usados=new Set();
+  return FUNDAR_CANTERA.map((pos,i)=>{ const p=fundarPibe(pos,t,usados); p.num=i+1; return p; });
+}
+
+// Lo que se acomoda apenas existe la partida (lo llama initGame)
+function fundarInit(tc){
+  if(!G||!tc||!tc.fundado) return;
+  G.modo='pres';                           // fundar un club es cosa del presidente
+  G.fundado={name:tc.name,abbr:tc.abbr,c1:tc.color,c2:tc.c2,liga:tc.liga,desde:G.season,presu0:G.budget};
+  G.armado={dia:0,total:ARMADO_DIAS,cerrado:false};
+  G.squad.forEach(p=>{ p._armDia=0; });     // desde qué día del armado está cada uno
+  // La academia de un club recién nacido: nivel 1 y pibes muy verdes
+  if(G.youth){
+    G.youth.level=1;
+    (G.youth.players||[]).forEach(y=>{ y.rat=38+~~(Math.random()*11); y.pot=Math.min(78,y.rat+10+~~(Math.random()*18)); y.val=0.1; });
+  }
+  // Los clubes de la liga en el fixture, y el que cedió la plaza
+  const liga=G.miLiga, enLiga=new Set(G.arZones?[...(G.arZones.A||[]),...(G.arZones.B||[])]:(G.ligaClubs||[]));
+  const cl=clubesDeCategoria(liga)||[];
+  const cede=enLiga.size?cl.find(c=>!enLiga.has(c)&&c!==tc.name):null;
+  G.fundado.cede=cede||null;
+  // Estadio: más chico que el del club mediano de la liga
+  const ovrs=[], sueldos=[];
+  const porClub={};
+  (G.market||[]).forEach(p=>{ if(enLiga.has(p.club)) (porClub[p.club]=porClub[p.club]||[]).push(p); });
+  Object.values(porClub).forEach(a=>{
+    const r=a.map(p=>p.rat||0).sort((x,y)=>y-x).slice(0,11);
+    if(r.length) ovrs.push(r.reduce((s,x)=>s+x,0)/r.length);
+    sueldos.push(a.map(p=>p.wage||0).sort((x,y)=>y-x).slice(0,25).reduce((s,x)=>s+x,0));
+  });
+  ovrs.sort((a,b)=>a-b); sueldos.sort((a,b)=>a-b);
+  const ovrMed=ovrs.length?ovrs[~~(ovrs.length/2)]:65;
+  const cap=Math.max(5000,Math.round(stadCapDeOvr(ovrMed-4)/500)*500);
+  G.stadium.name=tc.stadName||('Estadio '+tc.name);
+  G.stadium.capacity=cap; G.stadium.income=stadIncomeDe(cap);
+  G.socios=sociosBase(); G._socAncla=G.socios; G._repAncla=G.rep;
+  // El tope salarial no puede salir de 18 pibes: sería cero. Sale de la masa
+  // salarial del club mediano de la liga.
+  if(sueldos.length) G.wageCap=Math.max(G.wageCap||0,Math.round(sueldos[~~(sueldos.length/2)]));
+  // El club que cedió la plaza se disuelve: sus jugadores quedan libres
+  let libres=0;
+  if(cede) (G.market||[]).forEach(p=>{
+    if(p.club!==cede||p.freeAgent) return;
+    p._exLg=p.lg; p._exClub=p.club; p.freeAgent=true; p.club='Libre'; p.lg='Libre'; p.contract=G.season; libres++;
+  });
+  G.fundado.libres=libres;
+  lg('🏗️',`Fundaste ${tc.name}. Presupuesto ${fv(G.budget)} y ${ARMADO_DIAS/7} semanas para armar el plantel.`);
+  addPhoneMsg('board','Comisión fundadora',
+    `🏗️ Presidente: <b>${tc.name}</b> ya está inscripto en ${(LIGA_NOMBRE&&LIGA_NOMBRE[liga])||liga}`+
+    (cede?`, en la plaza que dejó <b>${cede}</b>`:'')+`.<br><br>Tenemos <b>${fv(G.budget)}</b>, `+
+    `18 pibes de la cantera que todavía no están para Primera y <b>${ARMADO_DIAS/7} semanas</b> hasta la primera fecha. `+
+    `El mercado está abierto: hay que negociar club por club.`+(libres?`<br><br>Ojo: los ${libres} jugadores de ${cede} quedaron <b>libres</b>, llegan sin ficha.`:''),'🏗️');
+}
+
+// Al cargar: TEAMS no tiene al club fundado (no está en la base)
+function fundarRestaurar(f,teamId,rep){
+  if(!f||!f.name) return;
+  TEAMS[teamId||FUNDAR_ID]=Object.assign({},TEAMS[teamId||FUNDAR_ID]||{},{
+    name:f.name,abbr:f.abbr||clubInitials(f.name),color:f.c1||'#1f6feb',c2:f.c2||'#f4f4f4',
+    badge:(f.abbr||clubInitials(f.name)).slice(0,3),liga:f.liga||'Liga ARG',
+    initBudget:f.presu0||5,initRep:rep||45,initMorale:60,fundado:true});
+  try{ CLUB_COLORS[String(f.name).toLowerCase()]=[f.c1||'#1f6feb',f.c2||'#f4f4f4']; }catch(e){}
+}
+
+// ── el reloj del armado ──
+function armadoFrena(){
+  if(!armadoActivo()) return false;
+  flash(`🛠️ Todavía estás armando el plantel: faltan ${armadoQuedan()} días para la primera fecha`,'draw');
+  return true;
+}
+function armadoDia(sil){
+  if(!armadoActivo()) return;
+  G.armado.dia=(G.armado.dia||0)+1; G._daysTicked=(G._daysTicked||0)+1;
+  try{ dailyTick(); }catch(e){ console.error('armado',e); }
+  G.squad.forEach(p=>{ if(p._armDia===undefined) p._armDia=G.armado.dia; });
+  if(G.armado.dia>=(G.armado.total||ARMADO_DIAS)){ armadoCerrar(true); return; }
+  if(sil) return;
+  updateUI();
+  flash(`🛠️ Día ${G.armado.dia} del armado · faltan ${armadoQuedan()}`,'draw');
+}
+function armadoSemana(){
+  if(!armadoActivo()) return;
+  for(let i=0;i<7&&armadoActivo();i++) armadoDia(true);
+  if(!armadoActivo()) return;
+  updateUI();
+  flash(`⏩ Semana de armado: faltan ${armadoQuedan()} días`,'draw');
+}
+function armadoCuenta(){
+  const sq=(G&&G.squad)||[], c={ARQ:0,DEF:0,MED:0,DEL:0};
+  sq.forEach(p=>{ const g=pgr(p.pos); c[g]=(c[g]||0)+1; });
+  const firmas=((G&&G.firmas)||[]).length, negs=((G&&G.negs)||[]).length;
+  return {total:sq.length,lineas:c,firmas,negs,
+    cantera:sq.filter(p=>p.canterano).length,
+    faltan:Math.max(0,FUNDAR_MIN.total-sq.length), faltanArq:Math.max(0,FUNDAR_MIN.ARQ-c.ARQ)};
+}
+// Cerrar: lo que falte para el mínimo se completa con la cantera
+function armadoCerrar(auto){
+  if(!armadoActivo()) return;
+  const t={name:G.teamName,liga:G.miLiga}, usados=new Set(G.squad.map(p=>p.name));
+  let c=armadoCuenta(), sumados=0;
+  for(let i=0;i<c.faltanArq;i++){ const p=fundarPibe('ARQ',t,usados); G.squad.push(p); G.bench.push(p); sumados++; }
+  c=armadoCuenta();
+  const rel=['DFC','MC','DC','DFD','DFI','MCD'];
+  for(let i=0;i<c.faltan;i++){ const p=fundarPibe(rel[i%rel.length],t,usados); G.squad.push(p); G.bench.push(p); sumados++; }
+  G.armado.cerrado=true; G.armado.cerroDia=G.armado.dia||0; G.armado.sumados=sumados;
+  // ⚠️ Diez semanas entrenando juntos son una pretemporada larga: el que llegó
+  // con 3+ semanas de anticipación deja de contar como recién llegado. Sin esto
+  // la química del club fundado quedaba en 15-20 TODA la temporada (con el once
+  // entero recién llegado, `chemEstructural` resta 3,4 por cabeza), porque la
+  // antigüedad recién sube al cambiar de año. Medido abajo, en la doc.
+  let juntos=0;
+  G.squad.forEach(p=>{ if(p._armDia!==undefined&&G.armado.cerroDia-p._armDia>=ARMADO_JUNTOS){ p.seasonsAtClub=Math.max(1,p.seasonsAtClub||0); juntos++; } delete p._armDia; });
+  G.armado.juntos=juntos; G.chem=undefined;
+  G.day=1;
+  try{ autoFill(); }catch(e){}
+  const tot=G.squad.length, med=Math.round(G.squad.map(p=>p.rat).sort((a,b)=>b-a).slice(0,11).reduce((s,x)=>s+x,0)/Math.min(11,tot||1));
+  lg('🏁',`Cerró el armado: ${tot} jugadores, once de media ${med}.`);
+  addPhoneMsg('board','Comisión fundadora',`🏁 ${auto?'Se terminó el tiempo de armado':'Diste por cerrado el armado'}. `+
+    `Arrancamos con <b>${tot} jugadores</b> (el once tiene media <b>${med}</b>)`+
+    (sumados?` — completamos con ${sumados} pibes de la cantera para llegar al mínimo`:'')+`. El mercado sigue abierto en la pretemporada.`,'🏁');
+  updateUI();
+  flash(`🏁 Plantel armado: ${tot} jugadores. ¡Arranca la pretemporada!`,'win');
+  setTimeout(()=>{ try{ offerPreseason(); }catch(e){} },400);
+}
+
+// ── la tarjeta del armado (Central y Mercado) ──
+function armadoHTML(){
+  if(!armadoActivo()) return '';
+  const a=G.armado, c=armadoCuenta(), pct=Math.round(100*(a.dia||0)/(a.total||ARMADO_DIAS));
+  const ok=c.faltan===0&&c.faltanArq===0;
+  const lin=k=>`<div class="arm-l"><b>${c.lineas[k]||0}</b><span>${{ARQ:'arqueros',DEF:'defensores',MED:'mediocampistas',DEL:'delanteros'}[k]}</span></div>`;
+  return `<div class="card arm-card">
+    <div class="arm-top"><div><div class="arm-t">🛠️ Armado del plantel</div>
+      <div class="arm-s">Día ${a.dia||0} de ${a.total||ARMADO_DIAS} · la primera fecha llega en ${armadoQuedan()} días</div></div>
+      <div class="arm-caja"><span>Caja</span><b>${fv(G.budget)}</b></div></div>
+    <div class="arm-bar"><i style="width:${pct}%"></i></div>
+    <div class="arm-lin">${lin('ARQ')}${lin('DEF')}${lin('MED')}${lin('DEL')}</div>
+    <div class="arm-s" style="margin:6px 0 10px">${c.total} en el plantel (${c.cantera} de la cantera) · ${c.negs} negociaciones abiertas · ${c.firmas} firmas en camino.
+      ${ok?'Ya tenés el mínimo para jugar.':`Para arrancar hacen falta ${FUNDAR_MIN.total} jugadores y ${FUNDAR_MIN.ARQ} arqueros: lo que falte se completa con pibes de la cantera.`}
+      ${G.fundado&&G.fundado.cede&&G.fundado.libres?` Los ${G.fundado.libres} de ${G.fundado.cede} están libres en el Mercado.`:''}</div>
+    <div class="arm-btns">
+      <button class="btn bo bs" onclick="armadoDia()">📅 Pasar un día</button>
+      <button class="btn bo bs" onclick="armadoSemana()">⏩ Pasar una semana</button>
+      <button class="btn bg bs" onclick="gTab('mkt')">💰 Ir al Mercado</button>
+      <button class="btn bo bs" onclick="armadoCerrar(false)" style="border-color:var(--gold);color:var(--gold)">🏁 Cerrar el armado</button>
+    </div></div>`;
+}
+function rArmado(){
+  const h=armadoHTML();
+  document.querySelectorAll('.armadoBox').forEach(el=>{ el.innerHTML=h; el.style.display=h?'':'none'; });
+}
+
+// ── el inicio: la tarjeta del paso 3 y el modal ──
+function fundarCardHTML(){
+  if(typeof eventoActivo==='function'&&eventoActivo()) return '';
+  if(!_tsLg) return '';
+  const n=fundarNumeros(_tsLg);
+  return `<button class="ts-opt ts-fundar" onclick="fundarModal()">
+    <span class="ts-flag">🏗️</span>
+    <span style="flex:1;min-width:0"><span class="tsn" style="display:block">Fundá tu club</span>
+      <span class="tss">Arrancás con ${fv(n.presu)}, 18 pibes de la cantera y ${ARMADO_DIAS/7} semanas para armar el plantel${n.cede?` · ocupás la plaza de ${n.cede}`:''}</span></span>
+  </button>`;
+}
+function fundarModal(){
+  const lg=_tsLg||_LIGA_ELEGIDA||'Liga ARG', n=fundarNumeros(lg), f=_fundar;
+  const nom=(LIGA_NOMBRE&&LIGA_NOMBRE[lg])||lg;
+  const crest=typeof clubCrest==='function'?(()=>{ const k=String(f.nombre||'Nuevo Club').toLowerCase(); const prev=CLUB_COLORS[k]; CLUB_COLORS[k]=[f.c1,f.c2]; const s=clubCrest(f.nombre||'Nuevo Club',64); if(prev)CLUB_COLORS[k]=prev; else delete CLUB_COLORS[k]; return s; })():'';
+  baseOv(`<div class="mh"><span class="mt">🏗️ Fundá tu club</span><button class="btn bo bs" onclick="baseCerrar()">✕</button></div>
+    <div class="fund-prev">${crest}<div><div class="fund-n" id="fundPrevN">${f.nombre||'Nuevo Club'}</div><div class="arm-s">${nom} · reputación ${n.rep}</div></div></div>
+    <label class="fund-lbl">Nombre del club<input class="ts-buscar" id="fundNom" maxlength="28" value="${f.nombre}" placeholder="Ej.: Atlético del Puerto" oninput="_fundar.nombre=this.value"></label>
+    <label class="fund-lbl">Sigla (hasta 5 letras)<input class="ts-buscar" id="fundAbbr" maxlength="5" value="${f.abbr}" placeholder="ADP" oninput="_fundar.abbr=this.value"></label>
+    <div class="fund-cols"><label class="fund-lbl">Color principal<input type="color" id="fundC1" value="${f.c1}" onchange="_fundar.c1=this.value;fundarModal()"></label>
+      <label class="fund-lbl">Color secundario<input type="color" id="fundC2" value="${f.c2}" onchange="_fundar.c2=this.value;fundarModal()"></label></div>
+    <div class="mpanel" style="margin:10px 0">
+      <div class="mpanel-row"><span>Presupuesto</span><b>${fv(n.presu)}</b></div>
+      <div class="mpanel-row"><span>El club mediano de la liga vale</span><b>${fv(n.med)}</b></div>
+      <div class="mpanel-row"><span>Plantel inicial</span><b>18 pibes, media ${FUNDAR_RAT[0]}-${FUNDAR_RAT[1]}</b></div>
+      <div class="mpanel-row"><span>Tiempo para armar</span><b>${ARMADO_DIAS/7} semanas</b></div>
+      ${n.cede?`<div class="mpanel-row"><span>Ocupás la plaza de</span><b>${n.cede}</b></div>`:''}
+    </div>
+    <div class="arm-s">Durante el armado no hay partidos y el mercado está abierto: cada refuerzo se negocia con su club. Los jugadores del club que deja la plaza quedan libres. Se juega como presidente.</div>
+    ${f.err?`<div class="arm-s" style="color:var(--red);margin-top:8px">${f.err}</div>`:''}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn bo" onclick="baseCerrar()">Cancelar</button>
+      <button class="btn bg" id="fundOk" onclick="fundarCrear()">🏗️ Fundar y armar el plantel</button></div>`);
+}
+function fundarValidar(nombre,abbr,lg){
+  const nm=_baseTxt(String(nombre||''),28).replace(/['‘’]/g,'').replace(/\s+/g,' ').trim();
+  if(nm.length<3) return {err:'El nombre necesita al menos 3 letras.'};
+  const low=nm.toLowerCase();
+  const existe=Object.values(TEAMS).some(t=>!t.fundado&&String(t.name).toLowerCase()===low)
+    || (window.PLAYERS_DB||[]).some(r=>r[5]&&String(r[5]).toLowerCase()===low)
+    || low==='libre';
+  if(existe) return {err:'Ya hay un club con ese nombre. Elegí otro.'};
+  let ab=String(abbr||'').toUpperCase().replace(/[^A-Z0-9ÑÁÉÍÓÚÜ]/g,'').slice(0,5);
+  if(ab.length<2) ab=clubInitials(nm).slice(0,4);
+  return {nombre:nm,abbr:ab};
+}
+function fundarCrear(){
+  const lg=_tsLg||_LIGA_ELEGIDA||'Liga ARG';
+  const nIn=document.getElementById('fundNom'), aIn=document.getElementById('fundAbbr');
+  if(nIn) _fundar.nombre=nIn.value; if(aIn) _fundar.abbr=aIn.value;
+  const v=fundarValidar(_fundar.nombre,_fundar.abbr,lg);
+  if(v.err){ _fundar.err=v.err; fundarModal(); return; }
+  _fundar.err='';
+  const n=fundarNumeros(lg);
+  const c1=/^#[0-9a-f]{6}$/i.test(_fundar.c1)?_fundar.c1:'#1f6feb', c2=/^#[0-9a-f]{6}$/i.test(_fundar.c2)?_fundar.c2:'#f4f4f4';
+  TEAMS[FUNDAR_ID]={name:v.nombre,abbr:v.abbr,color:c1,c2,badge:v.abbr.slice(0,3),liga:lg,
+    initBudget:n.presu,initRep:n.rep,initMorale:60,stadName:'Estadio '+v.nombre,fundado:true};
+  try{ CLUB_COLORS[v.nombre.toLowerCase()]=[c1,c2]; }catch(e){}
+  try{ _modoSel='pres'; localStorage.setItem('dt_modo','pres'); }catch(e){}
+  baseCerrar();
+  selectTeam(FUNDAR_ID);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // FASE 71: LA INTERFAZ ESTILO FIFA, EL 3D Y TRES FUNCIONES DE GESTIÓN
 // ═══════════════════════════════════════════════════════════════════════

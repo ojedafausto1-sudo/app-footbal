@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90` |
 
 ## Formato de `players-db.js`
 
@@ -8115,6 +8115,78 @@ uso comercial. Por eso el primer paso es una **donación**, no una venta.
   pase su usuario.
 
 `tests/fase89.js`, **13 checks**.
+
+## Fase 90: fundá tu club y armá el plantel negociando
+
+En el paso 3 del inicio (los clubes de la liga) hay una tarjeta **🏗️ Fundá tu
+club**: nombre, sigla y dos colores (`fundarModal` → `fundarCrear`). El club
+ocupa la plaza del último de la lista de la liga (`buildCalOtra` y
+`arBuildZones` ya metían a un club que no está en la base y sacaban al último;
+no hubo que tocarlos): **San Martín (SJ)** en la Liga ARG, **Alavés** en España.
+Los jugadores del club que cede la plaza **quedan libres** en el mercado.
+
+| | |
+|---|---|
+| presupuesto | **90% del valor del club mediano de la liga** (`FUNDAR_PRESU`): ARG 25,5M · España 118M · Premier 462M |
+| reputación | 3 menos que el club de menor reputación de la liga (piso 30) |
+| plantel | 18 pibes de la cantera, 16-19 años, **media 40-51** (`FUNDAR_RAT`), locales |
+| academia | nivel 1, pibes de 38-48 |
+| estadio | `stadCapDeOvr(media del club mediano − 4)` |
+| tope salarial | la masa salarial del club mediano de la liga (de 18 pibes daba cero) |
+| copa continental | **ninguna el primer año**; después, la que se gane en la tabla |
+
+### El armado: 10 semanas sin partidos con el mercado abierto
+
+`G.armado={dia,total,cerrado}` (`ARMADO_DIAS=70`). Mientras está abierto:
+
+- **`advanceDay` corre un día del armado** (`armadoDia` → `dailyTick`: las
+  negociaciones y las firmas avanzan igual que siempre) y las otras cuatro
+  puertas del tiempo (`simMatch`, `playMatch`, `startFullMatch`,
+  `runContinuousSim`) rebotan con `armadoFrena()`. El reloj de la temporada
+  (`G.week`, `G.day`) no se mueve.
+- **`isTransferWindowOpen()` da true** y `getWindowStatus` lo dice.
+- La gira de pretemporada (`offerPreseason`) se ofrece **al cerrar**.
+- La tarjeta (`armadoHTML`, en `.armadoBox` de Central y Mercado, `rArmado` en
+  `_TAB_R`) muestra el día, la caja, cuántos hay por línea, las negociaciones y
+  las firmas, con ⏩ pasar una semana y 🏁 cerrar. `body.armando` esconde los
+  botones de jugar.
+- **Se cierra solo al día 70** o con el botón. Lo que falte para 18 jugadores
+  y 2 arqueros (`FUNDAR_MIN`) se completa con pibes de la cantera.
+- ⚠️ **No se cobran sueldos durante el armado**: el balance vive en el bloque
+  semanal de `simMatch`, que no corre. Las fichas sí se cobran al firmar.
+- Se juega como **presidente** (`fundarInit` pone `G.modo='pres'`): en modo DT
+  los fichajes los decide el presidente de la IA en su tick semanal, que
+  durante el armado no corre.
+
+### ⚠️ Diez semanas juntos son una pretemporada larga
+
+Con el once entero recién llegado, `chemEstructural` resta 3,4 por cabeza y la
+química quedaba en **15-20 toda la temporada** (la antigüedad sube recién al
+cambiar de año). Al cerrar el armado, el que llegó con **21+ días de
+anticipación** (`ARMADO_JUNTOS`) pasa a `seasonsAtClub=1`. Premia fichar
+temprano. El día de llegada (`p._armDia`) se borra al cerrar.
+
+### Medido
+
+Con un comprador de prueba que gasta todo en el mejor nivel por plata (16
+refuerzos), dos temporadas por liga:
+
+| presupuesto | Liga ARG (de 30) | España (de 20) |
+|---|---|---|
+| 60% del club mediano | **29º · 30º** | 17º · 16º |
+| **90%** | **23º · 7º** | **9º · 7º** |
+
+Con el 60% el plantel quedaba de nivel mediano (fuerza ~70 contra ~70 de los
+rivales), y al perder la moral caía de 80 a 30: último y asamblea por descenso
+el primer año. Con el 90% es un desafío, no una condena.
+
+### Al cargar
+
+`buildAllTeams` no conoce al club (no está en la base): `loadGame` lo rearma
+con `fundarRestaurar(saved.fundado, …)`, colores incluidos (`CLUB_COLORS`).
+`G.fundado` y `G.armado` son planos.
+
+`tests/fase90.js`, **46 checks**.
 
 ## Deploy
 
