@@ -23,7 +23,7 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   console.log('\n═══ LA PANTALLA DE INICIO ═══');
   const ini = await pg.evaluate(() => {
     const w = document.getElementById('tsWizard');
-    return { wiz: w.innerHTML.length, ev: /EVENTOS ESPECIALES/.test(w.innerText), modo: document.querySelectorAll('.modo-btn').length,
+    return { wiz: w.innerHTML.length, ev: /eventos especiales/i.test(w.innerText), modo: document.querySelectorAll('.modo-btn').length,
       presSel: document.querySelector('.modo-btn[data-m="pres"]').classList.contains('diff-sel') };
   });
   chk('el asistente se dibuja al abrir (un let en zona muerta lo dejaba en blanco)', ini.wiz > 1000, ini.wiz + ' caracteres');

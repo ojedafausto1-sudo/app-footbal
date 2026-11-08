@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92` |
 
 ## Formato de `players-db.js`
 
@@ -8245,6 +8245,50 @@ cabezazo iba al medio y el arquero llegaba siempre). Y el mano a mano dejaba
 entrar caminando al que no tocaba nada (24% de goles quedándose quieto).
 
 `tests/fase91.js`, **19 checks** (5 de 5 corridas en verde).
+
+## Fase 92: la pantalla de inicio, rediseñada con la guía de frontend-design
+
+El presidente agregó el plugin **frontend-design** (una guía de diseño, no una
+librería: vive en `/mnt/skills/public/frontend-design/SKILL.md`). Se usó en la
+pantalla de inicio, que es lo primero que ve cualquiera. Pide un plan antes de
+construir, revisarlo contra lo genérico y criticar con capturas.
+
+**El plan.** Qué es: el inicio de un juego de gestión de fútbol argentino que
+se juega con amigos, casi siempre en el celular. Su trabajo: elegir rol,
+dificultad y club (o fundar uno), o seguir la partida, en pocos toques.
+
+| | |
+|---|---|
+| lo memorable (una sola cosa) | el título como **marcador de chapa**: cada letra en una placa crema sobre una tabla verde con remaches (`.tablero`, `.placa`) |
+| colores | fondo noche `#0b0e14` y el acento del club, como el resto del juego; el tablero suma chapa `#173226`, placa `#ece4cf`, tinta `#16191a` |
+| tipografía | Chakra Petch en las placas, Rajdhani en los títulos, Plus Jakarta en el texto (las mismas, locales) |
+| distribución | compu: panel de 330 px a la izquierda (tablero, seguir, rol, dificultad, enlaces) y el selector a la derecha; celular: apilado. Todo alineado a la izquierda |
+| movimiento | uno solo: las placas caen en fila al abrir (`@keyframes placa`), apagado con `prefers-reduced-motion` |
+
+**Lo que se sacó por genérico** (la lista de "tics de plantilla" de la guía):
+los rótulos en MAYÚSCULAS espaciadas ("¿CÓMO ARRANCÁS?", "DIFICULTAD", "EVENTOS
+ESPECIALES"), el párrafo gris que explicaba los roles (ahora cada botón dice qué
+hace), el salto de las tarjetas del selector al pasar el mouse, la letra de 8-9
+px de los eventos, y los puntos medios en la tarjeta de fundar club.
+
+- ⚠️ **El fondo oscuro con un acento es uno de los "defaults" que la guía
+  señala, y se mantuvo a propósito**: son los tokens de las 15 pantallas del
+  juego (ver "Sistema de diseño"). Cambiarlos sólo en el inicio partiría la
+  identidad.
+- ⚠️ **Los ids y clases que usa el juego son los de siempre**: `.modo-btn`
+  (con `data-m`), `.diff-btn` + `#diff-0..2`, `.diff-sel`, `#tsWizard`,
+  `#continueSaveBtn`/`#continueSaveLbl`, `#apoyoBtn`, `#impSave`. `setDiff`
+  desmarca sólo `.diff-btn:not(.modo-btn)`.
+- Los eventos especiales van **debajo** de los países: el trabajo del paso 1 es
+  elegir país. `fase83` buscaba "EVENTOS ESPECIALES" en mayúsculas; ahora sin
+  distinguir mayúsculas.
+- La placa chica del tablero (`#tsTempPlaca`) dice la temporada cargada (o
+  "Leyendas"); la escribe `tsRender`.
+- Foco del teclado visible (`:focus-visible`, 2 px del acento) en los botones nuevos.
+- Lo de adentro del juego **no se tocó**: está calibrado y medido (vidrio,
+  contraste, letra mínima) y la guía pide gastar la audacia en un solo lugar.
+
+`tests/fase92.js`, **19 checks**.
 
 ## Deploy
 
