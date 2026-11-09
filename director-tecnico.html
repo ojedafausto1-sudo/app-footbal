@@ -689,6 +689,9 @@ body.armando #btnPlay,body.armando #hmAlts,body.armando #hmMent,body.armando #hm
 .ph-me{margin-left:auto;background:rgba(var(--gold-rgb),.14);border:1px solid rgba(var(--gold-rgb),.3);color:#ffe9a8;border-bottom-right-radius:3px}
 .ph-them{margin-right:auto;background:rgba(22,25,32,.85);border:1px solid var(--bdr);color:var(--tx);border-bottom-left-radius:3px}
 .ph-qr{display:flex;flex-wrap:wrap;gap:4px;padding:8px 0 4px;border-top:1px solid rgba(255,255,255,.07);margin-top:6px}
+.ph-in{display:flex;gap:6px;margin-top:8px;position:sticky;bottom:0;background:rgba(6,14,24,.92);padding:6px 0 2px}
+.ph-in input{flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:16px;color:var(--t1);font:12px 'Plus Jakarta Sans',sans-serif;padding:7px 11px}
+.ph-in button{background:var(--gold);color:var(--dark);border:none;border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;flex-shrink:0}
 .ph-qrbtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);border-radius:14px;color:var(--t2);font-size:9.5px;padding:5px 10px;cursor:pointer;transition:all .15s}
 .ph-qrbtn:hover{border-color:var(--gold);color:var(--gold)}
 .ph-prow{display:flex;align-items:center;gap:7px;padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;border-radius:8px}
@@ -1549,7 +1552,7 @@ body.bg3d-on .main{background:transparent}
     </div>
     <div class="ph-header">
       <div>
-        <div class="ph-appname">📲 OFICINA DEL PRESIDENTE</div>
+        <div class="ph-appname" id="phAppName">📲 OFICINA DEL PRESIDENTE</div>
         <div style="font-size:9px;color:var(--t3);margin-top:1px" id="phSubtitle">Semana 1</div>
       </div>
       <button onclick="closePhone()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t2);font-size:14px;cursor:pointer;padding:5px 11px;border-radius:20px;line-height:1">✕</button>
@@ -12981,6 +12984,16 @@ function genDtRequest(){
     p.pos===targetPos && p.val<=strictBudget && p.val>=0.3 &&
     p.club!==(G.teamName||'Boca Juniors') && !G.squad.find(s=>s.id===p.id)
   ).sort((a,b)=>b.rat-a.rat).slice(0,10);
+  // Fase 94: si el plantel tiene una necesidad concreta, pide ESO y con ese motivo
+  const _nec=pedidoDelDT();
+  if(_nec&&_nec.c.length&&_nec.c[0].p.val>=0.3){
+    const pk=_nec.c[~~(Math.random()*Math.min(2,_nec.c.length))].p;
+    if(G.dtRequests.some(r=>r.player&&r.player.id===pk.id&&!r.rejected)) return;
+    G.dtRequests.push({id:'req'+(Date.now()+Math.random()),week:G.week,pos:_nec.n.pos,player:pk,reason:_nec.n.motivo.replace(/<[^>]+>/g,''),approved:false,rejected:false});
+    lg('📬',`${d.name} pide: ${pk.name} (${pk.pos}, ${fv(pk.val)})`);
+    addPhoneMsg('dt', d.name, `🤝 El DT pide fichar a <b>${pk.name}</b> (${pk.pos}, ${pk.age}a, ${pk.rat}) de ${pk.club} por <b style="color:var(--gold)">${fv(askingPrice(pk))}</b>.<br><i>"${_nec.n.motivo}"</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
+    return;
+  }
   if(!candidates.length) return;
   const pick=candidates[~~(Math.random()*Math.min(3,candidates.length))];
   const reasons={
@@ -30638,6 +30651,9 @@ function openPhone(){
   const btn = document.getElementById('phoneBtn');
   if(btn) btn.style.display = 'none';
   if(G && G.phoneMsgs) G.phoneMsgs.forEach(m=>m.read=true);
+  const tdt=document.querySelector('.ph-tab[onclick*="\'dt\'"]');
+  if(tdt) tdt.textContent=chatModoDT()?'🏛️ Presidente':'💬 Chat DT';
+  const an=document.getElementById('phAppName'); if(an) an.textContent=chatModoDT()?'📲 VESTUARIO DEL DT':'📲 OFICINA DEL PRESIDENTE';
   const sub = document.getElementById('phSubtitle');
   if(sub && G) sub.textContent = 'Semana '+G.week+' · Temporada '+(G.season||2026);
   const phT = document.getElementById('phTime');
@@ -30690,6 +30706,7 @@ function dtReply(kind){
     else if(form==='mala')txt=`No le voy a mentir, presidente: la racha es mala. ${tr==='Guerrero'||tr==='Intenso'?'Pero este grupo tiene carácter, vamos a salir con trabajo.':tr==='Táctico'||tr==='Analítico'?'Estoy ajustando cosas en el análisis, hay soluciones.':'Necesito que el club esté tranquilo, esto se revierte.'}`;
     else txt=`Vamos partido a partido, presidente. ${dt.philosophy||''} La moral está en ${G.morale}%.`;
   }else if(kind==='refuerzo'){
+    return dtReplyCtx('refuerzo');
     const pos=(dt.wantedPos&&dt.wantedPos[0])||'DC';
     const cands=(G.market||[]).filter(p=>p.pos===pos&&p.rat>=72&&p.val<=G.budget).sort((a,b)=>b.rat-a.rat).slice(0,2);
     txt=`Necesito un ${pos}, presidente. ${cands.length?`Le paso nombres que me gustan: ${cands.map(c=>c.name+' ('+c.club+', '+fv(c.val)+')').join(' y ')}. Si me trae alguno de esos, lo hago rendir.`:'En el mercado actual no veo nada a nuestro alcance, pero sigo mirando.'}`;
@@ -30752,6 +30769,339 @@ function presMsgPlayer(pid,kind,label){
   },700+Math.random()*900);
   rPhone();
 }
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 94: CHARLAS QUE SALEN DEL CLUB
+// ═══════════════════════════════════════════════════════════════════════
+// - En MODO DT el celular no te hace hablar con "el DT" (que sos vos): la
+//   pestaña es la del PRESIDENTE (G.presIA) y lo que le pedís entra al mismo
+//   circuito de pedidos (_pedPush). Los jugadores te dicen "profe".
+// - El DT de la IA pide lo que el plantel NECESITA de verdad
+//   (necesidadPlantel, sobre informePlantel: puesto sin recambio, titular
+//   flojo, veterano sin heredero) y nombres que mejoran ese puesto y le gustan
+//   a su idea de juego (dtGusto).
+// - Además de los botones fijos hay botones que aparecen según lo que pasa
+//   (lesión, gol, contrato, el que se quiere ir, el pibe, el clásico) y se
+//   puede ESCRIBIR: chatIntencion lee de qué le hablás.
+function chatModoDT(){ return typeof modoDT==='function'&&modoDT(); }
+function _tratoTxt(txt){
+  if(!chatModoDT()||typeof txt!=='string') return txt;
+  return txt.replace(/\bPresidente\b/g,'Profe').replace(/\bpresidente\b/g,'profe').replace(/\b[Pp]resi\b/g,'profe');
+}
+const _ap=p=>((p&&p.name)||'').split(' ').pop();
+// Qué atributos le gustan a este técnico en cada línea (sale del perfil)
+function dtGusto(pos){
+  let P={press:.5,line:.5,width:.5,direct:.5,counter:.5};
+  try{ P=Object.assign(P,dtProfile(G.dt)||{}); }catch(e){}
+  const g=pgr(pos);
+  if(g==='ARQ') return ['REF','POS'];
+  if(g==='DEF') return P.line>0.7?['VEL','DEF']:['DEF','FIS'];
+  if(g==='MED') return P.direct<0.35?['PAS','REG']:P.press>0.8?['FIS','PAS']:['PAS','DEF'];
+  if(['EI','ED','MI','MD'].includes(pos)&&P.width>0.65) return ['REG','VEL'];
+  return P.counter>0.75?['VEL','TIR']:['TIR','FIS'];
+}
+// Lo que el plantel necesita, ordenado por urgencia
+function necesidadPlantel(){
+  if(!G||!G.squad) return [];
+  const I=informePlantel(), out=[];
+  const xi=Object.values(G.slots||{}).filter(Boolean).map(id=>G.squad.find(p=>p.id===id)).filter(Boolean);
+  const media=xi.length?xi.reduce((a,p)=>a+p.rat,0)/xi.length:70;
+  I.puestos.forEach(v=>{
+    const tit=v.tit||[], sup=v.sup||[];
+    const flojo=tit.slice().sort((a,b)=>a.rat-b.rat)[0];
+    const ref=flojo?flojo.rat:Math.round(media);
+    let urg=0, motivo='', tipo='titular';
+    if(v.c.length<v.need){ urg=100; motivo=`no tengo quién juegue de ${v.pos}: el dibujo pide ${v.need} y tengo ${v.c.length}`; }
+    if(flojo&&ref<media-5&&urg<50+(media-ref)){ urg=50+(media-ref); motivo=`el ${v.pos} titular (${_esc(_ap(flojo))}, ${ref}) está ${Math.round(media-ref)} puntos abajo del resto del equipo`; }
+    if(!sup.length&&tit.length&&urg<60){ urg=60; tipo='recambio'; motivo=`no tengo recambio de ${v.pos}: si se lesiona ${_esc(_ap(tit[tit.length-1]))} juega alguien fuera de puesto`; }
+    const vet=tit.find(p=>p.age>=33);
+    if(vet&&urg<45&&!v.c.some(p=>p!==vet&&p.age<=29&&p.rat>=vet.rat-6)){ urg=45; tipo='heredero'; motivo=`${_esc(_ap(vet))} tiene ${vet.age} años y no hay quién lo herede en ${v.pos}`; }
+    if(sup.length&&tit.length&&sup[0].rat<tit[0].rat-12&&urg<35){ urg=35; tipo='recambio'; motivo=`en ${v.pos} el suplente (${sup[0].rat}) está muy lejos del titular (${tit[0].rat})`; }
+    if(urg) out.push({pos:v.pos,urg:Math.round(urg),motivo,ref,tipo});
+  });
+  return out.sort((a,b)=>b.urg-a.urg);
+}
+// Nombres para esa necesidad: mejoran el puesto, alcanzan con la caja y le gustan al DT
+function candidatosPara(n,max){
+  if(!n||!G) return [];
+  const gusto=dtGusto(n.pos), caja=Math.max(0.5,(G.budget||0)*0.6);
+  const minRat=n.tipo==='recambio'?n.ref-6:n.tipo==='heredero'?n.ref-8:n.ref+2;
+  const enPlantel=new Set((G.squad||[]).map(p=>p.id));
+  return (G.market||[]).filter(p=>(p.pos===n.pos||p.pos2===n.pos)&&!enPlantel.has(p.id)&&p.rat>=minRat
+      &&(n.tipo!=='heredero'||p.age<=27)&&(typeof isKnown!=='function'||isKnown(p))
+      &&askingPrice(p)<=caja&&!(typeof esClasico==='function'&&esClasico(G.teamName,p.club)))
+    .map(p=>{ const at=gusto.map(k=>_s91Atr(p,k)); return {p,at,sc:p.rat+at.reduce((a,x)=>a+x,0)/20-askingPrice(p)/Math.max(1,G.budget)*6+(p.age<=26?2:0)}; })
+    .sort((a,b)=>b.sc-a.sc).slice(0,max||3)
+    .map(o=>({p:o.p,porque:gusto.map((k,i)=>k+' '+o.at[i]).join(', ')}));
+}
+function pedidoDelDT(){
+  const N=necesidadPlantel(); if(!N.length) return null;
+  for(const n of N.slice(0,3)){ const c=candidatosPara(n,3); if(c.length) return {n,c}; }
+  return {n:N[0],c:[]};
+}
+function _ultimoPartido(){ const pl=(G.calendar||[]).filter(m=>m.played&&!m.friendly); return pl[pl.length-1]||null; }
+function _proximoPartido(){ return (G.calendar||[]).find(m=>!m.played)||null; }
+function _rivalDe(m){ return m?(m.home===G.teamName?m.away:m.home):''; }
+
+// ── qué le estás diciendo (texto libre) ──
+const CHAT_INT=[
+  ['plata',/plata|presupuest|dinero|caja|guita|millon|tope/],
+  ['refuerzo',/refuerz|fich|traer|compr|necesit|incorpor/],
+  ['contrato',/contrat|renov|sueldo|aumento/],
+  ['minutos',/minut|titular|jugar m[aá]s|banco|suplent|\bjugar\b/],
+  ['lesion',/lesi|pierna|rodilla|tobillo|recuper|dolor|m[eé]dic/],
+  ['tactica',/t[aá]ctic|esquema|formaci|sistema|dibujo|\d-\d/],
+  ['clasico',/cl[aá]sico|derby/],
+  ['ultimo',/partido|domingo|perd|ganam|empat|resultado|goleada/],
+  ['vender',/vend|ir[mts]e|salida|otro club|oferta/],
+  ['juvenil',/\bpib|juvenil|cantera|chic[oa]s|inferior/],
+  ['felicitar',/felicit|genio|crack|gracias|bravo|bien hecho|excelente/],
+  ['exigir',/exij|exig|m[aá]s de vos|rend[ií]|no alcanza|mejorar|reaccion/],
+  ['moral',/moral|[aá]nimo|grupo|vestuario|c[oó]mo (est|and|te sent|ves|vas)|todo bien/],
+  ['trabajo',/trabajo|conforme|contento conmigo|evalu|mi puesto|me ech/],
+];
+function chatIntencion(txt){
+  const t=(typeof _tsNorm==='function'?_tsNorm(txt):String(txt).toLowerCase());
+  for(const [k,re] of CHAT_INT) if(re.test(t)||re.test(String(txt).toLowerCase())) return k;
+  return 'otro';
+}
+
+// ── el DT de la IA (modo presidente): respuestas con datos ──
+function dtReplyCtx(kind,pid){
+  const dt=G.dt, tr=dt.trait||'';
+  if(kind==='refuerzo'){
+    const r=pedidoDelDT();
+    if(!r) return 'Hoy el plantel está completo, presidente. Si sale alguien, le aviso qué puesto tapar.';
+    const {n,c}=r;
+    return `Presidente, ${n.motivo}. ${c.length?`Me gustan ${c.map(o=>`<b>${_esc(o.p.name)}</b> (${o.p.rat}, ${_esc(o.p.club)}, ${fv(askingPrice(o.p))} — ${o.porque})`).join(' y ')}. Para lo que juego yo, ese perfil me sirve.`:'En el mercado, con la plata que hay, no encuentro nada que mejore ese puesto. Si aparece, le aviso.'}`;
+  }
+  if(kind==='porque'){
+    const p=G.squad.find(x=>x.id===pid); if(!p) return 'Ese ya no está en el plantel, presidente.';
+    const fit=p.fit===undefined?100:p.fit, np=p.notaProm;
+    const comp=_candidatos(p.pos).filter(q=>q!==p&&Object.values(G.slots||{}).includes(q.id)).sort((a,b)=>b.rat-a.rat)[0];
+    if(p.injured) return `${_esc(_ap(p))} está lesionado, presidente: le faltan ${p.injWeeks||p.injured||'unas'} semanas.`;
+    if(p.susp>0) return `Está suspendido, presidente. Vuelve en ${p.susp} partido${p.susp>1?'s':''}.`;
+    if(fit<75) return `Lo estoy cuidando: tiene ${Math.round(fit)}% de físico. Si lo pongo así, en dos fechas se me rompe.`;
+    if(typeof np==='number'&&np<6.2) return `Viene con un promedio de ${np.toFixed(1)} en los últimos partidos. Cuando recupere el nivel, vuelve.`;
+    if(comp) return `En su puesto juega ${_esc(_ap(comp))}${typeof comp.notaProm==='number'?`, que viene con ${comp.notaProm.toFixed(1)} de promedio`:''}. ${tr==='Formador'||p.age<=21?'Lo voy metiendo de a poco.':'Que lo gane en los entrenamientos.'}`;
+    return `Tiene que ver con el planteo, presidente: con ${_esc(G.formation||'este dibujo')} no le encuentro el lugar. Lo tengo en cuenta.`;
+  }
+  if(kind==='ultimo'){
+    const m=_ultimoPartido(); if(!m) return 'Todavía no jugamos nada oficial, presidente.';
+    const T=G._tiempos, S=G._S||{};
+    const res=m.result==='W'?'ganamos':m.result==='D'?'empatamos':'perdimos';
+    let por='';
+    if(T&&T.defFit!==undefined&&T.defFit<0.55) por='La defensa llegó fundida al segundo tiempo: ahí se nos fue.';
+    else if(S.poss!==undefined) por=S.poss>=55?'Tuvimos la pelota, nos faltó profundidad.':'Nos dominaron la pelota y vivimos de contras.';
+    else if(m.result==='L') por='Nos faltó intensidad en los duelos.';
+    else por='El equipo hizo lo que trabajamos en la semana.';
+    return `Contra ${_esc(_rivalDe(m))} ${res} ${m.gf!==undefined?m.gf+'-'+m.ga:''}. ${por}`;
+  }
+  if(kind==='clasico'){
+    const m=_proximoPartido(), riv=_rivalDe(m), c=m&&typeof esClasico==='function'&&esClasico(G.teamName,riv);
+    return c?`Al clásico con ${_esc(riv)} lo estoy preparando desde hace dos semanas. ${tr==='Guerrero'||tr==='Intenso'?'Va a ser a muerte.':'Cabeza fría: el que se pone nervioso, pierde.'}`
+            :`El próximo es ${_esc(riv||'—')}, presidente. Partido a partido.`;
+  }
+  if(kind==='juvenil'){
+    const j=(G.squad||[]).filter(p=>p.age<=21).sort((a,b)=>(b.pot||b.rat)-(a.pot||a.rat))[0];
+    if(!j) return 'No tengo pibes en el plantel, presidente. Si la academia me sube alguno, lo miro.';
+    return (tr==='Formador'||(j.pot||0)>=82)?`${_esc(j.name)} tiene algo distinto. Le voy a dar minutos en los partidos más tranquilos.`:`${_esc(j.name)} todavía no está para Primera. Que siga sumando en Reserva.`;
+  }
+  if(kind==='tactica'){
+    let a=null; try{ a=dtArq(dt); }catch(e){}
+    return `Juego ${_esc(G.formation||'')}${a?` con la idea de siempre: ${_esc(a.n.toLowerCase())}. ${_esc(a.d)}`:'.'} ${dt.custom?'':'La táctica la decido yo, presidente.'}`;
+  }
+  if(kind==='plata') return `De plata usted sabe más que yo, presidente. Lo que le pido es que si hay ${fv(Math.max(0,(G.budget||0)*0.5))} para gastar, vaya al puesto que necesito.`;
+  if(kind==='contrato'||kind==='vender'){
+    const w=(G.squad||[]).find(p=>p.wantsOut);
+    return w?`${_esc(w.name)} pidió irse. Si se queda así, me rompe el grupo: o lo vendemos o le recuperamos la cabeza.`:'Del mercado de salida, lo que usted decida. Mientras no me saque a los titulares.';
+  }
+  if(kind==='moral') return dtReply('estado');
+  if(kind==='felicitar') return dtReply('felicitar');
+  if(kind==='exigir') return dtReply('exigencia');
+  if(kind==='trabajo') return dtReply('estado');
+  if(kind==='lesion'){ const l=(G.squad||[]).filter(p=>p.injured); return l.length?`Tengo ${l.length} lesionado${l.length>1?'s':''}: ${l.slice(0,3).map(p=>_esc(_ap(p))).join(', ')}. El cuerpo médico dice que el que más tarda es ${_esc(_ap(l.sort((a,b)=>(b.injWeeks||0)-(a.injWeeks||0))[0]))}.`:'No tengo lesionados, presidente. Toco madera.'; }
+  if(kind==='minutos'){ const b=_mejorEnBanco(); return b?dtReplyCtx('porque',b.id):'Los que tienen que jugar están jugando, presidente.'; }
+  return ['Entiendo, presidente. Lo hablamos en el predio.','Déjeme pensarlo y le contesto.','Sí, presidente. Lo tengo en cuenta.'][~~(Math.random()*3)];
+}
+function _mejorEnBanco(){
+  const xi=new Set(Object.values(G.slots||{}).filter(Boolean));
+  return (G.squad||[]).filter(p=>!xi.has(p.id)&&!p.injured&&p.pos!=='ARQ').sort((a,b)=>b.rat-a.rat)[0]||null;
+}
+
+// ── el presidente de la IA (modo DT) ──
+function presReply(kind){
+  const P=presIA(), pf=presPerfil(), rel=Math.round(P.rel===undefined?55:P.rel);
+  const pl=(G.calendar||[]).filter(m=>m.played&&!m.friendly), ult=pl.slice(-6);
+  const pts=ult.reduce((a,m)=>a+(m.result==='W'?3:m.result==='D'?1:0),0);
+  if(kind==='trabajo'||kind==='moral'){
+    if(rel>=70) return `Estoy contento, profe. ${pts>=10?'Los resultados acompañan y la gente está con usted.':'Me gusta cómo trabaja el grupo.'} Siga así.`;
+    if(rel>=45) return `Bien, profe, pero ${ult.length?`en las últimas ${ult.length} sacamos ${pts} de ${ult.length*3}`:'arrancamos recién'}. La comisión pide más.`;
+    return `Le voy a ser franco, profe: así no podemos seguir mucho. ${pts<=4&&ult.length>=4?`${pts} puntos de ${ult.length*3} es poco para este club.`:'Necesito ver una reacción ya.'}`;
+  }
+  if(kind==='plata'){
+    let tope=''; try{ const d=topeDetalle(); tope=` El tope salarial deja margen de ${Math.max(0,Math.round(d.tope-d.masa))}k por semana.`; }catch(e){}
+    return `Hay ${fv(G.budget||0)} en la caja, profe.${tope} ${pf.n?'Yo soy '+pf.n.toLowerCase()+':':''} ${P.perfil==='austero'?'no pienso gastar de más.':P.perfil==='ambicioso'?'si el refuerzo vale la pena, se hace.':'gastamos con cabeza.'}`;
+  }
+  if(kind==='refuerzo'){
+    const r=pedidoDelDT();
+    if(!r) return 'El plantel está completo, profe. Pídame algo concreto si lo ve necesario.';
+    return `Usted dice que ${r.n.motivo}. Lo anoto como pedido y lo veo con la comisión.`;
+  }
+  if(kind==='vender'||kind==='contrato') return 'Las ventas y los contratos son míos, profe. Si quiere algo, mándeme el pedido por el jugador y lo veo.';
+  if(kind==='ultimo'){ const m=_ultimoPartido(); return m?`Lo de ${_esc(_rivalDe(m))} ${m.result==='L'?'no me gustó nada':m.result==='W'?'estuvo muy bien':'fue un empate que no sirve de mucho'}, profe.`:'Todavía no jugamos, profe.'; }
+  if(kind==='clasico') return 'El clásico se gana, profe. La gente no perdona otra cosa.';
+  if(kind==='felicitar') return 'Gracias, profe. El mérito es de ustedes.';
+  if(kind==='exigir'){ presRel(-2,'el DT le exige al presidente'); return 'A mí no me exija, profe. Yo pongo la plata; usted ponga los resultados.'; }
+  if(kind==='juvenil') return 'Si los pibes están para jugar, póngalos. Un canterano que se vende bien nos salva el año.';
+  if(kind==='tactica') return 'La táctica es suya, profe. Yo miro la tabla.';
+  return ['Lo hablamos en la semana, profe.','Mándeme eso por escrito y lo veo con la comisión.','Entendido, profe.'][~~(Math.random()*3)];
+}
+function presMsg(kind,label){
+  ensureChats(); if(!G.chats.pres) G.chats.pres=[];
+  chatPush(G.chats.pres,'me',label);
+  let txt=presReply(kind);
+  if(kind==='refuerzo'){ const r=pedidoDelDT(); if(r) _pedPush({k:'puesto',pos:r.n.pos,titulo:'Un refuerzo de '+r.n.pos}); }
+  setTimeout(()=>{ if(!G)return; chatPush(G.chats.pres,'them',txt); if(_phTab==='dt')rPhone(); updatePhoneBadge(); },650+Math.random()*700);
+  rPhone();
+}
+function presPedidoChat(k,pid,label){
+  ensureChats(); if(!G.chats.pres) G.chats.pres=[];
+  chatPush(G.chats.pres,'me',label);
+  pedido(k,pid);
+  rPhone();
+}
+// ── jugadores: las respuestas nuevas ──
+function playerReplyCtx(p,kind){
+  const per=pPersona(p), m=(p.morale===undefined?70:p.morale);
+  if(kind==='lesion'){
+    if(!p.injured) return 'Estoy bien, físicamente al cien.';
+    const w=p.injWeeks||p.injured; return `Va mejorando. El médico dice ${typeof w==='number'?w+' semanas':'unas semanas más'}. ${per==='picante'?'Quiero volver ya.':'Voy a volver más fuerte.'}`;
+  }
+  if(kind==='gol'){ p.morale=Math.min(100,m+3); return per==='humilde'?'Gracias, el gol es de todos.':per==='picante'?'¡Y vienen más! Que me sigan llegando.':'¡Gracias! Ese gol lo soñé toda la semana.'; }
+  if(kind==='contrato'){
+    if(chatModoDT()) return `Profe, yo quiero seguir. Si usted le pide al presidente que me renueve, firmo.`;
+    const mp=contractMonths(p); return mp<=12?`Me quedan ${mp} meses, presidente. Quiero seguir, pero necesito una propuesta seria.`:'Tengo contrato largo, presidente. Estoy tranquilo.';
+  }
+  if(kind==='vender'){
+    if(!p.wantsOut) return 'No me quiero ir, presidente. Acá estoy bien.';
+    const xi=new Set(Object.values(G.slots||{}).filter(Boolean));
+    const rel=p.pdRel!==undefined?p.pdRel:60;
+    return !xi.has(p.id)?'No juego, presidente. Quiero un lugar donde me tengan en cuenta.':rel<40?'Con el técnico no hay feeling. Así no puedo seguir.':'Tengo una oportunidad de dar el salto. Le pido que me deje ir bien.';
+  }
+  if(kind==='juvenil'){ const ment=(G.mentoring||[]).find(x=>x.pid===p.id); const mm=ment&&G.squad.find(q=>q.id===ment.mid);
+    return mm?`Aprendo un montón de ${_esc(_ap(mm))}. Me dice todo.`:'Estoy tratando de aprender de los grandes. Me falta, pero voy a llegar.'; }
+  if(kind==='puesto'){ return p.pos2?`Donde más cómodo me siento es de ${p.pos}, pero también puedo jugar de ${p.pos2}.`:`Lo mío es ${p.pos}. Ahí rindo.`; }
+  if(kind==='minutos') return playerReply(p,m>=50?'estado':'estado');
+  if(kind==='clasico') return per==='picante'?'¡El clásico se gana como sea! Estoy listo.':'Es el partido que todos queremos jugar. Estoy preparado.';
+  if(kind==='ultimo'){ const u=_ultimoPartido(); return u?(u.result==='L'?'Duele. Ya estamos pensando en el que viene.':u.result==='W'?'¡Qué lindo ganar así! El grupo está fuerte.':'Nos quedó gusto a poco.'):'Todavía no jugamos.'; }
+  if(['felicitar','exigir','estado','titular'].includes(kind)) return playerReply(p,kind);
+  if(kind==='moral'||kind==='trabajo') return playerReply(p,'estado');
+  return ['Sí, presidente. Lo tengo en cuenta.','Gracias por hablarme.','Entendido.'][~~(Math.random()*3)];
+}
+// ── escribir lo que quieras ──
+function chatLibre(){
+  const inp=document.getElementById('phIn'); if(!inp||!G) return;
+  const raw=(inp.value||'').trim().slice(0,200); if(!raw) return;
+  inp.value='';
+  const k=chatIntencion(raw), lbl=_esc(raw);
+  ensureChats();
+  if(_phTab==='dt'){
+    if(chatModoDT()){ if(!G.chats.pres)G.chats.pres=[]; return presMsg(k,lbl); }
+    chatPush(G.chats.dt,'me',lbl);
+    const txt=dtReplyCtx(k==='otro'?'otro':k);
+    setTimeout(()=>{ if(!G)return; chatPush(G.chats.dt,'them',txt); if(_phTab==='dt')rPhone(); updatePhoneBadge(); },650+Math.random()*700);
+    return rPhone();
+  }
+  if(_phTab==='player'&&_phPlayer){
+    const p=G.squad.find(x=>x.id===_phPlayer); if(!p) return;
+    if(!G.chats.players[p.id])G.chats.players[p.id]=[];
+    chatPush(G.chats.players[p.id],'me',lbl);
+    const txt=playerReplyCtx(p,k);
+    setTimeout(()=>{ if(!G)return; chatPush(G.chats.players[p.id],'them',txt); if(_phTab==='player'&&_phPlayer===p.id)rPhone(); updatePhoneBadge(); },650+Math.random()*800);
+    return rPhone();
+  }
+}
+// Botones que aparecen según lo que pasa
+function chatBotonesDT(){
+  const b=[];
+  const banco=_mejorEnBanco(); if(banco) b.push(`<button class="ph-qrbtn" onclick="presMsgDTx('porque','${banco.id}','¿Por qué no juega ${_esc(_ap(banco))}?')">¿Por qué no juega ${_esc(_ap(banco))}?</button>`);
+  if(_ultimoPartido()) b.push(`<button class="ph-qrbtn" onclick="presMsgDTx('ultimo','','¿Qué pasó el último partido?')">¿Qué pasó el último partido?</button>`);
+  const pr=_proximoPartido(); if(pr&&typeof esClasico==='function'&&esClasico(G.teamName,_rivalDe(pr))) b.push(`<button class="ph-qrbtn" onclick="presMsgDTx('clasico','','¿Cómo llegamos al clásico?')">🔥 ¿Cómo llegamos al clásico?</button>`);
+  if((G.squad||[]).some(p=>p.age<=21)) b.push(`<button class="ph-qrbtn" onclick="presMsgDTx('juvenil','','¿Le darías minutos a algún pibe?')">🌱 ¿Y los pibes?</button>`);
+  b.push(`<button class="ph-qrbtn" onclick="presMsgDTx('tactica','','¿Cómo vas a jugar?')">¿Cómo vas a jugar?</button>`);
+  return b.join('');
+}
+function presMsgDTx(kind,pid,label){
+  ensureChats(); chatPush(G.chats.dt,'me',_esc(label));
+  const txt=dtReplyCtx(kind,pid);
+  setTimeout(()=>{ if(!G)return; chatPush(G.chats.dt,'them',txt); if(_phTab==='dt')rPhone(); updatePhoneBadge(); },650+Math.random()*700);
+  rPhone();
+}
+function chatBotonesJugador(p){
+  const b=[], q=(k,t)=>b.push(`<button class="ph-qrbtn" onclick="presMsgPlayerX('${p.id}','${k}','${t.replace(/'/g,"\\'")}')">${t}</button>`);
+  if(p.injured) q('lesion','¿Cómo va la recuperación?');
+  if((G._lastScorers||[]).some(x=>x&&(x.id===p.id||x.name===p.name))) q('gol','¡Qué golazo el del domingo!');
+  if(contractMonths(p)<=12) q('contrato','Hablemos de tu contrato');
+  if(p.wantsOut) q('vender','¿Por qué te querés ir?');
+  if(p.age<=21) q('juvenil','¿Cómo te sentís en el plantel?');
+  q('puesto','¿En qué puesto te sentís mejor?');
+  const pr=_proximoPartido(); if(pr&&typeof esClasico==='function'&&esClasico(G.teamName,_rivalDe(pr))) q('clasico','Se viene el clásico');
+  return b.join('');
+}
+function presMsgPlayerX(pid,kind,label){
+  ensureChats(); const p=G.squad.find(x=>x.id===pid); if(!p)return;
+  if(!G.chats.players[pid])G.chats.players[pid]=[];
+  chatPush(G.chats.players[pid],'me',_esc(label));
+  if(kind==='contrato'&&chatModoDT()) pedido('renovar',pid);
+  const txt=playerReplyCtx(p,kind);
+  setTimeout(()=>{ if(!G)return; chatPush(G.chats.players[pid],'them',txt); if(_phTab==='player'&&_phPlayer===pid)rPhone(); updatePhoneBadge(); },650+Math.random()*800);
+  rPhone();
+}
+const CHAT_INPUT=`<div class="ph-in"><input id="phIn" maxlength="200" placeholder="Escribí lo que quieras…" onkeydown="if(event.key==='Enter')chatLibre()"><button onclick="chatLibre()" aria-label="Enviar">➤</button></div>`;
+// La pestaña del presidente (modo DT)
+function rPhonePres(scr){
+  ensureChats(); if(!G.chats.pres) G.chats.pres=[];
+  const P=presIA(), pf=presPerfil(), th=G.chats.pres;
+  const sq=G.squad||[];
+  const top=sq.slice().sort((a,b)=>b.rat-a.rat)[0];
+  const vence=sq.filter(p=>contractMonths(p)<=12&&p.rat>=70).sort((a,b)=>b.rat-a.rat)[0];
+  const quiere=sq.find(p=>p.wantsOut);
+  const r=pedidoDelDT();
+  const btn=(on,t)=>`<button class="ph-qrbtn" onclick="${on}">${t}</button>`;
+  scr.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-size:16px">🏛️</div>
+      <div><div style="font-size:12px;font-weight:700">${_esc(P.name)}</div><div style="font-size:10px;color:var(--t3)">Presidente · ${pf.e||''} ${_esc(pf.n||'')} · relación ${Math.round(P.rel)}/100</div></div>
+    </div>
+    ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Sos el técnico: el mercado y los contratos los maneja el presidente.<br>Pedile lo que necesites.</div>'}
+    <div class="ph-qr">
+      ${r?btn(`presMsg('refuerzo','Necesito un ${r.n.pos}: ${r.n.motivo.replace(/'/g,'').replace(/<[^>]+>/g,'')}')`,'📨 Pedir un '+r.n.pos):''}
+      ${btn(`presMsg('trabajo','¿Cómo ve mi trabajo?')`,'¿Cómo ve mi trabajo?')}
+      ${btn(`presMsg('plata','¿Hay plata para fichar?')`,'💰 ¿Hay plata?')}
+      ${top?btn(`presPedidoChat('proteger','${top.id}','No venda a ${_esc(_ap(top)).replace(/'/g,'')}, es clave')`,'🛡️ No venda a '+_esc(_ap(top))):''}
+      ${vence?btn(`presPedidoChat('renovar','${vence.id}','Renuévele a ${_esc(_ap(vence)).replace(/'/g,'')}')`,'🖊️ Renovar a '+_esc(_ap(vence))):''}
+      ${quiere?btn(`presPedidoChat('vender','${quiere.id}','A ${_esc(_ap(quiere)).replace(/'/g,'')} véndalo, se quiere ir')`,'🏷️ Vender a '+_esc(_ap(quiere))):''}
+    </div>${CHAT_INPUT}`;
+  scr.scrollTop=scr.scrollHeight;
+}
+// El presidente te escribe (modo DT), en vez de "el DT" que serías vos
+function weeklyPresVoz(){
+  if(!G||Math.random()>0.40) return;
+  const P=presIA(), rel=P.rel===undefined?55:P.rel, msgs=[];
+  const ult=(G.calendar||[]).filter(m=>m.played&&!m.friendly).slice(-4);
+  const pts=ult.reduce((a,m)=>a+(m.result==='W'?3:m.result==='D'?1:0),0);
+  if(ult.length>=4&&pts<=3) msgs.push(`Profe, ${pts} puntos en los últimos ${ult.length} partidos. La comisión me pregunta por usted. Necesito una reacción.`);
+  if(ult.length>=4&&pts>=10) msgs.push('Profe, la gente está feliz. Siga así que el club lo respalda.');
+  if((G.budget||0)<0) msgs.push('Profe, la caja está en rojo. Este mercado no se compra nada: si quiere alguien, que sea a préstamo.');
+  if(isTransferWindowOpen()&&rel>=55) msgs.push('Está abierto el mercado, profe. Si necesita algo puntual, mándeme el pedido y lo veo.');
+  const pr=_proximoPartido(); if(pr&&typeof esClasico==='function'&&esClasico(G.teamName,_rivalDe(pr))) msgs.push(`Se viene ${_esc(_rivalDe(pr))}, profe. Usted sabe lo que significa para esta gente.`);
+  if(!msgs.length) return;
+  const txt=msgs[~~(Math.random()*msgs.length)];
+  ensureChats(); if(!G.chats.pres) G.chats.pres=[];
+  chatPush(G.chats.pres,'them',txt);
+  addPhoneMsg('board',P.name,'🏛️ '+txt,'🏛️');
+}
+
 // ═══ REPRESENTANTES: te ofrecen jugadores de afuera — podés consultar al DT ═══
 function genAgentOffer(){
   ensureChats();
@@ -32308,6 +32658,7 @@ function weeklyDtPlan(){
 }
 function weeklyDtVoice(){
   if(!G||!G.dt)return;
+  if(chatModoDT()) return weeklyPresVoz();   // Fase 94: siendo DT te escribe el presidente, no vos mismo
   if(Math.random()>0.45)return;
   const dt=G.dt, rel=(G.dtRel===undefined?65:G.dtRel), sq=G.squad||[];
   const xi=Object.values(G.slots||{}).filter(Boolean);
@@ -32320,7 +32671,9 @@ function weeklyDtVoice(){
     avg:(()=>{const a=sq.filter(p=>pgr(p.pos)===g);return a.length?a.reduce((s,p)=>s+p.rat,0)/a.length:0;})()}));
   const flojo=grp.filter(x=>x.n>0).sort((a,b)=>a.avg-b.avg)[0];
   const nombreG={ARQ:'un arquero',DEF:'un defensor',MED:'un mediocampista',DEL:'un delantero'};
-  if(flojo&&isTransferWindowOpen())msgs.push(`Presidente, si me quiere ayudar de verdad, necesito <b>${nombreG[flojo.g]}</b>. Es la línea que más floja tengo y se nota en la cancha.`);
+  const _nec=pedidoDelDT();
+  if(_nec&&isTransferWindowOpen())msgs.push(`Presidente, ${_nec.n.motivo}. ${_nec.c.length?`Yo iría por <b>${_esc(_nec.c[0].p.name)}</b> (${_nec.c[0].p.rat}, ${fv(askingPrice(_nec.c[0].p))}).`:'Necesito un '+_nec.n.pos+'.'}`);
+  else if(flojo&&isTransferWindowOpen())msgs.push(`Presidente, si me quiere ayudar de verdad, necesito <b>${nombreG[flojo.g]}</b>. Es la línea que más floja tengo y se nota en la cancha.`);
   // Se queja de la condición física del plantel
   const fundidos=sq.filter(p=>xi.includes(p.id)&&(p.fit===undefined?100:p.fit)<70);
   if(fundidos.length>=3)msgs.push(`Tengo ${fundidos.length} titulares por debajo del 70% de condición. O rotamos, o en dos fechas se me rompe alguno.`);
@@ -32411,6 +32764,7 @@ function rPhone(){
   ensureChats();
   // ═══ CHAT CON EL DT ═══
   if(_phTab==='dt'){
+    if(chatModoDT()) return rPhonePres(scr);
     const th=G.chats.dt;
     scr.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
@@ -32423,7 +32777,8 @@ function rPhone(){
         <button class="ph-qrbtn" onclick="presMsgDT('refuerzo','¿Qué refuerzo necesitás?')">¿Qué refuerzo necesitás?</button>
         <button class="ph-qrbtn" onclick="presMsgDT('felicitar','Buen trabajo, seguí así.')">👏 Felicitar</button>
         <button class="ph-qrbtn" onclick="presMsgDT('exigencia','Te exijo resultados ya.')">⚠️ Exigir resultados</button>
-      </div>`;
+        ${chatBotonesDT()}
+      </div>${CHAT_INPUT}`;
     scr.scrollTop=scr.scrollHeight;
     return;
   }
@@ -32439,13 +32794,14 @@ function rPhone(){
           <div>${rb(p.rat)}</div>
           <div><div style="font-size:12px;font-weight:700">${p.name}</div><div style="font-size:9px;color:var(--t3)">${p.pos} · Moral ${p.morale===undefined?70:p.morale}%</div></div>
         </div>
-        ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Sin mensajes con este jugador.</div>'}
+        ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.from==='me'?m.txt:_tratoTxt(m.txt)}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Sin mensajes con este jugador.</div>'}
         <div class="ph-qr">
           <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','felicitar','Felicitaciones por tu nivel, seguí así.')">👏 Felicitar</button>
           <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','estado','¿Cómo te sentís en el club?')">¿Cómo te sentís?</button>
           <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','titular','Vas a tener más minutos, confío en vos.')">⭐ Prometer minutos</button>
           <button class="ph-qrbtn" onclick="presMsgPlayer('${p.id}','exigir','Espero mucho más de vos.')">⚠️ Exigir</button>
-        </div>`;
+          ${chatBotonesJugador(p)}
+        </div>${CHAT_INPUT}`;
       scr.scrollTop=scr.scrollHeight;
       return;
     }
@@ -32551,7 +32907,7 @@ function rPhone(){
           if(pl){
             const verdictHtml=off.dtVerdict?`<div style="font-size:9.5px;color:${off.dtVerdict.score>=2?'var(--green)':'var(--red)'};margin-top:4px;padding:5px 7px;background:rgba(255,255,255,.04);border-radius:6px">🎯 <b>DT:</b> ${off.dtVerdict.txt}</div>`:'';
             actHtml=verdictHtml+`<div class="ph-acts">
-              ${off.status==='new'?`<button class="btn bo bs" onclick="askDtAboutOffer('${off.id}')" style="font-size:9px;padding:3px 9px">🎯 Preguntar al DT</button>`:''}
+              ${chatModoDT()?`<button class="btn bo bs" onclick="pedido('jugador','${pl.id}');rejectAgentOffer('${off.id}')" style="font-size:9px;padding:3px 9px">📨 Pedírselo al presidente</button>`:off.status==='new'?`<button class="btn bo bs" onclick="askDtAboutOffer('${off.id}')" style="font-size:9px;padding:3px 9px">🎯 Preguntar al DT</button>`:''}
               <button class="btn bG bs" onclick="negotiateAgentOffer('${off.id}')" style="font-size:9px;padding:3px 9px">🤝 Negociar</button>
               <button class="btn bR bs" onclick="rejectAgentOffer('${off.id}')" style="font-size:9px;padding:3px 9px">✗ No me interesa</button>
             </div>`;
@@ -32564,7 +32920,7 @@ function rPhone(){
     return `<div class="ph-msg${m.read?'':' unread'}">
       <div class="ph-dot"></div>
       <div class="ph-from">${m.icon} ${m.from}</div>
-      <div class="ph-body">${m.body}</div>
+      <div class="ph-body">${m.type==='player'?_tratoTxt(m.body):m.body}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
         <div class="ph-time">Sem. ${m.week}</div>
       </div>

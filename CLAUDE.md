@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94` |
 
 ## Formato de `players-db.js`
 
@@ -8356,6 +8356,41 @@ errarla (`s.shank`). `s._fire(ax,ay,pw)` sigue para los tests viejos.
 (`SIT_FICHA`); en el córner, los del que manejás y su cabezazo.
 
 `tests/fase93.js`, **32 checks**.
+
+## Fase 94: charlas que salen del club (y el bug del modo DT)
+
+El presidente: *"cuando soy DT, en el celular le escribo al DT, que soy yo, y
+él me dice qué jugador quiere"*. Era así: la pestaña "Chat DT" hablaba con
+`G.dt`, que en modo DT sos vos (`name:'Vos'`), y `weeklyDtVoice` te mandaba
+pedidos de refuerzo firmados por vos mismo.
+
+- **Modo DT**: la pestaña es **🏛️ Presidente** (`rPhonePres`, hilo
+  `G.chats.pres`, plano). Le pedís un refuerzo (deja un pedido formal con
+  `_pedPush`, el mismo circuito de siempre), le preguntás cómo ve tu trabajo o
+  si hay plata, y con botones según el plantel: no vender a la figura, renovar
+  al que se le vence, vender al que se quiere ir. `weeklyDtVoice` en modo DT
+  es `weeklyPresVoz`: te escribe el presidente (racha, caja, ventana, clásico).
+  Los jugadores te dicen **"profe"** (`_tratoTxt`, al dibujar: el texto
+  guardado no cambia). Hablarle del contrato a un jugador le pide la
+  renovación al presidente. Las ofertas de representantes: "📨 Pedírselo al
+  presidente".
+- **El DT de la IA pide lo que hace falta**: `necesidadPlantel()` (sobre
+  `informePlantel`: puesto sin gente, titular 5+ abajo del once, sin recambio,
+  veterano sin heredero, suplente muy lejos) y `candidatosPara(n)`: del puesto,
+  conocidos (`isKnown`), que alcancen con el 60% de la caja, que mejoren (o
+  sirvan de recambio) y ordenados por lo que le gusta a su idea (`dtGusto`,
+  sale de `dtProfile`: línea alta → VEL en defensa, juego corto → PAS/REG…).
+  Lo usan la charla, `weeklyDtVoice` y `genDtRequest` (antes elegía con
+  `wantedPos` fijo y motivos genéricos como "Brey necesita competencia").
+- **Más charlas**: botones que aparecen según el momento (DT: por qué no juega
+  el mejor del banco, qué pasó el último partido, el clásico, los pibes, cómo
+  va a jugar; jugador: la lesión, el gol del domingo, el contrato, por qué se
+  quiere ir, su puesto, el clásico) y **se puede escribir**: `chatIntencion`
+  lee el tema con expresiones (refuerzo, plata, contrato, minutos, lesión,
+  táctica, clásico, partido, venta, pibes, felicitar, exigir, ánimo, trabajo)
+  y contesta con datos. ⚠️ El texto se escapa con `_esc` antes de mostrarlo.
+
+`tests/fase94.js`, **23 checks**.
 
 ## Deploy
 
