@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93` |
 
 ## Formato de `players-db.js`
 
@@ -8289,6 +8289,73 @@ px de los eventos, y los puntos medios en la tarjeta de fundar club.
   contraste, letra mínima) y la guía pide gastar la audacia en un solo lugar.
 
 `tests/fase92.js`, **19 checks**.
+
+## Fase 93: el córner con zonas y marcas, y el penal por punto de contacto
+
+El presidente: *"el que patea el córner es el mismo que cabecea, van todos al
+mismo lugar, no podés controlar otros jugadores, los defensores no defienden"*
+y *"quería que el penal se pateara dependiendo de en qué parte le pegás a la
+pelota"*. Las dos jugadas se reescribieron (`sitSetupCorner`,
+`sitSetupPenalty`).
+
+### Córner
+
+- **El que patea no cabecea.** Patea el designado (`roleTaker('ck')`) y suben
+  2-4 (`sitMent`) sin él; `s.scorer` es siempre el que ganó la pelota.
+- **Cada uno a su zona**: arrancan en la medialuna y corren al punto penal, 2º
+  palo, 1er palo y área chica (el mejor cabeceador al punto penal).
+- **Manejás al que va a cabecear**, en los dos ejes (arriba = hacia el arco; la
+  mira del centro también: antes ↓ la acercaba al arco). **X cambia** al
+  siguiente más cerca de donde cae; tocar a un compañero lo elige; tocar la
+  cancha lleva al tuyo (`s.aPasto` busca el punto del pasto que proyecta ahí:
+  anda igual en 2D y en 3D, ≤0,05 m).
+- **Defienden**: cada atacante tiene su marca, del lado del arco, con su `def`
+  y `vel` (nivel del rival ±6); los dos de zona atacan la pelota si cae a menos
+  de 5 m; el arquero **sale** si el centro va al área chica.
+- **La pelota se pelea donde baja** (a menos de 2,2 m de donde cae; antes pasa
+  por arriba de las cabezas) y después como volea. `disputa()`: gana el mejor
+  `cab + cercanía + azar`; el cabezazo es `_s93Cab` (altura, FIS y TIR, se ve
+  en pantalla). Ganó la marca o un central → despeje; el arquero → `gk_claim`
+  (salida nueva del relato). El compañero de la IA va a medias (−12): el que
+  decide sos vos.
+- Saltar fuera de la ventana gasta el salto (30 cuadros).
+
+Medido con robots (rival de 70, 160 córners cada uno):
+
+| | gol |
+|---|---|
+| antes, bien jugado | **78%** |
+| esperarla en donde cae | 29-37% |
+| ir a buscarla y cabecear lejos del arquero | 40-48% |
+| no hacer nada | 1-2% |
+| mismos jugadores con cabezazo 92 / 45 | 57% / 0% |
+
+⚠️ Bajó mucho del 78% a propósito: antes no defendía nadie.
+
+### Penal
+
+Se elige el **punto de la pelota** (pelota grande abajo a la derecha: tocás y
+mantenés para la fuerza, o ← → ↑ ↓ + Z). `penContactoBlanco`: del lado
+izquierdo sale a la derecha, abajo la levanta, arriba va rasante; la fuerza
+también la levanta. `penError`: el botín se corre del punto según el TIR
+(0,02 con 95, 0,13 con 65), la fuerza de más y la moral baja; la mancha roja
+en la pelota y la amarilla en el arco muestran cuánto. Pegarle al borde es
+errarla (`s.shank`). `s._fire(ax,ay,pw)` sigue para los tests viejos.
+
+| | gol | afuera |
+|---|---|---|
+| al ángulo, TIR 90 | 75-79% | 0% |
+| al ángulo, TIR 65 | 61-67% | 12-15% |
+| al medio | 30% | — |
+
+(Antes: 58% al ángulo con cualquiera.)
+
+### Las habilidades se ven
+
+`sitDrawFicha`: arriba a la izquierda, los atributos que pesan en ESA jugada
+(`SIT_FICHA`); en el córner, los del que manejás y su cabezazo.
+
+`tests/fase93.js`, **32 checks**.
 
 ## Deploy
 
