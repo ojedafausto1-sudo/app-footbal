@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95` |
 
 ## Formato de `players-db.js`
 
@@ -8391,6 +8391,41 @@ pedidos de refuerzo firmados por vos mismo.
   y contesta con datos. ⚠️ El texto se escapa con `_esc` antes de mostrarlo.
 
 `tests/fase94.js`, **23 checks**.
+
+## Fase 95: el predio se ve, y los jugadores parecen personas
+
+### Lo que construís aparece
+
+`PREDIO` (id de mejora → forma, cartel, ángulo y distancia **fijos**: el predio
+no cambia de lugar entre visitas) y `predioObras()` (las construidas del
+estadio y de la academia —estas con prefijo `y:`— más las de
+`G.activeConstructions`). `e3dPredio(E,o)` las levanta alrededor del estadio
+desde `e3dEstadio` cuando recibe `o.predio`: tienda, megatienda, museo, hotel,
+restaurante, fan zone, clínica (con la cruz), centro de entrenamiento y de alto
+rendimiento (canchas con arcos), academia F7, paneles solares, cochera,
+molinetes, y de las inferiores canchas juveniles, pensionado, gimnasio,
+colegio y oficinas. Lo que está **en obra** lleva andamio y grúa, y las
+pantallas HD se ven en las cabeceras.
+
+- En el visor (🏟️ Recorrer el estadio, y el botón **🏗️ Ver el predio en 3D**
+  que se sumó arriba de las mejoras en Estadio y en Juveniles) cada edificio
+  tiene su cartel (sprite). El fondo del menú también lo muestra, sin carteles,
+  y `fondo3DKey` incluye el predio para rearmarse al construir.
+- Todo son cajas y cilindros sin azar: el test cuenta 0 `Math.random()`.
+
+### Jugadores
+
+- **3D** (`e3dFab`): cápsulas en vez de cajas (muslo, pierna, brazo,
+  antebrazo), torso más ancho de hombros, cuello, manos, cinco tonos de piel,
+  pelo largo en uno de cada tres y el **número en la espalda** (textura por
+  número y color, cacheada). Los codos (`hom.userData.codo`) se doblan al
+  correr. La estructura `J` es la misma, así que `posar` y los dos motores no
+  cambiaron.
+- **2D** (`sitDrawFigure`): la cabeza pasó de 2/5 del alto a ~1/8; cadera →
+  rodilla → tobillo y hombro → codo → mano articulados, medias, short con
+  forma, mangas.
+
+`tests/fase95.js`, **13 checks**.
 
 ## Deploy
 

@@ -11775,7 +11775,7 @@ function rStad(){
       }).join('')}
     </div>
   `;
-  e2.innerHTML = obrasHTML('stadium')+`<div class="ctitle">🔧 Construir mejoras</div>`+
+  e2.innerHTML = obrasHTML('stadium')+predioBoton()+`<div class="ctitle">🔧 Construir mejoras</div>`+
     st.upgrades.map(u=>`
       <button class="upg-btn" onclick="${u.built?'':'openBuildStad(\''+u.id+'\')'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -11970,7 +11970,7 @@ function rJuv(){
         </div>
       </div>
     `).join('');
-  e3.innerHTML = obrasHTML('youth')+`<div class="ctitle">🔧 Mejorar academia</div>` +
+  e3.innerHTML = obrasHTML('youth')+predioBoton()+`<div class="ctitle">🔧 Mejorar academia</div>` +
     y.upgrades.map(u=>`
       <button class="upg-btn" onclick="${u.built?'':'buildYouthUpg(\''+u.id+'\')'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -21607,43 +21607,55 @@ function sitDrawPlayer(ctx,x,y,r,col,label,isCtrl){
 function sitDrawFigure(ctx,x,y,h,shirt,shorts,opt){
   if(SIT&&SIT._3d)return;
   opt=opt||{};
+  // Fase 95: proporciones de persona (la cabeza es 1/8 del alto, no 2/5),
+  // codos y rodillas que se doblan, medias, mangas y tono de piel por jugador.
   const run=opt.run||0, face=opt.face||0, isCtrl=opt.isCtrl, dive=opt.dive;
-  const w=h*0.42;                       // ancho del cuerpo
-  const legSwing=Math.sin(run*Math.PI*2)*h*0.16;
-  const foot=y;                         // los pies apoyan en (x,y)
-  const head=foot-h;                    // arriba del todo
-  // sombra
-  ctx.beginPath();ctx.ellipse(x,foot+2,w*1.1,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.30)';ctx.fill();
-  if(dive){ // arquero volando: cuerpo horizontal
-    ctx.save();ctx.translate(x,foot-h*0.5);ctx.rotate((opt.diveDir||1)*0.9);ctx.translate(-x,-(foot-h*0.5));
-  }
-  // piernas (dos, con boti negro)
-  const legY=foot-h*0.42, legH=h*0.42;
-  ctx.strokeStyle='#e8c49a';ctx.lineWidth=h*0.13;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(x-w*0.28,legY);ctx.lineTo(x-w*0.28+legSwing,foot-h*0.06);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+w*0.28,legY);ctx.lineTo(x+w*0.28-legSwing,foot-h*0.06);ctx.stroke();
-  // botines
-  ctx.strokeStyle='#111';ctx.lineWidth=h*0.10;
-  ctx.beginPath();ctx.moveTo(x-w*0.28+legSwing,foot-h*0.09);ctx.lineTo(x-w*0.28+legSwing+face*3,foot);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+w*0.28-legSwing,foot-h*0.09);ctx.lineTo(x+w*0.28-legSwing+face*3,foot);ctx.stroke();
+  const PIEL=['#f1c9a0','#e0ac7e','#c58c5c','#9a6a40','#6e4a2c'];
+  const sem=String(opt.label||opt.hair||'x').split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const piel=opt.skin||PIEL[sem%5];
+  const media=opt.socks||(shorts&&shorts!=='#fff'&&shorts!=='#ffffff'?shorts:'#f2f2f2');
+  const ph=run*Math.PI*2, sw=Math.sin(ph)*0.55*(run?1:0.15);
+  const foot=y, hom=foot-h*0.80, cad=foot-h*0.50;
+  const sh=h*0.15, wa=h*0.115;                     // medio ancho de hombros y cintura
+  ctx.beginPath();ctx.ellipse(x,foot+2,sh*1.6,3.2,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.30)';ctx.fill();
+  if(dive){ ctx.save();ctx.translate(x,foot-h*0.5);ctx.rotate((opt.diveDir||1)*0.95);ctx.translate(-x,-(foot-h*0.5)); }
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  // piernas: cadera → rodilla → tobillo, el muslo con el short y la media hasta la rodilla
+  const pierna=(lado,a)=>{
+    const hx=x+lado*wa*0.55, kx=hx+Math.sin(a)*h*0.26, ky=cad+Math.cos(a)*h*0.26;
+    const fl=Math.max(0,-a)*0.9+0.05, ax=kx+Math.sin(a-fl)*h*0.24, ay=ky+Math.cos(a-fl)*h*0.24;
+    ctx.strokeStyle=piel; ctx.lineWidth=h*0.075; ctx.beginPath(); ctx.moveTo(hx,cad); ctx.lineTo(kx,ky); ctx.stroke();
+    ctx.strokeStyle=media; ctx.lineWidth=h*0.065; ctx.beginPath(); ctx.moveTo(kx,ky+h*0.02); ctx.lineTo(ax,ay); ctx.stroke();
+    ctx.strokeStyle='#111'; ctx.lineWidth=h*0.055; ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+(face||lado*0.4)*h*0.07,Math.min(foot,ay+h*0.015)); ctx.stroke();
+  };
+  pierna(-1,sw); pierna(1,-sw);
   // short
-  ctx.fillStyle=shorts;ctx.fillRect(x-w*0.5,legY-h*0.06,w,h*0.20);
-  // torso (camiseta)
-  const torsoY=foot-h*0.86, torsoH=h*0.46;
-  ctx.fillStyle=shirt;
-  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x-w*0.5,torsoY,w,torsoH,3);ctx.fill();}
-  else ctx.fillRect(x-w*0.5,torsoY,w,torsoH);
-  ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(x-w*0.5,torsoY,w,torsoH*0.4);
-  // brazos
-  ctx.strokeStyle='#e8c49a';ctx.lineWidth=h*0.10;
-  ctx.beginPath();ctx.moveTo(x-w*0.48,torsoY+h*0.05);ctx.lineTo(x-w*0.62-legSwing*0.4,torsoY+h*0.28);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+w*0.48,torsoY+h*0.05);ctx.lineTo(x+w*0.62+legSwing*0.4,torsoY+h*0.28);ctx.stroke();
-  // cabeza + pelo
-  const hr=h*0.20;
-  ctx.beginPath();ctx.arc(x,head+hr,hr,0,Math.PI*2);ctx.fillStyle='#e8c49a';ctx.fill();
-  ctx.beginPath();ctx.arc(x,head+hr*0.85,hr*0.98,Math.PI*1.05,Math.PI*1.95);ctx.fillStyle=opt.hair||'#3a2415';ctx.fill();
+  ctx.fillStyle=shorts; ctx.beginPath(); ctx.moveTo(x-wa,cad-h*0.04); ctx.lineTo(x+wa,cad-h*0.04);
+  ctx.lineTo(x+wa*1.05,cad+h*0.11); ctx.lineTo(x+h*0.01,cad+h*0.09); ctx.lineTo(x-h*0.01,cad+h*0.09); ctx.lineTo(x-wa*1.05,cad+h*0.11); ctx.closePath(); ctx.fill();
+  // brazo de atrás va antes que el torso
+  const brazo=(lado,a)=>{
+    const sx=x+lado*sh*0.92, sy=hom+h*0.03, ex=sx+Math.sin(a)*h*0.15+lado*h*0.02, ey=sy+Math.cos(a)*h*0.15;
+    const ha=a+(run?0.9:0.15)*(a>=0?1:0.6), hx=ex+Math.sin(ha)*h*0.14, hy=ey+Math.cos(ha)*h*0.14;
+    ctx.strokeStyle=piel; ctx.lineWidth=h*0.05; ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(hx,hy); ctx.stroke();
+    ctx.strokeStyle=shirt; ctx.lineWidth=h*0.068; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+(ex-sx)*0.55,sy+(ey-sy)*0.55); ctx.stroke();
+    ctx.strokeStyle=piel; ctx.lineWidth=h*0.052; ctx.beginPath(); ctx.moveTo(sx+(ex-sx)*0.55,sy+(ey-sy)*0.55); ctx.lineTo(ex,ey); ctx.stroke();
+  };
+  const ab=opt.armsUp?Math.PI*0.9:0;
+  brazo(-1,ab?-ab:-sw*0.9-0.08);
+  // torso: hombros anchos, cintura más angosta
+  ctx.fillStyle=shirt; ctx.beginPath();
+  ctx.moveTo(x-sh,hom+h*0.02); ctx.quadraticCurveTo(x,hom-h*0.03,x+sh,hom+h*0.02);
+  ctx.lineTo(x+wa*1.02,cad-h*0.02); ctx.lineTo(x-wa*1.02,cad-h*0.02); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.14)'; ctx.fillRect(x-sh*0.8,hom+h*0.03,sh*1.6,h*0.06);
+  ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(x-wa,cad-h*0.07,wa*2,h*0.05);
+  brazo(1,ab?ab:sw*0.9+0.08);
+  // cuello y cabeza
+  ctx.strokeStyle=piel; ctx.lineWidth=h*0.06; ctx.beginPath(); ctx.moveTo(x,hom); ctx.lineTo(x,hom-h*0.045); ctx.stroke();
+  const hr=h*0.072, hy=foot-h*0.915;
+  ctx.beginPath(); ctx.ellipse(x,hy,hr*0.88,hr,0,0,Math.PI*2); ctx.fillStyle=piel; ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x,hy-hr*0.18,hr*0.92,hr*0.86,0,Math.PI*1.02,Math.PI*1.98); ctx.fillStyle=opt.hair||'#3a2415'; ctx.fill();
   if(dive)ctx.restore();
-  if(isCtrl){ctx.beginPath();ctx.arc(x,foot+3,w*1.3,0,Math.PI*2);ctx.strokeStyle=''+GOLDA(.7)+'';ctx.lineWidth=2.2;ctx.stroke();}
+  if(isCtrl){ctx.beginPath();ctx.arc(x,foot+3,sh*2.2,0,Math.PI*2);ctx.strokeStyle=''+GOLDA(.7)+'';ctx.lineWidth=2.2;ctx.stroke();}
   if(opt.label){ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 8px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(opt.label,x,foot+5);}
 }
 
@@ -34368,7 +34380,119 @@ function e3dEstadio(o){
       const w=12+rnd()*22, h=6+rnd()*(d<anilloPx*1.12+180?14:34), dd=12+rnd()*22;
       const ed=new T.Mesh(geo,mEd[k%mEd.length]); ed.scale.set(w,h,dd);
       ed.position.set(Math.cos(ang)*d,h/2,Math.sin(ang)*d*0.85); ed.rotation.y=ang; S.add(ed); } }
-  return {S,alto,offMax,L,A,M,cap};
+  const E={S,alto,offMax,L,A,M,cap};
+  if(o.predio) try{ e3dPredio(E,o); }catch(e){ console.error('predio',e); }
+  return E;
+}
+// ═══ FASE 95: EL PREDIO SE VE ═══
+// Lo que construís aparece alrededor del estadio: la tienda, el museo, el
+// hotel, las canchas de las inferiores, el pensionado, la clínica, los paneles
+// solares… y lo que está en obra, con andamio y grúa. Cada edificio lleva su
+// cartel en el visor (en el fondo del menú no, para no ensuciar).
+// Las posiciones son FIJAS por tipo de obra (no se sortean): el predio no
+// cambia de lugar entre una visita y otra.
+const PREDIO={
+  // id: [forma, cartel, ángulo (rad, 0 = +x), distancia extra]
+  store:['tienda','👕 Tienda',-1.95,8], megastore:['megatienda','🛍️ Megatienda',-2.25,14],
+  museum:['museo','🏛️ Museo',-1.20,10], hotel:['hotel','🏨 Hotel',-0.80,26],
+  restaurant:['resto','🍽️ Restaurante',-1.62,6], fanzone:['fanzone','🎪 Fan Zone',-2.60,4],
+  press:['oficina','🎙️ Prensa',-0.45,6], medical:['clinica','🏥 Clínica',0.62,10],
+  ct:['entrenamiento','⚽ Centro de entrenamiento',2.45,34], highperf:['altorend','🔬 Alto rendimiento',2.05,40],
+  academy:['f7','🧒 Academia F7',2.80,24], solar:['solar','☀️ Paneles solares',1.05,34],
+  parking:['cochera','🅿️ Estacionamiento',-0.05,30], security:['molinetes','🔐 Accesos',-1.57,-6],
+  'y:yf':['canchas','🌱 Canchas juveniles',2.15,6], 'y:yd':['pension','🛏️ Pensionado',2.62,4],
+  'y:yg':['gimnasio','🏋️ Gimnasio juvenil',1.78,4], 'y:ye':['colegio','📚 Colegio',2.95,2],
+  'y:yt':['oficina','👔 Staff juvenil',1.50,10], 'y:yv':['oficina','🎥 Video juvenil',1.30,16],
+  'y:ys':['oficina','🔭 Ojeadores',3.15,10], 'y:yi':['oficina','🌍 Scouting int.',-3.00,8],
+};
+function predioBoton(){
+  const p=predioObras();
+  return `<button class="btn bo bs" style="width:100%;margin:0 0 10px" onclick="abrirEstadio3D()">🏗️ Ver el predio en 3D <span style="color:var(--t3)">· ${p.hechas.length} construid${p.hechas.length===1?'a':'as'}${p.enObra.length?' · '+p.enObra.length+' en obra':''}</span></button>`;
+}
+function predioObras(){
+  if(!G) return {hechas:[],enObra:[]};
+  const st=((G.stadium&&G.stadium.upgrades)||[]).filter(u=>u&&u.built).map(u=>u.id);
+  const yo=((G.youth&&G.youth.upgrades)||[]).filter(u=>u&&u.built).map(u=>'y:'+u.id);
+  const en=(typeof obras==='function'?obras():[]).map(o=>(o.tipo==='youth'?'y:':'')+o.id);
+  return {hechas:st.concat(yo).filter(id=>PREDIO[id]), enObra:en.filter(id=>PREDIO[id])};
+}
+function _e3dRotulo(T,txt,obra){
+  const c=document.createElement('canvas'); c.width=256; c.height=64;
+  const g=c.getContext('2d');
+  g.fillStyle=obra?'rgba(120,80,0,.88)':'rgba(6,14,24,.86)'; g.fillRect(0,8,256,48);
+  g.fillStyle=obra?'#ffcc33':'#f59e0b'; g.fillRect(0,8,6,48);
+  g.fillStyle='#fff'; g.font='bold 24px sans-serif'; g.textBaseline='middle'; g.fillText((obra?'🚧 ':'')+txt,14,33);
+  const sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),depthTest:false,transparent:true}));
+  sp.scale.set(34,8.5,1); sp.renderOrder=10; return sp;
+}
+// Arma un edificio. Devuelve {g, alto}. Todo con cajas y cilindros: barato.
+function _e3dEdificio(T,forma,col,noche){
+  const g=new T.Group();
+  const M=c=>new T.MeshLambertMaterial({color:noche?new T.Color(c).multiplyScalar(0.45):c});
+  const caja=(w,h,d,c,x,y,z)=>{ const m=new T.Mesh(new T.BoxGeometry(w,h,d),typeof c==='object'?c:M(c)); m.position.set(x||0,(y||0)+h/2,z||0); g.add(m); return m; };
+  const vid=new T.MeshLambertMaterial({color:noche?0xffe7a8:0x8fb4cf,emissive:noche?0x664d10:0x000000});
+  const club=M(col);
+  let alto=8;
+  switch(forma){
+    case 'tienda': caja(16,7,11,0xe9e5dc); caja(16.2,1.6,11.2,club,0,7); caja(10,4,0.3,vid,0,0.6,5.6); alto=9; break;
+    case 'megatienda': caja(26,10,16,vid); caja(26.4,2,16.4,club,0,10); caja(6,12,6,club,10,0,-4); alto=13; break;
+    case 'museo': caja(20,1.5,13,0xd8d2c4); caja(18,8,11,0xece7da,0,1.5); for(let i=-3;i<=3;i++) { const cl=new T.Mesh(new T.CylinderGeometry(.45,.45,7,8),M(0xf6f3ea)); cl.position.set(i*2.4,5,6.4); g.add(cl); } caja(20,1.4,13,club,0,9.5); alto=12; break;
+    case 'hotel': caja(14,38,12,0xcfd6dd); for(let y=3;y<37;y+=3.2) caja(14.2,1.1,12.2,vid,0,y); caja(14.4,2,12.4,club,0,38); alto=41; break;
+    case 'resto': caja(14,5,10,0x7a5c46); caja(16,0.6,12,club,0,5); caja(12,3,0.3,vid,0,1,5.1); alto=7; break;
+    case 'fanzone': [[-6,0],[0,-3],[6,0]].forEach(([x,z],i)=>{ const c=new T.Mesh(new T.ConeGeometry(4.2,5,8),i%2?M(0xffffff):club); c.position.set(x,3.5,z); g.add(c); caja(0.4,1,0.4,0x444444,x,0,z); }); alto=7; break;
+    case 'oficina': caja(10,6,8,0xb9c0c8); caja(10.2,1,8.2,club,0,6); caja(7,2,0.3,vid,0,2.5,4.1); alto=8; break;
+    case 'clinica': caja(16,9,11,0xf4f6f8); caja(1.2,4,0.4,0xe03030,0,10); caja(4,1.2,0.4,0xe03030,0,11.4); caja(12,2,0.3,vid,0,3,5.6); alto=12; break;
+    case 'entrenamiento': case 'altorend': case 'f7': case 'canchas': {
+      const n=forma==='entrenamiento'?2:forma==='f7'?2:forma==='canchas'?3:1, w=forma==='f7'||forma==='canchas'?26:40, d=forma==='f7'||forma==='canchas'?18:27;
+      for(let i=0;i<n;i++){ const cz=(i-(n-1)/2)*(d+4);
+        const pc=new T.Mesh(new T.PlaneGeometry(w,d),M(i%2?0x3a9a44:0x2f8a3a)); pc.rotation.x=-Math.PI/2; pc.position.set(0,0.06,cz); g.add(pc);
+        const ln=new T.Mesh(new T.PlaneGeometry(0.3,d),M(0xf4f4f4)); ln.rotation.x=-Math.PI/2; ln.position.set(0,0.08,cz); g.add(ln);
+        [-1,1].forEach(s=>{ caja(0.2,2,4,0xffffff,s*(w/2-0.5),0,cz); }); }
+      if(forma==='altorend') caja(18,8,10,vid,0,0,-(d/2+8));
+      if(forma==='entrenamiento') caja(14,5,8,0xd9d4c8,0,0,-(n*(d+4))/2-5);
+      alto=forma==='altorend'?10:6; break; }
+    case 'pension': caja(18,10,9,0xe2c9a6); for(let y=2;y<9;y+=3.3) for(let x=-6;x<=6;x+=4) caja(2,1.6,0.3,vid,x,y,4.6); caja(18.4,1,9.4,club,0,10); alto=12; break;
+    case 'gimnasio': caja(15,7,11,0x9aa3ad); caja(13,4,0.3,vid,0,1.5,5.6); caja(15.2,1,11.2,club,0,7); alto=9; break;
+    case 'colegio': caja(20,8,10,0xd8b88a); caja(3,10,3,0xd8b88a,0,0,0); caja(20.2,1,10.2,club,0,8); alto=11; break;
+    case 'solar': for(let i=0;i<4;i++) for(let j=0;j<3;j++){ const p=new T.Mesh(new T.BoxGeometry(7,0.25,4),M(0x1f3a66)); p.position.set((i-1.5)*8,1.6,(j-1)*6); p.rotation.x=-0.45; g.add(p); caja(0.3,1.3,0.3,0x777777,(i-1.5)*8,0,(j-1)*6); } alto=4; break;
+    case 'cochera': for(let y=0;y<9;y+=3) caja(34,0.6,22,0xa8adb3,0,y); [[-16,-10],[16,-10],[-16,10],[16,10]].forEach(([x,z])=>caja(0.8,9,0.8,0x8a8f96,x,0,z)); alto=10; break;
+    case 'molinetes': for(let i=-3;i<=3;i++) caja(0.6,1.2,1.6,0x2b3440,i*2,0,0); caja(16,0.4,3,club,0,3.2,0); [-8,8].forEach(x=>caja(0.4,3.2,0.4,0x666666,x,0,0)); alto=5; break;
+    default: caja(10,6,8,0xbbbbbb); alto=7;
+  }
+  return {g,alto};
+}
+function _e3dObraEnCurso(T,g,alto){
+  const amarillo=new T.MeshLambertMaterial({color:0xf2b705});
+  const and=new T.Mesh(new T.BoxGeometry(18,alto*0.7,14),new T.MeshLambertMaterial({color:0xcfa64a,wireframe:true}));
+  and.position.y=alto*0.35; g.add(and);
+  const mast=new T.Mesh(new T.BoxGeometry(1,alto+16,1),amarillo); mast.position.set(9,(alto+16)/2,-8); g.add(mast);
+  const pluma=new T.Mesh(new T.BoxGeometry(22,0.8,0.8),amarillo); pluma.position.set(2,alto+16,-8); g.add(pluma);
+}
+// Lo agrega a la escena del estadio. E = lo que devolvió e3dEstadio.
+function e3dPredio(E,o){
+  const T=THREE, S=E.S, L=E.L, A=E.A, M=E.M;
+  const P=o.predio||{hechas:[],enObra:[]};
+  const rx=(L/2+M+E.offMax+16)*1.12, rz=(A/2+M+E.offMax+16)*1.12;
+  const col=o.color||'#1d4ed8', ids=[];
+  const poner=(id,obra)=>{
+    const d=PREDIO[id]; if(!d) return;
+    const [forma,rot,ang,extra]=d;
+    const ed=_e3dEdificio(T,obra?'oficina':forma,col,!!o.noche);
+    const r=Math.cos(ang)**2*rx+Math.sin(ang)**2*rz+48+extra;
+    ed.g.position.set(Math.cos(ang)*r,0,Math.sin(ang)*r*0.95);
+    ed.g.rotation.y=-ang-Math.PI/2;
+    if(obra) _e3dObraEnCurso(T,ed.g,ed.alto);
+    if(o.rotulos){ const sp=_e3dRotulo(T,rot.replace(/^\S+\s/,''),obra); sp.position.set(0,ed.alto+6,0); ed.g.add(sp); }
+    ed.g.userData.predio=id; S.add(ed.g); ids.push(id);
+  };
+  P.hechas.forEach(id=>poner(id,false));
+  P.enObra.filter(id=>!P.hechas.includes(id)).forEach(id=>poner(id,true));
+  // pantallas gigantes en las cabeceras
+  if((o.mejoras||[]).includes('hd')&&E.cap>=15000) [-1,1].forEach(s=>{
+    const pn=new T.Mesh(new T.BoxGeometry(0.6,7,16),new T.MeshBasicMaterial({color:o.noche?0x99ccff:0x223344}));
+    pn.position.set(s*(L/2+M+E.offMax*0.75),E.alto+5,0); S.add(pn); });
+  E.predio=ids;
+  return ids;
 }
 // Los 22 y la pelota del 11v11, leídos de FM: el motor no cambia, sólo cómo
 // se dibuja. ⚠️ El kit puede traer 'var(--gold)' y WebGL no resuelve
@@ -34385,13 +34509,25 @@ const E3_ESC=1.25;        // los jugadores van un 25% más grandes que lo real: 
 function e3dFab(S,esc){
   const T=THREE; esc=esc||E3_ESC;
   const mats={}, mat=c=>{ const k=_cssVar(c,'#888888'); return mats[k]||(mats[k]=new T.MeshLambertMaterial({color:k})); };
-  const gTor=new T.BoxGeometry(0.46,0.52,0.25), gSho=new T.BoxGeometry(0.44,0.24,0.27),
-    gMus=new T.BoxGeometry(0.17,0.42,0.18), gPie=new T.BoxGeometry(0.14,0.42,0.15), gBot=new T.BoxGeometry(0.15,0.09,0.28),
-    gBra=new T.BoxGeometry(0.11,0.5,0.11), gCab=new T.SphereGeometry(0.15,10,8),
-    gPel=new T.SphereGeometry(0.157,10,6,0,Math.PI*2,0,Math.PI*0.5);
-  const PIEL=[0xe8b481,0xd9a06b,0xb07a48,0x8a5a30].map(c=>new T.MeshLambertMaterial({color:c}));
-  const PELO=[0x1b1410,0x3a2614,0x6b4a26,0x111111].map(c=>new T.MeshLambertMaterial({color:c}));
+  // Fase 95: cuerpo con volumen (cápsulas en vez de cajas), torso más ancho
+  // de hombros que de cintura, codos que se doblan, manos, cuello, medias y el
+  // número en la espalda. Las geometrías se comparten entre los 22.
+  const cap=(r,l)=>new T.CapsuleGeometry(r,l,3,8);
+  const gTor=new T.CylinderGeometry(0.235,0.185,0.56,10); gTor.scale(1,1,0.58);
+  const gSho=new T.CylinderGeometry(0.19,0.21,0.22,10); gSho.scale(1,1,0.66);
+  const gMus=cap(0.082,0.28), gPie=cap(0.066,0.30), gBot=new T.BoxGeometry(0.12,0.08,0.27),
+    gBra=cap(0.058,0.18), gAnt=cap(0.048,0.17), gMano=new T.SphereGeometry(0.05,6,5),
+    gCue=new T.CylinderGeometry(0.06,0.07,0.1,8), gCab=new T.SphereGeometry(0.118,12,10),
+    gPel=new T.SphereGeometry(0.125,12,8,0,Math.PI*2,0,Math.PI*0.52), gNum=new T.PlaneGeometry(0.26,0.24);
+  gCab.scale(0.92,1.08,1);
+  const PIEL=[0xf1c9a0,0xe0ac7e,0xc58c5c,0x9a6a40,0x6e4a2c].map(c=>new T.MeshLambertMaterial({color:c}));
+  const PELO=[0x1b1410,0x3a2614,0x6b4a26,0x111111,0xb08850].map(c=>new T.MeshLambertMaterial({color:c}));
   const NEGRO=new T.MeshLambertMaterial({color:0x151515});
+  const numMats={}, numMat=(n,c)=>{ const k=n+'|'+c; if(numMats[k])return numMats[k];
+    const cv=document.createElement('canvas'); cv.width=64; cv.height=64; const x=cv.getContext('2d');
+    x.fillStyle=c; x.font='bold 46px sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(String(n),32,35);
+    return numMats[k]=new T.MeshLambertMaterial({map:new T.CanvasTexture(cv),transparent:true,depthWrite:false}); };
+  const claro=c=>{ const q=new T.Color(_cssVar(c,'#888888')); return (q.r*0.3+q.g*0.59+q.b*0.11)>0.6; };
   // sombra: un disco con gradiente, una sola textura para todos
   const sc=document.createElement('canvas'); sc.width=sc.height=64;
   { const x=sc.getContext('2d'), gr=x.createRadialGradient(32,32,2,32,32,32);
@@ -34403,15 +34539,19 @@ function e3dFab(S,esc){
     const raiz=new T.Group(), cuerpo=new T.Group(); raiz.add(cuerpo);
     const k=p.isGK?{c1:'#15181c',c2:'#c8d420'}:kit;
     const camiseta=mat(k.c1), media=mat((k.c2&&k.c2!==k.c1)?k.c2:'#eeeeee'), short=mat(k.c2&&k.c2!==k.c1?k.c2:'#222222');
-    const h=(p.name||'x').charCodeAt(0)+(p.name||'').length, piel=PIEL[h%4];
+    const h=(p.name||'x').split('').reduce((a,c)=>a+c.charCodeAt(0),0), piel=PIEL[h%5];
     const add=(par,geo,m,x,y,z)=>{ const o=new T.Mesh(geo,m); o.position.set(x,y,z); par.add(o); return o; };
-    add(cuerpo,gTor,camiseta,0,1.30,0); add(cuerpo,gSho,short,0,0.93,0);
-    add(cuerpo,gCab,piel,0,1.70,0); add(cuerpo,gPel,PELO[h%4],0,1.715,-0.01);
-    const pierna=lado=>{ const cad=new T.Group(); cad.position.set(lado*0.11,0.88,0); cuerpo.add(cad);
+    add(cuerpo,gTor,camiseta,0,1.27,0); add(cuerpo,gSho,short,0,0.94,0);
+    add(cuerpo,gCue,piel,0,1.585,0);
+    add(cuerpo,gCab,piel,0,1.72,0); const pelo=add(cuerpo,gPel,PELO[(h>>2)%5],0,1.745,-0.012);
+    if(h%3===0) pelo.scale.set(1.05,1.15,1.12);            // pelo más largo
+    const num=add(cuerpo,gNum,numMat(p.num||((h%23)+2),claro(k.c1)?'#111':'#fff'),0,1.32,-0.112); num.rotation.y=Math.PI;
+    const pierna=lado=>{ const cad=new T.Group(); cad.position.set(lado*0.10,0.88,0); cuerpo.add(cad);
       add(cad,gMus,piel,0,-0.21,0); const rod=new T.Group(); rod.position.y=-0.42; cad.add(rod);
-      add(rod,gPie,media,0,-0.21,0); add(rod,gBot,NEGRO,0,-0.42,0.06); return {cad,rod}; };
-    const brazo=lado=>{ const hom=new T.Group(); hom.position.set(lado*0.30,1.52,0); cuerpo.add(hom);
-      add(hom,gBra,camiseta,0,-0.25,0); return hom; };
+      add(rod,gPie,media,0,-0.21,0); add(rod,gBot,NEGRO,0,-0.44,0.06); return {cad,rod}; };
+    const brazo=lado=>{ const hom=new T.Group(); hom.position.set(lado*0.27,1.50,0); cuerpo.add(hom);
+      add(hom,gBra,camiseta,0,-0.13,0); const codo=new T.Group(); codo.position.y=-0.27; hom.add(codo);
+      add(codo,gAnt,piel,0,-0.12,0); add(codo,gMano,piel,0,-0.25,0); hom.userData.codo=codo; return hom; };
     const J={raiz,cuerpo,pi:pierna(-1),pd:pierna(1),bi:brazo(-1),bd:brazo(1),
       som:sombra(1.5*esc/E3_ESC),ph:((p.num||1)*2.399963)%6,yaw:0,lx:null,lz:null};
     raiz.scale.setScalar(esc); S.add(raiz); return J;
@@ -34431,8 +34571,10 @@ function e3dFab(S,esc){
     J.pd.rod.rotation.x=corre?Math.max(0.1,-Math.cos(ph))*0.95*sp*(1-patada):0.08;
     J.bi.rotation.x=sw*0.8; J.bd.rotation.x=-sw*0.8;
     J.bi.rotation.z=-0.12; J.bd.rotation.z=0.12;
+    const cb=corre?-(0.9+0.4*sp):-0.25;              // codos: doblados al correr
+    if(J.bi.userData.codo){ J.bi.userData.codo.rotation.x=cb; J.bd.userData.codo.rotation.x=cb; }
     if(o.gk&&!corre&&!tirado){ J.bi.rotation.z=-0.5; J.bd.rotation.z=0.5; }
-    if(o.brazosArriba){ J.bi.rotation.x=J.bd.rotation.x=Math.PI*0.85; }
+    if(o.brazosArriba){ J.bi.rotation.x=J.bd.rotation.x=Math.PI*0.85; if(J.bi.userData.codo){ J.bi.userData.codo.rotation.x=J.bd.userData.codo.rotation.x=0; } }
     J.cuerpo.rotation.x=tirado?0:0.13*sp;
     J.raiz.rotation.set(0,J.yaw,tirado?(o.roll!=null?o.roll:(J.yaw>0?1:-1)*1.35):0);
     J.raiz.position.set(x,(corre?Math.abs(Math.cos(ph))*0.06*sp:0)+(tirado?0.25:0)+(o.salto||0),z);
@@ -34695,7 +34837,7 @@ function sit3DFrame(s,dt){
 // La preferencia es de este navegador (localStorage), no de la partida.
 const _F3={on:true,R:null,E:null,cam:null,key:'',modo:'hub',t0:0,last:0,raf:0};
 try{ const v=localStorage.getItem('dt_fondo3d'); if(v==='0')_F3.on=false; }catch(e){}
-function fondo3DKey(){ return G?[G.teamName,(G.stadium&&G.stadium.capacity)||0,
+function fondo3DKey(){ return G?[G.teamName,(G.stadium&&G.stadium.capacity)||0,(()=>{ try{ const p=predioObras(); return p.hechas.join(',')+'/'+p.enObra.join(','); }catch(e){ return ''; } })(),
   !!((G.stadium&&G.stadium.upgrades)||[]).find(u=>u.id==='roof'&&u.built)].join('|'):''; }
 function fondo3DInit(){
   const host=document.getElementById('bg3d');
@@ -34714,7 +34856,8 @@ function fondo3DInit(){
     if(k!==_F3.key){
       _F3.key=k;
       const st=G.stadium||{};
-      _F3.E=e3dEstadio({cap:st.capacity||20000,color:_colClub(),gente:5000,asist:0.75,
+      _F3.E=e3dEstadio({cap:st.capacity||20000,color:_colClub(),gente:5000,asist:0.75,predio:predioObras(),
+        mejoras:(st.upgrades||[]).filter(u=>u.built).map(u=>u.id),
         techo:!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
       _F3.cam=new THREE.PerspectiveCamera(40,1,0.5,900);
     }
@@ -34840,12 +34983,14 @@ function abrirEstadio3D(){
   e3dVisor('🏟️ '+_esc(st.name||'Estadio'),V=>{
     const cap=st.capacity||20000;
     const E=e3dEstadio({cap,color:_colClub(),noche:estado.noche,sombras:true,gente:14000,
-      asist:estado.lleno===null?asistBase:estado.lleno,
+      asist:estado.lleno===null?asistBase:estado.lleno,predio:predioObras(),rotulos:true,
+      mejoras:(st.upgrades||[]).filter(u=>u.built).map(u=>u.id),
       techo:!!(st.upgrades||[]).find(u=>u.id==='roof'&&u.built)});
-    V.dist=Math.max(V.dist,140+E.offMax); V.max=420+E.offMax;
-    V.info=`${cap.toLocaleString('es')} lugares · ${E.alto>20?'varias bandejas':'una bandeja'}`;
+    V.dist=Math.max(V.dist,(E.predio&&E.predio.length?250:140)+E.offMax); V.max=520+E.offMax;
+    const _po=predioObras();
+    V.info=`${cap.toLocaleString('es')} lugares · ${E.alto>20?'varias bandejas':'una bandeja'} · ${_po.hechas.length} instalaci${_po.hechas.length===1?'ón':'ones'}${_po.enObra.length?' · '+_po.enObra.length+' en obra':''}`;
     return E;
-  },{dist:230,el:0.42,botones:[
+  },{dist:230,el:0.62,botones:[
     {t:'🌙 Noche',fn:()=>{ estado.noche=!estado.noche; }},
     {t:'👥 Lleno',fn:()=>{ estado.lleno=estado.lleno===1?0.15:1; }},
   ]});
