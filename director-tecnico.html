@@ -1019,6 +1019,90 @@ body.bg3d-on .main{background:transparent}
   #fm-msg{font-size:30px!important}
 }
 </style>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   FASE 96: EL CLUB DE CHAPA — toda la interfaz con el idioma del inicio
+   Lo memorable es UNO: la cabecera es el marcador de chapa de la
+   pantalla de inicio (tabla verde con remaches, números en placas
+   crema). Todo lo demás se calla: sin MAYÚSCULAS forzadas, sin las
+   tarjetas blancas brillantes con clip-art del menú tipo FIFA.
+   Las reglas medidas siguen: el fondo maestro no cambia, el vidrio va
+   en los contenedores y el club sólo cambia el acento.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{--chapa:#173226;--chapa-2:#1f3f30;--chapa-3:#11261c;--placa:#ece4cf;--placa-2:#d6ccb2;--tinta:#16191a}
+/* la cabecera: dos tablas de chapa */
+.fpill,.fpill.r{background:
+    radial-gradient(circle at 9px 9px,#0b1a12 2.2px,transparent 2.8px),
+    radial-gradient(circle at calc(100% - 9px) 9px,#0b1a12 2.2px,transparent 2.8px),
+    radial-gradient(circle at 9px calc(100% - 9px),#0b1a12 2.2px,transparent 2.8px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px),#0b1a12 2.2px,transparent 2.8px),
+    repeating-linear-gradient(180deg,rgba(255,255,255,.035) 0 2px,transparent 2px 7px),
+    linear-gradient(180deg,var(--chapa-2),var(--chapa));
+  color:var(--placa);border-radius:6px;border:1px solid rgba(0,0,0,.45);
+  box-shadow:0 10px 28px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.10)}
+.fp-n,.cname.fp-n{color:var(--placa)!important;text-transform:none;letter-spacing:0;font-size:21px}
+.fp-s{color:rgba(236,228,207,.70)!important}
+.fp-s3{color:var(--gold)!important;letter-spacing:0;text-transform:none}
+.fr-top{color:rgba(236,228,207,.75)}
+.fr-mini{color:rgba(236,228,207,.62);font-size:11px;letter-spacing:0;align-items:center;gap:5px}
+/* los números van en placas, como el marcador */
+.fr-mini .pv,.fr-mini b,#wTop,.fr-money,.fr-niv{background:var(--placa);color:var(--tinta)!important;border-radius:2px;
+  padding:0 5px;font-family:'Chakra Petch',sans-serif;font-weight:700;box-shadow:inset 0 -2px 0 rgba(0,0,0,.18)}
+#wTop{color:var(--tinta)!important;font-size:12px!important}
+.fr-money .pv{color:var(--tinta)!important;background:none;box-shadow:none;padding:0}
+.fr-money{height:20px}
+.fr-bar{background:var(--chapa-3);border:1px solid rgba(0,0,0,.4)}
+.fr-bar span{background:linear-gradient(90deg,var(--placa-2),var(--placa))}
+.fr-bar b{color:var(--tinta);mix-blend-mode:normal}
+#mktStatusTop{background:none;box-shadow:none}
+.fhbtn{background:var(--chapa);border-color:rgba(0,0,0,.45);color:var(--placa)}
+/* la navegación: sin mayúsculas; la sección activa es una placa */
+#fnav .fs{text-transform:none;letter-spacing:0}
+@media(min-width:601px){
+  #fnav.fnav{gap:10px;padding:10px 24px 12px;align-items:center}
+  #fnav .fs,#fnav .fs.on{font-size:19px;font-weight:600;padding:5px 12px;border-radius:3px;text-shadow:none;color:rgba(236,228,207,.78)}
+  #fnav .fs:hover{color:var(--placa);background:rgba(23,50,38,.55)}
+  #fnav .fs.on{background:var(--placa);color:var(--tinta);font-weight:700;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 6px 16px rgba(0,0,0,.35)}
+  #fnav .fs.on::after{display:none}
+  .fs-n{top:-7px;right:-9px}
+}
+@media(max-width:600px){
+  #fnav.fnav{background:linear-gradient(180deg,var(--chapa-2),var(--chapa-3))}
+  #fnav .fs.on{color:var(--placa)}
+  #fnav .fs.on::after{background:var(--placa);box-shadow:none}
+}
+/* el tablero: tablas de chapa, no tarjetas blancas brillantes */
+.ht{background:linear-gradient(170deg,var(--chapa-2),var(--chapa-3));color:var(--placa);border-radius:4px;
+  border:1px solid rgba(0,0,0,.4);box-shadow:0 10px 24px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.08)}
+.ht:hover{box-shadow:0 10px 24px rgba(0,0,0,.40),inset 0 0 0 1px rgba(236,228,207,.45);transform:none}
+.ht-t{color:var(--placa);text-transform:none;font-size:22px;line-height:1.05;border-bottom:1px solid rgba(236,228,207,.16)}
+.ht-s{color:rgba(236,228,207,.72)}
+.ht-i{font-size:44px;right:10px;bottom:8px;opacity:.55;filter:grayscale(.35)}
+.ht-badge{background:var(--placa);color:var(--tinta);font-weight:700;border-radius:2px}
+.ht.big{background:linear-gradient(170deg,rgba(14,22,34,.94),rgba(8,14,24,.92));border:1px solid rgba(236,228,207,.10)}
+.hb-t,.hb-kpis i,.hb-aprob i,.hb-tab th{text-transform:none;letter-spacing:0}
+.hb-kpis div{background:var(--chapa-3);border-color:rgba(0,0,0,.35)}
+.hb-kpis b{color:var(--placa)}
+.hb-btn{background:var(--placa);color:var(--tinta);font-weight:800;text-transform:none;letter-spacing:0;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
+.fcrumb{text-transform:none;letter-spacing:0}
+/* títulos y rótulos: en minúscula, el acento es una placa chica al costado */
+.ctitle,.stitle{text-transform:none;letter-spacing:0}
+.ctitle{background:none;border-left:3px solid var(--placa);border-radius:0;font-size:15px;color:var(--placa)}
+.stitle{color:var(--placa);font-size:23px;border-bottom-color:rgba(236,228,207,.14)}
+.tab,.btn,th,.mpanel-t,.ph-tab,.nb,.cname,.hm-comp,.hm-name,.hm-meta,.stat-tile .sv-l{text-transform:none;letter-spacing:0}
+.btn{font-size:13px}
+.hm-play,.stitle{text-transform:none;font-style:normal;letter-spacing:0}
+.fr-bar b span{position:static;background:none;display:inline}
+.ph-tab{font-size:10.5px}
+.hm-comp{color:var(--placa);font-size:12px}
+.hm-name{font-size:15px}
+.stat-tile{background:var(--chapa-3);border-color:rgba(0,0,0,.35)}
+.stat-tile .sv-n{color:var(--placa)}
+.stat-tile .sv-l{font-size:10px}
+/* foco del teclado visible en lo que se toca */
+#fnav .fs:focus-visible,.ht:focus-visible,.btn:focus-visible,.hb-btn:focus-visible{outline:2px solid var(--placa);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ .ht,#fnav .fs{transition:none!important} }
+</style>
 </head>
 <body>
 
@@ -1112,13 +1196,13 @@ body.bg3d-on .main{background:transparent}
       <div class="fpill r">
         <div class="fr-col">
           <div class="fr-top"><span class="pv" id="wTop" style="color:#374151!important;font-size:13px!important">S1</span>
-            <span class="fr-mini">G·E·P <span class="pv" id="rTop">0-0-0</span></span>
-            <span class="fr-mini">PTS <span class="pv" id="sPts">0</span></span>
-            <span class="fr-mini">APROB <b id="fAprob">—</b></span>
-            <span class="fr-mini" id="mktPill">MERCADO <span id="mktStatusTop" style="font-weight:700">Abierto</span></span>
+            <span class="fr-mini">G-E-P <span class="pv" id="rTop">0-0-0</span></span>
+            <span class="fr-mini">Pts <span class="pv" id="sPts">0</span></span>
+            <span class="fr-mini">Aprob. <b id="fAprob">—</b></span>
+            <span class="fr-mini" id="mktPill">Mercado <span id="mktStatusTop" style="font-weight:700">Abierto</span></span>
             <span class="fr-mini" id="diffPill" style="display:none"><span class="pv" id="diffTop">NORMAL</span></span></div>
           <div class="fr-row"><span class="fr-niv" id="fRepNiv">—</span>
-            <div class="fr-bar"><span id="fRepBar" style="width:50%"></span><b>REP <span id="repTop">78</span>/100</b></div>
+            <div class="fr-bar"><span id="fRepBar" style="width:50%"></span><b>Rep. <span id="repTop">78</span>/100</b></div>
             <div class="fr-money">💰 <span class="pv" id="bTop">$28M</span></div></div>
         </div>
         <div class="cbadge" id="fBadge2">BJ</div>
@@ -1157,20 +1241,20 @@ body.bg3d-on .main{background:transparent}
           <button onclick="setTacticM('Equilibrado',this)" id="tac-eq" class="btn bg bs" style="font-size:9px;padding:2px 6px">⚖️ EQ</button>
           <button onclick="setTacticM('Ofensivo',this)" id="tac-of" class="btn bo bs" style="font-size:9px;padding:2px 6px">⚔️ OF</button>
         </div>
-        <button class="hm-play" id="btnPlay" onclick="askTeamTalk(()=>startFullMatch(false))">▶ JUGAR PARTIDO</button>
+        <button class="hm-play" id="btnPlay" onclick="askTeamTalk(()=>startFullMatch(false))">▶ Jugar el partido</button>
         <div style="display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center">
-          <button class="btn bo bs" id="dayBtn" onclick="advanceDay()" style="border-color:var(--gold);color:var(--gold)">📅 AVANZAR DÍA</button>
+          <button class="btn bo bs" id="dayBtn" onclick="advanceDay()" style="border-color:var(--gold);color:var(--gold)">📅 Pasar el día</button>
           <span id="dayLbl" style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif"></span>
         </div>
         <div class="hm-alts" id="hmAlts">
           <button class="btn bo bs" onclick="(()=>{const nm=G&&G.calendar.find(x=>!x.played);nm&&showPreMatch(nm);})()">🔍 PREVIA</button>
           <button class="btn bo bs" onclick="askTeamTalk(()=>simMatch(true))">⚡ SIMULAR</button>
           <button class="btn bo bs" onclick="openContinuousSim()" style="border-color:var(--gold);color:var(--gold)">⏩ SIM CONTINUA</button>
-          <button class="btn bo bs" onclick="askTeamTalk(playMatch)">🎯 JUGADAS CLAVE</button>
-          <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 MIRAR 11v11</button>
+          <button class="btn bo bs" onclick="askTeamTalk(playMatch)">🎯 Jugadas clave</button>
+          <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 Mirar el 11v11</button>
         </div>
         <div id="hmEspera" style="display:none;margin-top:8px">
-          <button class="btn bg" id="btnHastaPartido" onclick="avanzarHastaPartido()" style="width:100%">⏭️ SIMULAR HASTA EL DÍA DEL PARTIDO</button>
+          <button class="btn bg" id="btnHastaPartido" onclick="avanzarHastaPartido()" style="width:100%">⏭️ Simular hasta el día del partido</button>
           <div style="font-size:10px;color:var(--t3);margin-top:5px;text-align:center" id="hmEsperaTxt"></div>
         </div>
         <div id="formDots" style="display:flex;gap:3px;justify-content:center;margin-top:8px"></div>
@@ -1230,7 +1314,7 @@ body.bg3d-on .main{background:transparent}
       <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
       <!-- La cabecera de columnas se fue con la tabla: ahora cada jugador es
            una mini-card y lo que queda es la leyenda de lo que dice el disco. -->
-      <div style="display:flex;gap:9px;flex-wrap:wrap;padding:2px 10px 6px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.06em">
+      <div style="display:flex;gap:9px;flex-wrap:wrap;padding:2px 10px 6px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;letter-spacing:0">
         <span>⭕ Aro = energía</span><span>Borde = nivel</span><span>⚡ Física</span><span>😃 Moral</span>
       </div>
       <div id="sqList"></div>
@@ -1328,7 +1412,7 @@ body.bg3d-on .main{background:transparent}
           <select class="fs" id="mkVirt" onchange="renderMkt()"><option value="">Toda virtud</option><option value="VEL">⚡ Velocistas</option><option value="TIR">🎯 Goleadores</option><option value="PAS">🎩 Cerebros</option><option value="REG">🪄 Gambeteadores</option><option value="DEF">🧱 Murallas</option><option value="FIS">💪 Tanques</option></select>
           <select class="fs" id="mkSort" onchange="renderMkt()"><option value="rat">Rating</option><option value="pos">Por puesto</option><option value="val">Valor</option><option value="age">Jóvenes</option><option value="pot">Potencial</option><option value="ganga">💎 Gangas</option></select>
         </div>
-        <div class="mkhd" style="display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;padding:4px 10px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">
+        <div class="mkhd" style="display:grid;grid-template-columns:36px 1fr 65px 52px 58px 36px 85px;gap:5px;padding:4px 10px;font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif">
           <span>RAT</span><span>Jugador</span><span>Liga</span><span>Edad</span><span>Valor</span><span>POT</span><span>Acción</span>
         </div>
         <div id="mkList"></div>

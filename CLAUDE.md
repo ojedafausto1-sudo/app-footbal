@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96` |
 
 ## Formato de `players-db.js`
 
@@ -8426,6 +8426,42 @@ pantallas HD se ven en las cabeceras.
   forma, mangas.
 
 `tests/fase95.js`, **13 checks**.
+
+## Fase 96: toda la interfaz con el idioma del inicio (el club de chapa)
+
+El presidente: *"cambiá toda la interfaz"*. Se extendió el lenguaje de la
+Fase 92 (el marcador de chapa) a todo el juego con un bloque CSS al final del
+`<head>` ("FASE 96"), **sin tocar las 15 pestañas ni sus ids**.
+
+**El plan** (guía frontend-design): lo memorable es UNO — la **cabecera es el
+marcador de chapa**: las dos pastillas claras tipo FIFA pasan a ser tablas
+verdes con remaches y los números (fecha, G-E-P, puntos, aprobación, plata,
+reputación) van en **placas crema con tinta** en Chakra Petch. Todo lo demás
+se calla:
+
+- La sección activa de la navegación es una placa (en la compu; en el celular
+  la barra sigue abajo, fija, de 60 px, sólo cambia a chapa).
+- El tablero de cada sección deja de ser la "tarjeta blanca brillante con
+  clip-art": tablas de chapa con el título en crema y el ícono chico.
+- **Sin mayúsculas forzadas** en navegación, títulos (`.ctitle`, `.stitle`),
+  botones, pestañas, tablas, el celular y la cabecera; los botones del partido
+  dicen lo que hacen ("Jugar el partido", "Pasar el día", "Simular hasta el día
+  del partido").
+- Tokens nuevos: `--chapa #173226`, `--chapa-2`, `--chapa-3`, `--placa #ece4cf`,
+  `--placa-2`, `--tinta #16191a`.
+- Se mantienen las reglas medidas: `--dark` igual para todos, el vidrio en los
+  contenedores (`.card` sigue con `backdrop-filter`), el club sólo cambia el
+  acento, y el piso de letra del celular.
+
+De paso: **la barra de reputación de la cabecera mostraba el número corrido
+afuera** ("78 | REP /100") porque `.fr-bar span{position:absolute}` también
+agarraba el `#repTop`. Ahora dice "Rep. 78/100" adentro.
+
+⚠️ Quedan rótulos en mayúscula escritos en estilos en línea dentro de algunas
+pantallas (por ejemplo los encabezados de la tabla de posiciones, "ZONA A"):
+no los toca la hoja y se van cambiando cuando se toque cada pantalla.
+
+`tests/fase96.js`, **14 checks**.
 
 ## Deploy
 
