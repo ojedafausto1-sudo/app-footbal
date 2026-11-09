@@ -31314,12 +31314,37 @@ function askingPrice(p){
 function esLibre(p){ return !!(p && (p.freeAgent===true || p.club==='Libre')); }
 function isFreeAgent(p){ return esLibre(p); }
 
+// ═══ FASE 97: lo que pide es lo que firma ═══
+// Antes la respuesta era una tirada: con el sueldo EXACTO que mostraba la
+// pantalla aceptaba 0,42 + (rep−55)/200 — o sea 60% con Boca y 36% con un club
+// recién fundado — y el rechazo decía "pretendo cerca de 42k" a una oferta de
+// 42k. La reputación ahora va ADENTRO del número que pide (un club chico paga
+// más para convencerlo) y cada jugador tiene un piso oculto, estable, entre el
+// 86% y el 98% de lo que pide: igualar el pedido cierra siempre, regatear puede
+// salir bien o no, y si dice que no, dice con cuánto firma.
+function negRepPide(){
+  const r=(G&&G.rep)||50;
+  return Math.round(Math.min(1.15,Math.max(1,1+(55-r)*0.005))*1000)/1000;
+}
+function negPretension(p){
+  if(!p)return 5;
+  return Math.max(4,Math.round(_negWageExpect(p)*(p.rat>=82?1.15:1)*negRepPide()));
+}
+function negPiso(p,years){
+  const h=String(p.name||'').split('').reduce((a,c)=>((a*31+c.charCodeAt(0))>>>0),97);
+  let f=0.86+((h>>>5)%1000)/1000*0.12;
+  if((G&&G.rep||50)>=75)f*=0.96;            // a un grande se le hace precio
+  if((years||0)>=3)f*=0.98;                 // la estabilidad también paga
+  return Math.min(negPretension(p),Math.ceil(negPretension(p)*f));
+}
+
 // ═══ PASO 1: arreglar con el jugador (términos personales) ═══
 function negStartPlayer(pid){
   if(!G)return;
   const p=G.market.find(x=>x.id===pid); if(!p)return;
   if(negFind(pid)){flash('Ya tenés una negociación abierta por este jugador','draw');return;}
-  const wage=Math.round(_negWageExpect(p)*(1+(p.rat>=82?0.15:0)));
+  const wage=negPretension(p);
+  const _recRep=negRepPide();
   const months=contractMonths(p);
   const free=esLibre(p);
   const pre=months>0&&months<=6;
@@ -31330,6 +31355,8 @@ function negStartPlayer(pid){
     <div class="sr"><span class="sl">Valor de mercado</span><span class="sv">${fv(p.val)}</span></div>
     <div class="sr"><span class="sl">${free?'Costo del pase':'Precio con su contrato'}</span><span class="sv" style="color:${free?'var(--green)':'var(--gold)'}">${free?'sin ficha — sólo el contrato':fv(askingPrice(p))}</span></div>
     <div class="sr"><span class="sl">Pretensión salarial</span><span class="sv">${wage}k/sem</span></div>
+    ${_recRep>1?`<div style="font-size:10px;color:var(--t3);margin:-2px 0 6px">Incluye ${Math.round((_recRep-1)*100)}% más por la reputación de ${G.teamName||'tu club'}: para venir a un club chico pide más.</div>`:''}
+    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Con lo que pide, firma. Si ofrecés menos, puede aceptar o no.</div>
     ${pre?`<div class="note" style="margin:8px 0;border-color:var(--gold)">📝 Le quedan <b>${months} meses</b>: podés firmar un <b>precontrato</b> y que llegue <b>gratis</b> la próxima temporada, sin pagar ficha.</div>`:''}
     ${free?`<div class="note" style="margin:8px 0;border-color:var(--green)">🆓 Está <b>libre</b>: no hay club con el que negociar. Si acepta los términos, es tuyo.</div>`:''}
     <div style="margin:10px 0">
@@ -31718,12 +31745,10 @@ function weeklyNegotiations(){
     if(!p){return;}                      // ya no está en el mercado: se cae
     if(n.wait>0){n.wait--;keep.push(n);return;}
     if(n.stage==='esperando_jugador'){
-      // ¿Le sirve el sueldo? Compara con su pretensión y tu reputación
-      const exp=_negWageExpect(p)*(1+(p.rat>=82?0.15:0));
-      const ratio=n.wage/exp;
-      const repPull=((G.rep||50)-55)/200;
-      const acc=Math.min(0.96,Math.max(0.05,(ratio-0.72)*1.5+repPull+(n.years>=3?0.06:0)));
-      if(Math.random()<acc){
+      // ¿Le sirve el sueldo? Fase 97: lo que pide ya trae tu reputación
+      // adentro, y firma si llegás a su piso (nunca más arriba de lo que pide).
+      const exp=negPretension(p), piso=negPiso(p,n.years);
+      if(n.wage>=piso){
         n.playerOk=true;
         if(n.free){ negComplete(n,p,0); return; }
         n.stage=n.pre?'precontrato_listo':'jugador_ok';
@@ -31731,7 +31756,7 @@ function weeklyNegotiations(){
         if(n.pre){ negComplete(n,p,0,true); return; }
       } else {
         n.stage='cerrada';
-        addPhoneMsg('agent',p.name,`❌ Gracias por el interés, pero <b>${n.wage}k/sem no me sirve</b>. Pretendo cerca de ${Math.round(exp)}k. Si mejoran, hablamos.`,'🤝');
+        addPhoneMsg('agent',p.name,`❌ Gracias por el interés, pero <b>${n.wage}k/sem no me sirve</b>. Con <b>${piso}k</b> firmo${piso<exp?` (pedía ${exp}k)`:''}. Si mejoran, hablamos.`,'🤝');
         lg('❌',`${p.name} rechazó los términos personales`);
         return;
       }

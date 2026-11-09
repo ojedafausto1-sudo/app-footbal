@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97` |
 
 ## Formato de `players-db.js`
 
@@ -8462,6 +8462,38 @@ pantallas (por ejemplo los encabezados de la tabla de posiciones, "ZONA A"):
 no los toca la hoja y se van cambiando cuando se toque cada pantalla.
 
 `tests/fase96.js`, **14 checks**.
+
+## Fase 97: lo que pide es lo que firma
+
+El presidente, con un club fundado en pleno armado: *"no es normal que me
+rechacen por esto"* — el celular decía **"42k/sem no me sirve. Pretendo cerca
+de 42k"**. La respuesta del jugador en `weeklyNegotiations` (etapa
+`esperando_jugador`, la del botón 🤝 Fichar) era una tirada:
+`acc=(oferta/pide−0,72)×1,5 + (rep−55)/200 + 0,06 por 3 años`. Ofreciendo
+EXACTAMENTE la pretensión que mostraba la pantalla (y que el slider traía por
+defecto) aceptaba **~38% con rep 36** (club fundado) y **~60% con Boca**. Y el
+mensaje imprimía la misma pretensión que acababa de rechazar.
+
+- **`negPretension(p)`** es el único número que pide: `_negWageExpect` ×1,15 si
+  es 82+ × **`negRepPide()`** (1 + (55−rep)×0,005, entre 1 y 1,15). La
+  reputación va ADENTRO del número —un club chico paga más para convencerlo—
+  en vez de ser un dado escondido. De rep 55 para arriba no cambia nada.
+- **`negPiso(p,años)`**: piso oculto, estable por nombre, entre el 86% y el 98%
+  de lo que pide (×0,96 con rep 75+, ×0,98 con 3+ años). Llegás al piso,
+  firma; no llegás, no. **Ofrecer lo que pide firma siempre**; regatear puede
+  salir bien o no. Es determinista: reabrir no cambia la respuesta.
+- El rechazo dice **con cuánto firma** ("Con 37k firmo (pedía 39k)").
+- La pantalla de términos explica el recargo por reputación y que con lo que
+  pide, firma.
+- ⚠️ Sólo esta vía. Los términos de `openPlayerTerms` (cláusula, canje,
+  préstamo, libre) tienen su propio puntaje (`ptScore`) y ya contestaban con
+  una contraoferta que firma seguro (`ptContra`, Fase 76).
+- Retro-compatible: una negociación guardada en `esperando_jugador` se decide
+  con la regla nueva.
+
+`tests/fase97.js`, **13 checks**: club fundado (120 jugadores) y Boca (60),
+firma con lo que pide, firma en el piso, no firma un peso abajo, y el rechazo
+dice un número mayor que lo ofrecido.
 
 ## Deploy
 
