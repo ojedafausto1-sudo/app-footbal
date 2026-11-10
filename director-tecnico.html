@@ -1203,7 +1203,7 @@ body.bg3d-on .main{background:transparent}
             <span class="fr-mini" id="diffPill" style="display:none"><span class="pv" id="diffTop">NORMAL</span></span></div>
           <div class="fr-row"><span class="fr-niv" id="fRepNiv">—</span>
             <div class="fr-bar"><span id="fRepBar" style="width:50%"></span><b>Rep. <span id="repTop">78</span>/100</b></div>
-            <div class="fr-money">💰 <span class="pv" id="bTop">$28M</span></div></div>
+            <div class="fr-money">💰 <span class="pv" id="bTop">€28M</span></div></div>
         </div>
         <div class="cbadge" id="fBadge2">BJ</div>
       </div>
@@ -1265,9 +1265,9 @@ body.bg3d-on .main{background:transparent}
       <div class="g3" style="margin-bottom:10px">
         <div class="card"><div class="ctitle">📊 Stats</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">
-            <div class="stat-tile"><div class="sv-n" id="sPts">0</div><div class="sv-l">Puntos</div></div>
-            <div class="stat-tile"><div class="sv-n" id="sLine">0/0/0/0</div><div class="sv-l">PJ · G/E/P</div></div>
-            <div class="stat-tile"><div class="sv-n" id="sGfc">0/0</div><div class="sv-l">Goles F/C</div></div>
+            <div class="stat-tile"><div class="sv-n" id="sPtsT">0</div><div class="sv-l">Puntos de liga</div></div>
+            <div class="stat-tile"><div class="sv-n" id="sLine">0/0/0/0</div><div class="sv-l">PJ · G/E/P (liga)</div></div>
+            <div class="stat-tile"><div class="sv-n" id="sGfc">0/0</div><div class="sv-l">Goles F/C (liga)</div></div>
           </div>
         </div>
         <div class="card"><div class="ctitle">🏆 Posiciones Liga</div><div id="standPrev"></div></div>
@@ -1281,7 +1281,7 @@ body.bg3d-on .main{background:transparent}
         </div>
         <div>
           <div class="card" style="margin-bottom:8px"><div class="ctitle">💰 Finanzas</div>
-            <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:var(--gold)" id="bFull">$28M</span></div>
+            <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:var(--gold)" id="bFull">€28M</span></div>
             <div class="sr"><span class="sl">Salarios</span><span class="sv" style="color:var(--red)" id="wages">—</span></div>
             <div class="sr"><span class="sl">Valor plantel</span><span class="sv" style="color:var(--green)" id="sqVal">—</span></div>
           </div>
@@ -1436,7 +1436,7 @@ body.bg3d-on .main{background:transparent}
       <div class="ctitle">⚡ Sesión extra de la semana</div>
       <div class="g3" style="margin-bottom:12px" id="trainOpts"></div>
       <div class="card" style="margin-bottom:10px" id="mentorBox"></div>
-      <div class="card"><div class="ctitle">Entrenamiento individual</div><div class="note">$0.1M por sesión · +3 al atributo elegido</div><div id="indTrain"></div></div>
+      <div class="card"><div class="ctitle">Entrenamiento individual</div><div class="note">€0.1M por sesión · +3 al atributo elegido</div><div id="indTrain"></div></div>
     </div>
 
     <!-- ESTADIO -->
@@ -1609,11 +1609,11 @@ body.bg3d-on .main{background:transparent}
       <div style="display:flex;gap:10px;align-items:center">
         <button class="lmact" data-k="pass">
           <span class="lmact-key">X</span>
-          <span>PASE</span>
+          <span id="lmCapX">PASE</span>
         </button>
         <button class="lmact" data-k="shoot" style="background:rgba(var(--gold-rgb),.18);border-color:rgba(var(--gold-rgb),.55);">
           <span class="lmact-key" style="color:var(--gold)">Z</span>
-          <span style="color:var(--gold)">TIRO</span>
+          <span style="color:var(--gold)" id="lmCapZ">TIRO</span>
         </button>
       </div>
     </div>
@@ -3133,7 +3133,7 @@ function spnFirmar(oid){
     `🤝 Firmado con <b>${sponName(o)}</b>. Entraron <b style="color:var(--gold)">${fv(o.upfront)}</b> a la caja `+
     `y nos quedan <b style="color:var(--green)">${fv(o.weekly)}/semana</b> por ${o.weeks} semanas.`,'🤝');
   rSponsors();
-  const bt=document.getElementById('bTop'); if(bt) bt.textContent='$'+G.budget+'M';
+  const bt=document.getElementById('bTop'); if(bt) bt.textContent=fv(G.budget);
 }
 function spnRechazar(oid){
   const i=ofertasSponsor().findIndex(x=>x.oid===oid); if(i<0) return;
@@ -3164,14 +3164,14 @@ function rSponsors(){
   const incomeWeek=active.reduce((a,s)=>a+s.income,0);
   el.innerHTML=`
     ${active.length?`
-    <div class="ctitle">✅ Contratos activos — <span style="color:var(--green)">+$${incomeWeek.toFixed(2)}M/sem</span></div>
+    <div class="ctitle">✅ Contratos activos — <span style="color:var(--green)">+€${incomeWeek.toFixed(2)}M/sem</span></div>
     ${active.map(s=>`
       <div class="mpanel" style="padding:9px;margin-bottom:5px">
         <div style="display:flex;align-items:center;gap:9px">
           <div style="font-size:22px">${s.icon}</div>
           <div style="flex:1">
             <div style="font-weight:700;font-size:12px;font-family:'Rajdhani',sans-serif">${sponName(s)}</div>
-            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+$${s.income}M/sem</span>${spnWinBonus(s)?` · <span style="color:var(--gold)">🏆 +$${spnWinBonus(s)}M/victoria</span>`:''}</div>
+            <div style="font-size:10px;color:var(--t3)">${s.cat} · <span style="color:var(--green)">+€${s.income}M/sem</span>${spnWinBonus(s)?` · <span style="color:var(--gold)">🏆 +€${spnWinBonus(s)}M/victoria</span>`:''}</div>
             ${s.obj?`<div style="font-size:9px;color:${s.obj.done?'var(--green)':'var(--t3)'};margin-top:2px">🎯 ${s.obj.desc} → <b>+${fv(s.obj.bonus)}</b>${s.obj.done?' ✅':''}</div>`:''}
           </div>
           <div style="text-align:right;font-size:9px;color:var(--t3)">${s.weeksLeft}s restantes</div>
@@ -3235,10 +3235,10 @@ function signSponsor(id){
   // lo que cobra el balance semanal, así que si quedara `sp.income` el naming
   // se firmaría escalado y se cobraría plano.
   G.sponsors.push({...sp,income:_inc,weeksLeft:sp.weeks,weeksTotal:sp.weeks,winBonus,obj});
-  lg('✍️',`Patrocinio: ${sponName(sp)} (+$${_inc}M/sem + $${winBonus}M/victoria)`);
+  lg('✍️',`Patrocinio: ${sponName(sp)} (+€${_inc}M/sem + €${winBonus}M/victoria)`);
   flash('✅ ¡'+sponName(sp)+' firma con '+(G.teamName||'Boca Juniors')+'!','win');
   rSponsors();
-  if(document.getElementById('bTop')) document.getElementById('bTop').textContent='$'+G.budget+'M';
+  if(document.getElementById('bTop')) document.getElementById('bTop').textContent=fv(G.budget);
 }
 
 // =============================================
@@ -6290,7 +6290,7 @@ function initGame(teamId){
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
   lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
-  lg('💰','Presupuesto inicial: $'+G.budget+'M USD');
+  lg('💰','Presupuesto inicial: '+fv(G.budget));
   updateUI();
   addPhoneMsg('board', 'Secretaría del Club', `📋 Presidente, quedó operativa su línea directa. Desde acá puede chatear con el DT y los jugadores, recibir ofertas de representantes y aprobar pedidos. El club es suyo.`, '🏛️');
   const objList=G.boardObjectives.map((o,i)=>`${i+1}. ${o.desc}`).join('<br>');
@@ -7730,7 +7730,7 @@ function updateBoard($){
           :G.rep>=70?objetivoCopa()
           :G.rep>=58?(_cop?'Pelear arriba y clasificar a un torneo continental':'Pelear arriba y meterse en el reducido')
           :'Mantener la categoría y sanear las finanzas';
-  let objHtml=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${ppg.toFixed(2)} pts/partido · presupuesto $${G.budget}M`;
+  let objHtml=`🎯 <b style="color:#fff">Objetivo de temporada:</b> ${obj}<br>📊 ${pj} PJ · ${pj?ppg.toFixed(2):'—'} pts/partido · presupuesto ${fv(G.budget)}`;
   if(G.boardObjectives&&G.boardObjectives.length){
     objHtml+=`<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px">`;
     objHtml+=`<div style="font-size:9px;color:var(--gold);text-transform:uppercase;font-weight:700;margin-bottom:4px;letter-spacing:.05em">Objetivos de la Junta Directiva</div>`;
@@ -7752,6 +7752,20 @@ function updateBoard($){
 // =============================================
 // UPDATE UI
 // =============================================
+// Lo que lleva tu club en la liga (sin copas, sin playoffs, sin amistosos).
+function statsLiga(){
+  const r={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0};
+  if(!G||!G.calendar)return r;
+  const lc=(typeof ligaComp==='function')?ligaComp():null;
+  G.calendar.forEach(m=>{
+    if(!m.played||m.friendly||m.comp!==lc||!m.score)return;
+    const [h,a]=String(m.score).split('-').map(Number); if(isNaN(h)||isNaN(a))return;
+    const yoLocal=m.home===G.teamName, gf=yoLocal?h:a, gc=yoLocal?a:h;
+    r.pj++; r.gf+=gf; r.gc+=gc;
+    if(gf>gc){r.g++;r.pts+=3;} else if(gf===gc){r.e++;r.pts+=1;} else r.p++;
+  });
+  return r;
+}
 function updateUI(){
   if(!G||!G.squad) return;
   // La física elegida en la gira se ancla en cuanto empieza el torneo. Va acá
@@ -7766,10 +7780,10 @@ function updateUI(){
   try{ arChequearFases(); }catch(e){ console.error('arChequearFases',e); }
   try{ dtHistTick(); }catch(e){}          // Fase 78: la galería de técnicos (estado, no dibujo)
   const $ = id => document.getElementById(id);
-  $('bTop').textContent='$'+G.budget+'M';
+  $('bTop').textContent=fv(G.budget);
   $('wTop').textContent=hoyTxt(false);$('wTop').title='Semana '+G.week+' · '+hoyTxt(true);
   $('rTop').textContent=G.wins+'-'+G.draws+'-'+G.losses;
-  $('repTop').textContent=G.rep;
+  $('repTop').textContent=Math.round(G.rep);
   if($('stadTop'))$('stadTop').textContent=G.stadium.name.replace('La ','').replace('El ','');
   $('dtTop').textContent='DT: '+G.dt.name;
   if($('mktStatusTop')){const open=isTransferWindowOpen();$('mktStatusTop').textContent=open?'Abierto':'Cerrado';$('mktStatusTop').style.color=open?'#0fb866':'#e84545';}
@@ -7778,13 +7792,18 @@ function updateUI(){
   if($('teamLabel'))$('teamLabel').textContent=(G.teamName||'Director Técnico')+' · Temporada '+G.season;
   if($('teamBadge')){const tc=TEAMS[G.teamId||'boca'];if(tc)$('teamBadge').textContent=tc.badge;}
   if($('ovSeason'))$('ovSeason').textContent='Temporada '+G.season;
-  if($('sLine')){$('sLine').textContent=`${G.wins+G.draws+G.losses}·${G.wins}/${G.draws}/${G.losses}`;$('sLine').style.fontSize='16px';}
-  if($('sGfc'))$('sGfc').textContent=G.gf+'/'+G.ga;
+  // Fase 98: el widget de Stats cuenta la LIGA (es lo que mira el objetivo).
+  // Antes sumaba copas y, como compartía el id 'sPts' con la cabecera, sus
+  // puntos quedaban en 0 toda la temporada.
+  const _sl=statsLiga();
+  if($('sLine')){$('sLine').textContent=`${_sl.pj}·${_sl.g}/${_sl.e}/${_sl.p}`;$('sLine').style.fontSize='16px';}
+  if($('sGfc'))$('sGfc').textContent=_sl.gf+'/'+_sl.gc;
+  if($('sPtsT'))$('sPtsT').textContent=_sl.pts;
   if($('sPts'))$('sPts').textContent=G.wins*3+G.draws;
-  if($('bFull'))$('bFull').textContent='$'+G.budget+'M USD';
-  if($('wages'))$('wages').textContent='$'+(G.squad.reduce((a,p)=>a+p.wage,0)/1000).toFixed(1)+'M/año';
+  if($('bFull'))$('bFull').textContent=fv(G.budget);
+  if($('wages'))$('wages').textContent=fv(Math.round(G.squad.reduce((a,p)=>a+(p.wage||0),0)*4/1000*10)/10)+'/mes';
   if($('sqVal'))$('sqVal').textContent=fv(G.squad.reduce((a,p)=>a+p.val,0));
-  if($('repV'))$('repV').textContent=G.rep;
+  if($('repV'))$('repV').textContent=Math.round(G.rep);
   if($('repBar'))$('repBar').style.width=G.rep+'%';
   if($('morV'))$('morV').textContent=G.morale;
   if($('morBar'))$('morBar').style.width=G.morale+'%';
@@ -7798,7 +7817,7 @@ function updateUI(){
   if(nm){
     if($('nH'))$('nH').textContent=nm.home; if($('nA'))$('nA').textContent=nm.away;
     const derby=isDerby(nm);
-    if($('nMeta'))$('nMeta').innerHTML='Semana '+nm.week+(nm.home===G.teamName?' · Local':' · Visitante')+(derby?` · <span style="color:var(--red);font-weight:800">🔥 ${derby.toUpperCase()} — ¡VALE DOBLE!</span>`:'');
+    if($('nMeta'))$('nMeta').innerHTML='Semana '+nm.week+(esNeutral(nm)?' · Cancha neutral':nm.home===G.teamName?' · Local':' · Visitante')+(derby?` · <span style="color:var(--red);font-weight:800">🔥 ${derby.toUpperCase()} — ¡VALE DOBLE!</span>`:'');
     if($('nComp'))$('nComp').textContent=nm.comp;
     if($('nHBadge'))$('nHBadge').innerHTML=clubCrest(nm.home,42);
     if($('nABadge'))$('nABadge').innerHTML=clubCrest(nm.away,42);
@@ -8218,7 +8237,7 @@ function openP(id, inSquad){
   const attrs = known ? attrChips(p)
     : `<div class="note" style="text-align:center;margin-bottom:8px">🔎 <b>Sin informe de ojeador.</b> Nuestra gente lo ubica en una media de <b>${ratRangeTxt(p)}</b> y un techo de <b>${potRangeTxt(p)}</b>, pero no le vimos los detalles.<br>
        <span style="font-size:9.5px;color:var(--t3)">Puede tener insignias que todavía no conocemos.</span><br>
-       <button class="btn bg bs" style="margin-top:7px" onclick="scoutOne('${p.id}')">🔎 Pedir informe individual ($0.1M)</button></div>
+       <button class="btn bg bs" style="margin-top:7px" onclick="scoutOne('${p.id}')">🔎 Pedir informe individual (€0.1M)</button></div>
        ${attrChipsK(p)}`;
   const vb = known ? vbadges(p) : '';
   // Barra de valor TM: log-scale 0.05M=0% ... 200M=100%
@@ -8561,7 +8580,7 @@ function openNeg(id){
         <div style="font-size:15px;font-weight:700;color:#fff;font-family:'Rajdhani'">${p.name} <span style="color:var(--t3);font-size:11px">${p.age} años</span></div>
         <div style="font-size:10px;color:var(--t2)">${p.pos} · ${p.club} · ${p.lg}</div>
         <div style="font-size:10px;color:var(--t3);margin-top:2px">${rbK(p)} Rating · ${potK(p)} Potencial · Valor ${fv(p.val)}</div>
-        ${isKnown(p)?'':`<div style="font-size:9.5px;color:var(--gold);margin-top:2px">🔎 Estás negociando a ciegas — <a href="javascript:void(0)" style="color:var(--gold);text-decoration:underline" onclick="closeMod();scoutOne('${p.id}')">pedí el informe ($0.1M)</a></div>`}
+        ${isKnown(p)?'':`<div style="font-size:9.5px;color:var(--gold);margin-top:2px">🔎 Estás negociando a ciegas — <a href="javascript:void(0)" style="color:var(--gold);text-decoration:underline" onclick="closeMod();scoutOne('${p.id}')">pedí el informe (€0.1M)</a></div>`}
         <div style="font-size:10px;color:${clauseOf(p)>0?'var(--red)':'var(--t3)'};margin-top:2px">${clauseOf(p)>0?`💥 Cláusula de rescisión: <b>${fv(clauseOf(p))}</b>`:'🔒 Sin cláusula de rescisión en su contrato'}</div>
       </div>
     </div>
@@ -8578,7 +8597,7 @@ function openNeg(id){
       </div>
       <div class="mpanel" style="flex:1;padding:8px;text-align:center">
         <div style="font-size:9px;color:var(--t3)">Tu presupuesto</div>
-        <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Rajdhani'">$${G.budget}M</div>
+        <div style="font-size:18px;font-weight:700;color:var(--green);font-family:'Rajdhani'">${fv(G.budget)}</div>
       </div>
     </div>
     ${isTop?`<div class="note R" style="margin-bottom:8px">⭐ Jugador de alto perfil — negociación complicada</div>`:''}
@@ -8625,16 +8644,16 @@ function negStep2(){
       </div>
       <div style="flex:1;text-align:center;padding:6px;background:rgba(255,255,255,.03);border-radius:6px">
         <div style="font-size:8px;color:var(--t3)">BUDGET</div>
-        <div style="font-size:16px;font-weight:700;color:var(--green);font-family:'Rajdhani'">$${G.budget}M</div>
+        <div style="font-size:16px;font-weight:700;color:var(--green);font-family:'Rajdhani'">${fv(G.budget)}</div>
       </div>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Oferta de traspaso:</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
+      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">€</span>
       <input type="number" id="negInp" step="0.1" min="0.1" value="${nd.lastOffer||suggest}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Rajdhani';font-size:24px;font-weight:700;text-align:center;outline:none"
         oninput="updNegI(${nd.demand},${G.budget})">
-      <span style="font-size:12px;color:var(--t3)">M USD</span>
+      <span style="font-size:12px;color:var(--t3)">M</span>
     </div>
     <div class="neg-rx" id="negRx"></div>
     <div class="mpanel" style="padding:9px;margin-top:8px">
@@ -8925,7 +8944,7 @@ function negStep3Viejo(id){
     <div class="mpanel" style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
       <div style="display:flex;gap:4px">
-        ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}
+        ${[0,0.5,1,2].map(b=>`<button class="btn ${b===0?'bg':'bo'} bs negBonBtn" data-b="${b}" onclick="selNegBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'€'+b+'M'}</button>`).join('')}
       </div>
     </div>
     <div class="mpanel" style="margin-bottom:10px">
@@ -9220,7 +9239,7 @@ function negLoanOffer(id){
       <button class="btn bo bs negLoanBtn" data-t="obligation" onclick="selLoanType('obligation')" style="flex:1;font-size:10px">📋 Con obligación (${fv(buyOption)})</button>
     </div>
     `:''}
-    <div class="note" style="margin-bottom:8px">El club decidirá si acepta ceder al jugador. Budget: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <div class="note" style="margin-bottom:8px">El club decidirá si acepta ceder al jugador. Budget: <b style="color:var(--gold)">${fv(G.budget)}</b></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn bg" onclick="submitLoanOffer('${id}',${cost},${rejectChance},${buyOption})">📩 Enviar solicitud</button>
       <button class="btn bo" onclick="openNeg('${id}')">🤝 Negociar compra</button>
@@ -9552,7 +9571,7 @@ function renderMkt(){
   const sinInf=pl.filter(p=>!isKnown(p)).length;
   const winOpen=isTransferWindowOpen();
   const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
-  ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe ($0.1M) o mandá un ojeador a la liga.</div>`:''}
+  ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe (€0.1M) o mandá un ojeador a la liga.</div>`:''}
   ${estado&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">${estado==='precontrato'?`✍️ <b style="color:var(--gold)">Todavía no hay nadie a 6 meses del final.</b><br><span style="font-size:10px;color:var(--t3)">Los contratos se miden contra la temporada en curso: los que se vencen aparecen recién <b>sobre el final del año</b>. Mientras tanto probá "⏳ Último año de contrato".</span>`:`🔍 <b style="color:var(--gold)">Ningún jugador queda con esta situación contractual</b> junto al resto de los filtros. Aflojá alguno.`}</div>`:''}
   ${_mkLibres&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">🆓 <b style="color:var(--green)">No hay agentes libres todavía.</b><br><span style="font-size:10px;color:var(--t3)">Los jugadores quedan libres cuando se les vence el contrato, y eso pasa <b>al cerrar la temporada</b>. Medido: la primera temporada arranca con 0 y después del cierre aparecen ~950. Mientras tanto, al que le quedan 6 meses o menos podés hacerle un <b>precontrato</b> y que llegue gratis.</span></div>`:''}
   ${(G._cmp||[]).length?`<button class="btn bg bs" style="width:100%;margin-bottom:8px" onclick="openCompare()">⚖️ Comparar (${G._cmp.length}/2)</button>`:''}
@@ -11701,7 +11720,7 @@ function openInd(id){
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">Entrenar: ${p.name}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${vbadges(p)}</div>
-    <div class="note">Costo: $0.1M · Mejora +3 al atributo elegido</div>
+    <div class="note">Costo: €0.1M · Mejora +3 al atributo elegido</div>
     ${Object.entries(p.attrs).map(([k,v])=>{
       const inf=ATTR_INFO[k]||{icon:'',label:k};
       return `
@@ -11848,7 +11867,7 @@ function rStad(){
         : st.capacity.toLocaleString()}</span></div>
       <div class="sr"><span class="sl">Nivel</span><span class="sv">${'★'.repeat(st.level)}${'☆'.repeat(5-st.level)}</span></div>
       <div class="sr"><span class="sl">Mejoras activas</span><span class="sv">${built}/${st.upgrades.length}</span></div>
-      <div class="sr"><span class="sl">Ingreso/partido</span><span class="sv" style="color:var(--green)">$${st.income.toFixed(1)}M</span></div>
+      <div class="sr"><span class="sl">Ingreso/partido</span><span class="sv" style="color:var(--green)">€${st.income.toFixed(1)}M</span></div>
     </div>
     <div class="card">
       <div class="ctitle">Estado de instalaciones</div>
@@ -11868,7 +11887,7 @@ function rStad(){
             <div style="font-size:10px;color:var(--t3);margin-top:1px">${u.desc}</div>
             <div style="font-size:9px;color:var(--gold);margin-top:2px">${facilityFxLabel(u.id,u.eff)}</div>
           </div>
-          <div style="font-size:12px;font-weight:600;color:${u.built?'var(--green)':'var(--gold)'};flex-shrink:0;margin-left:8px">${u.built?'Listo':'$'+u.cost+'M'}</div>
+          <div style="font-size:12px;font-weight:600;color:${u.built?'var(--green)':'var(--gold)'};flex-shrink:0;margin-left:8px">${u.built?'Listo':'€'+u.cost+'M'}</div>
         </div>
       </button>
     `).join('');
@@ -11883,8 +11902,8 @@ function openBuildStad(id){
     <button class="mclose" onclick="closeMod()">✕</button>
     <div class="mtitle">🏗️ Construir: ${u.name}</div>
     <div class="note">${u.desc}</div>
-    <div class="sr"><span class="sl">Costo</span><span class="sv" style="color:var(--red)">$${u.cost}M</span></div>
-    <div class="sr"><span class="sl">Presupuesto restante</span><span class="sv">$${Math.round((G.budget-u.cost)*10)/10}M</span></div>
+    <div class="sr"><span class="sl">Costo</span><span class="sv" style="color:var(--red)">€${u.cost}M</span></div>
+    <div class="sr"><span class="sl">Presupuesto restante</span><span class="sv">€${Math.round((G.budget-u.cost)*10)/10}M</span></div>
     <div style="display:flex;gap:6px;margin-top:12px">
       <button class="btn bg" onclick="confirmBuildStad('${id}')">✓ Confirmar</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
@@ -12062,7 +12081,7 @@ function rJuv(){
             <div style="font-weight:600;font-size:12px">${u.built?'✅ ':''} ${u.name}</div>
             <div style="font-size:10px;color:var(--t3)">${u.desc}</div>
           </div>
-          <div style="font-size:12px;font-weight:600;color:${u.built?'var(--green)':'var(--gold)'}">${u.built?'Listo':'$'+u.cost+'M'}</div>
+          <div style="font-size:12px;font-weight:600;color:${u.built?'var(--green)':'var(--gold)'}">${u.built?'Listo':'€'+u.cost+'M'}</div>
         </div>
       </button>
     `).join('');
@@ -12298,7 +12317,7 @@ function rStaff(){
       <div style="font-size:10px;color:var(--t2)">${G.dt.nat} · ${G.dt.style}</div>
       <div style="font-size:10px;color:var(--t3)">${G.dt.str}</div></div>
     </div>
-    <div class="sr"><span class="sl">Sueldo</span><span class="sv" style="color:var(--red)">$${G.dt.salary}K/sem</span></div>
+    <div class="sr"><span class="sl">Sueldo</span><span class="sv" style="color:var(--red)">€${G.dt.salary}K/sem</span></div>
     ${G.dt.contract?`<div class="sr"><span class="sl">Contrato hasta</span><span class="sv">${G.dt.contract.until}</span></div>
     <div class="sr"><span class="sl">Cláusula</span><span class="sv">${G.dt.contract.clause}</span></div>
     <div class="sr"><span class="sl">Objetivos</span><span class="sv" style="font-size:9px">${(G.dt.contract.objectives||[]).join(' · ')||'—'}</span></div>`:''}
@@ -12324,7 +12343,7 @@ function rStaff(){
   },0);
   if(e2){
     const effDT = sl.asst>=3?8:sl.asst>=2?4:0;
-    e2.innerHTML = `<div class="ctitle">Cuerpo Técnico <span style="color:var(--red);font-size:10px">$${staffSalTotal}K/sem</span></div>` +
+    e2.innerHTML = `<div class="ctitle">Cuerpo Técnico <span style="color:var(--red);font-size:10px">€${staffSalTotal}K/sem</span></div>` +
     STAFF_ROLES.map(r=>{
       const lv=sl[r.id]||0;
       const curL=r.levels.find(l=>l.lv===lv)||r.levels[0];
@@ -12341,7 +12360,7 @@ function rStaff(){
           <div style="font-size:11px;font-weight:700">${r.role} ${lvLabel}</div>
           <div style="font-size:9px;color:var(--t3)">${curL.name}${effTxt?' · <span style="color:var(--green)">'+effTxt+'</span>':''}</div>
         </div>
-        ${nextL?`<button class="btn bg bs" style="font-size:9px;padding:3px 7px" onclick="upgradeStaff('${r.id}')">⬆ $${nextL.cost}M</button>`:'<span style="font-size:9px;color:var(--gold)">MAX</span>'}
+        ${nextL?`<button class="btn bg bs" style="font-size:9px;padding:3px 7px" onclick="upgradeStaff('${r.id}')">⬆ €${nextL.cost}M</button>`:'<span style="font-size:9px;color:var(--gold)">MAX</span>'}
       </div>`;
     }).join('');
   }
@@ -12412,7 +12431,7 @@ function rDtList(){
         <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
           <div>
             <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:13px">${d.name}</div>
-            <div style="font-size:9px;color:var(--t3)">${d.nat}${d.age?' · '+d.age+' años':''} · ${d.style} · <span style="color:var(--red)">$${d.salary}K/sem</span> · ${d.club?`<span style="color:var(--ora)">📍 ${d.club}</span>`:'<span style="color:var(--green)">LIBRE</span>'}</div>
+            <div style="font-size:9px;color:var(--t3)">${d.nat}${d.age?' · '+d.age+' años':''} · ${d.style} · <span style="color:var(--red)">€${d.salary}K/sem</span> · ${d.club?`<span style="color:var(--ora)">📍 ${d.club}</span>`:'<span style="color:var(--green)">LIBRE</span>'}</div>
             ${a?`<div style="font-size:9px;color:var(--t2);margin-top:2px">${a.i} <b>${a.n}</b></div>`:''}
             <div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${rb(d.rat)}${dtTraitBadge(d)}</div>
             <div style="font-size:9px;color:var(--green);margin-top:2px">✦ ${(DT_TRAIT_FX[d.trait]||{fx:''}).fx}</div>
@@ -12483,9 +12502,9 @@ function openDtNeg(name){
     ${dtProfBars(d)}
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:10px 0 4px">📋 LO QUE ÉL TE PIDE</div>
     ${dem.map(x=>`<div style="font-size:10.5px;color:var(--t2);padding:2px 0">• ${x}</div>`).join('')}
-    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:10px 0 4px">💰 SUELDO SEMANAL — pide $${d.salary}K</div>
-    ${nPair('dtOff',Math.round(d.salary*0.6),Math.round(d.salary*1.6),d.salary,1,"_dtNeg.offer=nRead('dtOff');document.getElementById('dtOffV').textContent='$'+_dtNeg.offer+'K'",'K')}
-    <div class="neg-val" id="dtOffV" style="font-size:20px;padding:2px">$${d.salary}K</div>
+    <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:10px 0 4px">💰 SUELDO SEMANAL — pide €${d.salary}K</div>
+    ${nPair('dtOff',Math.round(d.salary*0.6),Math.round(d.salary*1.6),d.salary,1,"_dtNeg.offer=nRead('dtOff');document.getElementById('dtOffV').textContent='€'+_dtNeg.offer+'K'",'K')}
+    <div class="neg-val" id="dtOffV" style="font-size:20px;padding:2px">€${d.salary}K</div>
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:8px 0 4px">📅 DURACIÓN</div>
     <div style="display:flex;gap:4px">${[1,2,3].map(y=>`<button class="btn bs ${y===2?'bg':'bo'} dtYearBtn" onclick="_dtNeg.years=${y};document.querySelectorAll('.dtYearBtn').forEach(b=>b.className='btn bs bo dtYearBtn');this.className='btn bs bg dtYearBtn'">${y} año${y>1?'s':''}</button>`).join('')}</div>
     <div style="font-size:11px;font-weight:700;color:var(--gold);font-family:'Rajdhani';margin:8px 0 4px">📜 CLÁUSULA DE RESCISIÓN (lo que te cuesta echarlo)</div>
@@ -12496,7 +12515,7 @@ function openDtNeg(name){
     <div style="display:flex;gap:4px;flex-wrap:wrap">
       ${DT_OBJECTIVES.map(o=>`<button class="btn bs bo dtObjBtn" onclick="toggleDtObj(this,'${o}')">${o}</button>`).join('')}
     </div>
-    <div class="note" style="margin:10px 0 8px">Compensación al club: <b style="color:var(--red)">${fv(buyout)}</b> · Presupuesto: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <div class="note" style="margin:10px 0 8px">Compensación al club: <b style="color:var(--red)">${fv(buyout)}</b> · Presupuesto: <b style="color:var(--gold)">${fv(G.budget)}</b></div>
     <button class="btn bg" onclick="confirmDtNeg(${buyout})">📩 Presentar oferta</button>
   `);
 }
@@ -12517,8 +12536,8 @@ function confirmDtNeg(buyout){
   prob=Math.max(0.05,Math.min(0.95,prob));
   if(Math.random()>prob){
     const counter=Math.round(d.salary*(1.05+Math.random()*0.25));
-    lg('🤝',`${d.name} rechazó la oferta (pide ~$${counter}K)`);
-    flash(`❌ ${d.name} rechazó — quiere ~$${counter}K y menos presión`,'loss');
+    lg('🤝',`${d.name} rechazó la oferta (pide ~€${counter}K)`);
+    flash(`❌ ${d.name} rechazó — quiere ~€${counter}K y menos presión`,'loss');
     closeMod();
     return;
   }
@@ -12541,7 +12560,7 @@ function confirmDtNeg(buyout){
   G.dt._rat0=G.dt.rat;
   if(FORMS[d.style]){G.formation=d.style;autoFill();}
   G.dtRel=70;G._dtQuit=false;   // relación nueva: arranca con crédito
-  lg('🤝',`${d.name} firmó hasta ${2026+_dtNeg.years} ($${_dtNeg.offer}K/sem, cláusula ${_dtNeg.clause})`);
+  lg('🤝',`${d.name} firmó hasta ${2026+_dtNeg.years} (€${_dtNeg.offer}K/sem, cláusula ${_dtNeg.clause})`);
   addPhoneMsg('dt',d.name,`Presidente, acepto el desafío. Mis pedidos quedan sobre la mesa: ${dtDemands(d).join(', ')}. Y asumo sus objetivos: ${_dtNeg.objs.join(' y ')||'los que marque el club'}. A trabajar.`,'🤝');
   closeMod();rStaff();updateUI();
   flash('✅ '+d.name+' firmó por '+_dtNeg.years+' año(s)','win');
@@ -12629,7 +12648,7 @@ function upgradeStaff(id){
   const curLv = G.staffLevels[id]||0;
   const nextL = role.levels.find(l=>l.lv===curLv+1);
   if(!nextL){ flash('Ya está al máximo nivel','draw'); return; }
-  if(G.budget < nextL.cost){ flash(`❌ Presupuesto insuficiente ($${nextL.cost}M necesario)`,'loss'); return; }
+  if(G.budget < nextL.cost){ flash(`❌ Presupuesto insuficiente (€${nextL.cost}M necesario)`,'loss'); return; }
   G.budget = Math.round((G.budget-nextL.cost)*10)/10;
   G.staffLevels[id] = nextL.lv;
   lg('✅',`${role.role} actualizado a ${nextL.name}`);
@@ -12695,7 +12714,7 @@ function rDtProfile(){
       </div>
     </div>
     <div class="sr"><span class="sl">Formación favorita</span><span class="sv" style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--gold)">${d.style}</span></div>
-    <div class="sr"><span class="sl">Sueldo semanal</span><span class="sv" style="color:var(--red)">$${d.salary}K/sem</span></div>
+    <div class="sr"><span class="sl">Sueldo semanal</span><span class="sv" style="color:var(--red)">€${d.salary}K/sem</span></div>
     <div class="sr"><span class="sl">Rasgo</span><span class="sv"><span style="color:${tc};font-weight:600;font-size:10px">${d.trait}</span></span></div>
     <div class="sr"><span class="sl">Busca reforzar</span><span class="sv" style="display:flex;gap:3px;flex-wrap:wrap">${(d.wantedPos||[]).map(p=>`<span class="badge bau" style="font-size:8px">${p}</span>`).join('')}</span></div>
     ${dtAttrsHTML(d)}
@@ -12800,7 +12819,7 @@ function rDtReport(){
         <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🎯</div>
         <div>
           <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:var(--gold)">${dt.name}</div>
-          <div style="font-size:9px;color:var(--t3)">${dt.nat} · ${dt.age} años · 💰 $${dt.salary}K/sem · ⭐ ${dt.rat}/100</div>
+          <div style="font-size:9px;color:var(--t3)">${dt.nat} · ${dt.age} años · 💰 €${dt.salary}K/sem · ⭐ ${dt.rat}/100</div>
           <div style="font-size:9px;color:var(--t2);font-family:'Chakra Petch'">${(()=>{const A=dtAttrs(dt)||{};return DT_ATTRS.map(x=>`<span title="${x.l}">${x.ic}${A[x.k]}</span>`).join(' ');})()}</div>
           <div style="font-size:10px;color:var(--t2);margin-top:2px">🎭 <em>${dt.trait||'Equilibrado'}</em> · ${dt.style||'4-3-3'}</div>
         </div>
@@ -13160,7 +13179,7 @@ function genDtStadReq(){
     approved:false, rejected:false
   });
   lg('🏟️',`${G.dt.name} pide mejora: ${pick.name}`);
-  addPhoneMsg('dt', G.dt.name, `🏟️ El DT solicita la mejora de estadio: <b>${pick.name}</b> (costo: $${pick.cost}M).<br><i>"Para seguir creciendo necesito mejores instalaciones."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
+  addPhoneMsg('dt', G.dt.name, `🏟️ El DT solicita la mejora de estadio: <b>${pick.name}</b> (costo: €${pick.cost}M).<br><i>"Para seguir creciendo necesito mejores instalaciones."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function genDtYouthReq(){
@@ -13181,7 +13200,7 @@ function genDtYouthReq(){
     approved:false, rejected:false
   });
   lg('🌱',`${G.dt.name} pide invertir en juveniles: ${pick.name}`);
-  addPhoneMsg('dt', G.dt.name, `🌱 El DT pide inversión en juveniles: <b>${pick.name}</b> (costo: $${pick.cost}M).<br><i>"Las inferiores son el futuro del club."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
+  addPhoneMsg('dt', G.dt.name, `🌱 El DT pide inversión en juveniles: <b>${pick.name}</b> (costo: €${pick.cost}M).<br><i>"Las inferiores son el futuro del club."</i>`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
 }
 
 function genDtFireReq(){
@@ -13235,11 +13254,11 @@ function renderDtReqs(reqs, ctx){
       actions=`<button class="btn bR bs" onclick="approveDtFire('${r.id}')">🚪 Rescindir contrato</button><button class="btn bg bs" onclick="rejectDtReq('${r.id}')">✗ Mantenerlo</button>`;
     } else if(type==='stad_upgrade'){
       typeLabel='🏟️ ESTADIO'; borderColor='rgba(var(--gold-rgb),.2)';
-      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
+      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: €${r.upgradeCost}M</div></div>`;
       actions=`<button class="btn bg bs" onclick="approveDtStad('${r.id}')">🏗️ Aprobar mejora</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
     } else if(type==='youth_invest'){
       typeLabel='🌱 JUVENILES'; borderColor='rgba(15,184,102,.2)';
-      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: $${r.upgradeCost}M</div></div>`;
+      body=`<div style="margin-bottom:7px"><div style="font-weight:700;font-size:12px">${r.upgradeName}</div><div style="font-size:10px;color:var(--gold)">Costo: €${r.upgradeCost}M</div></div>`;
       actions=`<button class="btn bG bs" onclick="approveDtYouth('${r.id}')">✅ Aprobar</button><button class="btn bR bs" onclick="rejectDtReq('${r.id}')">✗ Rechazar</button>`;
     } else {
       typeLabel='🤝 COMPRAR'; borderColor='rgba(var(--gold-rgb),.2)';
@@ -13321,7 +13340,7 @@ function dtReqStep2(type){
       html += `<div onclick="dtReqConfirmUpgrade('stad_upgrade','${u.id}',\`${u.name.replace(/`/g,"'")}\`,${u.cost})" class="dtReqRow" style="display:block">
         <div style="font-weight:700;font-size:12px">${u.name}</div>
         <div style="font-size:10px;color:var(--t2)">${u.desc}</div>
-        <div style="font-size:11px;color:var(--gold);margin-top:2px">$${u.cost}M</div></div>`;
+        <div style="font-size:11px;color:var(--gold);margin-top:2px">€${u.cost}M</div></div>`;
     });
     html += `</div>`;
     showMod(html);
@@ -13335,7 +13354,7 @@ function dtReqStep2(type){
       html += `<div onclick="dtReqConfirmUpgrade('youth_invest','${u.id}',\`${u.name.replace(/`/g,"'")}\`,${u.cost})" class="dtReqRow" style="display:block">
         <div style="font-weight:700;font-size:12px">${u.name}</div>
         <div style="font-size:10px;color:var(--t2)">${u.desc}</div>
-        <div style="font-size:11px;color:var(--gold);margin-top:2px">$${u.cost}M</div></div>`;
+        <div style="font-size:11px;color:var(--gold);margin-top:2px">€${u.cost}M</div></div>`;
     });
     html += `</div>`;
     showMod(html);
@@ -13385,7 +13404,7 @@ function dtReqConfirmUpgrade(type, upgradeId, upgradeName, upgradeCost){
     <div class="mtitle">${icons[type]} ${upgradeName}</div>
     <div style="padding:8px;background:rgba(255,255,255,.05);border-radius:6px;margin-bottom:12px">
       <div style="font-weight:700">${upgradeName}</div>
-      <div style="font-size:11px;color:var(--gold)">Costo: $${upgradeCost}M</div>
+      <div style="font-size:11px;color:var(--gold)">Costo: €${upgradeCost}M</div>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:5px">Justificación:</div>
     <textarea id="dtReqReason" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:5px;color:#fff;padding:8px;font-size:12px;resize:vertical;min-height:60px;box-sizing:border-box">${defaults[type]}</textarea>
@@ -13425,7 +13444,7 @@ function submitDtReqUpgrade(type, upgradeId, upgradeName, upgradeCost){
     approved:false, rejected:false
   });
   lg('📬',`${G.dt.name} pide: ${upgradeName}`);
-  addPhoneMsg('dt', G.dt.name, `📬 Pedido del DT: <b>${upgradeName}</b> (costo: $${upgradeCost}M).${reason?`<br><i>"${reason}"</i>`:''}`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
+  addPhoneMsg('dt', G.dt.name, `📬 Pedido del DT: <b>${upgradeName}</b> (costo: €${upgradeCost}M).${reason?`<br><i>"${reason}"</i>`:''}`, '📬', {reqId: G.dtRequests[G.dtRequests.length-1].id});
   rDtPedidos(); closeMod();
   flash(`✅ Pedido creado: ${upgradeName}`,'win');
 }
@@ -14302,7 +14321,7 @@ function checkPromises(){
 // NIEBLA DE GUERRA (estilo FM)
 // Fuera de TU liga un jugador es un rumor: no ves su rating exacto, ni el
 // potencial, ni los atributos, ni las insignias doradas. Sólo un rango
-// estimado. Un informe de ojeador ($0.1M) o una misión a esa liga lo revela.
+// estimado. Un informe de ojeador (€0.1M) o una misión a esa liga lo revela.
 //
 // ⚠️ isKnown() es el ÚNICO portero: todo lo que la UI dibuja de un jugador
 // del mercado tiene que pasar por acá (rbK, potK, vbK, tagK, attrChipsK).
@@ -14722,7 +14741,15 @@ function arZoneTable(z){
   ensureLeague();
   if(!G.arZones)return [];
   const clubs=z==='A'?G.arZones.A:G.arZones.B;
-  return clubs.map(c=>({club:c,...(G.league.table[c]||{pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0})}))
+  // Fase 98: la zona es la del TORNEO, no la anual. En el Clausura sumaba
+  // también el Apertura (Boca con 16 PJ en la fecha 1) y los playoffs del
+  // Clausura se sorteaban con la tabla de todo el año. Se resta la foto del
+  // cierre del Apertura apenas se juega la primera fecha del Clausura.
+  const _cero={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0};
+  const snap=(G.arSnap&&G.arSnap.season===G.season&&(G.arFix||[]).some(f=>f.phase==='clausura'&&f.played))?G.arSnap.apertura:null;
+  const fila=c=>{ const r=G.league.table[c]||_cero; if(!snap)return {...r};
+    const b=snap[c]||_cero; return {...r,pj:r.pj-b.pj,g:r.g-b.g,e:r.e-b.e,p:r.p-b.p,gf:r.gf-b.gf,gc:r.gc-b.gc,pts:r.pts-b.pts}; };
+  return clubs.map(c=>({club:c,...fila(c)}))
     .sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc)||b.gf-a.gf)
     .map((r,i)=>({pos:i+1,...r}));
 }
@@ -14954,8 +14981,8 @@ function showSeasonSummary(){
 
     <div class="card" style="margin-bottom:12px">
       <div class="ctitle">💰 Balance económico</div>
-      <div class="sr"><span class="sl">Presupuesto final</span><span class="sv" style="color:var(--gold)">$${G.budget}M</span></div>
-      <div class="sr"><span class="sl">Salarios año</span><span class="sv" style="color:var(--red)">$${wageM}M</span></div>
+      <div class="sr"><span class="sl">Presupuesto final</span><span class="sv" style="color:var(--gold)">${fv(G.budget)}</span></div>
+      <div class="sr"><span class="sl">Salarios año</span><span class="sv" style="color:var(--red)">€${wageM}M</span></div>
       <div class="sr"><span class="sl">Reputación</span><span class="sv">${G.rep}/100</span></div>
       <div class="sr"><span class="sl">Moral</span><span class="sv">${G.morale}/100</span></div>
     </div>
@@ -15231,9 +15258,14 @@ function repSuma(d){
 // completed) y la función se busca acá por id. Esto NO toca saveGame ni
 // loadGame: lo que cambia es qué se le da para guardar.
 const BOARD_OBJ=[
-  {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=10&&(g.wins*3+g.draws)/(pj*3)>=0.55}},
+  // Fase 98: "terminar" es al TERMINAR: se marcaba en la fecha 7 porque miraba
+  // el promedio de puntos de todas las competencias. Ahora espera a que se
+  // juegue la última fecha de la liga y mira la posición.
+  {id:'top4',desc:'Terminar en el top 4 de la Liga',check:g=>{const lc=ligaComp();const lm=g.calendar.filter(x=>x.comp===lc);
+    return lm.length>0&&lm.every(x=>x.played)&&(myLeaguePos()||99)<=4;}},
   {id:'copa_semi',desc:'Llegar a semifinales de Copa',check:g=>g.calendar.filter(x=>x.comp&&esCopaInt(x.comp)&&x.comp.includes('Semi')&&x.played).length>0},
-  {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>g.squad.some(p=>p.rat>=80&&p.club===g.teamName)},
+  // Fase 98: un FICHAJE de esta temporada; antes contaba al que ya estaba.
+  {id:'sign80',desc:'Fichar un jugador de +80 rating',check:g=>(g.movs||[]).some(m=>m.t==='entra'&&m.season===g.season&&(m.rat||0)>=80&&m.monto!==undefined&&!/cantera|inferiores/.test(m.motivo||''))},
   {id:'budget_pos',desc:'Mantener presupuesto positivo',check:g=>g.budget>0},
   {id:'win60',desc:'Ganar al menos 60% de los partidos',check:g=>{const pj=g.wins+g.draws+g.losses;return pj>=5&&g.wins/pj>=0.6}},
   {id:'youth_debut',desc:'Debutar un juvenil en el primer equipo',check:g=>g.log.some(l=>l.msg&&l.msg.includes('promovido'))},
@@ -18021,14 +18053,18 @@ function arAdvancePlayoff(m,res){
   const cur=order.find(r=>m.comp.includes(r));
   if(!cur)return;
   const rival=m.home===G.teamName?m.away:m.home;
-  if(res==='L'||(res==='D'&&Math.random()<0.5)){        // empate → penales
-    lg('❌',`Eliminados en ${cur.toLowerCase()} ${delFase(label)} ante ${rival}`);
-    flash(`❌ Eliminados en ${cur.toLowerCase()} ${delFase(label)}`,'loss');
+  // Fase 98: el empate se define con una tanda de verdad, y se cuenta
+  const _pen=res==='D'?tandaPenales(m):null;
+  const _penTxt=_pen?` (${m.score}, ${_pen.txt} en penales)`:'';
+  if(res==='L'||(_pen&&!_pen.gana)){
+    const _que=cur==='Final'?`Perdimos la final ${delFase(label)} ante ${rival}`:`Eliminados en ${cur.toLowerCase()} ${delFase(label)} ante ${rival}`;
+    lg('❌',_que+_penTxt);
+    flash(`❌ ${_que}${_penTxt}`,'loss');
     G.boardConf=Math.max(0,(G.boardConf||50)-(cur==='Final'?6:4));
     G.arPlayoff=null;return;
   }
   if(cur==='Final'){
-    lg('🏆',`¡${G.teamName} CAMPEÓN ${delFase(_trof)} ${G.season}!`);
+    lg('🏆',`¡${G.teamName} CAMPEÓN ${delFase(_trof)} ${G.season}!${_penTxt}`);
     flash(`🏆 ¡CAMPEONES DEL ${_trof.toUpperCase()}!`,'win');
     repSuma(7);G.boardConf=Math.min(100,(G.boardConf||50)+22);
     (G.trophies=G.trophies||[]).push({name:_trof,season:G.season});
@@ -18049,8 +18085,8 @@ function arAdvancePlayoff(m,res){
   G.calendar.push({week:wk,comp:`Liga Profesional - ${label} ${next}`,
     home:iHome?G.teamName:opp,away:iHome?opp:G.teamName,played:false,result:null,score:null});
   G.calendar.sort((a,b)=>a.week-b.week);
-  lg('✅',`${G.teamName} avanza a ${next.toLowerCase()} ${delFase(label)}: rival ${opp}`);
-  flash(`✅ ¡A ${next.toLowerCase()}! Rival: ${opp}`,'win');
+  lg('✅',`${G.teamName} avanza a ${next.toLowerCase()} ${delFase(label)}${_penTxt}: rival ${opp}`);
+  flash(`✅ ¡A ${next.toLowerCase()}!${_pen?' Ganamos por penales '+_pen.txt+'.':''} Rival: ${opp}`,'win');
 }
 
 // ═══ RESOLUCIÓN DE LLAVES DE COPA ═══
@@ -18125,6 +18161,33 @@ function caProximaRonda(rndActual){
 // las otras 24 ligas era un partido muerto. Ahora la copa se identifica por
 // la tabla (`intCopaDe`) o por el prefijo nacional (`esCopaNac`), así que
 // sirve para las seis copas continentales y las 24 nacionales.
+// ═══ FASE 98: LA TANDA DE PENALES ═══
+// Las llaves a partido único que terminaban empatadas se definían con una
+// moneda y no se decía cómo: "Boca 1-1 River → Boca avanza". Ahora se patea
+// una tanda (cinco y muerte súbita) con la definición de tus cinco mejores
+// pateadores y la fuerza del rival, y queda anotada en el partido.
+function tandaPenales(m){
+  const _xi=Object.values(G.slots||{}).map(id=>(G.squad||[]).find(p=>p.id===id)).filter(Boolean);
+  const xi=(_xi.length?_xi:(G.squad||[])).filter(p=>p&&p.pos!=='ARQ');
+  const tir=xi.map(p=>(p.attrs&&p.attrs.TIR)||p.rat||70).sort((a,b)=>b-a).slice(0,5);
+  const miTir=tir.length?tir.reduce((a,b)=>a+b,0)/tir.length:70;
+  const arq=(G.squad||[]).filter(p=>p.pos==='ARQ').sort((a,b)=>(b.rat||0)-(a.rat||0))[0];
+  const miArq=(arq&&arq.attrs&&arq.attrs.REF)||(arq&&arq.rat)||70;
+  const su=(m&&m.oppPow)||70;
+  const pMio=Math.max(0.6,Math.min(0.9,0.75+(miTir-70)*0.004-(su-70)*0.003));
+  const pSuyo=Math.max(0.6,Math.min(0.9,0.75+(su-70)*0.004-(miArq-70)*0.003));
+  let a=0,b=0;
+  for(let i=0;i<5;i++){
+    if(Math.random()<pMio)a++;
+    if(a>b+(5-i))break;                 // ya no lo alcanzan
+    if(Math.random()<pSuyo)b++;
+    if(b>a+(4-i)||a>b+(4-i))break;
+  }
+  let k=0; while(a===b&&k++<20){ if(Math.random()<pMio)a++; if(Math.random()<pSuyo)b++; }
+  if(a===b)a++;
+  if(m){ m.pens=a+'-'+b; m.penGana=a>b; }
+  return {mios:a,suyos:b,gana:a>b,txt:a+'-'+b};
+}
 function resolveKO(m){
   if(!m||!m.comp)return;
   const c=m.comp;
@@ -18141,13 +18204,15 @@ function resolveKO(m){
   let mine=0,theirs=0;
   const legs=G.calendar.filter(x=>x.played&&x.comp&&roundOf(x.comp)===rnd&&mismaCopa(x));
   legs.forEach(l=>{const g=koGoalsFor(l);if(g){mine+=g.mine;theirs+=g.theirs;}});
-  if(mine===theirs)mine+=Math.random()<0.5?1:-1;   // se define por penales
-  const advanced=mine>theirs;
+  let _pen=null;
+  if(mine===theirs)_pen=tandaPenales(m);          // se define por penales
+  const advanced=_pen?_pen.gana:mine>theirs;
+  const _gl=`global ${mine}-${theirs}${_pen?`, ${_pen.txt} en penales`:''}`;
   const compName=copaInt?(INT_COPAS[copaInt].nombre):copaNacPref();
   const rndName=[ '',copaInt?'el playoff':'32avos','octavos','cuartos','semifinal','la final'][rnd];
   if(advanced){
     if(rnd===5){
-      lg('🏆',`¡${G.teamName} CAMPEÓN de la ${compName}! (global ${mine}-${theirs})`);
+      lg('🏆',`¡${G.teamName} CAMPEÓN de la ${compName}! (${_gl})`);
       flash(`🏆 ¡CAMPEÓN DE LA ${compName.toUpperCase()}!`,'win');
       repSuma(6);G.boardConf=Math.min(100,(G.boardConf||50)+18);
       (G.trophies=G.trophies||[]).push({name:compName,season:G.season});
@@ -18155,8 +18220,8 @@ function resolveKO(m){
       if(copaInt==='lib'){G.campeonLib=G.season;}
       if(copaInt==='sud'){G.campeonSud=G.season;}
     } else {
-      lg('✅',`${G.teamName} avanza en la ${compName} (global ${mine}-${theirs})`);
-      flash(`✅ ¡Pasaste de ${rndName}! Global ${mine}-${theirs}`,'win');
+      lg('✅',`${G.teamName} avanza en la ${compName} (${_gl})`);
+      flash(`✅ ¡Pasaste de ${rndName}! ${_gl[0].toUpperCase()+_gl.slice(1)}`,'win');
       if(isCA) caProximaRonda(rnd);      // recién ahora se sortea la que viene
       else intProximaRonda(copaInt,rnd+1);
     }
@@ -18171,10 +18236,10 @@ function resolveKO(m){
     return roundOf(x.comp)<=rnd;                 // se caen las rondas siguientes
   });
   const removed=before-G.calendar.length;
-  lg('❌',`${G.teamName} quedó eliminado en ${rndName} de la ${compName} (global ${mine}-${theirs})`);
-  flash(`❌ Eliminados en ${rndName} de la ${compName} (${mine}-${theirs})`,'loss');
+  lg('❌',`${G.teamName} quedó eliminado en ${rndName} de la ${compName} (${_gl})`);
+  flash(`❌ Eliminados en ${rndName} de la ${compName} (${_gl})`,'loss');
   G.boardConf=Math.max(0,(G.boardConf||50)-(rnd>=4?12:7));
-  if(removed>0)addPhoneMsg('board','Comisión Directiva',`😞 Nos despedimos de la ${compName} en ${rndName} (global ${mine}-${theirs}). Se liberan ${removed} fecha(s) del calendario.`,'🏛️');
+  if(removed>0)addPhoneMsg('board','Comisión Directiva',`😞 Nos despedimos de la ${compName} en ${rndName} (${_gl}). Se liberan ${removed} fecha(s) del calendario.`,'🏛️');
 }
 
 // Contabilidad post-partido a partir del marcador final.
@@ -18220,6 +18285,26 @@ function calcNotas(xi,res,stats,scorers,gf,ga,m){
   return out;
 }
 function notaColor(n){ return n>=8?'var(--green)':n>=6.5?'var(--gold)':n>=5?'var(--t2)':'var(--red)'; }
+// ═══ FASE 98: UN SOLO RELOJ PARA TODOS LOS PARTIDOS ═══
+// Los amistosos hacían `G.week++` a secas. La gira por Asia pone DOS en la
+// semana 1, así que el reloj quedaba una semana adelante para toda la
+// temporada: medido con Boca, la tarjeta decía "Semana 4" y la cabecera "S5",
+// y el resultado se anotaba en otra semana. Ahora todos usan la regla de la
+// Fase 15: si queda un partido de esta semana o anterior, el reloj no corre.
+// Partidos en cancha neutral: la gira al exterior, la Copa Argentina y las
+// finales a partido único de las copas cortas (Fase 98: decían "Local").
+function esNeutral(m){
+  if(!m)return false;
+  if(m.neutral||m.gira)return true;
+  const c=String(m.comp||'');
+  return /^Copa Argentina|Supercopa|Recopa|Mundial de Clubes/.test(c);
+}
+function relojTrasPartido(m){
+  if(!G)return;
+  const w=(m&&m.week)||G.week||1;
+  if(G.calendar&&G.calendar.some(x=>!x.played&&x.week<=w)) G.week=Math.max(G.week||1,w);
+  else G.week=Math.max(G.week||1,w)+1;
+}
 function applyMatchResult(m, gf, ga, providedScorers){
   const psychLv = (G.staffLevels&&G.staffLevels.psych)||0;
   const res = gf>ga?'W':gf===ga?'D':'L';
@@ -18307,6 +18392,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
       const pend=(G.arFix||[]).filter(f=>f.phase===m.phase&&!f.played).length;
       // Las fases de la Fase 80 (v:80) las cierra arChequearFases; las de un
       // save viejo siguen por el camino de siempre.
+      // Fase 98: la foto del Apertura también en este camino, para que la
+      // tabla de zona del Clausura arranque de cero (ver arZoneTable).
+      if(ph&&ph.v!==80&&pend===0&&m.phase==='apertura'&&!(G.arSnap&&G.arSnap.season===G.season)){
+        ensureLeague(); G.arSnap={season:G.season,apertura:JSON.parse(JSON.stringify(G.league.table))};
+      }
       if(ph&&ph.v!==80&&pend===0)arStartPlayoff(m.phase);
     }
     arChequearFases();
@@ -18671,11 +18761,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // reloj que ya venía corrido.
   // Ahora: si todavía queda algún partido de esta semana o de una anterior, el
   // reloj sólo se sincroniza; la semana avanza recién cuando la fecha terminó.
-  if(G.calendar&&G.calendar.some(x=>!x.played&&x.week<=(m.week||G.week))){
-    G.week=Math.max(G.week,m.week||G.week);      // misma semana: no corre el reloj
-  } else {
-    G.week=Math.max(G.week,m.week||G.week)+1;    // fecha terminada: semana siguiente
-  }
+  relojTrasPartido(m);
+  // ═══ FASE 98: LA SEMANA SE VIVE UNA VEZ ═══
+  // Todo lo de abajo (sponsors, sueldos del cuerpo técnico, mensajes, el
+  // balance del mes, curar lesiones…) corría una vez POR PARTIDO. En una
+  // semana con liga y copa, el segundo partido no movía el reloj y repetía
+  // la semana entera: medido con Boca, el balance del mes se cobró DOS veces
+  // en las semanas 12 y 24 y los mensajes salían duplicados. Ahora corre una
+  // vez por semana. Lo que sí va por partido —el descanso y el dado de
+  // lesión— queda afuera de la guarda: el balance físico está calibrado así.
+  const _semKey=(G.season||0)*1000+(G.week||0);
+  const _semNueva=G._semBloque!==_semKey;
+  if(_semNueva) G._semBloque=_semKey;
+  if(_semNueva){
   // ═══ EL CEDIDO JUEGA (O NO) EN EL CLUB QUE LO PIDIÓ ═══
   // Cuánto juega depende de si es mejor que el plantel que lo recibió: un
   // pibe de 68 prestado a un club de nivel 62 es titular; el mismo pibe en
@@ -18799,6 +18897,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyReconv();
   weeklyPrestamosIn();
   weeklyTraining();
+  } // fin de la primera parte semanal (Fase 98)
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
   // Instalaciones de recuperación devuelven condición física extra cada semana
@@ -18857,6 +18956,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
     if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
     try{ lesionDecision(ip); }catch(e){ console.error('lesionDecision',e); }   // Fase 78: operar o infiltrar
   }
+  // Las operaciones avanzan por DÍA: si el presidente fue directo al partido,
+  // acá se corren los días que faltaron. Va por partido, como siempre.
+  for(let _d=(G._daysTicked||0);_d<7;_d++) negotiationsTick();
+  G.day=1; G._daysTicked=0;
+  if(_semNueva){
   // Heal injured players (con riesgo de recaída si se apuró el regreso)
   // Red de seguridad: si algún camino marcó la lesión sin ponerle duración, el
   // bucle de abajo nunca la descuenta y el jugador se queda lesionado para
@@ -18891,11 +18995,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyOffers();
   weeklyChats();
   weeklyMarketEvolution();
-  // Las operaciones avanzan por DÍA. Si el presidente se fue directo al partido
-  // sin pasar los días a mano, acá se corren los que faltaron: la negociación
-  // avanza igual, juegues como juegues.
-  for(let _d=(G._daysTicked||0);_d<7;_d++) negotiationsTick();
-  G.day=1; G._daysTicked=0;
+  // (las operaciones por día se corren más arriba, una vez por partido)
   weeklyAITransfers();
   weeklyDtMoves();
   try{ clasicoPrevia(); }catch(e){ console.error('clasicoPrevia',e); }   // Fase 78: la semana del clásico
@@ -18905,7 +19005,12 @@ function applyMatchResult(m, gf, ga, providedScorers){
   checkPromises();
   if(G.week>=19&&G.boardTarget&&!G.boardTarget.reviewed)midSeasonReview();
   // ═══ BALANCE MENSUAL: sueldos vs TV/socios (finanzas estilo FM) ═══
-  if(G.week%4===0){
+  // Fase 98: se cobra una vez por MES, con la llave del mes: así una semana
+  // que el reloj saltea (las vacías) no hace perder un balance y ninguna
+  // semana lo cobra dos veces.
+  const _mesKey=(G.season||0)*100+Math.floor((G.week||0)/4);
+  if(Math.floor((G.week||0)/4)>=1&&G._balMes!==_mesKey){
+    G._balMes=_mesKey;
     const wk=G.squad.reduce((a,p)=>a+(p.wage||0),0);            // k/semana
     const wages=Math.round(wk*4/1000*10)/10;                    // M/mes
     // ═══ CUOTAS DE SOCIOS: el mismo cobro de siempre, ahora con nombre ═══
@@ -18987,8 +19092,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
       G.boardConf=Math.min(100,(G.boardConf||50)+5);
     }
     lg('👥',`Cuotas de ${sociosActivos().toLocaleString('es')} socios: +${fv(socInc)}`);
-    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages+_prima)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>$${G.budget}M</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
+    addPhoneMsg('board','Tesorería',`💰 Balance del mes: salarios <b style="color:var(--red)">-${fv(wages+_prima)}</b> · gastos operativos <b style="color:var(--red)">-${fv(ops)}</b> · derechos de TV <b style="color:var(--green)">+${fv(tv)}</b> · cuotas de <b>${sociosActivos().toLocaleString('es')}</b> socios <b style="color:var(--green)">+${fv(socInc)}</b> · Neto <b style="color:${neto>=0?'var(--green)':'var(--red)'}">${neto>=0?'+':''}${fv(neto)}</b>. Presupuesto: <b>${fv(G.budget)}</b>.${G.budget<0?' ⚠️ EN ROJO: no se autorizan fichajes (Fair Play).':''}`,'🏛️');
   }
+  } // fin de la segunda parte semanal (Fase 98)
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${m.score} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
@@ -19276,7 +19382,7 @@ function simMatch(auto){
     const i=(G.friendlies||[]).indexOf(m);
     if(i>=0&&typeof playFriendly==='function'){ playFriendly(i,false); }
     else { m.played=true;m.score='0-0';m.result='D'; }
-    G.week=(G.week||1)+1; G.day=1;
+    relojTrasPartido(m); G.day=1;
     updateUI();
     return;
   }
@@ -19418,15 +19524,32 @@ function rivalReport(rival,oppRat,oppForm,oppTrait,S){
     <div style="font-size:10px;color:var(--t2);background:rgba(123,179,247,.08);border-radius:5px;padding:5px"><b>📋 Planteo sugerido:</b> ${plan}</div>
   </div>`;
 }
+// Fase 98: el DT del rival sale de UN lugar. La Previa sorteaba la formación
+// en cada apertura y el 11v11 decía "4-4-2" fijo, mientras la tarjeta del DT
+// rival decía otra cosa.
+function dtDelRival(rival){
+  let d=(typeof dtDeClub==='function'&&dtDeClub(rival,'Liga ARG'))||(typeof dtDeClub==='function'&&dtDeClub(rival))||null;
+  if(!d||(G&&G.dt&&d.name===G.dt.name)){
+    // Rival sin DT en la base (equipos de copa internacional inventados): se
+    // le da uno estable por nombre, no uno distinto en cada partido.
+    const pool=DTS.filter(x=>!(G&&G.dt)||x.name!==G.dt.name);
+    d=pool[_dtSeed(rival||'rival')%pool.length];
+  }
+  return d;
+}
+function formacionRival(rival){ const d=dtDelRival(rival); return (d&&d.style)||'4-4-2'; }
 function showPreMatch(m){
   if(!G) return;
+  // Fase 98: la Previa muestra el once que VA a jugar. Al jugar, dtPicksXI lo
+  // rearmaba y las jugadas clave salían con otros nombres.
+  try{ dtPicksXI(); }catch(e){}
   const S = matchStrengths(m);
   const tn = G.teamName||'Boca Juniors';
   const isHome = m.home===tn;
   const rival = isHome?m.away:m.home;
   const pWin = Math.max(0.10,Math.min(0.80,0.43+(S.myS-S.oppS+S.homeBonus)*1.4+(S.diffMod||0)+(S.tacMod||0)));
-  const oppForm=['4-4-2','4-3-3','4-2-3-1','3-5-2','5-3-2'][~~(Math.random()*5)];
-  const oppTrait=['Defensivo','Ofensivo','Intenso','Equilibrado','Táctico'][~~(Math.random()*5)];
+  const oppForm=formacionRival(rival);
+  const oppTrait=(dtDelRival(rival)||{}).trait||'Equilibrado';
   const myRatColor=S.avgR>=80?'var(--green)':S.avgR>=74?'var(--gold)':S.avgR>=68?'var(--ora)':'var(--red)';
   const oppRatColor=S.oppRat>=80?'var(--green)':S.oppRat>=74?'var(--gold)':S.oppRat>=68?'var(--ora)':'var(--red)';
   const winPct=Math.round(pWin*100);
@@ -19437,7 +19560,7 @@ function showPreMatch(m){
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="text-align:center;margin-bottom:10px">
       <div style="font-size:9px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.1em">${m.comp} · Semana ${m.week}</div>
-      <div style="font-size:9px;color:var(--t3)">${isHome?'🏠 Local':'✈️ Visitante'} · ${m.home} vs ${m.away}</div>
+      <div style="font-size:9px;color:var(--t3)">${esNeutral(m)?'🏟️ Cancha neutral':isHome?'🏠 Local':'✈️ Visitante'} · ${m.home} vs ${m.away}</div>
     </div>
     <!-- Teams comparison -->
     <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:12px">
@@ -19821,11 +19944,11 @@ function cronicaPartido(m,res,gf,ga,scorers,stats){
     else if(T.ga2>T.ga1&&T.ga2>=2) f.push(`El segundo tiempo fue otro partido: el rival hizo <b>${T.ga2}</b> en esos 45 minutos.`);
     if(T.rojaMia) f.push(v([`La expulsión a los <b>${T.rojaMia}'</b> cambió todo: con diez hubo que aguantar.`,`Con uno menos desde los <b>${T.rojaMia}'</b>, el equipo tuvo que sufrir.`],2));
     if(T.rojaRival) f.push(v([`${rival} se quedó con diez a los <b>${T.rojaRival}'</b> y el partido se abrió.`,`La roja al rival a los <b>${T.rojaRival}'</b> inclinó la cancha.`],2));
-    if(T.fat>0.34) f.push(`La línea de fondo salió al <b>${T.defFit}%</b> y se notó: sobre el final ${rival} entraba por donde quería.`);
+    if(!T.jugado&&T.fat>0.34) f.push(`La línea de fondo salió al <b>${T.defFit}%</b> y se notó: sobre el final ${rival} entraba por donde quería.`);
     // ⚠️ La valla invicta con la defensa entera es MUY frecuente, así que no
     //    puede contarse siempre o la crónica termina diciendo lo mismo. Sale
     //    en ~1 de cada 3 partidos, elegido por el hash del propio partido.
-    else if(T.fat<=0.05&&ga===0&&(_h%3===0)) f.push(v([`Atrás no se pasó un sobresalto: la defensa terminó entera (${T.defFit}%).`,
+    else if(!T.jugado&&T.fat<=0.05&&ga===0&&(_h%3===0)) f.push(v([`Atrás no se pasó un sobresalto: la defensa terminó entera (${T.defFit}%).`,
       `El cero abajo no fue casualidad: la última línea llegó al final al ${T.defFit}%.`,
       `El arco quedó en cero y sin sufrir.`],1));
   }
@@ -19834,7 +19957,7 @@ function cronicaPartido(m,res,gf,ga,scorers,stats){
   if(poss>=62) f.push(`Fue un monólogo con la pelota: <b>${poss}%</b> de posesión y ${stats.passes} pases.`);
   else if(poss<=38) f.push(`Se cedió la pelota (<b>${poss}%</b>) y se buscó en las transiciones.`);
   if(stats&&stats.shots>=16&&stats.onTarget<=4) f.push(`${stats.shots} remates para ${stats.onTarget} al arco: mucho volumen y poca puntería.`);
-  if(stats&&(stats.reds||0)>0) f.push(`Y encima se terminó con uno menos.`);
+  if(stats&&(stats.reds||0)>0) f.push(`Y encima hubo una expulsión: una fecha menos para alguien del plantel.`);
   else if(stats&&(stats.fouls||0)>=18) f.push(`Se jugó cortado: ${stats.fouls} faltas.`);
   // 4 · ⚠️ NADA DE CLIMA ACÁ. `window.matchWeather` se sortea sólo en los
   //     partidos JUGABLES (playMatch / startFullMatch) y la simulación de
@@ -19843,8 +19966,8 @@ function cronicaPartido(m,res,gf,ga,scorers,stats){
   //     En su lugar, lo que sí es de este partido: el rival y la localía.
   if(S&&S.oppRat!==undefined){
     const mio=(S.avgR||70);
-    if(S.oppRat-mio>=6) f.push(`${rival} era muy superior en los papeles (${S.oppRat} contra ${Math.round(mio)})${res==='L'?'.':' y se le sacó algo igual.'}`);
-    else if(mio-S.oppRat>=8&&res!=='W') f.push(`Contra un rival bastante inferior (${S.oppRat} contra ${Math.round(mio)}), no se puede.`);
+    if(S.oppRat-mio>=6) f.push(`${rival} era muy superior en los papeles (ellos ${S.oppRat}, nosotros ${Math.round(mio)})${res==='L'?'.':' y se le sacó algo igual.'}`);
+    else if(mio-S.oppRat>=8&&res!=='W') f.push(`Contra un rival bastante inferior (nosotros ${Math.round(mio)}, ellos ${S.oppRat}), no se puede.`);
   }
   // 5 · el cierre
   const N=(G&&G._notas)||null;
@@ -19906,7 +20029,9 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       const dur=T.fat>0.34;
       const _roja=(T.rojaMia?`<div style="font-size:10px;color:var(--red);margin-top:5px">🟥 Te quedaste con diez a los ${T.rojaMia}': el resto del partido se generó menos y se sufrió más.</div>`:'')
         +(T.rojaRival?`<div style="font-size:10px;color:var(--green);margin-top:5px">🟥 El rival se quedó con diez a los ${T.rojaRival}'.</div>`:'');
-      const aviso = dur
+      // Fase 98: en las jugadas clave y el 11v11 no se mide la fatiga de la
+      // línea: no se dice "la defensa aguantó" después de comerse tres.
+      const aviso = T.jugado ? '' : dur
         ? `<div style="font-size:10px;color:var(--red);margin-top:5px;line-height:1.4">🥵 Tu línea de fondo salió al ${T.defFit}% de energía: en el segundo tiempo el rival generó un <b>${Math.round(T.fat*45)}%</b> más de peligro. Con el plantel así, rotar deja de ser opcional.</div>`
         : (T.fat>0.05
           ? `<div style="font-size:10px;color:var(--gold);margin-top:5px">😮‍💨 La defensa llegó al ${T.defFit}% — se notó algo en el final.</div>`
@@ -20536,6 +20661,9 @@ function bookFriendlies(zona,cuantos){
     const local=i%2===0;
     const m={week:w,comp:'Amistoso',home:local?G.teamName:r.club,away:local?r.club:G.teamName,
       played:false,result:null,score:null,friendly:true,oppPow:r.pow};
+    // Fase 98: en una gira al exterior se juega en cancha neutral y la plata
+    // ya entró con la gira: no se cobra taquilla de nuevo en cada amistoso.
+    if(zona==='intl'){ m.gira=true; m.neutral=true; }
     G.friendlies.push(m);
     (G.calendar=G.calendar||[]).push(m);         // ← acá es donde antes no entraba
   });
@@ -20571,12 +20699,14 @@ function _amisCerrar(m,gf,ga){
   m.result=gf>ga?'W':gf===ga?'D':'A';
   G.squad.forEach(p=>{if(p.fit===undefined)p.fit=100;p.fit=Math.min(100,p.fit+4);});
   G.chem=Math.min(100,(G.chem||45)+3);
-  const ing=Math.round((0.6+su*0.03)*(deLocal?1:0.35)*10)/10;   // de visitante no cobrás borderó
-  G.budget=Math.round((G.budget+ing)*10)/10;
-  finAnota('otros_in',ing,'Amistoso vs '+rival);
-  lg('🤝',`Amistoso: ${G.teamName} ${gf}-${ga} ${rival} (+${fv(ing)})`);
-  addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso ante <b>${rival}</b>${deLocal?'':' (de visitante)'}: <b>${gf}-${ga}</b>. Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`,'🏛️');
-  flash(`🤝 ${G.teamName} ${gf}-${ga} ${rival}`,gf>ga?'win':gf===ga?'draw':'loss');
+  const ing=m.gira?0:Math.round((0.6+su*0.03)*(deLocal?1:0.35)*10)/10;   // de visitante no cobrás borderó
+  if(ing>0){ G.budget=Math.round((G.budget+ing)*10)/10; finAnota('otros_in',ing,'Amistoso vs '+rival); }
+  // Fase 98: el resultado se escribe con el local primero. "Boca 0-5 Everton"
+  // siendo Boca visitante se leía al revés.
+  const _res=`${m.home} ${m.score} ${m.away}`;
+  lg('🤝',`Amistoso: ${_res}${ing>0?` (+${fv(ing)})`:''}`);
+  addPhoneMsg('board','Secretaría del Club',`🤝 Amistoso${m.gira?' de la gira':''}: <b>${_res}</b>.${ing>0?` Taquilla y derechos: <b style="color:var(--gold)">${fv(ing)}</b>.`:m.gira?' La plata de la gira ya había entrado al confirmarla.':''}`,'🏛️');
+  flash(`🤝 ${_res}`,gf>ga?'win':gf===ga?'draw':'loss');
   updateUI();
 }
 // ⚠️ Esta lista iba en la portada, debajo del botón de jugar, y era un
@@ -21260,14 +21390,21 @@ function lmRun(){
 }
 
 function lmAutoFinish(){
-  if(!LM||LM.done||SIT) return;
+  if(!LM||LM.done) return;
+  // Fase 98: si había una jugada abierta (el botón podía quedar a la vista de
+  // un dibujo anterior), se cierra sin resultado y se simula TODO lo que falta.
+  // Antes el click no hacía nada y la siguiente jugada arrancaba igual.
+  if(SIT){ const s=SIT; s.ended=true; cancelAnimationFrame(s.raf);
+    try{ window.removeEventListener('keydown',s.kd); window.removeEventListener('keyup',s.ku); }catch(e){}
+    SIT=null; const g=document.getElementById('lmGame'); if(g)g.style.display='none';
+    const fd=document.getElementById('lmFeed'); if(fd)fd.style.display='block'; }
   clearInterval(LM.timer);
   const pMy=Math.max(0.15,Math.min(0.55,0.30+(LM.S.avgR-72)/120));
   for(let i=LM.evIdx;i<LM.events.length;i++){
     const ev=LM.events[i];
     const isOppCh=ev.side==='opp_penalty'||ev.type==='defense'||ev.type==='cornerdef';
     if(isOppCh){
-      if(Math.random()<LM.pOppGoal) LM.ga++;
+      if(Math.random()<LM.pOppGoal){ LM.ga++; (LM.gaMin=LM.gaMin||[]).push(ev.min); }
     } else if(Math.random()<pMy){
       LM.gf++;
       const dels=LM.xi.filter(p=>pgr(p.pos)==='DEL');
@@ -21281,10 +21418,22 @@ function lmAutoFinish(){
   lmFinish();
 }
 
+// Desglose por tiempo a partir de los minutos de los goles (jugadas clave
+// y 11v11). Si falta algún minuto, se reparte lo que no se sabe al 2º tiempo.
+function tiemposDeGoles(misGoles,susMin,gf,ga,S){
+  const m1=(misGoles||[]).filter(x=>(x.min||0)<=45).length;
+  const s1=(susMin||[]).filter(x=>(x||0)<=45).length;
+  const df=(S&&S.defFit!==undefined)?Math.round(S.defFit):100;
+  return {gf1:Math.min(gf,m1),gf2:Math.max(0,gf-m1),ga1:Math.min(ga,s1),ga2:Math.max(0,ga-s1),
+    fat:0,defFit:df,rojaMia:null,rojaRival:null,jugado:true};
+}
 function lmFinish(){
   if(!LM||LM.done) return;
   LM.done=true;
   clearInterval(LM.timer);
+  // Fase 98: el desglose por tiempo sale de los goles de ESTE partido. Antes
+  // se mostraba el del último partido simulado ("1-1 y 0-0" siempre).
+  try{ G._tiempos=tiemposDeGoles(LM.scorers,LM.gaMin,LM.gf,LM.ga,LM.S); }catch(e){ G._tiempos=null; }
   const R=applyMatchResult(LM.m, LM.gf, LM.ga, LM.scorers);
   updateUI();
   document.getElementById('lmOv').style.display='none';
@@ -21301,7 +21450,7 @@ function sD(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy);}
 function sitKeyBind(){
   const s=SIT;
   s.kd=e=>{
-    const k=e.key;
+    const k=e.key; s._toco=true;
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','z','Z','x','X'].includes(k))e.preventDefault();
     if(k==='ArrowUp'   ||k==='w'||k==='W')s.keys.up=true;
     if(k==='ArrowDown' ||k==='s'||k==='S')s.keys.down=true;
@@ -21330,6 +21479,9 @@ function sitEnd(outcome){
   window.removeEventListener('keyup',s.ku);
   s.ended=true;
   const type=s.type,scorer=s.scorer||null;
+  // Fase 98: la jugada es del rival (córner en contra, defensa, penal en
+  // contra) o tuya: "gk_save" en una jugada tuya es el arquero DE ELLOS.
+  const _deRival=type==='defense'||type==='cornerdef'||s.side==='opp_penalty';
   SIT=null;
   document.getElementById('lmGame').style.display='none';
   document.getElementById('lmFeed').style.display='block';
@@ -21347,13 +21499,13 @@ function sitEnd(outcome){
   else if(outcome==='gk_claim')   lmFeedMsg('🧤',`Salió el arquero de ${LM.rival} y se quedó con el centro.`);
   else if(outcome==='lost')       lmFeedMsg('🛡️',`La defensa de ${LM.rival} recuperó la pelota.`);
   else if(outcome==='tackle_ok')  lmFeedMsg('💪','¡Tackle perfecto! Despejaste el peligro.','save');
-  else if(outcome==='gk_save')    lmFeedMsg('🧤','¡ATAJADOOO! Tremenda atajada de tu arquero.','save');
+  else if(outcome==='gk_save')    lmFeedMsg('🧤',_deRival?'¡ATAJADOOO! Tremenda atajada de tu arquero.':`¡Tapó el arquero de ${LM.rival}! ${scorer?scorer.name.split(' ').pop()+' no pudo.':''}`,'save');
   else if(outcome==='out')        lmFeedMsg('🚩','La pelota se fue afuera. Se pierde la ocasión.');
   else if(outcome==='back')       lmFeedMsg('↩️','La pelota volvió a mitad de cancha. Se diluyó el ataque.');
   else if(outcome==='def_clear')  lmFeedMsg('💪','¡Peligro despejado! La pelota salió del área.','save');
   else if(outcome==='opp_miss')   lmFeedMsg('😅',`¡El remate de ${LM.rival} se fue afuera!`,'save');
   else if(outcome==='tackle_foul')lmFeedMsg('🟨',`Falta — ¡penal para ${LM.rival}!`,'danger');
-  else if(outcome==='def_goal'){  LM.ga++; lmFeedMsg('🥅',`<strong>Gol de ${LM.rival}</strong> — ${LM.gf}-${LM.ga}`,'danger'); }
+  else if(outcome==='def_goal'){  LM.ga++; (LM.gaMin=LM.gaMin||[]).push(min); lmFeedMsg('🥅',`<strong>Gol de ${LM.rival}</strong> — ${LM.gf}-${LM.ga}`,'danger'); }
   else                            lmFeedMsg('⏱️','Se cerraron los espacios.');
   lmRenderHead();
   const delay=outcome==='tackle_foul'?1600:900;
@@ -21378,7 +21530,10 @@ function startSituation(ev){
   let mainP;
   // El que patea lo decide el TÉCNICO (pestaña Táctica → Designados). Si no
   // designó a nadie, roleTaker cae al mejor del puesto, como antes.
-  if(ev.type==='penalty'){
+  if(ev.type==='penalty'&&ev.side==='opp_penalty'){
+    // Fase 98: en el penal en contra el que ataja es TU arquero, no el 9.
+    mainP=LM.xi.find(p=>p.pos==='ARQ')||(G.squad||[]).filter(p=>p.pos==='ARQ').sort((a,b)=>(b.rat||0)-(a.rat||0))[0]||pool[0];
+  } else if(ev.type==='penalty'){
     mainP=(typeof roleTaker==='function'&&roleTaker('pk',pool))||[...pool].sort((a,b)=>A(b,'TIR')-A(a,'TIR'))[0];
   } else if(ev.type==='attack'){
     mainP=[...pool].sort((a,b)=>A(b,'TIR')-A(a,'TIR'))[0]; // el mejor definidor
@@ -21415,6 +21570,7 @@ function startSituation(ev){
     const pt=(e)=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)};};
     cv.addEventListener('pointerdown',e=>{
       const s=SIT;if(!s||s.kicked||s.ended)return;
+      s._toco=true;
       const p=pt(e);
       // Fase 91: las jugadas cenitales nuevas se juegan también tocando la cancha
       if(s.onTap){ s._held=true; s.onTap(p.x,p.y,false); return; }
@@ -21454,6 +21610,17 @@ function startSituation(ev){
   const execName=mainP&&mainP.name?` · 👤 ${mainP.name} (${mainP.rat})`:'';
   document.getElementById('lmGameInfo').innerHTML=(SIT.label||'🎮 Situación de juego')+execName;
   try{ sit3DIniciar(SIT); }catch(e){ console.error('sit3D',e); }
+  if(ev.type==='defense'||ev.type==='cornerdef'||ev.side==='opp_penalty') SIT._espera=180;
+  // Fase 98: los botones dicen lo que hacen EN ESTA jugada (decían PASE/TIRO
+  // también siendo el arquero en un penal en contra).
+  try{
+    const CAP={penalty:ev.side==='opp_penalty'?['—','ATAJAR']:['—','PATEAR'],corner:['CAMBIAR','CABECEAR'],
+      freekick:['—','PATEAR'],attack:['PASE','TIRO'],defense:['DESPEJAR','QUITE'],mano:['AMAGAR','PATEAR'],
+      contra:['PASE','PATEAR'],cornerdef:['—','SALTAR']}[ev.type]||['PASE','TIRO'];
+    const cx=document.getElementById('lmCapX'), cz=document.getElementById('lmCapZ');
+    if(cx)cx.textContent=CAP[0]; if(cz)cz.textContent=CAP[1];
+    const bx=cx&&cx.closest('button'); if(bx)bx.style.visibility=CAP[0]==='—'?'hidden':'visible';
+  }catch(e){}
   SIT.raf=requestAnimationFrame(sitLoop);
 }
 
@@ -21474,9 +21641,15 @@ function sitDrawFicha(ctx,s){
 }
 function sitLoop(ts){
   const s=SIT;if(!s||s.ended)return;
+  // Fase 98: si el partido ya se cerró (LM nulo) no se dibuja más: los
+  // dibujos leen LM.myName y tiraban "Cannot read properties of null".
+  if(!LM){ SIT=null; return; }
   const dt=s.lastTs?sC((ts-s.lastTs)/16.7,0.3,2.5):1;
-  s.lastTs=ts;s.t+=dt;
-  s.update(dt);
+  s.lastTs=ts;
+  // Fase 98: las jugadas del rival esperan tu primer toque (o 3 segundos).
+  // Antes se resolvían en 1,8 s y te hacían el gol sin llegar a verla.
+  const _esperando=s._espera>0&&!s._toco&&!Object.values(s.keys||{}).some(Boolean);
+  if(_esperando){ s._espera-=dt; } else { s.t+=dt; s.update(dt); }
   if(!s.ended){
     const ctx=document.getElementById('lmCanvas').getContext('2d');
     // la escena 3D va primero: el HUD proyecta con su cámara
@@ -21487,6 +21660,14 @@ function sitLoop(ts){
     // cae sobre los jugadores y sirve para las 5 jugadas, incluidas las
     // pseudo-3D que no pasan por sitDrawField. El barro sí va en la cancha.
     wxDrawRain(ctx,s.W,s.H,dt);
+    if(_esperando){
+      const n=Math.max(1,Math.ceil(s._espera/60));
+      ctx.save(); ctx.fillStyle='rgba(6,14,24,.55)'; ctx.fillRect(0,s.H/2-34,s.W,68);
+      ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='bold 26px Rajdhani,sans-serif'; ctx.fillText('Preparate… '+n,s.W/2,s.H/2-8);
+      ctx.font='13px Rajdhani,sans-serif'; ctx.fillStyle='rgba(255,255,255,.75)';
+      ctx.fillText('Tocá la cancha o una tecla para arrancar',s.W/2,s.H/2+18); ctx.restore();
+    }
     s.raf=requestAnimationFrame(sitLoop);
   }
 }
@@ -22142,7 +22323,7 @@ function sitSetupAttack(W,H,oR,mainP,pool){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    const myKit=kitFor(LM.myName),rvKit=kitFor(LM.rival);
+    const myKit=kitFor(LM?LM.myName:(G&&G.teamName)),rvKit=kitFor(LM?LM.rival:'');
     s.defs.forEach(d=>sitDrawPlayerK(ctx,d.x,d.y,11,rvKit,null,false));
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
     s.atk.forEach((a,i)=>sitDrawPlayerK(ctx,a.x,a.y,a.r,myKit,a.p.name.split(' ').pop().slice(0,7),i===s.ctrl&&s.mode==='dribble'));
@@ -22405,11 +22586,11 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
     }
-    const gkKit=isOpp?kitFor(LM.myName):{c1:'#e0c020'};
+    const gkKit=isOpp?kitFor(LM?LM.myName:(G&&G.teamName)):{c1:'#e0c020'};
     const gp=proj(s.gkWx,0.965,0),gh=68*gp.sc;
     sitDrawFigure(ctx,gp.x,gp.y,gh,gkKit.c1||'#e0c020','#222',
       {label:'GK',dive:(isOpp?s.dove:s.kicked&&s.flightT>2),diveDir:s.diveDir,isCtrl:isOpp});
-    const tKit=kitFor(isOpp?LM.rival:LM.myName);
+    const tKit=kitFor(LM?(isOpp?LM.rival:LM.myName):(G&&G.teamName));
     const kp=proj(-0.20,0.03,0),kh=76*kp.sc;
     sitDrawFigure(ctx,kp.x,kp.y,kh,tKit.c1,'#fff',
       {run:s.kicked?(s.flightT*0.25)%1:(s.t*0.05)%1,face:1,isCtrl:!isOpp,
@@ -22760,7 +22941,7 @@ function sitSetupCorner(W,H,oR,mainP,pool){
     ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,5*lt.sc);ctx.lineCap='round';
     ctx.beginPath();ctx.moveTo(lb.x,lb.y);ctx.lineTo(lt.x,lt.y);ctx.lineTo(rt.x,rt.y);ctx.lineTo(rb.x,rb.y);ctx.stroke();
     }
-    const mkit=kitFor(LM.myName), rkit=kitFor(LM.rival);
+    const mkit=kitFor(LM?LM.myName:(G&&G.teamName)), rkit=kitFor(LM?LM.rival:'');
     // todos, de atrás para adelante
     const figs=[];
     figs.push({wz:s.gk.wz,dib:()=>{const gp=proj(s.gk.wx,s.gk.wz,0);
@@ -22989,11 +23170,11 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     const gp=proj(s.gkWx,0.965,0),gh2=66*gp.sc;
     sitDrawFigure(ctx,gp.x,gp.y,gh2,'#e0c020','#222',{label:'GK',dive:s.kicked&&s.flightT>3,diveDir:s.gkDiveDir});
     // barrera (salta al patear)
-    const rkit=kitFor(LM.rival);
+    const rkit=kitFor(LM?LM.rival:'');
     const wj=s.kicked?Math.max(0,Math.sin(Math.min(1,s.flightT/9)*Math.PI))*0.14:0;
     s.wall.forEach((w,i)=>{const pos=proj(w.wx,s.wallZ,wj),h=62*pos.sc;sitDrawFigure(ctx,pos.x,pos.y,h,rkit.c1,'#fff',{hair:i%2?'#2a1a0e':'#3a2415'});});
     // pateador (vos)
-    const kp=proj(s.wx0-0.16,0.02,0),kh=74*kp.sc,mkit=kitFor(LM.myName);
+    const kp=proj(s.wx0-0.16,0.02,0),kh=74*kp.sc,mkit=kitFor(LM?LM.myName:(G&&G.teamName));
     sitDrawFigure(ctx,kp.x,kp.y,kh,mkit.c1,'#fff',{run:s.kicked?(s.flightT*0.22)%1:0,face:1,isCtrl:!s.kicked,label:mainP.name.split(' ').pop().slice(0,7)});
     // pelota + sombra en el piso
     const bp=proj(s.ball.wx,s.ball.wz,s.ball.wy),sp=proj(s.ball.wx,s.ball.wz,0);
@@ -23142,7 +23323,7 @@ function sitSetupDefense(W,H,oR){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    const myKit=kitFor(LM.myName),rvKit=kitFor(LM.rival);
+    const myKit=kitFor(LM?LM.myName:(G&&G.teamName)),rvKit=kitFor(LM?LM.rival:'');
     sitDrawPlayerK(ctx,s.attacker.x,s.attacker.y,12,rvKit,LM.rival.split(' ')[0].slice(0,6),false);
     if(s.attacker2)sitDrawPlayerK(ctx,s.attacker2.x,s.attacker2.y,11,rvKit,null,false);
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
@@ -23304,7 +23485,7 @@ function sitSetupMano(W,H,oR,mainP){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    const my=kitFor(LM.myName), rv=kitFor(LM.rival);
+    const my=kitFor(LM?LM.myName:(G&&G.teamName)), rv=kitFor(LM?LM.rival:'');
     sitDrawPlayerK(ctx,s.chaser.x,s.chaser.y,11,rv,null,false);
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,s.gk.caido>0?'#7a6a2a':'#d4a017','GK',false);
     sitDrawPlayerK(ctx,s.player.x,s.player.y,12,my,mainP.name.split(' ').pop().slice(0,7),true);
@@ -23414,7 +23595,7 @@ function sitSetupContra(W,H,oR,mainP,pool){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    const my=kitFor(LM.myName), rv=kitFor(LM.rival);
+    const my=kitFor(LM?LM.myName:(G&&G.teamName)), rv=kitFor(LM?LM.rival:'');
     s.defs.forEach(d=>sitDrawPlayerK(ctx,d.x,d.y,11,rv,null,false));
     sitDrawPlayer(ctx,s.gk.x,s.gk.y,12,'#d4a017','GK',false);
     s.mates.forEach((m,i)=>sitDrawPlayerK(ctx,m.x,m.y,i===s.ctrl?12:11,my,m.p.name.split(' ').pop().slice(0,7),i===s.ctrl&&s.mode==='dribble'));
@@ -23498,7 +23679,7 @@ function sitSetupCornerDef(W,H,oR,mainP){
   };
   s.draw=function(ctx){
     sitDrawField(ctx,W,H,glY,gh);
-    const my=kitFor(LM.myName), rv=kitFor(LM.rival);
+    const my=kitFor(LM?LM.myName:(G&&G.teamName)), rv=kitFor(LM?LM.rival:'');
     if(s.mode==='vuelo'){
       const u=Math.min(1,s.t/s.T), r=10+u*12;
       _s91Marca(ctx,s,s.cae.x,s.cae.y,r,u>0.82?'rgba(246,211,24,.95)':'rgba(255,255,255,.7)',u>0.82?'¡AHORA!':'CAE ACÁ');
@@ -23591,7 +23772,7 @@ function rStats(){
   window._finHtml=`
   <div class="card" style="margin-bottom:9px">
     <div class="ctitle">💰 Finanzas del club</div>
-    <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${G.budget>=0?'var(--green)':'var(--red)'}">$${G.budget}M${G.budget<0?' ⚠️ FFP: fichajes bloqueados':''}</span></div>
+    <div class="sr"><span class="sl">Presupuesto</span><span class="sv" style="color:${G.budget>=0?'var(--green)':'var(--red)'}">${fv(G.budget)}${G.budget<0?' ⚠️ FFP: fichajes bloqueados':''}</span></div>
     <div class="sr"><span class="sl">Masa salarial</span><span class="sv" style="color:${curWages>topeSalarial()?'var(--red)':'var(--t2)'}">${curWages}k/sem (tope ${topeSalarial()}k)</span></div>
     ${cuotasPend?`<div class="sr"><span class="sl">Cuotas de pases pendientes</span><span class="sv" style="color:var(--ora)">${fv(cuotasPend)}</span></div>`:''}
     ${fin?`<div class="sr"><span class="sl">Último balance mensual</span><span class="sv" style="color:${fin.neto>=0?'var(--green)':'var(--red)'}">${fin.neto>=0?'+':''}${fv(fin.neto)} (TV +${fv(fin.tv)} / sueldos −${fv(fin.wages)})</span></div>`:''}
@@ -24004,7 +24185,7 @@ function ptRender(first){
     ${o.loan?'':`
     <div class="mpanel" style="margin-bottom:9px">
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">🎁 BONO DE FICHAJE</div>
-      <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'$'+b+'M'}</button>`).join('')}</div>
+      <div style="display:flex;gap:4px">${[0,0.5,1,2].map(b=>`<button class="btn ${b===s.bonus?'bg':'bo'} bs ptBn" data-b="${b}" onclick="ptSetBonus(${b})" style="flex:1;font-size:10px">${b===0?'Ninguno':'€'+b+'M'}</button>`).join('')}</div>
     </div>`}
     ${o.loan?'':`
     <div class="mpanel" style="margin-bottom:9px">
@@ -24130,7 +24311,7 @@ function payClause(id){
     <div class="mtitle">💥 Pagar cláusula — ${p.name}</div>
     <div class="sr"><span class="sl">Valor de mercado</span><span class="sv">${fv(p.val)}</span></div>
     <div class="sr"><span class="sl">Cláusula de rescisión</span><span class="sv" style="color:var(--red)">${fv(cl)}</span></div>
-    <div class="sr"><span class="sl">Tu presupuesto</span><span class="sv" style="color:var(--green)">$${G.budget}M</span></div>
+    <div class="sr"><span class="sl">Tu presupuesto</span><span class="sv" style="color:var(--green)">${fv(G.budget)}</span></div>
     <div class="note" style="margin:8px 0">Depositás la cláusula y <b>${p.club} no puede negarse</b>: no hay oferta, contraoferta ni rondas. Pero el jugador <b>sí</b> puede decirte que no — recién le pagás al club cuando él firma.</div>
     <div style="display:flex;gap:6px">
       <button class="btn bg" onclick="confirmClause('${p.id}')">💥 Depositar ${fv(cl)}</button>
@@ -24371,7 +24552,7 @@ function sellPlayer(id){
       <input type="number" id="askInp" step="0.1" min="0.1" value="${rec}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Rajdhani';font-size:24px;font-weight:700;text-align:center;outline:none"
         oninput="updAsk(${p.val})">
-      <span style="font-size:12px;color:var(--t3)">M USD</span>
+      <span style="font-size:12px;color:var(--t3)">M</span>
     </div>
     <div class="neg-rx" id="askRx"></div>
     <div style="display:flex;gap:6px;margin-top:12px">
@@ -24514,10 +24695,10 @@ function rescindPlayer(id){
     <div class="mtitle">🗑️ Rescindir contrato — ${p.name}</div>
     <div class="note R" style="margin-bottom:10px">Vas a rescindir unilateralmente. El jugador queda LIBRE (no cobrás transferencia) y el club paga la indemnización de lo que resta de contrato.</div>
     <div class="sr"><span class="sl">Contrato hasta</span><span class="sv">${p.contract}</span></div>
-    <div class="sr"><span class="sl">Sueldo</span><span class="sv">$${p.wage}K/sem</span></div>
+    <div class="sr"><span class="sl">Sueldo</span><span class="sv">€${p.wage}K/sem</span></div>
     <div class="sr"><span class="sl">Indemnización</span><span class="sv" style="color:var(--red)">${fv(cost)}</span></div>
     <div class="sr"><span class="sl">Ahorro salarial anual</span><span class="sv" style="color:var(--green)">${fv(Math.round(p.wage*52/1000*10)/10)}</span></div>
-    <div class="note" style="margin:8px 0">⚠️ El plantel puede tomarse mal que eches a un compañero (moral −3). Presupuesto: <b style="color:var(--gold)">$${G.budget}M</b></div>
+    <div class="note" style="margin:8px 0">⚠️ El plantel puede tomarse mal que eches a un compañero (moral −3). Presupuesto: <b style="color:var(--gold)">${fv(G.budget)}</b></div>
     <div style="display:flex;gap:6px">
       <button class="btn bR" onclick="confirmRescind('${p.id}',${cost})">Rescindir por ${fv(cost)}</button>
       <button class="btn bo" onclick="closeMod()">Cancelar</button>
@@ -25042,7 +25223,7 @@ function rSocial(){
     ()=>`⚡ Estado del vestuario de ${tn}: moral ${G.morale}%. ${G.morale>=80?'El equipo está en llamas — de buena manera! 🔥 La energía se contagia.':G.morale>=55?'Ambiente estable, con foco en la semana de trabajo.':'Tensión palpable... el DT necesita un discurso motivacional.'}`,
     ()=>`📈 Reputación de ${tn} en el fútbol sudamericano: ${G.rep}/100. ${G.rep>=88?'Son un GRANDE con mayúsculas 🏆':G.rep>=72?'Club respetado y en crecimiento continuo.':'Queda camino por recorrer pero los resultados hablarán.'}`,
     ()=>`🗣️ ${G.dt.name} en el entrenamiento: "Cada partido es una final, hay que salir al 100%." ${G.wins>=G.losses?'Y los números respaldan su discurso ✅':'Los jugadores escuchan, pero los resultados aún no llegan.'}`,
-    ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos en el mercado. Presupuesto estimado: $${G.budget}M. ${G.budget>=20?'Tienen poder de fuego para ir por figuras 💎':G.budget>=10?'Algo podrán hacer en el mercado.':'El bolsillo apretado limita las opciones 😅'}`,
+    ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos en el mercado. Presupuesto estimado: ${fv(G.budget)}. ${G.budget>=20?'Tienen poder de fuego para ir por figuras 💎':G.budget>=10?'Algo podrán hacer en el mercado.':'El bolsillo apretado limita las opciones 😅'}`,
     ()=>copaMs.length?`🌍 ${tn} en la ${copaLabel}: ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pj||0} partidos jugados. ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pts||0} puntos. El torneo continental es otro nivel de presión 🏆`:`📰 El fixture de ${tn} es exigente esta semana. El DT tiene que decidir la rotación para no fundir el plantel.`,
     ()=>injured.length?`🏥 ${tn} sufre por las lesiones: ${injured.map(p=>p.name.split(' ').pop()).join(', ')} fuera del equipo. El médico trabaja para que vuelvan pronto. El DT tiene que improvisar.`:`💪 Buenas noticias para ${tn}: plantel completo, sin lesiones. El DT ${G.dt.name} puede elegir con libertad para el próximo partido 🙌`,
     ()=>`⚽ Dato estadístico: ${tn} promedia ${G.wins+G.draws+G.losses>0?(G.gf/(G.wins+G.draws+G.losses)).toFixed(1):'-'} goles/partido. ${G.gf/(G.wins+G.draws+G.losses||1)>=1.8?'Ataque potente, de los mejores del torneo 🔥':G.gf/(G.wins+G.draws+G.losses||1)>=1.2?'Producción ofensiva aceptable.':'Hay que mejorar la efectividad adelante 😬'}`,
@@ -25498,7 +25679,7 @@ function startFullMatch(watch){
       </div>
       <div class="fm-tr" style="font-family:'Rajdhani',sans-serif;line-height:1.3;text-align:right;min-width:0">
         <div style="font-size:12px;font-weight:700;color:rgba(180,210,255,1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${opp}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${oppRat} · 4-4-2</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${oppRat} · ${formacionRival(opp)}</div>
       </div>
       <div class="fm-btns" style="display:flex;gap:5px;flex-shrink:0">
         <button onclick="fmToggleMute(this)" id="fm-mutebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔊</button>
@@ -25507,7 +25688,7 @@ function startFullMatch(watch){
         <button onclick="fm3DCamara()" title="Cambiar la cámara 3D" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">🎥</button>
         <button onclick="fmPause()" id="fm-pausebtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">⏸</button>
         <button onclick="fmOpenSubs()" id="fm-subsbtn" title="Cambios" style="background:rgba(var(--gold-rgb),.15);border:1px solid rgba(var(--gold-rgb),.55);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 9px;border-radius:5px;cursor:pointer">🔄</button>
-        <button onclick="fmEnd()" style="background:rgba(var(--gold-rgb),.15);border:1px solid var(--gold);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">✅ FIN</button>
+        <button onclick="fmSimularResto()" title="Simular los minutos que faltan y terminar" style="background:rgba(var(--gold-rgb),.15);border:1px solid var(--gold);color:var(--gold);font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer">⏩ Resto</button>
         <button onclick="fmQuit()" style="background:rgba(228,60,60,.12);border:1px solid #e43c3c;color:#e43c3c;font-family:'Rajdhani';font-size:10px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer">✕</button>
       </div>
     </div>
@@ -25788,16 +25969,7 @@ function fmSetupWatch(){
   // Se sorteaba al azar de la lista curada: jugabas contra Estudiantes y te
   // dirigía Guardiola. Con eso, tener tácticas por técnico no servía de nada.
   // Ahora sale de la base según el club que tenés enfrente.
-  const _rival=f.oppName||'';
-  f.oppDT=(typeof dtDeClub==='function'&&dtDeClub(_rival,'Liga ARG'))
-       || (typeof dtDeClub==='function'&&dtDeClub(_rival))
-       || null;
-  if(!f.oppDT||f.oppDT.name===G.dt.name){
-    // Rival sin DT en la base (equipos de copa internacional inventados): se
-    // le da uno estable por nombre, no uno distinto en cada partido.
-    const oppPool=DTS.filter(d=>d.name!==G.dt.name);
-    f.oppDT=oppPool[_dtSeed(_rival||'rival')%oppPool.length];
-  }
+  f.oppDT=dtDelRival(f.oppName||'');
   f.oppProf=dtProfile(f.oppDT);
   // Ocultar controles de juego
   ['fm-joy','fm-tactic'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
@@ -27208,6 +27380,7 @@ function fmCtrl(dt){
       f._lastTouch='my';
       p._kickT=9;
       fmSndKick(pow);
+      fmStat('my','shots');   // Fase 98: lo que hace el humano también cuenta
       // IA aprende
       f.learn.shots++;
       const distGoal=f.myAttRight?f.rightGL-b.x:b.x-f.leftGL;
@@ -27265,7 +27438,7 @@ function fmCtrl(dt){
         const dm2=Math.hypot(dirx,diry)||1;
         b.vx=dirx/dm2*8.0;b.vy=diry/dm2*8.0;
         b.air=36;
-        f._lastTouch='my';
+        f._lastTouch='my';fmStat('my','pass');
         p._kickT=9;
         fmSndKick(0.75);
       }
@@ -27310,7 +27483,7 @@ function fmLofted(fromIdx,pow){
   f._lastTouch='my';
   p._kickT=9;
   fmSndKick(0.55);
-  f.learn.lofted++;f.learn.passes++;
+  f.learn.lofted++;f.learn.passes++;fmStat('my','pass');
   if(recv>=0)f.ctrl=recv;
 }
 
@@ -27339,7 +27512,7 @@ function fmPass(fromIdx,through){
     const dx=leadX-b.x,dy=leadY-b.y,d=Math.hypot(dx,dy)||1;
     const pwr=4.4+d*0.011;
     b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
-    f._lastTouch='my';
+    f._lastTouch='my';fmStat('my','pass');
     p._kickT=9;
     f.ctrl=best;
     return;
@@ -27359,7 +27532,7 @@ function fmPass(fromIdx,through){
   const dx=leadX-b.x+(Math.random()*16-8),dy=leadY-b.y+(Math.random()*14-7);
   const d=Math.hypot(dx,dy)||1;
   b.vx=(dx/d)*(3.2+d*.0115);b.vy=(dy/d)*(3.2+d*.0115);
-  f._lastTouch='my';
+  f._lastTouch='my';fmStat('my','pass');
   p._kickT=9;
   fmSndKick(0.3);
   f.ctrl=best;
@@ -29964,6 +30137,28 @@ function fmSay(kind,team,name){
   if(R)fmRelato(R[~~(Math.random()*R.length)]);
 }
 
+// ═══ FASE 98: "TERMINAR" SIMULA LO QUE FALTA ═══
+// El botón ✅ FIN cerraba el partido con el marcador del momento: tocado en
+// el 20' con 0-0, quedaba 0-0 oficial en la liga. Ahora pregunta y simula los
+// minutos que faltan con la misma cuenta de goles esperados que la
+// simulación de texto (xgDeS), proporcional al tiempo que queda.
+function fmSimularResto(){
+  const f=FM; if(!f||f.phase==='done')return;
+  const falta=Math.max(0,90-(f.minute||0));
+  if(falta>2&&!confirm(`Faltan ${falta} minutos. ¿Los simulo y termino el partido?`))return;
+  if(falta>0){
+    let xg={my:1.3,op:1.1};
+    try{ const S=matchStrengths(f.pending.m); xg=xgDeS(S)||xg; }catch(e){}
+    const poi=l=>{ let k=0,p=Math.exp(-l),c=p,u=Math.random(); while(u>c&&k<10){k++;p*=l/k;c+=p;} return k; };
+    const fr=falta/90, gm=poi(xg.my*fr), go=poi(xg.op*fr);
+    f.myG+=gm; f.oppG+=go;
+    if(f.stat){ fmStat('my','shots',gm*3+poi(4*fr)); fmStat('opp','shots',go*3+poi(4*fr)); fmStat('my','sot',gm); fmStat('opp','sot',go); }
+    f.minute=90;
+    lg('⏩',`Se simularon los últimos ${falta} minutos (${gm}-${go})`);
+  }
+  f.phase='done';
+  fmEnd();
+}
 function fmEnd(){
   const f=FM;if(!f)return;
   cancelAnimationFrame(f.raf);
@@ -29990,7 +30185,7 @@ function fmEnd(){
   fmClean();
   // ⚠️ Un amistoso jugado en el 11v11 caía en applyMatchResult como si fuera
   // de liga. Ahora se cierra igual que el simulado y corre la semana.
-  if(m&&m.friendly){ _amisCerrar(m,gf,ga); G.week=(G.week||1)+1; G.day=1; updateUI(); return; }
+  if(m&&m.friendly){ _amisCerrar(m,gf,ga); relojTrasPartido(m); G.day=1; updateUI(); return; }
   applyMatchResult(m,gf,ga,[]);updateUI();
   if(st)showSimStats(m,gf,ga,st,pt); else
   flash(gf>ga?'¡Victoria! '+gf+'-'+ga:gf===ga?'Empate '+gf+'-'+ga:'Derrota '+gf+'-'+ga,
@@ -30094,7 +30289,9 @@ function closeMod(e){
 function flash(msg, type='win'){
   const el = document.createElement('div');
   el.className = 'flash '+type;
-  el.innerHTML = `<div style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700">${type==='win'?'✅':type==='loss'?'❌':'⚡'} ${msg}</div>`;
+  // Fase 98: si el mensaje ya trae su emoji, no se le suma otro ("✅ ✅ …")
+  const _ico=/^\s*\p{Extended_Pictographic}/u.test(String(msg))?'':(type==='win'?'✅ ':type==='loss'?'❌ ':'⚡ ');
+  el.innerHTML = `<div style="font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700">${_ico}${msg}</div>`;
   document.body.appendChild(el);
   setTimeout(()=>el.style.opacity='0', 2500);
   setTimeout(()=>el.remove(), 3100);
@@ -30289,7 +30486,7 @@ function rSocios(){
         <div style="font-size:9px;color:var(--t3)">SOCIOS ACTIVOS</div>
       </div>
       <div class="mpanel" style="flex:1;padding:8px 4px">
-        <div class="sv-n" style="font-family:'Chakra Petch';font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">$${fee.toFixed(2)}</div>
+        <div class="sv-n" style="font-family:'Chakra Petch';font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">€${fee.toFixed(2)}</div>
         <div style="font-size:9px;color:var(--t3)">CUOTA MENSUAL</div>
       </div>
       <div class="mpanel" style="flex:1;padding:8px 4px">
@@ -31400,7 +31597,7 @@ function negOpenClub(pid){
       <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
       <input type="number" id="negBid" step="0.1" min="0.1" value="${rec}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px;color:var(--gold);font-family:'Rajdhani';font-size:22px;font-weight:700;text-align:center;outline:none">
-      <span style="font-size:12px;color:var(--t3)">M USD</span>
+      <span style="font-size:12px;color:var(--t3)">M</span>
     </div>
     <button class="btn bg" style="width:100%" onclick="negSendClub('${p.id}')">📨 Enviar la oferta</button>
     <div style="font-size:9px;color:var(--t3);text-align:center;margin-top:6px">${p.club} se va a tomar unos días para responder.</div>
@@ -32074,7 +32271,7 @@ function openCompare(){
     ${fila('Contrato',a.contract||0,b2.contract||0)}
     ${(isKnown(a)&&isKnown(b2))?claves.map(k=>fila(k,a.attrs[k],b2.attrs[k])).join('')
       :`<div class="note" style="margin-top:8px;text-align:center">🔎 No se pueden comparar los atributos: falta el informe de <b>${[!isKnown(a)?a.name:'',!isKnown(b2)?b2.name:''].filter(Boolean).join('</b> y <b>')}</b>.
-        ${[a,b2].filter(x=>!isKnown(x)).map(x=>`<button class="btn bo bs" style="margin:6px 3px 0" onclick="closeMod();scoutOne('${x.id}')">🔎 Informe de ${x.name.split(' ').pop()} ($0.1M)</button>`).join('')}</div>`}
+        ${[a,b2].filter(x=>!isKnown(x)).map(x=>`<button class="btn bo bs" style="margin:6px 3px 0" onclick="closeMod();scoutOne('${x.id}')">🔎 Informe de ${x.name.split(' ').pop()} (€0.1M)</button>`).join('')}</div>`}
     ${a.pos!==b2.pos?'<div class="note" style="margin-top:8px">⚠️ Juegan en puestos distintos: la comparación directa engaña.</div>':''}
     <div style="display:flex;gap:6px;margin-top:10px">
       <button class="btn bo bs" style="flex:1" onclick="closeMod();openP('${a.id}',false)">Ver a ${a.name.split(' ').pop()}</button>
@@ -32638,7 +32835,7 @@ function _dtOfeFx(club,fee){
           dt.salary=Math.round((dt.salary||40)*1.30);
           if(dt.contract){ dt.contract.salary=dt.salary; dt.contract.until=Math.max(dt.contract.until||G.season,G.season)+1; }
           if(typeof setDtRel==='function') setDtRel(8);
-          return `${n} se queda: sueldo a $${dt.salary}K por semana y un año más de contrato.`; },
+          return `${n} se queda: sueldo a €${dt.salary}K por semana y un año más de contrato.`; },
     ()=>{ const dt=G.dt; if(!dt) return 'Decisión tomada.';
           if(!dt.attrs) dt.attrs=Object.assign({},dtAttrs(dt));
           dt.attrs.mot=Math.max(DT_ATTR_MIN,dt.attrs.mot-3); dtRecalc(dt);
@@ -34861,7 +35058,7 @@ function _s3Fig(id,p,kit){
 }
 // Lo que hay en la cancha, leído del estado de la jugada.
 function _s3Escena(s){
-  const my=kitFor(LM.myName), rv=kitFor(LM.rival), M=s._m3, out=[];
+  const my=kitFor(LM?LM.myName:(G&&G.teamName)), rv=kitFor(LM?LM.rival:''), M=s._m3, out=[];
   let ball, aro=null;
   if(M.tipo==='t'){
     const c=(x,y,h)=>M.c2W(x,y,h);
