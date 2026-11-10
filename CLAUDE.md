@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98` |
 
 ## Formato de `players-db.js`
 
@@ -8494,6 +8494,77 @@ mensaje imprimía la misma pretensión que acababa de rechazar.
 `tests/fase97.js`, **13 checks**: club fundado (120 jugadores) y Boca (60),
 firma con lo que pide, firma en el piso, no firma un peso abajo, y el rechazo
 dice un número mayor que lo ofrecido.
+
+## Fase 98: el informe de bugs jugando Boca 2026 (dos PDFs)
+
+El presidente jugó una temporada de Boca como presidente en Normal y anotó
+todo lo que vio. Los ALTO, y casi todos los MEDIO/MENOR, se arreglaron; los
+de diseño quedan abajo con el motivo.
+
+### El reloj iba una semana adelantado, y de ahí salían cuatro bugs
+
+`simMatch` tenía la regla de la Fase 15 (la semana avanza cuando la fecha
+terminó), pero **las jugadas clave y el 11v11 cerraban el partido por otro
+camino** que hacía `G.week++` a secas. Jugando a mano dos partidos en la misma
+semana (la gira de Asia trae dos amistosos en la semana 1) el reloj quedaba
+una semana corrido para siempre. Medido: los partidos se jugaban con el reloj
+marcando la semana siguiente, el **balance del mes se cobraba dos veces** en
+las semanas 12 y 24, y el **Clausura arrancaba antes de las semis del
+Apertura**. La regla vive ahora en `relojTrasPartido(m)` y la usan los tres
+caminos. Medido después: 0 partidos desfasados, un balance por mes.
+
+- ⚠️ **El bloque semanal de `applyMatchResult` corre UNA vez por semana**
+  (`G._semBloque`), aunque se jueguen dos partidos. Entrenamiento, lesiones
+  curadas, rubros semanales y balance van adentro; el descanso de la física,
+  el dado de lesión del partido y las negociaciones corren en cada partido.
+  El balance mensual tiene su propio candado (`G._balMes`).
+- **La tabla de zona del Clausura arranca de cero**: `arZoneTable` resta la
+  foto del cierre del Apertura (`G.arSnap`) en cuanto hay un partido del
+  Clausura jugado. Antes la zona acumulaba el año entero.
+
+### Lo demás que se arregló
+
+| bug | arreglo |
+|---|---|
+| eliminatoria a partido único empatada pasaba sin penales | `tandaPenales(m)`: siempre hay ganador, queda en `m.pens`/`m.penGana` (copas y playoffs) |
+| la vuelta no mostraba el global | `llaveTxt(m)` en el resumen: "Global 1-2 — ❌ quedamos afuera". Busca la ida con el MISMO rival |
+| Stats: "Puntos" clavado en 0 | `statsLiga()`: puntos, línea y goles de la liga |
+| "Top 4" cumplido en la fecha 12 | `top4` y `sign80` de `BOARD_OBJ` se juzgan al cierre / con el fichaje de verdad |
+| salarios incoherentes | se muestran por mes (`fv(...)+'/mes'`) |
+| mezcla de `$` y `€` | todo en `€` / `fv()` |
+| la gira cobraba dos veces y el amistoso salía al revés | los amistosos de la gira son neutrales y sin taquilla; el texto va "local marcador visitante" |
+| "Por tiempo" siempre 1-1 / 0-0 en las jugadas clave | `tiemposDeGoles()` en `lmFinish` |
+| `Cannot read properties of null (reading 'myName')` | `sitLoop` sale si `LM` ya no existe; `lmAutoFinish` cierra la jugada abierta |
+| la jugada del rival se resolvía sola en 1,8 s | espera 3 s con cuenta regresiva (`SIT._espera`) o hasta que toques algo (`s._toco`) |
+| el penal en contra lo atajaba un jugador de campo | el ejecutante del lado tuyo es el arquero |
+| FIN del 11v11 terminaba el partido en el acto | "⏩ Resto" simula lo que falta (`fmSimularResto`) |
+| las stats del 11v11 no contaban al humano | remates y pases propios suman (`fmStat`) |
+| las jugadas clave con otro once que la Previa | `showPreMatch` llama a `dtPicksXI()` antes de dibujar |
+| la formación del rival en la Previa no era la suya | `dtDelRival()` / `formacionRival()` |
+| el DT metía un arquero por un lateral | `fmCoachSubs` no mete un ARQ en un puesto de campo |
+| camiseta verde sobre el pasto | `kitFor` descarta la alternativa que se parece al pasto (`KIT_PASTO`) |
+| "Fichar" con el mercado cerrado no hacía nada | abre un aviso con la fecha en que abre |
+| la Carpeta mostraba €0K en una venta | muestra lo que piden |
+| conferencia doble | la optativa se esconde si hay una por hito pendiente |
+| las pruebas de inferiores tapaban el resumen | esperan a que se cierre el modal |
+| "Vas 6º" sin haber jugado | "Sin partidos todavía" |
+| Primera Nacional: "el más caro" vacío | `tsLigas` lee la etiqueta de la base (`ligaDB`) |
+| "Plantel › Plantel", "offside", el título, el ícono doble del aviso | miga sin duplicado, "posición adelantada", "Director Técnico", `flash` no repite emoji |
+
+### Lo que NO se tocó, y por qué
+
+- **Controles distintos entre jugadas clave y 11v11**, la cantidad de texto de
+  ayuda, el contador del celular: son diseño, no bugs.
+- **El valor del plantel que salta**: es `calcVal` moviéndose con la media
+  (Fase 76), correcto aunque brusco.
+- **Posesión del 11v11 que no suma 100 / nombres cortados**: cosméticos del
+  HUD, quedan anotados.
+- **"Liga Profesional 1843 jugadores" y "150 libres vs 145"**: los dos
+  números son ciertos (la base trae el ascenso bajo la misma etiqueta; 5
+  libres ya firmaron con alguien al abrir el filtro).
+- **Técnicos de la base** (nombres, edades): es dato del extractor.
+
+`tests/fase98.js`, **30 checks**.
 
 ## Deploy
 

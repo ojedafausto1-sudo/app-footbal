@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>DIRECTOR TÉCNICO v7 — Boca Juniors</title>
+<title>Director Técnico</title>
 <!-- Fase 79: tipografías LOCALES (antes salían de Google y sin internet el juego caía a Arial) -->
 <link href="fonts/fonts.css" rel="stylesheet">
 <!-- Fase 79: instalable y jugable sin internet (PWA) -->
@@ -5415,7 +5415,7 @@ function loadGame(){
     if(G.youth&&G.youth.players) G.youth.players.forEach(p=>{ if(p.pos&&p.rat) ensureAttrs(p); });
     G.bench = G.squad.filter(p => !Object.values(G.slots).includes(p.id));
     applyTeamTheme(G.teamId);
-    document.title = 'DIRECTOR TÉCNICO v7 — ' + G.teamName;
+    document.title = 'Director Técnico — ' + G.teamName;
     document.getElementById('teamSelect').style.display = 'none';
     document.getElementById('game').classList.add('on');
     updateUI();
@@ -5430,7 +5430,7 @@ function newGame(){
   G = null;
   _LIGA_ELEGIDA = 'Liga ARG';   // el asistente vuelve a empezar de cero
   applyTeamTheme('boca');
-  document.title = 'DIRECTOR TÉCNICO v7 — Fútbol Argentino';
+  document.title = 'Director Técnico';
   document.getElementById('game').classList.remove('on');
   document.getElementById('teamSelect').style.display = 'flex';
   try{ rOtrosTeams(); }catch(e){}
@@ -5656,8 +5656,12 @@ function tsLigas(){
   });
   const jug=(typeof ligasJugables==='function')?ligasJugables():Object.keys(porLiga);
   _tsLigasCache=jug.map(lg=>{
-    const o=porLiga[lg]||{clubes:{},val:0};
-    const cl=Object.entries(o.clubes).sort((a,b)=>b[1]-a[1]);
+    // Fase 98: la Primera Nacional vive en la base con la etiqueta de la Liga
+    // ARG: sin esto la tarjeta decía "el más caro: " vacío y €0M.
+    const _tag=(typeof ligaDB==='function')?ligaDB(lg):lg;
+    const o=porLiga[lg]||porLiga[_tag]||{clubes:{},val:0};
+    let cl=Object.entries(o.clubes).sort((a,b)=>b[1]-a[1]);
+    if(!porLiga[lg]&&_tag!==lg){ try{ const c3=clubesDeLiga(lg)||[]; if(c3.length) cl=cl.filter(x=>c3.includes(x[0])); }catch(e){} }
     const inf=ligaPais(lg);
     // Los que JUEGAN la primera, no todos los que la base tenga con esa
     // etiqueta: contando la base entera, la Liga Profesional decía 66 clubes
@@ -6286,7 +6290,7 @@ function initGame(teamId){
   setBoardTarget();
   try{ uclAsegurarFormato(); }catch(e){ console.error('ucl',e); }
   try{ reunionAbrir(); }catch(e){}
-  document.title = 'DIRECTOR TÉCNICO v7 — ' + tc.name;
+  document.title = 'Director Técnico — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
   lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
@@ -7726,7 +7730,7 @@ function updateBoard($){
   if($('confBar')){ $('confBar').style.width=conf+'%'; $('confBar').style.background=col; }
   // En el ascenso el objetivo es SUBIR, no una copa que esa categoría no juega
   const _cop=hayCopaCont();
-  const obj=G.rep>=80?(_cop?('Salir campeón y llegar a semis de '+copaCont()):'Ascender a Primera')
+  const obj=(G.boardTarget&&G.boardTarget.desc)?G.boardTarget.desc:G.rep>=80?(_cop?('Salir campeón y llegar a semis de '+copaCont()):'Ascender a Primera')
           :G.rep>=70?objetivoCopa()
           :G.rep>=58?(_cop?'Pelear arriba y clasificar a un torneo continental':'Pelear arriba y meterse en el reducido')
           :'Mantener la categoría y sanear las finanzas';
@@ -7817,7 +7821,7 @@ function updateUI(){
   if(nm){
     if($('nH'))$('nH').textContent=nm.home; if($('nA'))$('nA').textContent=nm.away;
     const derby=isDerby(nm);
-    if($('nMeta'))$('nMeta').innerHTML='Semana '+nm.week+(esNeutral(nm)?' · Cancha neutral':nm.home===G.teamName?' · Local':' · Visitante')+(derby?` · <span style="color:var(--red);font-weight:800">🔥 ${derby.toUpperCase()} — ¡VALE DOBLE!</span>`:'');
+    if($('nMeta'))$('nMeta').innerHTML='Semana '+nm.week+(esNeutral(nm)?' · Cancha neutral':nm.home===G.teamName?' · Local':' · Visitante')+(derby?` · <span style="color:var(--red);font-weight:800">🔥 ${derby.toUpperCase()} — vale doble para la hinchada y la CD</span>`:'');
     if($('nComp'))$('nComp').textContent=nm.comp;
     if($('nHBadge'))$('nHBadge').innerHTML=clubCrest(nm.home,42);
     if($('nABadge'))$('nABadge').innerHTML=clubCrest(nm.away,42);
@@ -12298,7 +12302,13 @@ function weeklyIntake(){
     `⚽ Presidente, terminamos las pruebas: <b>${G.youthIntake.length} chicos</b> de la zona nos gustaron. `+
     `Hay que decidir a quién le damos contrato — los que no firmen se van a otro lado.`,'⚽',{gotoTab:'juv'});
   flash('⚽ Pruebas de Inferiores: '+G.youthIntake.length+' chicos','win');
-  setTimeout(()=>{ try{ if(intakePendiente().length) rIntake(); }catch(e){} },400);
+  // Fase 98: no se abre ENCIMA de lo que estás mirando (tapaba el resumen
+  // del partido): espera a que se cierre el modal, hasta un minuto.
+  let _ti=0; const _abrir=()=>{ try{ if(!intakePendiente().length)return;
+    const ov=document.getElementById('modOv');
+    if(ov&&ov.style.display==='flex'&&_ti++<40){ setTimeout(_abrir,1500); return; }
+    rIntake(); }catch(e){} };
+  setTimeout(_abrir,400);
 }
 
 // =============================================
@@ -19983,6 +19993,25 @@ function cronicaPartido(m,res,gf,ga,scorers,stats){
   if(!f.length) f.push(res==='W'?`Trabajo prolijo y tres puntos.`:res==='D'?`Un punto que sabe a poco.`:`No alcanzó.`);
   return f.slice(0,5).join(' ');
 }
+// Fase 98: en la VUELTA de una llave el resumen dice el global y cómo
+// terminó (venía 0-2 de la ida y no decía que quedaste eliminado). En un
+// partido único empatado, dice cómo salió la tanda de penales.
+function llaveTxt(m){
+  try{
+    if(!m||!m.comp)return '';
+    let mine=0,theirs=0,ok=false;
+    if(/VUELTA/.test(m.comp)){
+      const _rv=m.home===G.teamName?m.away:m.home;
+      const ida=G.calendar.find(x=>x.played&&x.comp===m.comp.replace('VUELTA','IDA')&&(x.home===_rv||x.away===_rv));
+      [ida,m].forEach(l=>{ const g=l&&koGoalsFor(l); if(g){mine+=g.mine;theirs+=g.theirs;ok=true;} });
+    }
+    const pen=m.pens?` · penales ${m.pens}`:'';
+    if(!ok&&!pen)return '';
+    const sigue=m.pens?m.penGana:mine>theirs;
+    const txt=ok?`Global ${mine}-${theirs}${pen} — ${sigue?'✅ pasamos':'❌ quedamos afuera'}`:`Se definió por penales: ${m.pens} — ${m.penGana?'✅ pasamos':'❌ quedamos afuera'}`;
+    return `<div style="font-size:12px;font-weight:700;margin-top:3px;color:${sigue?'var(--green)':'var(--red)'}">${txt}</div>`;
+  }catch(e){ return ''; }
+}
 function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
   const resColor = res==='W'?'var(--green)':res==='D'?'var(--gold)':'var(--red)';
   const resLabel = res==='W'?'VICTORIA':res==='D'?'EMPATE':'DERROTA';
@@ -19994,13 +20023,14 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
   const xl = Object.values(G.slots).filter(Boolean).map(id => G.squad.find(p=>p.id===id)).filter(Boolean);
   // Usar el MVP ya calculado (que acumula para la Figura del Año)
   const motm = (G._lastMVP&&G.squad.find(p=>p.name===G._lastMVP.name))
-    || (xl.length ? xl.sort((a,b)=>(b.rat+(res==='W'?Math.random()*5:0))-(a.rat+(res==='W'?Math.random()*5:0)))[0] : null);
+    || (xl.length&&G._notas ? xl.slice().sort((a,b)=>(G._notas[b.id]||0)-(G._notas[a.id]||0))[0]
+        : xl.length ? xl.sort((a,b)=>(b.rat+(res==='W'?Math.random()*5:0))-(a.rat+(res==='W'?Math.random()*5:0)))[0] : null);
 
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">${m.comp}</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:32px;font-weight:900;color:${resColor};letter-spacing:.05em">${scoreStr}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:32px;font-weight:900;color:${resColor};letter-spacing:.05em">${scoreStr}</div>${llaveTxt(m)}
       <div style="font-size:12px;color:var(--t2);margin-top:2px"><span style="${_isH?'color:var(--gold);font-weight:700':''}">${m.home}</span> <span style="color:var(--t3)">vs</span> <span style="${!_isH?'color:var(--gold);font-weight:700':''}">${m.away}</span></div>
       <div style="font-size:11px;color:${resColor};font-weight:700;margin-top:5px;font-family:'Rajdhani',sans-serif;letter-spacing:.08em">${resLabel} · ${_isH?'🏠 LOCAL':'✈️ VISITANTE'} · ${gf}-${ga} para vos</div>
     </div>
@@ -20118,7 +20148,7 @@ function showMatchSummary(m, res, gf, ga, scorers, stats, isLastMatch){
       <button class="btn bg" style="width:100%;font-size:13px;padding:9px" onclick="showSeasonSummary()">🏆 Ver Resumen de Temporada →</button>
     </div>` : ''}
 
-    ${window._pendingPressConf ? `
+    ${window._pendingPressConf && !(typeof prensaPend==='function'&&prensaPend()) ? `
     <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
       <button class="btn bo" style="width:100%;font-size:11px" onclick="closeMod();pressConf()">🎙️ Conferencia de prensa post-partido</button>
     </div>` : ''}
@@ -21229,7 +21259,7 @@ function askTeamTalk(then){
   const malaRacha=last.length>=2&&last.every(r=>r==='L');
   // Cada tono funciona distinto según el contexto
   const tones=[
-    {id:'motivar',label:'🔥 Motivar',line:`"¡Esta es nuestra cancha, dejen todo!"`,
+    {id:'motivar',label:'🔥 Motivar',line:m.home===G.teamName?`"¡Esta es nuestra cancha, dejen todo!"`:`"Vamos a callar esta cancha. ¡Dejen todo!"`,
       good:ctx!=='favorito'||malaRacha},
     {id:'calma',label:'🧊 Calma',line:`"Tranquilos, jueguen a lo nuestro, con paciencia."`,
       good:ctx==='favorito'||buenaRacha},
@@ -21996,14 +22026,23 @@ function _kitRGB(c){
   const n=parseInt(c.slice(1,7),16); return [(n>>16)&255,(n>>8)&255,n&255];
 }
 function _kitDist(a,b){ const x=_kitRGB(a),y=_kitRGB(b); return Math.hypot(x[0]-y[0],x[1]-y[1],x[2]-y[2]); }
+// Fase 98: una camiseta verde se perdía en el pasto (Ind. Rivadavia). Si el
+// color principal se parece al césped, se usa la alternativa.
+var KIT_PASTO='#2f8a3a';   // var: kitFor puede correr antes de que el parseo llegue acá
+function _kitSinPasto(k){
+  if(_kitDist(k.c1,KIT_PASTO)>=90)return k;
+  const alts=[{c1:k.c2,c2:k.c1},{c1:'#f4f4f4',c2:'#222222'},{c1:'#1b1f2a',c2:'#f4f4f4'}];
+  return alts.find(a=>_kitDist(a.c1,KIT_PASTO)>=90)||alts[1];
+}
 function kitFor(name){
-  const k=_kitBase(name);
+  const k=_kitSinPasto(_kitBase(name));
   // El rival se compara SIEMPRE contra tu club: es el único cruce que se dibuja
   const mio=(typeof G==='object'&&G&&G.teamName)||null;
   if(!mio||name===mio)return k;
-  const m=_kitBase(mio);
+  const m=_kitSinPasto(_kitBase(mio));
   if(_kitDist(k.c1,m.c1)>=110)return k;
-  const alts=[{c1:k.c2,c2:k.c1},{c1:'#f4f4f4',c2:'#222222'},{c1:'#1b1f2a',c2:'#f4f4f4'},{c1:'#f2c200',c2:'#111111'}];
+  const alts=[{c1:k.c2,c2:k.c1},{c1:'#f4f4f4',c2:'#222222'},{c1:'#1b1f2a',c2:'#f4f4f4'},{c1:'#f2c200',c2:'#111111'}]
+    .filter(a=>_kitDist(a.c1,KIT_PASTO)>=90);
   return alts.sort((a,b)=>_kitDist(b.c1,m.c1)-_kitDist(a.c1,m.c1))[0];
 }
 function sitDrawPlayerK(ctx,x,y,r,kit,label,isCtrl){
@@ -25670,7 +25709,7 @@ function startFullMatch(watch){
     <div class="fm-hd" style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.9);flex-shrink:0;gap:6px">
       <div class="fm-tl" style="font-family:'Rajdhani',sans-serif;line-height:1.3;min-width:0">
         <div style="font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${G.teamName}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${myRat} · ${myTac}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.45)">⭐ ${myRat} · ${myTac} · ${esNeutral(m)?'neutral':m.home===G.teamName?'🏠 local':'✈️ visitante'}</div>
       </div>
       <div style="text-align:center;flex-shrink:0">
         <div id="fm-sc" style="font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:900;color:#fff;line-height:1">0 – 0</div>
@@ -26106,7 +26145,7 @@ function fmCloseHelp(){
   if(h)h.style.display='none';
   fmSndInit();
   FM.phase=FM._pausedBy||'kickoff';FM._pausedBy=null;FM.phaseT=0;
-  if(FM.phase==='kickoff'){fmMsg('¡INICIO!\n'+G.teamName+' vs '+FM.oppName);fmSndWhistle(1);}
+  if(FM.phase==='kickoff'){const _pm=FM.pending&&FM.pending.m;fmMsg('¡INICIO!\n'+(_pm?_pm.home+' vs '+_pm.away:G.teamName+' vs '+FM.oppName));fmSndWhistle(1);}
 }
 function fmShowHelp(){
   if(!FM||FM.phase==='help')return;
@@ -26803,7 +26842,16 @@ function fmCoachSubs(){
   } else {
     const same=pool.findIndex(q=>q.pos===worst.p.role);
     if(same>=0)bi=same;
+    else {
+      // Fase 98: si no hay uno del mismo puesto, uno de la misma línea; el
+      // índice 0 por defecto era muchas veces el arquero suplente, que
+      // entraba de lateral.
+      const lin=(typeof pgr==='function')?pgr(worst.p.role||''):null;
+      const mismaLinea=lin?pool.findIndex(q=>q.pos!=='ARQ'&&pgr(q.pos)===lin):-1;
+      bi=mismaLinea>=0?mismaLinea:pool.findIndex(q=>q.pos!=='ARQ');
+    }
   }
+  if(bi<0||!pool[bi]||pool[bi].pos==='ARQ')return;   // nunca un arquero por uno de campo
   fmApplySub(worst.i,bi,true);
   f._nextSubMin=min+(9+~~(Math.random()*10));
 }
@@ -31540,6 +31588,21 @@ function negStartPlayer(pid){
   if(!G)return;
   const p=G.market.find(x=>x.id===pid); if(!p)return;
   if(negFind(pid)){flash('Ya tenés una negociación abierta por este jugador','draw');return;}
+  // Fase 98: con el libro de pases cerrado el botón no hacía nada. Ahora lo
+  // dice, cuándo abre, y deja seguirlo para que el ojeador avise.
+  if(typeof isTransferWindowOpen==='function'&&!isTransferWindowOpen()&&!esLibre(p)&&!(G.armado&&!G.armado.cerrado)){
+    const st=(typeof getWindowStatus==='function')?getWindowStatus():'';
+    const yaSigo=(typeof sigo==='function')&&sigo(pid);
+    showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+      <div class="mtitle">🔒 Libro de pases cerrado</div>
+      <div class="note" style="margin:8px 0">No se puede fichar a <b>${p.name}</b> hasta que abra el mercado. ${st?'<br><span style="color:var(--t3)">'+String(st).replace(/<[^>]+>/g,'')+'</span>':''}</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Si lo seguís, el ojeador te avisa si lo compra otro club, si queda libre o si entra en zona de precontrato.</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn bg" style="flex:1" ${yaSigo?'disabled':''} onclick="seguirToggle('${pid}');closeMod()">${yaSigo?'★ Ya lo seguís':'⭐ Seguirlo para cuando abra'}</button>
+        <button class="btn bo" style="flex:1" onclick="closeMod()">Cerrar</button>
+      </div>`);
+    return;
+  }
   const wage=negPretension(p);
   const _recRep=negRepPide();
   const months=contractMonths(p);
@@ -33164,7 +33227,7 @@ function rPhone(){
               <div style="font-size:9.5px;color:var(--t3);margin-top:2px">${a.detalle}</div>
             </div>
             <div style="text-align:right">
-              <div class="sv-n" style="font-size:14px;color:${alcanza?'var(--gold)':'var(--red)'}">${fv(a.cost)}</div>
+              <div class="sv-n" style="font-size:14px;color:${a.k==='venta'?'var(--green)':alcanza?'var(--gold)':'var(--red)'}">${a.k==='venta'?'+'+fv(a.ask||0):fv(a.cost)}</div>
               <div style="font-size:8px;color:var(--t3)">vence en ${quedan} sem</div>
             </div>
           </div>
@@ -33967,7 +34030,7 @@ function fUISync(name){
     if(!enTablero){
       const st=FSEC.find(s=>s.id===sec)||FSEC[0];
       cr.innerHTML=`<button class="fcb" onclick="irSec('${sec}')">◀</button>
-        <span class="fc-s" onclick="irSec('${sec}')">${st.t}</span><span class="fc-x">›</span><span class="fc-p">${TAB_NOM[name]||name}</span>`;
+        <span class="fc-s" onclick="irSec('${sec}')">${st.t}</span>${(TAB_NOM[name]||name)===st.t?'':`<span class="fc-x">›</span><span class="fc-p">${TAB_NOM[name]||name}</span>`}`;
     }
   }
   try{ fondo3DModo(name==='hub'||name==='ov'?'hub':'pag'); }catch(e){}
@@ -34269,7 +34332,7 @@ function rOvTiles(){
   el.innerHTML=[
     {t:'Celular',i:'📲',fn:'openPhone()',s:()=>nl?`${nl} sin leer`:'Al día'},
     {t:'Noticias',i:'📰',tab:'news',s:()=>'El diario'},
-    {t:'Tabla',i:'🏆',fn:"irSec('temporada')",s:()=>{try{return 'Vas '+myLeaguePos()+'º';}catch(e){return '';}}},
+    {t:'Tabla',i:'🏆',fn:"irSec('temporada')",s:()=>{try{return statsLiga().pj?'Vas '+myLeaguePos()+'º':'Sin partidos todavía';}catch(e){return '';}}},
     {t:'Redes',i:'📱',tab:'social',s:()=>'La hinchada'},
   ].map(fTile).join('');
   _tilt(document.getElementById('ovGrid')||el);
