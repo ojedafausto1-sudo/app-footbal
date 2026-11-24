@@ -27,7 +27,7 @@
    de ancho fijo, para que las columnas de una tabla no bailen al cambiar. */
 .rb,.pv,.sv,.vc,.ac,.hm-vs,.stat-tile .sv-n{font-family:'Chakra Petch','Rajdhani',sans-serif;font-variant-numeric:tabular-nums}.hm-play{letter-spacing:.06em}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--dark);color:var(--tx);min-height:100vh;overflow-x:hidden;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em;background-image:radial-gradient(ellipse 130% 75% at 50% -12%,rgba(16,185,129,.07),transparent 62%),radial-gradient(ellipse 90% 55% at 88% 8%,rgba(245,158,11,.05),transparent 58%),radial-gradient(ellipse 110% 70% at 10% 96%,rgba(40,60,95,.14),transparent 60%);background-attachment:fixed}
+body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--dark);color:var(--tx);min-height:calc(100*var(--vh,1vh));overflow-x:hidden;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em;background-image:radial-gradient(ellipse 130% 75% at 50% -12%,rgba(16,185,129,.07),transparent 62%),radial-gradient(ellipse 90% 55% at 88% 8%,rgba(245,158,11,.05),transparent 58%),radial-gradient(ellipse 110% 70% at 10% 96%,rgba(40,60,95,.14),transparent 60%);background-attachment:fixed}
 h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnum" 1}
 /* números tabulares para datos en tablas y stats — look de planilla pro */
 .rb,.pv,.sv,.vc,.ac{font-variant-numeric:tabular-nums}
@@ -47,7 +47,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .age-young{color:var(--pur);font-size:9px;font-weight:600}
 .age-vet{color:var(--t3);font-size:9px}
 /* LAYOUT */
-.scr{display:none;flex-direction:column;min-height:100vh}.scr.on{display:flex}
+.scr{display:none;flex-direction:column;min-height:calc(100*var(--vh,1vh))}.scr.on{display:flex}
 .topbar{background:linear-gradient(90deg,rgba(6,20,40,.88),rgba(10,32,64,.80));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--bdr);padding:max(8px,env(safe-area-inset-top)) 14px 8px max(14px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.5)}
 .cbadge{width:34px;height:34px;background:linear-gradient(135deg,var(--gold),var(--gold-d));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:900;font-size:11px;color:var(--dark);flex-shrink:0;box-shadow:0 2px 8px rgba(var(--gold-rgb),.3)}
 .cname{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:.06em;text-transform:uppercase}
@@ -76,7 +76,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .hm-play{margin-top:10px;width:100%;max-width:280px;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--gold),#e8b800);color:var(--dark);font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:900;letter-spacing:.12em;cursor:pointer;box-shadow:0 4px 18px rgba(var(--gold-rgb),.35);transition:all .18s}
 .hm-play:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(var(--gold-rgb),.5)}
 .hm-alts{display:flex;gap:5px;justify-content:center;margin-top:7px;flex-wrap:wrap}
-.main{flex:1;padding:12px;overflow-y:auto;max-height:calc(100vh - 108px)}
+.main{flex:1;padding:12px;overflow-y:auto;max-height:calc(calc(100*var(--vh,1vh)) - 108px)}
 /* SECTIONS */
 .stitle{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--gold);margin-bottom:12px;letter-spacing:.06em;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid rgba(var(--gold-rgb),.14);position:relative}
 .stitle::after{content:'';position:absolute;left:0;bottom:-1px;width:48px;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
@@ -124,11 +124,11 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
             border-width:2px!important}
   #phoneBadge{transform:scale(.85)}
   /* La cancha de la pestaña Táctica, proporcional a la pantalla */
-  #pitchSlots{height:min(64vh,380px)!important}
+  #pitchSlots{height:min(calc(64*var(--vh,1vh)),380px)!important}
   /* Modales a pantalla casi completa: en el celular no se leen chicos.
      (La clase es .modal — antes esta regla apuntaba a .mbox, que no existe.) */
   .ov{padding:6px}
-  .modal{max-height:92vh;padding:14px;border-radius:14px}
+  .modal{max-height:calc(92*var(--vh,1vh));padding:14px;border-radius:14px}
   /* Respetar el notch y la barra de gestos */
   .main{padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
 }
@@ -272,7 +272,7 @@ h1,h2,h3,.stitle,.ctitle,.cname,.hm-name,.hm-comp,.nb{font-feature-settings:"tnu
 .achip-unk .achip-v{letter-spacing:.06em}
 /* MODAL */
 .ov{position:fixed;inset:0;background:rgba(7,9,14,.72);z-index:200;display:flex;align-items:center;justify-content:center;padding:10px;-webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1)}
-.modal{background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.06)}
+.modal{background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:calc(90*var(--vh,1vh));overflow-y:auto;box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.06)}
 /* ═══ PANEL INTERNO DE MODAL ═══
    El mismo bloque (fondo translúcido + borde luminoso) estaba escrito a mano
    18 veces con estilos inline. Ahora es una clase.
@@ -475,7 +475,7 @@ body.modo-dt #presAccBox button,body.modo-dt #ticketSlider,body.modo-dt #tab-pat
    la semana justo cuando pasaba algo importante. Ahora va abajo y al centro,
    como un toast, donde no hay nada que leer — y con el margen suficiente
    para no chocar con el botón del celular, que vive abajo a la derecha. */
-.flash{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:300;background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:12px;padding:11px 16px;max-width:min(300px,calc(100vw - 116px));animation:sli .32s cubic-bezier(.22,.68,0,1.2);box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.07);transition:opacity .5s;font-size:12px;text-align:center;pointer-events:none}
+.flash{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:300;background:linear-gradient(165deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bdr);border-radius:12px;padding:11px 16px;max-width:min(300px,calc(calc(100*var(--vw,1vw)) - 116px));animation:sli .32s cubic-bezier(.22,.68,0,1.2);box-shadow:var(--sh-lift),inset 0 1px 0 rgba(255,255,255,.07);transition:opacity .5s;font-size:12px;text-align:center;pointer-events:none}
 /* El toast está centrado con translateX(-50%): la animación tiene que
    respetarlo o el aviso entra corrido y salta al lugar al terminar. */
 @keyframes sli{from{opacity:0;transform:translateX(-50%) translateY(16px) scale(.94)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
@@ -532,7 +532,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .tab-fila{display:flex;gap:4px;justify-content:center;margin-bottom:5px}
 .placa{flex:1 1 0;max-width:36px;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(180deg,#f3ecd9 0%,var(--placa) 48%,#d9cfb5 52%,#e6ddc6 100%);color:var(--tinta);
-  font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:clamp(18px,5.2vw,27px);line-height:1;border-radius:2px;
+  font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:clamp(18px,calc(5.2*var(--vw,1vw)),27px);line-height:1;border-radius:2px;
   box-shadow:0 2px 0 rgba(0,0,0,.45),inset 0 -1px 0 rgba(0,0,0,.18);animation:placa .42s cubic-bezier(.2,.8,.25,1) both;animation-delay:calc(var(--i,0)*45ms)}
 .tab-pie{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;color:#cfd8c9}
 .placa.chica{flex:none;max-width:none;aspect-ratio:auto;padding:3px 8px;font-size:15px;animation:none}
@@ -667,7 +667,7 @@ body.armando #btnPlay,body.armando #hmAlts,body.armando #hmMent,body.armando #hm
 /* ── PHONE WIDGET ─────────────────────────────────────────── */
 @keyframes phonePulse{0%,100%{box-shadow:0 4px 24px rgba(var(--gold-rgb),.5),0 2px 12px rgba(0,0,0,.8)}50%{box-shadow:0 4px 32px rgba(var(--gold-rgb),.8),0 2px 16px rgba(0,0,0,.8),0 0 0 8px rgba(var(--gold-rgb),.15)}}
 #phoneBtn:hover{transform:scale(1.15)!important;animation:none!important;box-shadow:0 6px 36px rgba(var(--gold-rgb),.8)!important}
-#phoneDevice{width:min(360px,calc(100vw - 24px));height:min(660px,calc(100vh - 32px));background:#080818;border-radius:34px;border:3px solid #1e1e3a;box-shadow:0 24px 80px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;position:relative}
+#phoneDevice{width:min(360px,calc(calc(100*var(--vw,1vw)) - 24px));height:min(660px,calc(calc(100*var(--vh,1vh)) - 32px));background:#080818;border-radius:34px;border:3px solid #1e1e3a;box-shadow:0 24px 80px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;position:relative}
 #phoneDevice::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:30px;background:#080818;border-radius:0 0 22px 22px;z-index:12;pointer-events:none}
 .ph-status{height:30px;display:flex;align-items:flex-end;justify-content:space-between;padding:5px 22px 3px;font-size:8.5px;color:rgba(255,255,255,.4);flex-shrink:0;z-index:11;position:relative}
 .ph-header{background:linear-gradient(180deg,#0d1430,var(--d2));padding:11px 16px 9px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bdr);flex-shrink:0}
@@ -783,8 +783,8 @@ body.bg3d-on .main{background:transparent}
   border-radius:12px 34px 34px 12px;padding:6px 18px 6px 8px;box-shadow:0 8px 26px rgba(0,0,0,.45),inset 0 1px 0 #fff}
 .fpill.r{border-radius:34px 12px 12px 34px;padding:6px 8px 6px 18px}
 .fpill .cbadge{width:42px!important;height:42px!important;border-radius:50%!important;font-size:13px!important;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.fp-n{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;line-height:1;color:#1f2733!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
-.fp-s{font-size:12px;color:#4b5563!important;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.fp-n{font-family:'Rajdhani',sans-serif;font-size:19px;font-weight:700;line-height:1;color:#1f2733!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(42*var(--vw,1vw))}
+.fp-s{font-size:12px;color:#4b5563!important;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(42*var(--vw,1vw))}
 .fp-s3{font-size:9px!important;color:#7a5b10!important;font-family:'Rajdhani',sans-serif;letter-spacing:.06em}
 .fr-col{display:flex;flex-direction:column;gap:3px;min-width:0}
 .fr-top{display:flex;align-items:center;gap:8px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;color:#374151;white-space:nowrap}
@@ -883,7 +883,7 @@ body.bg3d-on .main{background:transparent}
   #fnav .fs{font-size:16px}#fnav .fs.on{font-size:21px}
   .fr-bar{width:96px}.fr-mini{display:none}
   .fpill{padding:5px 12px 5px 6px}.fpill.r{padding:5px 6px 5px 12px}
-  .fp-n{font-size:15px;max-width:34vw}.fp-s{max-width:34vw;font-size:10.5px}
+  .fp-n{font-size:15px;max-width:calc(34*var(--vw,1vw))}.fp-s{max-width:calc(34*var(--vw,1vw));font-size:10.5px}
 }
 @media(max-width:520px){
   .fhead{flex-wrap:wrap}
@@ -909,7 +909,8 @@ body.bg3d-on .main{background:transparent}
 .f3-pw div{height:100%;width:0;background:linear-gradient(90deg,#0fb866,var(--gold) 55%,#e84545)}
 .f3-chip{position:absolute;left:50%;bottom:152px;transform:translateX(-50%);background:rgba(8,10,18,.75);color:var(--gold);font-weight:700;font-size:11px;letter-spacing:.06em;padding:2px 12px;border-radius:9px;white-space:pre}
 .f3-mm{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);width:190px;height:99px;opacity:.88;border-radius:4px}
-@media (max-width:600px){ .f3-mm{width:150px;height:78px} .f3-chip{bottom:128px} }
+@media (max-width:600px){ .f3-mm{width:132px;height:69px;left:auto;right:10px;top:12px;bottom:auto;transform:none} .f3-chip{bottom:128px} }
+/* Fase 99: en el celular el minimapa iba abajo al medio y tapaba el botón B (pase): sube a la esquina de arriba, frente al marcador. */
 </style>
 <style>
 /* ═══════════════════════════════════════════════════════════════════
@@ -1103,6 +1104,102 @@ body.bg3d-on .main{background:transparent}
 #fnav .fs:focus-visible,.ht:focus-visible,.btn:focus-visible,.hb-btn:focus-visible{outline:2px solid var(--placa);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){ .ht,#fnav .fs{transition:none!important} }
 </style>
+<style>
+/* Fase 99 · el celular va DENTRO de la barra de abajo: flotando tapaba la
+   última columna de la tabla y las filas del plantel. La barra le deja su
+   lugar a la derecha (padding) y el botón se dibuja ahí, siempre a mano. */
+@media(max-width:600px){
+  #fnav.fnav{padding-right:calc(58px + env(safe-area-inset-right,0px))!important}
+  #phoneBtn{bottom:calc(7px + env(safe-area-inset-bottom,0px))!important;right:calc(6px + env(safe-area-inset-right,0px))!important;
+    width:46px!important;height:46px!important;font-size:20px!important;border-width:2px!important;
+    animation:none!important;box-shadow:0 0 0 1px rgba(0,0,0,.6),0 2px 10px rgba(var(--gold-rgb),.35)!important;z-index:96!important}
+  #phoneBadge{transform:scale(.8)}
+  /* Mirando el 11v11: los dos carteles de los DT ocupaban dos renglones y el
+     relato caía encima de los botones de velocidad. En el celular queda sólo
+     la fila de velocidad/cámara. */
+  #fm-watchbar>div:not(:nth-child(2)){display:none!important}
+}
+</style>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   FASE 99 · VISTA CELULAR AUNQUE EL NAVEGADOR PIDA "VERSIÓN PARA COMPU"
+   ═══════════════════════════════════════════════════════════════════
+   Con la "Versión para computadoras" de Chrome prendida, el navegador ignora
+   el <meta viewport> y arma la página a 980px de ancho: el juego se veía con
+   el diseño de compu achicado a la mitad (la captura del presidente coincide
+   píxel a píxel con un render a 980). Se detecta (pantalla táctil + pantalla
+   de teléfono + página mucho más ancha que la pantalla) y se corrige:
+   · zoom en la raíz = ancho de la página / ancho real de la pantalla, así el
+     contenido se arma con el ancho del teléfono;
+   · las media queries se escalan por el mismo factor (se evalúan contra los
+     980px, no contra el ancho con zoom);
+   · las unidades vw/vh del juego pasan por --vw/--vh, porque con zoom un
+     100vw mide 2,4 pantallas.
+   'dt_vista' (auto · cel · pc) permite forzarlo a mano desde el inicio.
+   ═══════════════════════════════════════════════════════════════════ */
+(function(){
+  const ORIG=new WeakMap();
+  function preferencia(){ try{ return localStorage.getItem('dt_vista')||'auto'; }catch(e){ return 'auto'; } }
+  function factor(){
+    const pref=preferencia(); if(pref==='pc') return 1;
+    const W=window.innerWidth||0, H=window.innerHeight||0;
+    const sw=(screen&&screen.width)||0, sh=(screen&&screen.height)||0;
+    const corto=Math.min(sw,sh)||0, largo=Math.max(sw,sh)||0;
+    const vertical=H>=W;
+    let objetivo=vertical?corto:largo;
+    const tactil=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)||(navigator.maxTouchPoints||0)>0;
+    if(pref==='cel'){ if(!(objetivo>0&&objetivo<W)) objetivo=vertical?412:860; const z=W/objetivo; return (W>640&&z>1.05)?z:1; }
+    if(!tactil||!(corto>0)||corto>600||W<=640) return 1;
+    const z=W/objetivo;
+    return z>=1.3?z:1;
+  }
+  function escalar(reglas,k){
+    for(const r of reglas){
+      if(r.media&&r.cssRules){
+        if(!ORIG.has(r)) ORIG.set(r,r.media.mediaText);
+        const o=ORIG.get(r);
+        const n=k===1?o:o.replace(/(min|max)-(width|height)\s*:\s*([\d.]+)px/g,(m,a,b,v)=>a+'-'+b+':'+(+v*k).toFixed(1)+'px');
+        if(n!==r.media.mediaText) r.media.mediaText=n;
+        escalar(r.cssRules,k);
+      }
+    }
+  }
+  function aplicar(){
+    const k=factor(), el=document.documentElement;
+    window._celZ=k;
+    if(k!==1){
+      el.style.zoom=k;
+      el.style.setProperty('--vw',(window.innerWidth/k/100).toFixed(3)+'px');
+      el.style.setProperty('--vh',(window.innerHeight/k/100).toFixed(3)+'px');
+      el.classList.add('cel-zoom');
+    } else {
+      el.style.zoom=''; el.style.removeProperty('--vw'); el.style.removeProperty('--vh'); el.classList.remove('cel-zoom');
+    }
+    for(const s of document.styleSheets){ try{ escalar(s.cssRules,k); }catch(e){} }
+  }
+  window.celVista=aplicar;
+  window.celFactor=()=>window._celZ||1;
+  // ancho/alto de la ventana en las unidades con las que se arma la página
+  window.vpW=()=>Math.round((window.innerWidth||0)/(window._celZ||1));
+  window.vpH=()=>Math.round((window.innerHeight||0)/(window._celZ||1));
+  aplicar();
+  document.addEventListener('DOMContentLoaded',aplicar);
+  window.addEventListener('load',aplicar);
+  let _t=null;
+  const otraVez=()=>{ clearTimeout(_t); _t=setTimeout(aplicar,120); };
+  window.addEventListener('resize',otraVez);
+  window.addEventListener('orientationchange',otraVez);
+  // un <style> que se agregue después también tiene que escalar sus media queries
+  try{ new MutationObserver(ms=>{ if((window._celZ||1)!==1&&ms.some(m=>[...m.addedNodes].some(n=>n.tagName==='STYLE'||n.tagName==='LINK'))) otraVez(); })
+        .observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+})();
+const VISTA_TXT={auto:'📱 Vista: automática',cel:'📱 Vista: celular',pc:'🖥️ Vista: compu'};
+function vistaLabel(){ const b=document.getElementById('vistaBtn'); if(!b)return; let v='auto'; try{ v=localStorage.getItem('dt_vista')||'auto'; }catch(e){}
+  b.textContent=VISTA_TXT[v]+((v==='auto'&&(window._celZ||1)!==1)?' (adaptada)':''); }
+function vistaCiclo(){ let v='auto'; try{ v=localStorage.getItem('dt_vista')||'auto'; }catch(e){} setVista(v==='auto'?'cel':v==='cel'?'pc':'auto'); }
+document.addEventListener('DOMContentLoaded',()=>setTimeout(vistaLabel,50));
+function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVista(); vistaLabel(); }
+</script>
 </head>
 <body>
 
@@ -1146,6 +1243,7 @@ body.bg3d-on .main{background:transparent}
         <button class="ts-link" onclick="document.getElementById('impSave').click()">📂 Importar partida</button>
         <input type="file" id="impSave" accept=".json,.txt" style="display:none" onchange="importSave(this)">
         <button class="ts-link" onclick="baseModal()" title="Exportar la base de jugadores a un archivo o cargar una de la comunidad">🗃️ Base de jugadores</button>
+        <button class="ts-link" id="vistaBtn" onclick="vistaCiclo()" title="Si en el celular ves el juego chiquito (la versión de compu), elegí Celular">📱 Vista: automática</button>
         <button id="apoyoBtn" class="ts-link" onclick="apoyoModal()" style="display:none" title="Invitar un café a quien hace el juego (no desbloquea nada)">☕ Apoyar el proyecto</button>
       </div>
     </aside>
@@ -18474,6 +18572,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
     // Desde las jugadas clave o el 11v11 no hay sorteo previo y sigue el dado.
     let _rojaPre;
     const _RS=G._rojaSim; G._rojaSim=null;
+    const _FR=G._fmRes; G._fmRes=null;   // Fase 99: las del 11v11, tal cual pasaron
     if(_RS){
       _rojaPre=null;
       if(_RS.mia){
@@ -18487,7 +18586,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
       if(p.susp>0)return;
       const defish=pgr(p.pos)==='DEF'||p.pos==='MCD';
       const pY=0.085*heat*(defish?1.5:1);
-      if(Math.random()<pY){
+      if(_FR?_FR.y.indexOf(p.id)>=0:Math.random()<pY){
         _amaMias++; p._yelMatch=true;
         p.yellows=(p.yellows||0)+1;
         if(p.yellows>=5){
@@ -18496,7 +18595,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
           addPhoneMsg('board','Cuerpo Técnico',`🟨 <b>${p.name}</b> acumuló la quinta amarilla. No está disponible para la próxima fecha.`,'🟨');
         }
       }
-      if(_rojaPre===undefined?(Math.random()<0.012*heat):(p===_rojaPre)){
+      if(_FR?_FR.r.indexOf(p.id)>=0:(_rojaPre===undefined?(Math.random()<0.012*heat):(p===_rojaPre))){
         _rojasMias++; p._redMatch=true;
         const games=Math.random()<0.25?2:1;
         p.susp=(p.susp||0)+games;p.yellows=0;
@@ -18504,8 +18603,19 @@ function applyMatchResult(m, gf, ga, providedScorers){
         addPhoneMsg('board','Cuerpo Técnico',`🟥 Expulsaron a <b>${p.name}</b>. Se pierde ${games===1?'la próxima fecha':'las próximas 2 fechas'}.`,'🟥');
       }
     });
+    // Fase 99: en el 11v11 también le pueden sacar tarjeta al que entró desde el banco
+    const _deBanco=[];
+    if(_FR){ [..._FR.y.map(id=>[id,'y']),..._FR.r.map(id=>[id,'r'])].forEach(([id,c])=>{
+      const p=G.squad.find(q=>q.id===id); if(!p||xiPlayers.includes(p)) return; _deBanco.push(p);
+      if(c==='y'){ _amaMias++; p._yelMatch=true; p.yellows=(p.yellows||0)+1;
+        if(p.yellows>=5){ p.yellows=0;p.susp=(p.susp||0)+1; lg('🟥',`${p.name} llegó a 5 amarillas: se pierde el próximo partido`);
+          addPhoneMsg('board','Cuerpo Técnico',`🟨 <b>${p.name}</b> acumuló la quinta amarilla. No está disponible para la próxima fecha.`,'🟨'); } }
+      else { _rojasMias++; p._redMatch=true; const games=Math.random()<0.25?2:1; p.susp=(p.susp||0)+games;p.yellows=0;
+        lg('🟥',`Roja para ${p.name}: ${games} fecha(s) de suspensión`);
+        addPhoneMsg('board','Cuerpo Técnico',`🟥 Expulsaron a <b>${p.name}</b>. Se pierde ${games===1?'la próxima fecha':'las próximas 2 fechas'}.`,'🟥'); }
+    }); }
     // Los suspendidos cumplen: descuenta una fecha a los que NO jugaron
-    G.squad.forEach(q=>{ if(q.susp>0&&!xiPlayers.includes(q))q.susp=Math.max(0,q.susp-1); });
+    G.squad.forEach(q=>{ if(q.susp>0&&!xiPlayers.includes(q)&&!_deBanco.includes(q))q.susp=Math.max(0,q.susp-1); });
     // Las órdenes del presidente duran unas fechas y después el DT vuelve a mandar
     G.squad.forEach(q=>{ if(q._forced>0)q._forced--; });
   })();
@@ -18942,8 +19052,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const tired=G.squad.filter(p=>fitOf(p)<60&&!p.injured);
   if(tired.length>=3) injChance*=1.5;
   injChance*=campoFactor();     // el dilema del campo de juego, mientras dure
-  if(Math.random()<injChance){
-    const ip=(tired.length&&Math.random()<0.6)?tired[~~(Math.random()*tired.length)]:G.squad[~~(Math.random()*G.squad.length)];
+  // Fase 99: si el partido se jugó en el 11v11, las lesiones son las que
+  // pasaron en la cancha (leve: 40% de una semana de golpe; media: desgarro o
+  // esguince; grave: ligamentos) y no se tira el dado del partido.
+  const _FL=G._fmLes; G._fmLes=null;
+  const _lesTipos=(()=>{
     const doctorLv = G.staffLevels.doctor||0;
     const durMult = doctorLv>=2?0.6:doctorLv>=1?0.8:1.0;
     // Tipo de lesión con severidad realista
@@ -18954,8 +19067,10 @@ function applyMatchResult(m, gf, ga, providedScorers){
       {t:'Distensión de ligamentos',emo:'🩹',min:5,max:9,w:10},
       {t:'Rotura de ligamentos (grave)',emo:'🚑',min:12,max:22,w:6},
     ];
-    let rw=Math.random()*INJ_TYPES.reduce((a,x)=>a+x.w,0),it=INJ_TYPES[0];
-    for(const x of INJ_TYPES){rw-=x.w;if(rw<=0){it=x;break;}}
+    return {doctorLv,durMult,INJ_TYPES};
+  })();
+  const _lesAplicar=(ip,it)=>{
+    const {doctorLv,durMult,INJ_TYPES}=_lesTipos;
     ip.injured=true;
     ip.injType=it.t;ip.injEmo=it.emo;
     ip.injuredWeeks=Math.max(1,Math.round((it.min+~~(Math.random()*(it.max-it.min+1)))*durMult));
@@ -18965,6 +19080,21 @@ function applyMatchResult(m, gf, ga, providedScorers){
     addPhoneMsg('player', ip.name, `${it.emo} Parte médico: <b>${it.t}</b>. Estaré fuera <b>${ip.injuredWeeks} semana${ip.injuredWeeks>1?'s':''}</b>.${grave?' Voy a pelearla para volver lo antes posible.':''}`, it.emo);
     if(grave)addPhoneMsg('board','Cuerpo Médico',`🚑 Presidente, mala noticia: <b>${ip.name}</b> sufrió una <b>${it.t}</b>. Baja larga (${ip.injuredWeeks} semanas). Convendría buscar un reemplazo.`,'⚕️');
     try{ lesionDecision(ip); }catch(e){ console.error('lesionDecision',e); }   // Fase 78: operar o infiltrar
+  };
+  if(_FL){
+    _FL.forEach(l=>{ const ip=G.squad.find(q=>q.id===l.id); if(!ip||ip.injured) return;
+      const T=_lesTipos.INJ_TYPES; let it=null;
+      if(l.grav==='leve'){ if(Math.random()<0.4) it=T[0]; }
+      else if(l.grav==='media') it=T[1+(Math.random()<0.4?1:0)];
+      else it=T[3+(Math.random()<0.35?1:0)];
+      if(it) _lesAplicar(ip,it); });
+  }
+  else   if(Math.random()<injChance){
+    const ip=(tired.length&&Math.random()<0.6)?tired[~~(Math.random()*tired.length)]:G.squad[~~(Math.random()*G.squad.length)];
+    const {doctorLv,durMult,INJ_TYPES}=_lesTipos;
+    let rw=Math.random()*INJ_TYPES.reduce((a,x)=>a+x.w,0),it=INJ_TYPES[0];
+    for(const x of INJ_TYPES){rw-=x.w;if(rw<=0){it=x;break;}}
+    _lesAplicar(ip,it);
   }
   // Las operaciones avanzan por DÍA: si el presidente fue directo al partido,
   // acá se corren los días que faltaron. Va por partido, como siempre.
@@ -21549,8 +21679,8 @@ function sitEnd(outcome){
 function startSituation(ev){
   if(!LM||LM.done)return;
   const cv=document.getElementById('lmCanvas');
-  const W=Math.min(680,window.innerWidth-4);
-  const H=Math.min(580,Math.max(460,window.innerHeight-225));
+  const W=Math.min(680,vpW()-4);
+  const H=Math.min(580,Math.max(460,vpH()-225));
   cv.width=W;cv.height=H;
   document.getElementById('lmFeed').style.display='none';
   document.getElementById('lmGame').style.display='flex';
@@ -25655,6 +25785,8 @@ function fmErr(p,tipo,base){
   return (Math.random()*2-1)*e;
 }
 function fmMove(body,dx,dy,dt,acc){
+  // Fase 99: el que recibió la falta está en el piso; el lesionado corre menos.
+  if(body._tiradoT>0){ body.vx=(body.vx||0)*0.85; body.vy=(body.vy||0)*0.85; body.x+=body.vx*dt; body.y+=body.vy*dt; return; }
   const mg=Math.hypot(dx,dy)||1;
   if(dx||dy){dx/=mg;dy/=mg;}
   // ═══ CANSANCIO ═══ El que corrió todo el partido llega con las piernas duras.
@@ -25663,7 +25795,7 @@ function fmMove(body,dx,dy,dt,acc){
   const st=body.stam===undefined?100:body.stam;
   const fatigue=0.72+0.28*(st/100);
   // CLIMA: en el barro se corre un 20% menos y se gasta el doble (más abajo).
-  const spd=body.spd*fatigue*wxNow().spd;
+  const spd=body.spd*fatigue*wxNow().spd*(body._lesSpd||1);
   // El que tiene mejor arranque llega antes a la pelota dividida
   const ac=(acc||.085)*(body.acel||1);
   body.vx=(body.vx||0)*Math.pow(.93,dt)+dx*spd*ac*dt;
@@ -25917,6 +26049,7 @@ function fmInit(m,W,H){
     ball:{x:VW/2,y:VH/2,vx:0,vy:0,air:0},
     my:myXI.map((p,i)=>{
       const pl=mkP(myPos[i],fullMyPos[i],form[i].pos,p.name,p.rat||72,myKit,true,p);
+      pl._srcId=p.id;
       if(G.slotRoles&&G.slotRoles[i])pl.roleStyle=G.slotRoles[i];
       return pl;
     }),
@@ -26322,6 +26455,23 @@ function fmDoRestart(){
       if(r.type==='corner')taker._forceCross=1;
     }
   }
+  // Fase 99 · sin fuera de juego directo de un lateral, un saque de arco o
+  // un córner (regla 11): el primer pase del que saca no puede ser offside.
+  if(r.type==='throw'||r.type==='goalkick'||r.type==='corner') f._sinOffside={team:r.team,hasta:f.ticks+260};
+  // el plan del córner viaja hasta que se patea el centro
+  if(r.type==='corner'&&r._plan) f._cornerPlan={team:r.team,plan:r._plan.filter(z=>['punto penal','segundo palo','primer palo','área chica'].indexOf(z.k)>=0),t:f.ticks};
+  // ═══ SAQUE DE ARCO LARGO: el arquero la manda a pelear arriba ═══
+  if(r.type==='goalkick'&&r._largo&&taker&&r._blanco&&squad.indexOf(r._blanco)>=0){
+    const T=r._blanco, tx=T.x+(T.vx||0)*20, ty=T.y;
+    const dx=tx-b.x, dy=ty-b.y, dd=Math.hypot(dx,dy)||1;
+    const err=(Math.random()*2-1)*0.06*(1.2-(((taker.attrs&&taker.attrs.pas)||70)/100));
+    const c=Math.cos(err), sn=Math.sin(err), ux=(dx/dd)*c-(dy/dd)*sn, uy=(dx/dd)*sn+(dy/dd)*c;
+    const v=7.6+dd*0.0022;
+    b.vx=ux*v; b.vy=uy*v; b.air=Math.min(200,dd/v+6);
+    taker._kickT=9; T._recvTick=f.ticks; fmSndKick(0.8); fmStat(r.team,'pass');
+    f._lastTouch=r.team; f.restart=null; f._sinOffside={team:r.team,hasta:f.ticks+260};
+    return;
+  }
   // Antes, acá se TELETRANSPORTABAN cuatro delanteros al área en el mismo
   // instante del centro: por eso parecía que la pelota salía apenas se cobraba
   // el córner. Ahora suben caminando durante la espera (fmSetPieceShape) y acá
@@ -26617,37 +26767,302 @@ function fmDespejeEmergencia(team,p){
   f._lastTouch=team;
   if(f.learn)f.learn.despEmerg=(f.learn.despEmerg||0)+1;
 }
-function fmFoul(offTeam,offender,victim){
-  const f=FM;if(!f||f.phase!=='play')return;
+// ═══════════════════════════════════════════════════════════════════
+// FASE 99 · EL ÁRBITRO, LAS TARJETAS Y LAS LESIONES DEL 11v11
+// ═══════════════════════════════════════════════════════════════════
+// Antes la tarjeta era un dado por falta (18% amarilla, 0,9% roja), no se
+// anotaba a quién, dos amarillas no daban roja y daba igual cómo había sido
+// la falta. Tampoco había árbitro en la cancha ni lesiones en el partido.
+// Ahora:
+//  · hay un árbitro (y dos asistentes) que acompañan la jugada en 2D y 3D;
+//  · cada falta se JUZGA: de atrás, barrida, a toda velocidad, último hombre
+//    (roja), cortar un ataque prometedor (amarilla táctica), reiteración;
+//    la segunda amarilla es roja. El rigor depende del árbitro del partido;
+//  · si el que recibió la falta sigue con la pelota y ataca, VENTAJA: se
+//    sigue jugando y si la pelota se pierde enseguida se vuelve a la falta;
+//  · una falta fuerte puede lesionar; el lesionado de verdad sale y entra
+//    un suplente (o el equipo queda con diez);
+//  · las tarjetas y lesiones de TU plantel pasan a la temporada (la quinta
+//    amarilla, la suspensión, las semanas afuera) en vez del dado de siempre.
+const FM99={
+  pRojaGrave:0.15,      // juego brusco grave (barrida de atrás a toda velocidad)
+  pAmaTemeraria:0.62,   // entrada temeraria
+  pAmaTactica:0.66,     // cortar un ataque prometedor
+  pAmaReiterada:0.55,   // tercera falta del mismo jugador
+  pAmaComun:0.05,       // una falta común
+  lesBase:0.006, lesSev:0.035,  // lesión por la falta: base + por severidad
+  lesSinContacto:0.0000006,     // por jugador y por tick, con las piernas abajo de 62
+  ventaja:80,           // ticks que el árbitro espera para ver si la ventaja prospera
+  refVel:2.35,          // lo que corre el árbitro (los jugadores andan en 1,9-2,6)
+};
+function _h99(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0)/4294967296; }
+const FM99_ESTILO=[[0.80,'permisivo'],[1.00,'equilibrado'],[1.22,'estricto']];
+// El árbitro del partido: nombre y rigor salen de un hash del partido (no
+// del azar de la simulación, así prenderlo no cambia el partido).
+function fmRef(){
+  const f=FM; if(!f) return null;
+  if(!f.ref){
+    const key=String(f.m?((f.m.home||'')+'|'+(f.m.away||'')+'|'+(f.m.week||0)+'|'+(f.m.comp||'')+'|'+((typeof G!=='undefined'&&G&&G.season)||'')):(f.oppName||''));
+    let nom='el árbitro';
+    try{ const P=_youthNames(ligaMia()); if(P&&P.fn&&P.fn.length&&P.ln&&P.ln.length)
+      nom=P.fn[Math.floor(_h99(key+'n')*P.fn.length)]+' '+P.ln[Math.floor(_h99(key+'a')*P.ln.length)]; }catch(e){}
+    const est=FM99_ESTILO[Math.floor(_h99(key+'r')*3)];
+    // la ropa del árbitro: la que más se distingue de los dos equipos (con
+    // negro y amarillo se confundía con Boca) y nunca verde (el pasto)
+    const KR=[{c1:'#141414',c2:'#141414'},{c1:'#d8f033',c2:'#141414'},{c1:'#ff5fa2',c2:'#141414'},{c1:'#d42a2a',c2:'#141414'},{c1:'#7d3cc8',c2:'#141414'}];
+    let k=KR[0], mejor=-1;
+    try{ KR.forEach(c=>{ const d=Math.min(_kitDist(c.c1,(f.myKit||{}).c1||'#fff'),_kitDist(c.c1,(f.myKit||{}).c2||'#fff'),
+                                         _kitDist(c.c1,(f.oppKit||{}).c1||'#fff'),_kitDist(c.c1,(f.oppKit||{}).c2||'#fff'));
+      if(d>mejor){ mejor=d; k=c; } }); }catch(e){}
+    f.ref={x:f.VW/2,y:f.VH/2-170,vx:0,vy:0,r:13,name:nom,num:'',kit:k,isGK:false,rigor:est[0],estilo:est[1],card:null,ref:true};
+    f.asis=[{x:f.VW*0.72,y:-16,vx:0,vy:0,r:12,name:'Asistente',num:'',kit:k,isGK:false,lado:1,ref:true,flag:0},
+            {x:f.VW*0.28,y:f.VH+16,vx:0,vy:0,r:12,name:'Asistente',num:'',kit:k,isGK:false,lado:-1,ref:true,flag:0}];
+    f._tarj=f._tarj||[]; f._lesiones=f._lesiones||[];
+    ['my','opp'].forEach(t=>{ if(f.stat&&f.stat[t]){ ['yel','red','les'].forEach(q=>{ if(f.stat[t][q]===undefined) f.stat[t][q]=0; }); } });
+  }
+  return f.ref;
+}
+function _e99(t){ return (typeof _esc==='function')?_esc(String(t||'')):String(t||''); }
+// Se mueve como un árbitro: cerca de la jugada pero sin meterse en ella,
+// del lado de adentro de la cancha y un poco atrás del ataque. En la pelota
+// parada va hacia el punto del saque. Llega y frena (no oscila).
+// Fase 99: lo que corre en todas las fases (árbitro, el que está en el piso,
+// la ventaja, las lesiones sin contacto y los cambios por lesión).
+function fm99Tick(dt){
+  const f=FM; if(!f) return;
+  fmRefTick(dt);
+  for(const arr of [f.my,f.opp]) for(const p of arr){ if(p._tiradoT>0) p._tiradoT-=dt; }
+  if(f.phase==='play'){
+    fmVentajaTick();
+    for(const [t,arr] of [['my',f.my],['opp',f.opp]]) for(const p of arr){
+      if(p.isGK||p._lesion||p.stam===undefined||p.stam>=62) continue;
+      if(Math.random()<FM99.lesSinContacto*dt) fmLesion(t,p,false);
+    }
+  } else if(f._sacar&&f._sacar.length&&f.phase!=='done') fmSacarLesionados();
+}
+function fmRefTick(dt){
+  const f=FM, R=fmRef(); if(!R) return;
+  const b=f.ball, mid=f.VH/2;
+  let tx, ty;
+  if(f.phase==='restart'&&f.restart){
+    const r=f.restart;
+    tx=r.x+(r.x<f.VW/2?220:-220); ty=r.y+(r.y<mid?240:-240);
+    if(r.type==='penalty'){ tx=r.x+(r.x<f.VW/2?330:-330); ty=mid+260; }
+  } else if(f.phase==='kickoff'||f.phase==='half'||f.phase==='goal_my'||f.phase==='goal_opp'){
+    tx=f.VW/2+60; ty=mid-260;
+  } else {
+    const ataca=f.possSide||f._lastTouch;
+    const dirA=ataca?(((ataca==='my')===f.myAttRight)?1:-1):0;
+    tx=b.x-dirA*170; ty=b.y+(b.y<mid?1:-1)*250;
+  }
+  tx=Math.max(f.leftGL+40,Math.min(f.rightGL-40,tx)); ty=Math.max(50,Math.min(f.VH-50,ty));
+  const dx=tx-R.x, dy=ty-R.y, d=Math.hypot(dx,dy)||1;
+  const want=Math.min(FM99.refVel, d*0.035);
+  R.vx+=((dx/d)*want-R.vx)*0.12*dt; R.vy+=((dy/d)*want-R.vy)*0.12*dt;
+  R.x+=R.vx*dt; R.y+=R.vy*dt;
+  if(R.card&&R.card.t>0) R.card.t-=dt;
+  // Los asistentes: cada uno cuida una mitad, sobre su línea, a la altura del
+  // penúltimo defensor (o de la pelota si está más adelante).
+  (f.asis||[]).forEach(A=>{
+    const mitadDer=A.lado>0;
+    const defiende=((mitadDer?f.rightGL:f.leftGL)===(f.myAttRight?f.rightGL:f.leftGL))?f.opp:f.my;
+    const atacaDer=mitadDer;
+    let lx=fmOffsideLine(defiende,atacaDer,f);
+    if(atacaDer?b.x>lx:b.x<lx) lx=b.x;
+    lx=mitadDer?Math.max(f.VW/2,Math.min(f.rightGL,lx)):Math.min(f.VW/2,Math.max(f.leftGL,lx));
+    const ax=lx-A.x, ad=Math.abs(ax);
+    const w=Math.min(FM99.refVel*0.95,ad*0.05);
+    A.vx+=((ad?ax/ad:0)*w-A.vx)*0.15*dt; A.vy=0; A.x+=A.vx*dt;
+    if(A.flag>0) A.flag-=dt;
+  });
+}
+// La bandera del asistente que ve el fuera de juego.
+function fmBandera(x){
+  const f=FM; if(!f||!f.asis) return;
+  const A=f.asis.reduce((a,c)=>Math.abs(c.x-x)<Math.abs(a.x-x)?c:a);
+  A.flag=150; A.x=x;
+}
+// ═══ JUZGAR LA FALTA ═══
+// Devuelve la tarjeta y por qué. `tipo`: 'barrida' (la tuya) o 'entrada'.
+function J_spa(mot){ return /ataque prometedor|contraataque/.test(mot||''); }
+function fmJuzgar(offTeam,off,vic,inBox,defGoalX,tipo){
+  const f=FM, R=fmRef(), rig=(R&&R.rigor)||1;
+  const ov=Math.hypot(off.vx||0,off.vy||0), vv=Math.hypot(vic.vx||0,vic.vy||0);
+  let cos=0; if(ov>0.2&&vv>0.3) cos=((off.vx||0)*(vic.vx||0)+(off.vy||0)*(vic.vy||0))/(ov*vv);
+  const desdeAtras=cos>0.5, barrida=tipo==='barrida';
+  const sev=0.25+(desdeAtras?0.35:cos>-0.2?0.10:0)+(barrida?0.30:0)+Math.min(0.30,ov/((off.spd||2)*1.28)*0.30);
+  // ¿Iba solo al gol? (DOGSO) ¿Cortó un ataque prometedor? (SPA)
+  const fieldW=f.rightGL-f.leftGL, dirG=defGoalX>f.VW/2?1:-1;
+  const distGoal=Math.abs(defGoalX-vic.x);
+  const conPelota=Math.hypot(f.ball.x-vic.x,f.ball.y-vic.y)<70;
+  const haciaElArco=((vic.vx||0)*dirG)>=-0.2;
+  // el último hombre: con la pelota dominada, lanzado hacia el arco y cerca
+  const lanzado=Math.hypot(f.ball.x-vic.x,f.ball.y-vic.y)<46&&((vic.vx||0)*dirG)>0.8;
+  const defensa=(offTeam==='my'?f.my:f.opp).filter(q=>!q.isGK&&q!==off&&!q._sentOff);
+  const entreMedio=defensa.filter(q=>Math.abs(defGoalX-q.x)<distGoal-18&&Math.abs(q.y-vic.y)<f.VH*0.38).length;
+  const dogso=lanzado&&distGoal<fieldW*0.27&&Math.abs(vic.y-f.VH/2)<f.VH*0.22&&entreMedio===0;
+  const vt=offTeam==='my'?'opp':'my';
+  const contra=f._transSide===vt&&(f.ticks-(f._transT||0))<220;
+  const spa=!dogso&&conPelota&&haciaElArco&&(distGoal<fieldW*0.55||contra)&&entreMedio<=2;
+  let c=null, mot='';
+  if(dogso){
+    // Desde 2016: en el área, si intentó jugar la pelota, es amarilla y penal.
+    if(inBox&&!desdeAtras&&!barrida){ c='y'; mot='evitó un gol claro (fue a la pelota)'; }
+    else { c=Math.random()<0.85?'r':'y'; mot=c==='r'?'era el último hombre':'evitó un gol claro'; }
+  }
+  else if(sev>=1.05&&Math.random()<FM99.pRojaGrave*rig){ c='r'; mot='juego brusco grave'; }
+  else if(sev>=0.75&&Math.random()<FM99.pAmaTemeraria*rig){ c='y'; mot=desdeAtras?'entrada de atrás':'entrada temeraria'; }
+  else if(spa&&Math.random()<FM99.pAmaTactica*rig){ c='y'; mot=contra?'cortó el contraataque':'cortó un ataque prometedor'; }
+  else if((off._fc||0)>=2&&Math.random()<FM99.pAmaReiterada*rig){ c='y'; mot='reiteración de faltas'; }
+  else if(Math.random()<FM99.pAmaComun*rig){ c='y'; mot='falta táctica'; }
+  off._fc=(off._fc||0)+1;
+  // Con una amarilla encima, el árbitro sólo saca la segunda por algo claro:
+  // la reiteración o una falta común quedan en advertencia.
+  if(c==='y'&&(off._yc||0)>=1&&(mot==='reiteración de faltas'||mot==='falta táctica'||(J_spa(mot)&&Math.random()<0.6))){ c=null; mot='advertencia'; }
+  if(c==='y'&&(off._yc||0)>=1){ c='r2'; mot='segunda amarilla'; }
+  return {c,mot,sev,dogso,spa,desdeAtras,barrida};
+}
+// Mostrar y anotar la tarjeta. La roja (o la segunda amarilla) lo saca.
+function fmTarjeta(team,p,c,mot){
+  const f=FM, R=fmRef(); if(!f||!p||!c) return;
+  f._tarj=f._tarj||[];
+  f._tarj.push({team,id:p._srcId||null,name:p.name,c,min:f.minute||0,mot});
+  if(R) R.card={c:c==='y'?'y':'r',t:170};
+  const nm=_e99(p.name), eq=team==='my'?_e99(G.teamName):_e99(f.oppName);
+  if(c==='y'){
+    p._yc=(p._yc||0)+1; fmStat(team,'yel');
+    fmMsg('🟨 AMARILLA\n'+nm+' ('+eq+') · '+_e99(mot));
+    try{ fmRelato('🟨 Amarilla para '+p.name+': '+mot+'.'); }catch(e){}
+  } else {
+    if(c==='r2'){ p._yc=2; fmStat(team,'yel'); }
+    fmStat(team,'red');
+    fmSendOff(team,p,c==='r2'?'🟨🟥 DOBLE AMARILLA':'🟥 ROJA DIRECTA',mot);
+  }
+}
+// ═══ LA VENTAJA ═══
+// Sólo si el que recibió la falta (o un compañero) sigue con la pelota en
+// campo rival, la falta no es de roja y no fue en el área.
+function fmVentajaPosible(offTeam,victim,J,inBox){
+  const f=FM; if(inBox||!J||J.c==='r'||J.c==='r2'||J.dogso||J.sev>=1.0) return false;
+  const vt=offTeam==='my'?'opp':'my', vSq=vt==='my'?f.my:f.opp;
+  const atacaDer=(vt==='my')===f.myAttRight;
+  const enAtaque=atacaDer?f.ball.x>f.VW*0.5:f.ball.x<f.VW*0.5;
+  const victimaSigue=J.sev<0.7&&Math.hypot(victim.x-f.ball.x,victim.y-f.ball.y)<40;
+  const companero=vSq.some(q=>q!==victim&&!q.isGK&&Math.hypot(q.x-f.ball.x,q.y-f.ball.y)<75);
+  return enAtaque&&(victimaSigue||companero);
+}
+function fmVentajaTick(){
+  const f=FM, V=f&&f._ventaja; if(!V) return;
+  if(f.phase!=='play'){ fmTarjeta(V.offTeam,V.off,V.J.c,V.J.mot); f._ventaja=null; return; }   // se cortó por otra cosa: la tarjeta igual va
+  if(f.possSide===V.offTeam&&f.ticks-V.desde>8){
+    // la ventaja no prosperó: se vuelve a la falta
+    f._ventaja=null;
+    fmSndWhistle(1);
+    fmSetRestart('freekick',V.vt,V.x,V.y,V.J.c?'VUELVE A LA FALTA\n'+(V.J.c==='y'?'🟨':'🟥'):'VUELVE A LA FALTA');
+    fmTarjeta(V.offTeam,V.off,V.J.c,V.J.mot);
+    return;
+  }
+  if(f.ticks>V.hasta){ f._ventaja=null; if(V.J.c) fmTarjeta(V.offTeam,V.off,V.J.c,V.J.mot+' (tras la ventaja)'); }
+}
+// ═══ LESIONES EN EL PARTIDO ═══
+// leve: sigue resentido (corre menos) · media/grave: sale.
+function fmLesion(team,p,porFalta){
+  const f=FM; if(!f||!p||p._lesion||p._sentOff) return;
+  const u=Math.random();
+  const grav=porFalta?(u<0.50?'leve':u<0.86?'media':'grave'):(u<0.60?'leve':u<0.95?'media':'grave');
+  p._lesion={grav,min:f.minute||0,falta:!!porFalta};
+  f._lesiones=f._lesiones||[];
+  f._lesiones.push({team,id:p._srcId||null,name:p.name,grav,min:f.minute||0,falta:!!porFalta});
+  fmStat(team,'les');
+  const nm=_e99(p.name);
+  if(grav==='leve'){ p._lesSpd=0.88; p._tiradoT=Math.max(p._tiradoT||0,70); fmMsg('🤕 '+nm+' quedó resentido'); try{ fmRelato('🤕 '+p.name+' se toma la pierna, pero sigue.'); }catch(e){} return; }
+  p._lesSpd=0.6; p._tiradoT=Math.max(p._tiradoT||0,240);
+  fmMsg('🚑 '+nm+' no puede seguir');
+  try{ fmRelato('🚑 Entra la camilla: '+p.name+' no puede seguir.'); }catch(e){}
+  f._sacar=f._sacar||[]; f._sacar.push({team,p});
+}
+// El lesionado sale en la próxima pelota parada (o enseguida si ya está parada).
+function fmSacarLesionados(){
+  const f=FM; if(!f||!f._sacar||!f._sacar.length) return;
+  const pend=f._sacar; f._sacar=[];
+  pend.forEach(({team,p})=>{
+    const arr=team==='my'?f.my:f.opp, i=arr.indexOf(p); if(i<0) return;
+    if(team==='my'){
+      const pool=f.benchPool||[];
+      let bi=-1;
+      if(p.isGK) bi=pool.findIndex(q=>q.pos==='ARQ');
+      else {
+        const lin=(typeof pgr==='function')?pgr(p.role||''):null;
+        bi=pool.findIndex(q=>q.pos===p.role);
+        if(bi<0&&lin) bi=pool.findIndex(q=>q.pos!=='ARQ'&&pgr(q.pos)===lin);
+        if(bi<0) bi=pool.findIndex(q=>q.pos!=='ARQ');
+      }
+      if(f.subsLeft>0&&bi>=0&&fmApplySub(i,bi,true)){ fmMsg('🚑 CAMBIO OBLIGADO\n'+_e99(p.name)+' ➜ '+_e99(f.my[i].name)); return; }
+    } else {
+      if(f._oppSubs===undefined) f._oppSubs=5;
+      if(f._oppSubs>0){
+        f._oppSubs--;
+        const RES=['Acosta','Ríos','Pereyra','Giménez','Ledesma','Godoy','Sosa','Ojeda'];
+        const usados=new Set(f.opp.map(q=>q.name));
+        const nn=RES.find(n=>!usados.has(n))||'Suplente';
+        Object.assign(p,{name:nn,num:12+(5-f._oppSubs),_lesion:null,_lesSpd:1,_tiradoT:0,_yc:0,_fc:0,stam:96,rat:Math.max(55,(p.rat||70)-2)});
+        fmMsg('🚑 CAMBIO EN EL RIVAL\nentra '+_e99(nn));
+        return;
+      }
+    }
+    // sin cambios: el equipo queda con diez
+    p._sentOff=true; p.x=-500;p.y=-500;p.vx=0;p.vy=0;
+    arr.splice(i,1);
+    if(team==='my'&&f.ctrl>=f.my.length) f.ctrl=Math.max(0,f.my.length-1);
+    fmMsg('🚑 '+_e99(p.name)+' sale y no quedan cambios\n'+(team==='my'?'jugamos con uno menos':'el rival queda con uno menos'));
+  });
+}
+function fmFoul(offTeam,offender,victim,tipo){
+  const f=FM;if(!f||f.phase!=='play'||!victim)return;
   const to=offTeam==='my'?'opp':'my';
   // ¿la falta fue dentro del área del equipo que cometió la infracción? → PENAL
   const defGoalX=(offTeam==='my')===f.myAttRight?f.leftGL:f.rightGL; // arco que defiende el infractor
   const inBox=Math.abs(victim.x-defGoalX)<(f.rightGL-f.leftGL)*0.16&&Math.abs(victim.y-f.VH/2)<f.GH*1.15;
-  // ═══ TARJETAS: PROPORCIÓN REAL ═══
-  // Estaba en 6% rojas y 28% amarillas SOBRE CADA FALTA. Con las 2,8 faltas por
-  // partido que había casi no se veían; ahora que se cobran las ~22 de un
-  // partido real, ese 6% daría 1,3 expulsiones por partido. En la vida real hay
-  // ~4 amarillas y una roja cada 5 partidos: 17% y 0,9% de las faltas.
-  const roll=Math.random();
-  const red=roll<0.009;
-  const yellow=!red&&roll<0.18;
+  const J=offender?fmJuzgar(offTeam,offender,victim,inBox,defGoalX,tipo||'entrada'):{c:null,mot:'',sev:0.3};
+  // ═══ EN EL ÁREA: PENAL O SIGA ═══
+  // Un partido real tiene 0,25 penales. Antes, el contacto en el área que no
+  // era penal se cobraba igual como TIRO LIBRE DENTRO DEL ÁREA (eso no existe:
+  // si es falta en el área, es penal). Ahora el árbitro decide: penal o siga.
+  // Cuanto más clara la falta (de atrás, barrida, último hombre), más penal.
+  if(inBox){
+    const pPen=Math.max(0.30,Math.min(0.88,0.12+J.sev*0.55+(J.dogso?0.25:0)));
+    if(Math.random()>=pPen){
+      offender&&(offender._fc=Math.max(0,(offender._fc||1)-1));
+      if(f.watch||Math.random()<0.5) fmMsg('🙅 ¡SIGA, SIGA!');
+      return;
+    }
+  }
   fmSndWhistle(1);
   fmStat(offTeam,'foul');
-  if(red&&offender){fmSendOff(offTeam,offender);}
-  // Un partido real tiene 0,25 penales. Aunque la infracción caiga dentro del
-  // área, la mayoría de las veces el árbitro la ve afuera o el contacto fue
-  // antes de la línea: sólo una parte termina en penal.
-  if(inBox&&Math.random()<0.34){
-    fmSetRestart('penalty',to,defGoalX,f.VH/2,red?'PENAL\n🟥 ROJA':'⚽ PENAL');
+  // El que recibe la falta se va al piso (y puede lesionarse)
+  const pLes=FM99.lesBase+FM99.lesSev*Math.max(0,J.sev-0.4);
+  if(!inBox&&offender&&fmVentajaPosible(offTeam,victim,J,inBox)){
+    f._ventaja={vt:to,offTeam,off:offender,J,x:victim.x,y:victim.y,desde:f.ticks,hasta:f.ticks+FM99.ventaja};
+    fmMsg('▶ VENTAJA'); try{ fmRelato('El árbitro deja seguir: ventaja.'); }catch(e){}
+    if(Math.random()<pLes*0.5) fmLesion(to,victim,true);
+    if(offender)offender._slideT=0;
+    return;
+  }
+  victim._tiradoT=Math.max(victim._tiradoT||0,Math.round(34+J.sev*70));
+  victim.vx*=0.25; victim.vy*=0.25;
+  if(Math.random()<pLes) fmLesion(to,victim,true);
+  if(inBox){
+    fmSetRestart('penalty',to,defGoalX,f.VH/2,'⚽ PENAL');
     fmSay('penalty',to);
   } else {
     fmSay('foul',offTeam);
-    fmSetRestart('freekick',to,victim.x,victim.y,red?'FALTA\n🟥 ROJA':yellow?'FALTA\n🟨 AMARILLA':'FALTA');
+    fmSetRestart('freekick',to,victim.x,victim.y,'FALTA');
   }
+  if(J.c) fmTarjeta(offTeam,offender,J.c,J.mot);
   if(offender)offender._slideT=0;
 }
 // Expulsión: el jugador sale de la cancha (superioridad numérica)
-function fmSendOff(team,pl){
+function fmSendOff(team,pl,titulo,mot){
   const f=FM;
   pl._sentOff=true;pl.isGK=pl.isGK; // conserva rol
   // lo saco del campo (a la banda) y no vuelve a jugar
@@ -26655,8 +27070,10 @@ function fmSendOff(team,pl){
   const arr=team==='my'?f.my:f.opp;
   const idx=arr.indexOf(pl);
   if(idx>=0)arr.splice(idx,1); // deja al equipo con 10
+  if(team==='my'&&f.ctrl>=f.my.length) f.ctrl=Math.max(0,f.my.length-1);
   const nm=team==='my'?G.teamName:f.oppName;
-  fmMsg('🟥 EXPULSADO\n'+(pl.name||'')+' ('+nm+')');
+  fmMsg((titulo||'🟥 EXPULSADO')+'\n'+_e99(pl.name||'')+' ('+_e99(nm)+')'+(mot?' · '+_e99(mot):''));
+  try{ fmRelato('🟥 Expulsado '+(pl.name||'')+(mot?': '+mot:'')+'.'); }catch(e){}
   if(f.learn)f.learn.reds=(f.learn.reds||0)+1;
 }
 
@@ -26752,15 +27169,19 @@ function fmJoySetup(){
     // El joystick se planta DONDE apoyaste el dedo, dentro de los límites de
     // la cancha para que no se salga de pantalla.
     if(joy&&game){
+      // Fase 99: con la vista celular forzada hay zoom en la raíz — el rect y
+      // el dedo vienen en píxeles de PANTALLA y el estilo va en los de la página.
+      const z=(window.celFactor?celFactor():1)||1;
       const gr=game.getBoundingClientRect(), R=63;   // medio joystick
-      const lx=Math.max(4,Math.min(gr.width-2*R-4, t.clientX-gr.left-R));
-      const ly=Math.max(4,Math.min(gr.height-2*R-4, t.clientY-gr.top-R));
+      const lx=Math.max(4,Math.min(gr.width/z-2*R-4, (t.clientX-gr.left)/z-R));
+      const ly=Math.max(4,Math.min(gr.height/z-2*R-4, (t.clientY-gr.top)/z-R));
       joy.style.left=lx+'px'; joy.style.top=ly+'px'; joy.style.bottom='auto';
       joy.style.opacity='.92';
-      FM._joyC={x:lx+gr.left+R, y:ly+gr.top+R, mr:52};
+      FM._joyC={x:gr.left+(lx+R)*z, y:gr.top+(ly+R)*z, mr:52*z, z};
     } else {
+      const z=(window.celFactor?celFactor():1)||1;
       const r=jz.getBoundingClientRect();
-      FM._joyC={x:r.left+r.width/2,y:r.top+r.height/2,mr:52};
+      FM._joyC={x:r.left+r.width/2,y:r.top+r.height/2,mr:52*z,z};
     }
     FM._joyId=t.identifier;fmJoyUpd(t);
   },{passive:false});
@@ -26772,8 +27193,8 @@ function fmJoySetup(){
 function fmJoyUpd(t){
   if(!FM||!FM._joyC)return;
   const c=FM._joyC,dx=t.clientX-c.x,dy=t.clientY-c.y;
-  const d=Math.sqrt(dx*dx+dy*dy),mr=c.mr||52;
-  const cx=d>mr?dx/d*mr:dx,cy=d>mr?dy/d*mr:dy;
+  const d=Math.sqrt(dx*dx+dy*dy),mr=c.mr||52, zz=c.z||1;
+  const cx=(d>mr?dx/d*mr:dx)/zz,cy=(d>mr?dy/d*mr:dy)/zz;
   const dot=document.getElementById('fm-jdot');
   // 38 = (126 del joystick − 50 del dot)/2: el reposo del dot en su caja.
   if(dot){dot.style.left=(38+cx)+'px';dot.style.top=(38+cy)+'px';}
@@ -26788,7 +27209,7 @@ function fmJoyUpd(t){
     FM.joyVec=null;
   }
   // Compat: teclas binarias para lógica existente
-  const dz=8;
+  const dz=8*zz;
   FM.keys.lf=dx<-dz?1:0;FM.keys.rt=dx>dz?1:0;
   FM.keys.up=dy<-dz?1:0;FM.keys.dn=dy>dz?1:0;
 }
@@ -26911,6 +27332,7 @@ function fmApplySub(oi,bi,byCoach){
     spd:out.isGK?out.spd:(1.30+(((attrs&&attrs.pac)||70)/100)*0.65),
     stam:Math.max(70,Math.min(100,inc.fit===undefined?100:inc.fit)),
     _srcId:inc.id,
+    _yc:0,_fc:0,_lesion:null,_lesSpd:1,_tiradoT:0,
   });
   f.benchPool=f.benchPool.filter((_,j)=>j!==bi);
   f.subsLeft--;
@@ -27069,6 +27491,13 @@ const SETPIECE_T={throw:45,goalkick:80,corner:140,freekick:120,penalty:150};
 // Durante la espera, cada equipo se ubica según el tipo de jugada: en el córner
 // los altos suben al área y el rival los marca; en el tiro libre se arma la
 // barrera; en el resto se recupera la forma.
+// Fase 99: ir a un punto y FRENAR al llegar (fmMove acelera siempre hacia el
+// objetivo: el que llegaba a su zona se pasaba y volvía, temblando).
+function fm99Ir(p,tx,ty,dt,acc){
+  const dx=tx-p.x, dy=ty-p.y, d=Math.hypot(dx,dy);
+  if(d<10){ p.vx=(p.vx||0)*0.7; p.vy=(p.vy||0)*0.7; p.x+=p.vx*dt; p.y+=p.vy*dt; return; }
+  fmMove(p,dx,dy,dt,(acc||0.06)*Math.min(1,0.35+d/150));
+}
 function fmSetPieceShape(dt){
   const f=FM; if(!f)return;
   const r=f.restart; if(!r){ fmIdleMove(dt,false); return; }
@@ -27080,34 +27509,121 @@ function fmSetPieceShape(dt){
   const mid=f.VH/2;
 
   if(kind==='corner'){
-    // Suben los más altos/fuertes; el resto aguanta afuera por si rebota
-    const subenN=4;
-    const orden=atacan.filter(p=>!p.isGK)
-      .map(p=>({p,peso:(p.attrs&&(p.attrs.phy*0.6+p.attrs.sho*0.4))||p.rat}))
-      .sort((a,b)=>b.peso-a.peso).map(x=>x.p);
-    // El que patea se elige UNA vez y camina hasta el banderín: se lo saca de
-    // los que suben al área para que no le tire el centro a sí mismo.
-    if(!r._taker||orden.indexOf(r._taker)<0){
-      const resto=orden.slice(subenN);
-      const pool=resto.length?resto:orden;
-      r._taker=pool.reduce((a,c)=>
-        Math.hypot(c.x-f.ball.x,c.y-f.ball.y)<Math.hypot(a.x-f.ball.x,a.y-f.ball.y)?c:a);
+    // ═══ FASE 99 · EL CÓRNER ARMADO ═══
+    // Cada uno a su zona: primer palo, área chica, segundo palo, punto penal y
+    // la medialuna para el rebote; dos se quedan atrás por la contra. La
+    // defensa: arquero en la línea, uno en el primer palo, dos en zona sobre
+    // el área chica, cada cabeceador con su marca (el mejor defensor al mejor
+    // cabeceador) y uno arriba para salir de contra. El centro no sale hasta
+    // que los de adentro llegaron (`_listo`).
+    const xpm=(f.rightGL-f.leftGL)/105, ypm=f.VH/68;        // píxeles por metro
+    const dIn=atacaDer?-1:1;                                 // de la línea de fondo hacia la cancha
+    const near=Math.sign(f.ball.y-mid)||1;                    // el palo de donde sale el córner
+    const GMp=(f.GM||FM76.GM);
+    const aereo=p=>{ const a=p.attrs||{}; return (a.phy||p.rat||70)*0.55+(a.sho||p.rat||70)*0.30+(p.rat||70)*0.15; };
+    const campo=atacan.filter(p=>!p.isGK&&!p._sentOff);
+    if(!r._taker||campo.indexOf(r._taker)<0){
+      // patea el de mejor pase entre los que no son de los cuatro mejores cabeceadores
+      const porAire=campo.slice().sort((a,b)=>aereo(b)-aereo(a));
+      const altos=new Set(porAire.slice(0,4));
+      const pool=campo.filter(p=>!altos.has(p));
+      r._taker=(pool.length?pool:campo).slice().sort((a,b)=>((b.attrs&&b.attrs.pas)||b.rat)-((a.attrs&&a.attrs.pas)||a.rat))[0];
     }
     const kicker=r._taker;
     const cxs=Math.sign(f.VW/2-f.ball.x)||1, cys=Math.sign(f.VH/2-f.ball.y)||1;
-    fmMove(kicker,(f.ball.x-cxs*14)-kicker.x,(f.ball.y-cys*12)-kicker.y,dt,0.075);
-    orden.forEach((p,i)=>{
-      if(p===kicker)return;
-      if(i<subenN){
-        const dx=(atacaDer?-1:1)*(70+i*55);
-        fmMove(p,(arcoX+dx)-p.x,(mid+((i%2?1:-1)*(60+i*45)))-p.y,dt,0.055);
-      } else { fmMove(p,p.hx-p.x,p.hy-p.y,dt,0.035); }
+    fm99Ir(kicker,f.ball.x-cxs*14,f.ball.y-cys*12,dt,0.08);
+    if(!r._plan){
+      const Z=[
+        {k:'punto penal', x:arcoX+dIn*11*xpm, y:mid-near*1.0*ypm},
+        {k:'segundo palo',x:arcoX+dIn*6*xpm,  y:mid-near*(GMp+2.6*ypm)},
+        {k:'primer palo', x:arcoX+dIn*4*xpm,  y:mid+near*(GMp+1.6*ypm)},
+        {k:'área chica',  x:arcoX+dIn*4.5*xpm,y:mid+near*0.4*ypm},
+        {k:'medialuna',   x:arcoX+dIn*18.5*xpm,y:mid-near*2.5*ypm},
+      ];
+      // el mejor cabeceador… que llegue: a 60 metros del área un central no sube a tiempo
+      const lejos=p=>Math.hypot(p.x-Z[0].x,p.y-Z[0].y)*0.045;
+      const orden=campo.filter(p=>p!==kicker).sort((a,b)=>(aereo(b)-lejos(b))-(aereo(a)-lejos(a)));
+      const plan=[]; Z.forEach((z,i)=>{ if(orden[i]) plan.push({p:orden[i],x:z.x,y:z.y,k:z.k}); });
+      const resto=orden.slice(Z.length);
+      // los dos más rápidos de los que quedan se quedan arriba por la contra
+      const atras=resto.slice().sort((a,b)=>((a.attrs&&a.attrs.pac)||70)-((b.attrs&&b.attrs.pac)||70)).slice(0,2);
+      atras.forEach((p,i)=>plan.push({p,x:arcoX+dIn*(f.rightGL-f.leftGL)*0.58,y:mid+(i?1:-1)*7*ypm,k:'atrás'}));
+      resto.filter(p=>atras.indexOf(p)<0).forEach((p,i)=>plan.push({p,x:arcoX+dIn*27*xpm,y:mid+(i%2?1:-1)*(9+i*3)*ypm,k:'afuera'}));
+      // la defensa
+      const dCampo=defien.filter(q=>!q.isGK&&!q._sentOff);
+      const dPorDef=dCampo.slice().sort((a,b)=>(((b.attrs&&b.attrs.def)||b.rat)+((b.attrs&&b.attrs.phy)||b.rat))-(((a.attrs&&a.attrs.def)||a.rat)+((a.attrs&&a.attrs.phy)||a.rat)));
+      const usados=new Set(), dplan=[];
+      const tomar=(cond)=>{ const q=dPorDef.find(x=>!usados.has(x)&&(!cond||cond(x))); if(q)usados.add(q); return q; };
+      // marcas: cada cabeceador de la zona con el mejor defensor libre
+      plan.filter(z=>['punto penal','segundo palo','primer palo','área chica','medialuna'].indexOf(z.k)>=0).forEach(z=>{
+        const q=tomar(); if(q) dplan.push({q,marca:z.p});
+      });
+      const fijo=(x,y,k)=>{ const q=tomar(); if(q) dplan.push({q,x,y,k}); };
+      fijo(arcoX+dIn*1.0*xpm, mid+near*(GMp+0.8*ypm),'primer palo');
+      fijo(arcoX+dIn*5.5*xpm, mid-near*1.5*ypm,'zona');
+      fijo(arcoX+dIn*5.5*xpm, mid+near*2.5*ypm,'zona');
+      // uno arriba para la contra, el resto en la puerta del área
+      const sueltos=dPorDef.filter(x=>!usados.has(x));
+      sueltos.forEach((q,i)=>{ usados.add(q);
+        if(i===0&&sueltos.length>1) dplan.push({q,x:arcoX+dIn*(f.rightGL-f.leftGL)*0.52,y:mid,k:'arriba'});
+        else dplan.push({q,x:arcoX+dIn*20*xpm,y:mid+(i%2?1:-1)*4*ypm,k:'rebote'}); });
+      r._plan=plan; r._dplan=dplan;
+    }
+    let enZona=0, zonas=0;
+    r._plan.forEach(z=>{
+      if(z.p===kicker||z.p._sentOff) return;
+      const area=['punto penal','segundo palo','primer palo','área chica'].indexOf(z.k)>=0;
+      fm99Ir(z.p,z.x,z.y,dt,area?0.11:0.08);
+      if(area){ zonas++; if(Math.hypot(z.p.x-z.x,z.p.y-z.y)<=48) enZona++; }
     });
-    // La defensa marca a los que subieron y mete gente en el área
-    defien.forEach((q,i)=>{
-      if(q.isGK){ fmMove(q,(arcoX+(atacaDer?-24:24))-q.x,mid-q.y,dt,0.05); return; }
-      const marca=orden[i%Math.max(1,subenN)];
-      if(marca) fmMove(q,(marca.x+(atacaDer?18:-18))-q.x,(marca.y+16)-q.y,dt,0.055);
+    const listos=enZona>=Math.min(3,zonas);
+    r._dplan.forEach(d=>{
+      if(d.q._sentOff) return;
+      if(d.marca){ // del lado del arco y un poco hacia la pelota
+        const mx=d.marca.x+(atacaDer?22:-22), my=d.marca.y+(f.ball.y>d.marca.y?14:-14);
+        fm99Ir(d.q,mx,my,dt,0.085);
+      } else fm99Ir(d.q,d.x,d.y,dt,0.07);
+    });
+    defien.forEach(q=>{ if(q.isGK) fm99Ir(q,arcoX+dIn*0.7*xpm,mid+near*0.9*ypm,dt,0.05); });
+    r._listo=listos;
+    return;
+  }
+  if(kind==='goalkick'){
+    // ═══ FASE 99 · EL SAQUE DE ARCO ═══
+    // Corto: los centrales se abren a los costados del área y el arquero la
+    // juega. Largo (DT directo, o el rival presiona arriba): los de adelante
+    // se juntan en la mitad para pelear la pelota y el resto acompaña.
+    const sacan=atacan, presionan=defien;
+    const arcoPropio=atacaDer?f.leftGL:f.rightGL, dOut=atacaDer?1:-1;
+    const ypm=f.VH/68, xpm=(f.rightGL-f.leftGL)/105;
+    if(r._largo===undefined){
+      const prS=((r.team==='my')?(f.myProfEff||f.myProf):(f.oppProfEff||f.oppProf))||{};
+      const prD=((r.team==='my')?(f.oppProfEff||f.oppProf):(f.myProfEff||f.myProf))||{};
+      const pLargo=Math.max(0.10,Math.min(0.75,0.10+(prS.direct||0.5)*0.50+((prD.press||0.5)>0.65?0.15:0)));
+      r._largo=Math.random()<pLargo;
+      const delanteros=sacan.filter(p=>!p.isGK).sort((a,b)=>((a.hx-arcoPropio)*dOut)-((b.hx-arcoPropio)*dOut));
+      r._blanco=delanteros[delanteros.length-1]||null;
+    }
+    sacan.forEach(p=>{
+      if(p.isGK) return;
+      const prof=(p.hx-arcoPropio)*dOut;          // qué tan adelante juega en el dibujo
+      if(r._largo){
+        if(p===r._blanco) fm99Ir(p,f.VW/2+dOut*6*xpm,p.hy*0.4+mid*0.6,dt,0.07);
+        else fm99Ir(p,arcoPropio+dOut*Math.max(18*xpm,prof*0.85),p.hy,dt,0.05);
+      } else {
+        if(prof<(f.rightGL-f.leftGL)*0.28){        // los del fondo: se abren a los lados del área
+          const lado=p.hy<mid?-1:1;
+          fm99Ir(p,arcoPropio+dOut*10*xpm,mid+lado*21*ypm,dt,0.06);
+        } else fm99Ir(p,arcoPropio+dOut*Math.max(26*xpm,prof*0.8),p.hy,dt,0.05);
+      }
+    });
+    // los rivales afuera del área hasta que se patea (regla)
+    presionan.forEach(q=>{
+      if(q.isGK){ fm99Ir(q,q.hx,q.hy,dt,0.04); return; }
+      let tx=q.hx, ty=q.hy;
+      const lim=arcoPropio+dOut*17*xpm;
+      if((tx-lim)*dOut<0) tx=lim+dOut*2*xpm;
+      fm99Ir(q,tx,ty,dt,0.045);
     });
     return;
   }
@@ -27169,6 +27685,7 @@ function fmIdleMove(dt,festeja){
 function fmTick(dt){
   const f=FM,k=f.keys;
   if(f.phase==='paused'||f.phase==='help')return;
+  fm99Tick(dt);
   // El salto de presión se descuenta ACÁ, antes de los returns de pelota
   // parada y festejo: si no, un salto armado justo antes de que saliera la
   // pelota seguía entero después de un córner de 4 segundos.
@@ -27193,7 +27710,11 @@ function fmTick(dt){
     // córner se ejecutaba antes de que llegara nadie al área y el tiro libre
     // sin que se armara la barrera.
     const espera=SETPIECE_T[(f.restart&&f.restart.type)||'throw']||90;
-    if(f.phaseT>espera){fmDoRestart();f.phase='play';f.phaseT=0;}
+    // Fase 99: el córner sale cuando los de adentro llegaron a su zona (con un
+    // tope, para que no se congele si alguno no llega nunca).
+    const _rr=f.restart;
+    const _ya=(_rr&&_rr.type==='corner')?((f.phaseT>90&&_rr._listo)||f.phaseT>260):f.phaseT>espera;
+    if(_ya){fmDoRestart();f.phase='play';f.phaseT=0;}
     return;
   }
   if(f.phase==='goal_my'||f.phase==='goal_opp'){
@@ -27357,7 +27878,7 @@ function fmCtrl(dt){
         const _sv=Math.hypot(f.slide.dx,f.slide.dy)||1, _vv=Math.hypot(victim.vx||0,victim.vy||0);
         const _cos=_vv>0.3?((f.slide.dx*(victim.vx||0)+f.slide.dy*(victim.vy||0))/(_sv*_vv)):0;
         const _pF=_cos>0.5?0.85:_cos<-0.3?0.25:0.50;
-        if(Math.random()<_pF){ fmFoul('my',p,victim); return; }
+        if(Math.random()<_pF){ fmFoul('my',p,victim,'barrida'); return; }
         // choque limpio: el rival sigue con la pelota
       }
     }
@@ -28151,15 +28672,39 @@ function fmAI(p,team,idx,dt){
   // Córner: el que saca tira el centro al área
   if(p._forceCross&&bd<KICK_R+6&&!(b.air>2)){
     p._forceCross=0;
-    // Rutina de córner: primer palo / punto de penal / segundo palo
-    const routine=Math.random();
-    const depth=routine<0.35?0.07:routine<0.7?0.11:0.15;
-    const tx3=attRight?f.rightGL-fieldW*depth:f.leftGL+fieldW*depth;
-    const nearPost=b.y<mid; // saca desde el palo donde salió la pelota
-    const ty3=routine<0.35?(nearPost?mid-f.GH*0.5:mid+f.GH*0.5):routine<0.7?mid+(Math.random()*80-40):(nearPost?mid+f.GH*0.6:mid-f.GH*0.6);
+    // Fase 99: el centro va a UN compañero de los que subieron (el que mejor
+    // cabecea y está más libre), no a un punto fijo del área. Y llega a la
+    // altura de la cabeza JUSTO donde está él: antes el vuelo se calculaba
+    // para caer al 70% del recorrido, o sea ~8 metros antes del destino — el
+    // famoso centro "a la nada".
+    const CP=f._cornerPlan&&f._cornerPlan.team===team&&(f.ticks-f._cornerPlan.t)<60?f._cornerPlan.plan:null;
+    f._cornerPlan=null;
+    let blanco=null;
+    if(CP&&CP.length){
+      let mejor=-1e9;
+      CP.forEach(z=>{ const q=z.p; if(!q||q._sentOff||players.indexOf(q)<0) return;
+        let libre=999; rivals.forEach(o=>{ const d=Math.hypot(o.x-q.x,o.y-q.y); if(d<libre)libre=d; });
+        const a=q.attrs||{};
+        const sc=(a.phy||q.rat||70)*0.6+(a.sho||q.rat||70)*0.4+Math.min(90,libre)*0.45+Math.random()*22;
+        if(sc>mejor){ mejor=sc; blanco=q; } });
+    }
+    let tx3,ty3;
+    if(blanco){ tx3=blanco.x+(attRight?10:-10); ty3=blanco.y; blanco._recvTick=f.ticks; }
+    else {
+      const routine=Math.random();
+      const depth=routine<0.35?0.05:routine<0.7?0.09:0.12;
+      tx3=attRight?f.rightGL-fieldW*depth:f.leftGL+fieldW*depth;
+      const nearPost=b.y<mid;
+      ty3=routine<0.35?(nearPost?mid-f.GH*0.5:mid+f.GH*0.5):routine<0.7?mid+(Math.random()*80-40):(nearPost?mid+f.GH*0.6:mid-f.GH*0.6);
+    }
+    // el pateador erra según su pase
+    const pas=(p.attrs&&p.attrs.pas)||p.rat||70;
     const ddx=tx3-b.x,ddy=ty3-b.y,dd3=Math.hypot(ddx,ddy)||1;
-    b.vx=ddx/dd3*6.4;b.vy=ddy/dd3*6.4;
-    b.air=Math.min(80,dd3/6.4*0.7);
+    const err=(Math.random()*2-1)*(1.15-Math.min(95,pas)/100)*0.10;
+    const ce=Math.cos(err),se=Math.sin(err), ux=(ddx/dd3)*ce-(ddy/dd3)*se, uy=(ddx/dd3)*se+(ddy/dd3)*ce;
+    const v=6.4+dd3*0.0020;
+    b.vx=ux*v;b.vy=uy*v;
+    b.air=Math.min(200,dd3/v+7);      // a la altura de la cabeza al llegar (b.air<=13 se disputa)
     if(f.learn)f.learn.cCorner=(f.learn.cCorner||0)+1;
     f._lastTouch=team;p._kickT=9;
     fmSndKick(0.6);
@@ -28636,9 +29181,10 @@ function fmAI(p,team,idx,dt){
           else if(carrier&&carrier!==p){
             const _am=p._aggrMul||((p.roleStyle==='Destructor'||p.roleStyle==='Marcador')?1.5:1);
             const _area=Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.25;
-            if(Math.random()<FM76.faltaQuite*(0.6+prof.aggr)*_am*(_area?0.16:1)*Math.max(0.6,1-(defA-carA)/120)){
+            // Fase 99: el amonestado mide las entradas (si no, la segunda amarilla era moneda corriente)
+            if(Math.random()<FM76.faltaQuite*(0.6+prof.aggr)*_am*(_area?0.16:1)*Math.max(0.6,1-(defA-carA)/120)*(p._yc?0.45:1)){
               p._slideT=10;
-              fmFoul(team,p,carrier);
+              fmFoul(team,p,carrier,'entrada');
               return;
             }
           }
@@ -29028,7 +29574,8 @@ function fmTeamPass(team,fromIdx){
     if(d<40)return;
     const fwdScore=attRight?(t.x-b.x):(b.x-t.x);
     // ¿el receptor está en posición adelantada? (un equipo no le pasa a un offside)
-    const isOff=fmEsOffside(t.x,b.x,offLine,attRight,f);
+    const _exento=f._sinOffside&&f._sinOffside.team===team&&f.ticks<f._sinOffside.hasta;
+    const isOff=!_exento&&fmEsOffside(t.x,b.x,offLine,attRight,f);
     // apertura: cuántos rivales tiene cerca (preferir al que está SOLO)
     const near=rivals.reduce((a,m)=>a+(!m.isGK&&Math.hypot(m.x-t.x,m.y-t.y)<130?1:0),0);
     // ═══ LA LÍNEA DE PASE ═══
@@ -29118,11 +29665,13 @@ function fmTeamPass(team,fromIdx){
     if(bestOff){
       const to=team==='my'?'opp':'my';
       fmSndWhistle(1);
-      fmSetRestart('freekick',to,t.x,t.y,'FUERA DE JUEGO');
+      try{ fmBandera(t.x); }catch(e){}            // Fase 99: el asistente levanta la bandera
+      fmSetRestart('freekick',to,t.x,t.y,'🚩 FUERA DE JUEGO');
       f._lastTouch=team;fmStat(team,'off');fmSay('offside',team);
       if(FM.learn)FM.learn.offsides=(FM.learn.offsides||0)+1;
       return;
     }
+    if(f._sinOffside&&f._sinOffside.team===team) f._sinOffside=null;   // la exención es sólo para el primer pase
     const leadX=t.x+(t.vx||0)*12;
     const leadY=t.y+(t.vy||0)*12;
     const dx=leadX-b.x,dy=leadY-b.y,dd=Math.hypot(dx,dy)||1;
@@ -29851,7 +30400,7 @@ function fmDraw(){
     if(p._kickT>0)p._kickT-=1;
     if(p._diveT>0)p._diveT-=1;
     const kick=(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0;
-    const lying=(p._slideT||0)>0||(p._diveT||0)>0;
+    const lying=(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0;
 
     // Indicadores en el piso
     if(isCtrl){
@@ -30036,6 +30585,18 @@ function fmDraw(){
   f.opp.forEach(p=>ents.push({y:p.y,fn:()=>drawP3(p,false,false)}));
   f.my.forEach((p,i)=>ents.push({y:p.y,fn:()=>drawP3(p,!f.watch&&i===f.ctrl,!f.watch&&i===nextCtrl)}));
   ents.push({y:b.y,fn:drawBall3});
+  // Fase 99: el árbitro (con la tarjeta en alto) y los asistentes (bandera)
+  try{
+    const RF=fmRef();
+    const enAlto=(q,col,w,hh)=>{ const sc=kxAt(q.y)/s; const [qx,qy]=P(q.x,q.y); const hg=52*sc;
+      ctx.save(); ctx.fillStyle=col; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.lineWidth=1.2;
+      ctx.fillRect(qx+hg*0.10,qy-hg*1.22,w*hg,hh*hg); ctx.strokeRect(qx+hg*0.10,qy-hg*1.22,w*hg,hh*hg);
+      ctx.strokeStyle='#ddd'; ctx.lineWidth=Math.max(1,hg*0.03); ctx.beginPath(); ctx.moveTo(qx+hg*0.10,qy-hg*0.70); ctx.lineTo(qx+hg*0.10,qy-hg*1.22); ctx.stroke(); ctx.restore(); };
+    if(RF){
+      ents.push({y:RF.y,fn:()=>{ drawP3(RF,false,false); if(RF.card&&RF.card.t>0) enAlto(RF,RF.card.c==='y'?'#ffd400':'#e01e1e',0.20,0.28); }});
+      (f.asis||[]).forEach(A=>ents.push({y:A.y,fn:()=>{ drawP3(A,false,false); if(A.flag>0) enAlto(A,(Math.floor(A.flag/12)%2)?'#ffd400':'#e01e1e',0.30,0.22); }}));
+    }
+  }catch(e){}
   ents.sort((a,c)=>a.y-c.y);
   ents.forEach(e=>e.fn());
 
@@ -30234,6 +30795,13 @@ function fmEnd(){
   // ⚠️ Un amistoso jugado en el 11v11 caía en applyMatchResult como si fuera
   // de liga. Ahora se cierra igual que el simulado y corre la semana.
   if(m&&m.friendly){ _amisCerrar(m,gf,ga); relojTrasPartido(m); G.day=1; updateUI(); return; }
+  // Fase 99: las tarjetas y lesiones de TU plantel que pasaron en la cancha
+  // reemplazan al dado de applyMatchResult.
+  try{
+    const T=(f._tarj||[]).filter(t=>t.team==='my'&&t.id), rojas=T.filter(t=>t.c!=='y').map(t=>t.id);
+    G._fmRes={y:T.filter(t=>t.c==='y'&&rojas.indexOf(t.id)<0).map(t=>t.id), r:rojas};
+    G._fmLes=(f._lesiones||[]).filter(l=>l.team==='my'&&l.id).map(l=>({id:l.id,grav:l.grav,falta:l.falta}));
+  }catch(e){ G._fmRes=null; G._fmLes=null; }
   applyMatchResult(m,gf,ga,[]);updateUI();
   if(st)showSimStats(m,gf,ga,st,pt); else
   flash(gf>ga?'¡Victoria! '+gf+'-'+ga:gf===ga?'Empate '+gf+'-'+ga:'Derrota '+gf+'-'+ga,
@@ -30252,6 +30820,10 @@ function showSimStats(m,gf,ga,st,pt){
     ['Córners',st.my.corner,st.opp.corner,st.my.corner,st.opp.corner],
     ['Faltas',st.my.foul,st.opp.foul,st.my.foul,st.opp.foul],
     ['Offsides',st.my.off,st.opp.off,st.my.off,st.opp.off],
+    // Fase 99: las tarjetas y lesiones que pasaron en la cancha
+    ['🟨 Amarillas',st.my.yel||0,st.opp.yel||0,(st.my.yel||0)+0.001,(st.opp.yel||0)+0.001],
+    ['🟥 Rojas',st.my.red||0,st.opp.red||0,(st.my.red||0)+0.001,(st.opp.red||0)+0.001],
+    ['🚑 Lesionados',st.my.les||0,st.opp.les||0,(st.my.les||0)+0.001,(st.opp.les||0)+0.001],
   ];
   const resCol=gf>ga?'var(--green)':gf===ga?'var(--gold)':'var(--red)';
   showMod(`
@@ -30507,7 +31079,7 @@ function finChartBind(){
   cv.dataset.bound='1';
   const at=e=>{ const r=cv.getBoundingClientRect();
     const cx=(e.touches&&e.touches[0]?e.touches[0].clientX:e.clientX);
-    return cx-r.left; };
+    return (cx-r.left)/((window.celFactor?celFactor():1)||1); };
   const mover=e=>{ rFinChart(at(e)); if(e.cancelable)e.preventDefault(); };
   cv.addEventListener('mousemove',mover);
   cv.addEventListener('touchstart',mover,{passive:false});
@@ -34489,7 +35061,7 @@ function abrirDorsales(){
     <div class="mtitle">🎽 Dorsales</div>
     ${conf.length?`<div class="mpanel" style="padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--gold)">
       ⚠️ ${conf.length} para resolver. <button class="btn bg bs" style="margin-left:6px" onclick="dorsalesAuto()">Asignar automático</button></div>`:''}
-    <div style="max-height:46vh;overflow-y:auto">${G.squad.slice().sort((a,b)=>(+a.num||99)-(+b.num||99)).map(p=>`
+    <div style="max-height:calc(46*var(--vh,1vh));overflow-y:auto">${G.squad.slice().sort((a,b)=>(+a.num||99)-(+b.num||99)).map(p=>`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--bdr)">
         <input type="number" min="1" max="99" value="${+p.num||''}" onchange="dorsalCambiar('${p.id}',this.value)"
           style="width:52px;text-align:center;font-family:'Chakra Petch';font-weight:700;${malos.has(p.id)?'border-color:var(--red);color:var(--red)':''}">
@@ -34980,8 +35552,16 @@ function e3dJugadores(E){
       if(p._kickT>0)p._kickT-=1; if(p._diveT>0)p._diveT-=1;
       const [x,z]=toW(p);
       F.posar(J,{x,z,mv:Math.hypot(p.vx||0,p.vy||0),mira,gk:p.isGK,
-        tirado:(p._slideT||0)>0||(p._diveT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0});
+        tirado:(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0});
     });
+    // Fase 99: el árbitro y los asistentes
+    try{ const RF=fmRef();
+      if(RF){
+        if(!R.oficiales) _e3dSinAzar(()=>{ R.oficiales=[RF].concat(FM.asis||[]).map(o=>F.muneco(o,o.kit)); });
+        [RF].concat(FM.asis||[]).forEach((o,i)=>{ const J=R.oficiales[i]; if(!J)return; const [ox,oz]=toW(o);
+          F.posar(J,{x:ox,z:oz,mv:Math.hypot(o.vx||0,o.vy||0),mira,gk:false,tirado:false,patada:0}); });
+      }
+    }catch(e){}
     const b=FM.ball, [bx,bz]=toW(b);
     // misma curva que drawBall3, que llega a la altura de un jugador; en 3D se
     // ve chato, así que la parábola sube hasta ~5 m
@@ -35318,7 +35898,7 @@ function e3dVisor(titulo,armar,opts){
     host.addEventListener('pointermove',e=>{ if(!pts[e.pointerId])return; pts[e.pointerId]=[e.clientX,e.clientY];
       const k=Object.keys(pts);
       if(k.length===2&&pinch){ const [a,b]=k.map(x=>pts[x]); const d=Math.hypot(a[0]-b[0],a[1]-b[1]); V.dist=Math.max(V.min,Math.min(V.max,V.dist*pinch/d)); pinch=d; }
-      else if(drag){ V.az-= (e.clientX-drag[0])*0.006; V.el=Math.max(0.08,Math.min(1.45,V.el+(e.clientY-drag[1])*0.004)); drag=[e.clientX,e.clientY]; } });
+      else if(drag){ const _z=(window.celFactor?celFactor():1)||1; V.az-= (e.clientX-drag[0])/_z*0.006; V.el=Math.max(0.08,Math.min(1.45,V.el+(e.clientY-drag[1])/_z*0.004)); drag=[e.clientX,e.clientY]; } });
     const up=e=>{ delete pts[e.pointerId]; if(Object.keys(pts).length<2)pinch=null; if(!Object.keys(pts).length)drag=null; };
     host.addEventListener('pointerup',up); host.addEventListener('pointercancel',up);
     host.addEventListener('wheel',e=>{ e.preventDefault(); V.dist=Math.max(V.min,Math.min(V.max,V.dist*(1+Math.sign(e.deltaY)*0.08))); },{passive:false});

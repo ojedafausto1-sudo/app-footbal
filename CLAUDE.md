@@ -19,7 +19,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99` |
 
 ## Formato de `players-db.js`
 
@@ -8565,6 +8565,145 @@ caminos. Medido después: 0 partidos desfasados, un balance por mes.
 - **Técnicos de la base** (nombres, edades): es dato del extractor.
 
 `tests/fase98.js`, **30 checks**.
+
+## Fase 99: el celular con "versión para computadoras", y el árbitro del 11v11
+
+### ⚠️ El juego se veía chiquito porque el navegador pedía la versión de compu
+
+La captura del presidente (Plantel en el celular, todo diminuto) coincide
+**píxel a píxel con un render a 980 px**: es la **"Versión para computadoras"
+de Chrome** prendida. Con eso el navegador ignora el `<meta viewport>`, arma la
+página a 980 px y la achica a la pantalla. Ninguna regla del celular
+(`max-width:600px`, Fase 79) se aplicaba.
+
+El script **"FASE 99 · VISTA CELULAR"** (en el `<head>`, antes de cualquier
+dibujo) lo detecta y lo corrige:
+
+| | |
+|---|---|
+| detección | pantalla táctil **y** pantalla de teléfono (lado corto ≤600) **y** página de más de 640 px **y** página ≥1,3× la pantalla |
+| corrección | `zoom` en la raíz = ancho de la página / ancho real (≈2,4 en un teléfono de 412) |
+| media queries | se reescriben ×zoom (se evalúan contra los 980 px, no contra el ancho con zoom); el original se guarda en un `WeakMap` |
+| `vw` / `vh` | con zoom, un `100vw` mide 2,4 pantallas: las 15 que usaba el juego pasan por `--vw` / `--vh` |
+| a mano | botón **📱 Vista** del inicio: automática · celular · compu (`dt_vista` en `localStorage`, es del navegador) |
+
+- ⚠️ **Con zoom, `getBoundingClientRect` y `clientX` vienen en píxeles de
+  PANTALLA y los `style` en píxeles de PÁGINA**: hay que dividir por
+  `celFactor()`. Está hecho en el joystick del 11v11 (`FM._joyC` guarda el
+  zoom), el gráfico de patrimonio y el arrastre del 3D. Para el tamaño de la
+  ventana en unidades de página están `vpW()` / `vpH()` (las jugadas clave
+  las usan). Si agregás algo que lea la posición del dedo, ojo con esto.
+- Un `<style>` que se agregue después también se escala (un
+  `MutationObserver`, sólo con zoom puesto).
+- En un teléfono normal y en la compu **no cambia nada** (zoom 1, el test lo
+  verifica en los dos).
+
+Y tres cosas del celular que tapaban la cancha o la lista: el **botón del
+celular** pasó adentro de la barra de abajo, el **minimapa del 3D** arriba a
+la derecha (tapaba el botón B) y los **chips del DT** de la barra del modo
+mirar se esconden (pisaban el relato y los botones de velocidad).
+
+🛑 **No está probado en un teléfono de verdad**: la emulación usa el mismo
+ancho (980), la misma escala y el mismo tacto que la captura, pero eso es
+emulación.
+
+### Hay árbitro, y cada falta se juzga
+
+Antes la tarjeta era **un dado por falta** (18% amarilla, 0,9% roja), no se
+anotaba a quién, dos amarillas no daban roja y daba igual cómo había sido la
+falta. No había árbitro en la cancha ni lesiones en el partido.
+
+- **El árbitro** (`fmRef`): nombre del pool real de la liga, rigor
+  permisivo ×0,80 / equilibrado ×1,00 / estricto ×1,22, todo por **hash del
+  partido** (`_h99`) y no por `Math.random`: prenderlo no le corre el azar al
+  partido. Se mueve cerca de la jugada, del lado de adentro y un poco atrás
+  (`fmRefTick`), y la ropa sale de 5 opciones la que más se distingue de las
+  dos camisetas (con negro se confundía con Boca; nunca verde). Dos
+  asistentes siguen al penúltimo defensor sobre su línea y **levantan la
+  bandera** en el fuera de juego (`fmBandera`). Se dibujan en 2D y en 3D.
+- **`fmJuzgar`** mira la falta: de atrás, barrida, a toda velocidad
+  (`sev`); **último hombre** (lanzado con la pelota, cerca del arco, por el
+  medio y sin nadie en el medio) → roja 85%, salvo en el área yendo a la
+  pelota, que es amarilla (la regla de 2016); **cortar un ataque
+  prometedor** o un contraataque → amarilla táctica; tercera falta del mismo
+  → reiteración. Con una amarilla encima, una falta común o la reiteración
+  quedan en **advertencia**; la segunda amarilla de verdad es roja y el
+  jugador sale (`fmTarjeta`).
+- **Ventaja** (`fmVentajaPosible` / `fmVentajaTick`): si el que la recibió o
+  un compañero sigue con la pelota en campo rival y no es de roja, se sigue
+  jugando `FM99.ventaja` ticks; si la pelota se pierde, **se vuelve a la
+  falta**. La tarjeta va igual.
+- **En el área no hay tiro libre**: es penal (30-88% según la gravedad, más
+  si era gol cantado) o **¡siga!**.
+- **Lesiones** (`fmLesion`): una falta fuerte puede lesionar
+  (`lesBase + sev·lesSev`), y con las piernas abajo de 62 hay una chance
+  mínima sin contacto. El golpeado queda en el piso (`_tiradoT`) y el
+  lesionado de verdad corre menos (`_lesSpd`); el grave **sale en la
+  próxima pelota parada y entra uno del banco** (`fmSacarLesionados`), sin
+  heredar tarjeta ni lesión. Sin cambios, el equipo queda con diez.
+- **Pasa a la temporada** (`fmEnd` → `G._fmRes` / `G._fmLes`): las tarjetas y
+  lesiones de TU plantel en el 11v11 reemplazan al dado de
+  `applyMatchResult` (la quinta amarilla, la suspensión, las semanas afuera:
+  leve 1-2, media 2-6, grave 4+). El que entró del banco también puede ver
+  tarjeta (`_deBanco`). Un amistoso no cuenta, como siempre.
+- La planilla del partido suma 🟨 amarillas, 🟥 rojas y 🚑 lesionados.
+
+Medido en partidos mirados (4-16 por corrida): **amarillas 2,5-4,0 por
+partido** (real 3-5), **rojas 0-0,25** (real ~0,2), **lesionados 0,1-0,3**.
+⚠️ La primera versión daba **0,8 rojas y 3,4 lesionados por partido**: el
+último hombre era demasiado amplio, la segunda amarilla salía por cualquier
+cosa y la lesión sin contacto estaba 50 veces arriba. El amonestado ahora va
+con cuidado (×0,45 de chance de cometer falta), que es lo que pasa en la
+cancha.
+
+### El córner arma la jugada antes de patear
+
+Antes los jugadores iban a cualquier lado y el centro salía "a la nada".
+Ahora (`fmSetPieceShape`, rama `corner`):
+
+- **Patea el de mejor pase** que no está entre los cuatro mejores
+  cabeceadores. Los demás van **a su zona**: punto penal, segundo palo, primer
+  palo, área chica y la medialuna para el rebote; los dos más rápidos se
+  quedan atrás por la contra.
+- El orden es por juego aéreo **menos la distancia** (`lejos`): a 60 metros un
+  central no llega a tiempo y el córner se quedaba esperando.
+- **La defensa**: cada cabeceador con su marca (el mejor defensor al mejor
+  cabeceador), uno en el primer palo, dos en zona sobre el área chica, uno
+  arriba para la contra y el arquero en la línea.
+- **El centro no sale hasta que llegaron** (`_listo`: 3 de los 4 de adentro a
+  menos de 48 px), con un tope de 260 ticks.
+- **El centro va a uno de los que subieron** (`f._cornerPlan`) y la fuerza se
+  calcula para que **llegue a la altura de la cabeza** (`air` 2-13 donde está
+  él), con error según el pase.
+
+Medido: remate después del córner **42% → 53%**. Los goles de córner no
+subieron (~5% → ~4%, dentro del ruido): ahora defienden.
+
+### El saque de arco y el offside de la pelota parada
+
+- **Saque de arco corto o largo**: largo con un DT directo o si el rival
+  presiona arriba (`pLargo` 10-75%). Corto: los centrales se abren a los
+  lados del área. Largo: el de más arriba va a la mitad a pelearla. Los
+  rivales esperan afuera del área hasta que se patea.
+- ⚠️ **No hay fuera de juego en el primer pase de un lateral, un saque de
+  arco o un córner** (regla 11). `f._sinOffside` lo marca en `fmDoRestart` y
+  `fmTeamPass` lo respeta y lo borra.
+
+### Lo que NO se tocó, y por qué
+
+- **Movimientos y física de los jugadores**: no se cambió el motor de
+  movimiento. Las palancas de posición fallaron ocho veces documentadas
+  (Fases 25-32) y el amontonamiento ya se arregló con el arnés determinista
+  (Fase 67); medido de nuevo, la métrica del tercio no se movió con esta fase.
+  El arnés de la Fase 67 se perdió con un contenedor y sin él no se puede
+  afirmar un cambio de comportamiento.
+- **"Emular el FIFA"**: lo que se tomó es lo que se puede verificar — árbitro,
+  ventaja, tarjetas y lesiones que se ven, pelota parada armada.
+- **Pases y goles** quedan dentro del ruido del motor (pases ~470-550 contra
+  ~510 antes; goles ~2,5 contra ~2,8). Puede haber un poco menos de goles
+  porque desaparecieron los tiros libres dentro del área.
+
+`tests/fase99.js`, **33 checks**.
 
 ## Deploy
 
