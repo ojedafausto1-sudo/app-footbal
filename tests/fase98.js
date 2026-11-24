@@ -91,6 +91,10 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   // ── jugadas clave ──
   const J = await pg.evaluate(async () => {
     const o = {};
+    // el bucle de arriba corta sin contestar lo que dejó la última fecha (un dilema
+    // o una conferencia frenan el partido): se contesta antes de jugar
+    for (let k = 0; k < 10; k++) { let d; while ((d = dilemaBloqueante())) dilemaResolver(d.id, 0); (G.dilemas || []).filter(x => x.resuelto === null).forEach(x => { try { dilemaResolver(x.id, 0) } catch (e) { } }); if (prensaPend()) prensaResolver(0); else break; }
+    try { closeMod(); } catch (e) { }
     G.day = 7; playMatch(); try { closeMod(); } catch (e) { }
     await new Promise(r => setTimeout(r, 300));
     if (!LM) return { sinLM: true };

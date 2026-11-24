@@ -8705,6 +8705,13 @@ subieron (~5% → ~4%, dentro del ruido): ahora defienden.
 
 `tests/fase99.js`, **33 checks**.
 
+⚠️ **`fase98` se puso rojo en la regresión de esta fase y era el test**: el
+bucle de la temporada corta en la semana 30 sin contestar lo que dejó la
+última fecha, y un dilema o una conferencia abiertos frenan `playMatch` (las
+jugadas clave nunca arrancaban: 5 rojos juntos). La versión anterior
+(279ece6) caía igual en una de dos corridas. Ahora drena antes de jugar:
+3 de 3 en verde.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
