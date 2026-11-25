@@ -22,7 +22,7 @@ const DT_VER = 'v99-1';
 const CORE = 'dt-core-' + DT_VER;
 const HIST = 'dt-hist';
 const CORE_FILES = [
-  'director-tecnico.html', 'index.html', 'players-db.js', 'dts-db.js',
+  'director-tecnico.html', 'index.html', 'players-db.js', 'dts-db.js', 'dts-anios.js',
   'players-hist-index.js', 'three.min.js', 'manifest.webmanifest',
   'fonts/fonts.css', 'icons/icon-180.png', 'icons/icon-192.png',
   'icons/icon-512.png', 'icons/icon-512-maskable.png'

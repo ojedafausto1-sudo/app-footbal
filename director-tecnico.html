@@ -699,6 +699,7 @@ body.armando #btnPlay,body.armando #hmAlts,body.armando #hmMent,body.armando #hm
 </style>
 <script src="players-db.js" onerror="window.PLAYERS_DB=window.PLAYERS_DB||[]"></script>
 <script src="dts-db.js" onerror="window.DTS_DB=window.DTS_DB||[]"></script>
+<script src="dts-anios.js" onerror="window.DTS_ANIOS=window.DTS_ANIOS||{}"></script>
 <script>
 // ═══ TEMPORADAS HISTÓRICAS: los archivos se enchufan solos ═══
 // Cada `players-hist-AÑO.js` que el extractor deje en esta carpeta aparece en
@@ -1005,7 +1006,7 @@ body.bg3d-on .main{background:transparent}
   #fm-ov .fm-tl,#fm-ov .fm-tr{flex:1 1 0}
   #fm-ov .fm-btns{order:3;width:100%;gap:4px!important}
   #fm-ov .fm-btns button{flex:1 1 0;min-height:36px;font-size:14px!important;padding:4px 0!important}
-  #fm-msg{white-space:normal!important;width:94%;font-size:30px!important}
+  #fm-msg{white-space:normal!important;width:94%;font-size:24px!important;top:20%!important}
 }
 /* El teléfono acostado: 360px de alto y la cabecera + la barra se comían un
    tercio. Se achican, sin esconder nada que haga falta. */
@@ -2655,7 +2656,7 @@ function dtDeClub(club, liga){
 }
 function ensureDtPool(){
   if(!G)return;
-  if(G.dtPool&&G.dtPool.length){ try{ dtPoolMejorar(); }catch(e){} return; }
+  if(G.dtPool&&G.dtPool.length){ try{ dtPoolMejorar(); }catch(e){} try{ dtPoolAnio(); }catch(e){ console.error('dtPoolAnio',e); } return; }
   G.dtPool=[];
   DTS.forEach(d=>G.dtPool.push(Object.assign({},d,{club:null,until:0})));
   (window.DTS_DB||[]).forEach(r=>{
@@ -2668,6 +2669,7 @@ function ensureDtPool(){
     G.dtPool.push(dtDesdeBase(r));
   });
   try{ dtPoolMejorar(); }catch(e){}
+  try{ dtPoolAnio(); }catch(e){ console.error('dtPoolAnio',e); }
 }
 // ═══════════════════════════════════════════════════════════════════════
 // dtDemands  ≠  dtAskList   — NO CONFUNDIRLAS (ya hubo una colisión)
@@ -6377,6 +6379,10 @@ function initGame(teamId){
   G.modo = (typeof _modoSel!=='undefined'&&_modoSel==='dt')?'dt':'pres';
   if(typeof eventoActivo==='function'&&eventoActivo()){ G.dbSeason='LEY'; G.evento=eventoNombre(); }
   if(G.modo==='dt') try{ modoDTArmar(); }catch(e){ console.error('modoDTArmar',e); }
+  // Fase 100: el pool de técnicos se arma ACÁ y no en el primer dibujo: en un
+  // año viejo le pone a tu club el técnico de ese año (dtPoolAnio) antes de
+  // que la galería de técnicos anote al de 2026.
+  try{ ensureDtPool(); }catch(e){ console.error('dtPool',e); }
   G.tactic = {style:'Posesión', mentality:'Equilibrado'};
   G.day=1; G._daysTicked=0;
   G.socialPosts = [];
@@ -6391,7 +6397,7 @@ function initGame(teamId){
   document.title = 'Director Técnico — ' + tc.name;
   document.getElementById('intro').classList.remove('on');
   document.getElementById('game').classList.add('on');
-  lg('🏁','Temporada 2026 iniciada. ¡Arranca '+tc.name+'!');
+  lg('🏁','Temporada '+G.season+' iniciada. ¡Arranca '+tc.name+'!');
   lg('💰','Presupuesto inicial: '+fv(G.budget));
   updateUI();
   addPhoneMsg('board', 'Secretaría del Club', `📋 Presidente, quedó operativa su línea directa. Desde acá puede chatear con el DT y los jugadores, recibir ofertas de representantes y aprobar pedidos. El club es suyo.`, '🏛️');
@@ -7437,7 +7443,7 @@ function genOffers(){
   });
   // Unsolicited interest in unlisted stars
   const threshold=windowOpen?0.6:0.85, maxU=windowOpen?2:1;
-  G.squad.filter(p=>!p.injured&&p.rat>=78&&!p.listed&&Math.random()>threshold)
+  G.squad.filter(p=>!p.injured&&p.rat>=78&&!p.listed&&!recienFichado(p)&&Math.random()>threshold)
     .sort((a,b)=>b.rat-a.rat).slice(0,maxU)
     .forEach(p=>offers.push(buildBuyOffer(p,false)));
   return offers;
@@ -7467,7 +7473,7 @@ function weeklyOffers(){
   });
   // Occasional unsolicited star bid
   if(Math.random()<(windowOpen?0.25:0.10)){
-    const stars=G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)).sort((a,b)=>b.rat-a.rat);
+    const stars=G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)&&!recienFichado(p)).sort((a,b)=>b.rat-a.rat);
     if(stars.length){ const o=buildBuyOffer(stars[0],false); G.offers.push(o); lg('📨',`${o.from} pretende a ${stars[0].name} (${fv(o.amount)})`);
       addPhoneMsg('agent', o.from, `⭐ ${o.from} hizo una oferta no solicitada por <b>${stars[0].name}</b>: <b style="color:var(--gold)">${fv(o.amount)}</b>. Revisá las ofertas en el Mercado.`, '💎', {gotoTab:'mkt', tabIdx:3});
     }
@@ -7637,10 +7643,32 @@ function movAnota(tipo,p,det){
   if(!G||!p)return;
   det=det||{};
   G.movs=G.movs||[];
+  // Fase 100: la fecha de llegada viaja con el jugador (dos números). La lee
+  // recienFichado(): el que acaba de llegar no recibe ofertas.
+  if(tipo==='entra'){ p._llegoS=+G.season||0; p._llegoW=G.week||1; }
   G.movs.unshift({t:tipo,name:p.name,pos:p.pos,rat:p.rat,age:p.age,num:p.num,
     club:det.club||'',monto:det.monto||0,motivo:det.motivo||'',
     season:G.season,week:G.week||1});
   if(G.movs.length>240)G.movs.length=240;
+}
+// ═══ FASE 100: EL QUE RECIÉN LLEGA NO SE VENDE ═══
+// Fichabas a alguien y a la semana llegaba una oferta de un club más grande;
+// si la rechazabas, se rebelaba (rejOff). Ningún club arma una oferta por un
+// jugador que acaba de firmar en otro lado, y ningún jugador se enoja porque
+// no lo dejan irse del club al que acaba de elegir. Durante FICHADO_GRACIA
+// semanas no hay ofertas espontáneas, ni cláusula depositada, ni la oferta
+// irrechazable del dilema; si lo ponés vos en venta, las ofertas llegan igual
+// (y rechazarlas no lo enoja).
+const FICHADO_GRACIA=20;
+function semanasEnClub(p){
+  if(!p||p._llegoS===undefined||!G) return 999;
+  const d=((+G.season||0)-p._llegoS)*52+((G.week||1)-(p._llegoW||1));
+  return isFinite(d)?d:999;
+}
+function recienFichado(p){
+  if(!p) return false;
+  const sp=(G&&G.squad||[]).find(x=>x.id===p.id)||p;
+  return semanasEnClub(sp)<FICHADO_GRACIA;
 }
 // Rellena un puesto del once con el mejor disponible para esa posición
 function taparHueco(k){
@@ -8135,7 +8163,7 @@ function oportunidadesHTML(){
 //    deciden las ofertas que lleguen), rechazar lo deja tranquilo.
 function juntaVentas(dir){
   if(!G||!dir||aprobaciones().some(a=>a.k==='venta'))return;
-  const L=G.squad.filter(p=>!p.listed&&!p._ventaNo&&!p.onLoan&&!p.injured);
+  const L=G.squad.filter(p=>!p.listed&&!p._ventaNo&&!p.onLoan&&!p.injured&&!recienFichado(p));   // Fase 100
   if(L.length<20)return;
   const porLinea={}; G.squad.forEach(p=>{const g=pgr(p.pos);porLinea[g]=(porLinea[g]||0)+1;});
   const cupoL={ARQ:3,DEF:9,MED:9,DEL:6};
@@ -15485,7 +15513,8 @@ const DILEMAS=[
   },
   {
     id:'ofertaza',
-    cuando:()=>!!_dilFigura()&&(G.squad||[]).length>18,
+    // Fase 100: no por el que acaba de llegar.
+    cuando:()=>!!_dilFigura()&&!recienFichado(_dilFigura())&&(G.squad||[]).length>18,
     arma:()=>{ const p=_dilFigura(); const monto=Math.round(Math.min(p.val*2.1,Math.max(p.val*1.25,OFERTAZA_TOPE))*10)/10;
       const club=(typeof pickBuyer==='function')?pickBuyer(p.rat+4):'un club de Europa'; return {
       de:'Tu representante', ic:'💰',
@@ -19668,11 +19697,17 @@ function rivalReport(rival,oppRat,oppForm,oppTrait,S){
 // en cada apertura y el 11v11 decía "4-4-2" fijo, mientras la tarjeta del DT
 // rival decía otra cosa.
 function dtDelRival(rival){
-  let d=(typeof dtDeClub==='function'&&dtDeClub(rival,'Liga ARG'))||(typeof dtDeClub==='function'&&dtDeClub(rival))||null;
+  // Fase 100: en un año viejo el técnico sale del pool de ESE año (la base de
+  // DTs es la de 2026: el rival de 2000 salía con su técnico de hoy).
+  let d=null;
+  try{ if(typeof dtDelClubAnio==='function') d=dtDelClubAnio(rival); }catch(e){}
+  if(!d) d=(typeof dtDeClub==='function'&&!(typeof dtAnioMundo==='function'&&dtAnioMundo())&&(dtDeClub(rival,'Liga ARG')||dtDeClub(rival)))||null;
   if(!d||(G&&G.dt&&d.name===G.dt.name)){
     // Rival sin DT en la base (equipos de copa internacional inventados): se
     // le da uno estable por nombre, no uno distinto en cada partido.
-    const pool=DTS.filter(x=>!(G&&G.dt)||x.name!==G.dt.name);
+    const Y=(typeof dtAnioMundo==='function')?dtAnioMundo():0;
+    let pool=DTS.filter(x=>(!(G&&G.dt)||x.name!==G.dt.name)&&(!Y||dtDisponibleEn(x,Y)));
+    if(!pool.length) pool=DTS;
     d=pool[_dtSeed(rival||'rival')%pool.length];
   }
   return d;
@@ -25220,7 +25255,7 @@ function rejOff(i){
   G.offers.splice(i,1);
   // ── ¿se rebela? ──
   let rebelo=false;
-  if(p && !p.wantsOut && (p.rat||0)>78 && o.type!=='préstamo' && ofertaEsSalto(o,p) && Math.random()<0.60){
+  if(p && !p.wantsOut && (p.rat||0)>78 && o.type!=='préstamo' && !recienFichado(p) && ofertaEsSalto(o,p) && Math.random()<0.60){
     rebelo=true;
     p.morale=10;
     p.wantsOut=true;
@@ -25460,8 +25495,21 @@ let FM=null;
 // · faltaQuite: la falta sale de una ENTRADA que no llega a la pelota, no de
 //   estar cerca del que la lleva (antes: 2,5% por tick a un cuerpo de
 //   distancia, en el modo espectador; 0,5% por tick sobre tu jugador).
-const FM77={remArea:0.30};   // ver el remate en el área (fmAI)
-const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.12, alcance:1};
+// ⚠️ Fase 100: 0,30 → 1,0. El 0,30 se calibró cuando el que pasaba volvía a
+// decidir con la pelota todavía en el pie (250 "pases" por partido eran eso,
+// y buena parte de los remates también). Sin esa re-patada salían 7 remates.
+const FM77={remArea:1.0};   // ver el remate en el área (fmAI)
+// Fase 100: perillas de DECISIÓN del 11v11, afuera y mutables para medirlas con
+// el arnés (tools/arnes11.js --set="FM100.lejos=1.6"). Ver CLAUDE.md, Fase 100.
+// Medido con 12 partidos por combinación: subirlas topea en ~12 remates por
+// partido (lo que ata es cuántas veces hay alguien con la pelota en zona de
+// remate, no el dado). Con 1,8 / 2,5 / 2,2: ~2 goles, 7 remates de lejos y
+// ~30 gambetas por partido, contra 1,4 / 3,9 / 19 sin tocar.
+const FM100={lejos:2.5, media:1.8, gamb:2.2};
+// ⚠️ Fase 100: faltaQuite 0,12 → 0,07. Un partido mirado dura ~4 minutos
+// reales: 15 faltas eran un pitazo cada 15 segundos ("se cobra falta por
+// todo"). Con 0,07 quedan ~7, una cada medio minuto.
+const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.07, alcance:1};
 
 // ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
 // El apunte era mid + random*GH*0.62, o sea CENTRADO EN EL MEDIO DEL ARCO — y
@@ -25556,7 +25604,10 @@ function fmBodyBall(p,b,team){
       if(!esRemate){
         // Pelota suelta o retrocesión: simplemente la toma, sin drama ni stat.
         b.vx=0;b.vy=0;b.air=0;p._recvTick=f.ticks;     // va a las manos deslizándose (_gkHold)
-        f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16)};
+        // Fase 100: si ya la tenía, no se renueva la retención (si no, la
+        // pelota quieta en las manos se "volvía a agarrar" cada tick y no la
+        // soltaba nunca). t0/pausa: cuándo la agarró y cuánto la aguanta.
+        if(!(f._gkHold&&f._gkHold.gk===p)) f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16),t0:f.ticks,pausa:16};
         f._lastTouch=team;
         return true;
       }
@@ -25594,7 +25645,7 @@ function fmBodyBall(p,b,team){
         // corta como en la realidad en vez de seguir de largo con la pelota
         // suelta a un metro de sus manos.
         b.vx=0;b.vy=0;b.air=0;p._recvTick=f.ticks;     // va a las manos deslizándose (_gkHold)
-        f._gkHold={gk:p,until:f.ticks+34+~~(Math.random()*30)};
+        f._gkHold={gk:p,until:f.ticks+34+~~(Math.random()*30),t0:f.ticks,pausa:34};
         fmSay('catch');
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
       }else if(shooter&&shooter!==team&&Math.random()<0.55){
@@ -25889,7 +25940,7 @@ function startFullMatch(watch){
       </div>
       <!-- Táctica en vivo (estilo DLS: BALANCED) -->
       <button id="fm-tactic" onclick="fmCycleTactic()" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.3);color:#fff;font-family:'Rajdhani';font-size:11px;font-weight:800;letter-spacing:.15em;padding:4px 18px;border-radius:4px;cursor:pointer;z-index:11">EQUILIBRADO</button>
-      <div id="fm-msg" style="position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:900;color:#fff;text-shadow:0 0 24px rgba(0,0,0,.95);pointer-events:none;display:none;text-align:center;white-space:nowrap;line-height:1.25;z-index:20"></div>
+      <div id="fm-msg" style="position:absolute;top:24%;left:50%;transform:translate(-50%,-50%);font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:900;color:#fff;text-shadow:0 0 24px rgba(0,0,0,.95);pointer-events:none;display:none;text-align:center;white-space:nowrap;line-height:1.25;z-index:20"></div>
       <!-- RELATO / NARRACIÓN -->
       <div id="fm-relato" style="position:absolute;left:50%;bottom:52px;transform:translateX(-50%);max-width:88%;background:rgba(4,10,20,.82);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--gold);border-radius:7px;padding:5px 12px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:#fff;pointer-events:none;display:none;z-index:19;text-align:center;line-height:1.2"></div>
       <!-- PANTALLA DE CONTROLES (se muestra al arrancar) -->
@@ -26373,10 +26424,11 @@ function fmSetRestart(type,team,x,y,msg){
   const f=FM;if(!f)return;
   f.restart={type,team,x,y};
   f.phase='restart';f.phaseT=0;
-  fmMsg(msg);
+  fmMsg(msg); f._msgRest=!!msg;
 }
 function fmDoRestart(){
   const f=FM,r=f.restart;if(!r)return;
+  if(r.type!=='penalty') fmMsgFinRestart();
   const b=f.ball;
   // ═══ PENAL: lo patea el mejor rematador vs el arquero ═══
   if(r.type==='penalty'){
@@ -26454,6 +26506,9 @@ function fmDoRestart(){
       taker._recvTick=f.ticks;
       if(r.type==='corner')taker._forceCross=1;
     }
+    // Fase 100: el saque de arco que se armó en corto (los centrales abiertos)
+    // sale en corto si hay un compañero libre con la línea limpia.
+    if(r.type==='goalkick'&&!r._largo) taker._saqueCorto=f.ticks;
   }
   // Fase 99 · sin fuera de juego directo de un lateral, un saque de arco o
   // un córner (regla 11): el primer pase del que saca no puede ser offside.
@@ -26789,7 +26844,7 @@ const FM99={
   pAmaTemeraria:0.62,   // entrada temeraria
   pAmaTactica:0.66,     // cortar un ataque prometedor
   pAmaReiterada:0.55,   // tercera falta del mismo jugador
-  pAmaComun:0.05,       // una falta común
+  pAmaComun:0.12,       // una falta común (Fase 100: con la mitad de faltas, para que las amarillas no se caigan)
   lesBase:0.006, lesSev:0.035,  // lesión por la falta: base + por severidad
   lesSinContacto:0.0000006,     // por jugador y por tick, con las piernas abajo de 62
   ventaja:80,           // ticks que el árbitro espera para ver si la ventaja prospera
@@ -26834,11 +26889,45 @@ function fm99Tick(dt){
   for(const arr of [f.my,f.opp]) for(const p of arr){ if(p._tiradoT>0) p._tiradoT-=dt; }
   if(f.phase==='play'){
     fmVentajaTick();
+    fmOffsideTick();
     for(const [t,arr] of [['my',f.my],['opp',f.opp]]) for(const p of arr){
       if(p.isGK||p._lesion||p.stam===undefined||p.stam>=62) continue;
       if(Math.random()<FM99.lesSinContacto*dt) fmLesion(t,p,false);
     }
   } else if(f._sacar&&f._sacar.length&&f.phase!=='done') fmSacarLesionados();
+}
+// Fase 100: el offside pendiente (ver fmTeamPass). Se cobra cuando el que
+// estaba adelantado al salir el pase llega a la pelota.
+// Contadores del motor para el arnés (tools/arnes11.js): no gastan azar.
+function fmX(k){ const f=FM; if(f){ const X=f._x100||(f._x100={}); X[k]=(X[k]||0)+1; } }
+function fmOffsideTick(){
+  const f=FM, P=f&&f._offPend; if(!P) return;
+  const t=P.t, b=f.ball;
+  if(!P.n){ P.n=1; fmX('offPend'); }
+  if(f.phase!=='play'||f.ticks-P.desde>160||t._sentOff){ fmX('offFin'); f._offPend=null; return; }
+  if(f._lastTouch&&f._lastTouch!==P.team){ fmX('offRival'); f._offPend=null; return; }     // la jugó un rival
+  // la controló un compañero habilitado (la tiene pegada y lenta)
+  const d=Math.hypot(b.x-t.x,b.y-t.y);
+  if(f.poss&&f.poss!==t&&f.poss!==P.from&&f.possSide===P.team&&f.ticks-P.desde>4&&Math.hypot(b.x-f.poss.x,b.y-f.poss.y)<30&&Math.hypot(b.vx,b.vy)<2.5){ fmX('offOtro'); f._offPend=null; return; }
+  // ¿queda claro que la va a jugar él? (es el más cercano al punto donde se
+  // va a frenar la pelota): ahí levanta la bandera el asistente, como en la
+  // cancha, sin esperar al toque.
+  let claro=false;
+  if(f.ticks-P.desde>=10&&!(b.air>3)){
+    const sp=Math.hypot(b.vx,b.vy), k=sp>0.2?Math.min(140,sp/0.0092):0, rx=b.x+(sp?b.vx/sp:0)*k*0.8, ry=b.y+(sp?b.vy/sp:0)*k*0.8;
+    let best=null,bd=1e9; for(const q of [...f.my,...f.opp]){ if(q.isGK)continue; const dq=Math.hypot(q.x-rx,q.y-ry); if(dq<bd){bd=dq;best=q;} }
+    claro=best===t&&bd<220;
+  }
+  if(f.poss===t||(d<36&&!(b.air>3))||claro){
+    fmX('offSi');
+    const to=P.team==='my'?'opp':'my';
+    f._offPend=null;
+    fmSndWhistle(1); try{ fmBandera(t.x); }catch(e){}
+    fmSetRestart('freekick',to,t.x,t.y,'🚩 FUERA DE JUEGO');
+    f._lastTouch=P.team; fmStat(P.team,'off');
+    try{ fmRelato('🚩 Fuera de juego de '+t.name+': estaba adelantado cuando salió el pase.'); }catch(e){}
+    if(f.learn)f.learn.offsides=(f.learn.offsides||0)+1;
+  }
 }
 function fmRefTick(dt){
   const f=FM, R=fmRef(); if(!R) return;
@@ -27055,7 +27144,9 @@ function fmFoul(offTeam,offender,victim,tipo){
     fmSetRestart('penalty',to,defGoalX,f.VH/2,'⚽ PENAL');
     fmSay('penalty',to);
   } else {
-    fmSay('foul',offTeam);
+    // Fase 100: el relato dice quién, sobre quién y cómo (antes: "Falta de Boca").
+    const _como=J.barrida?'barrida':J.desdeAtras?'entrada de atrás':(J.sev>=0.75?'entrada fuerte':'le llegó tarde');
+    try{ fmRelato('Falta de '+(offender?offender.name:'')+' sobre '+victim.name+' ('+_como+').'); }catch(e){}
     fmSetRestart('freekick',to,victim.x,victim.y,'FALTA');
   }
   if(J.c) fmTarjeta(offTeam,offender,J.c,J.mot);
@@ -28406,6 +28497,88 @@ function dtProfBars(dt){
   return dtArqBadge(dt)+`<div style="display:grid;gap:2px;margin-top:5px">${row('Presión',pr.press)+row('Línea alta',pr.line)+row('Amplitud',pr.width)+row('Tempo',pr.tempo)+row('Directo',pr.direct)+row('Agresión',pr.aggr)+row('Contragolpe',pr.counter)+row('Bandas',pr.flank)+row('Oficio',pr.cyn)+row('Disciplina',pr.disc)}</div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 100 · EL ARQUERO SACA COMO UN ARQUERO
+// ═══════════════════════════════════════════════════════════════════════
+// Antes: si no encontraba un compañero a más de 4,5 m sin NADIE a 5 m, la
+// "reventaba" SIEMPRE al medio de la cancha con 22 ticks de vuelo — unos 6
+// metros por el aire y el resto rodando por el centro, donde la esperaban.
+// Medido con el arnés (16 partidos): el equipo que sacaba de arco tenía la
+// pelota 150 ticks después sólo el 68% de las veces, y el 27% la perdía en su
+// propio tercio.
+// Ahora elige como un arquero: un pase corto a quien está libre Y con la
+// línea limpia (la misma cuenta de "llega a cortarla" de fmTeamPass), y si no
+// hay, un pelotazo LARGO de verdad, por arriba y a una banda, que cae donde
+// está el compañero. El error sale de su atributo de saque (SAQ).
+function fmArqueroSaca(p,team,idx){
+  const f=FM,b=f.ball,isM=team==='my';
+  const squad=isM?f.my:f.opp, rivals=isM?f.opp:f.my;
+  const attRight=isM?f.myAttRight:!f.myAttRight;
+  const fw=f.rightGL-f.leftGL, mid=f.VH/2, ownGX=attRight?f.leftGL:f.rightGL, dirF=attRight?1:-1;
+  const prof=(isM?(f.myProfEff||f.myProf):(f.oppProfEff||f.oppProf))||{direct:.5,press:.5};
+  const profR=(isM?(f.oppProfEff||f.oppProf):(f.myProfEff||f.myProf))||{press:.5};
+  const saq=(p.attrs&&(p.attrs.SAQ||p.attrs.pas))||p.rat||70;
+  const corto=[], largo=[];
+  squad.forEach((t,i)=>{
+    if(t===p||t.isGK||t._sentOff)return;
+    const d=Math.hypot(t.x-b.x,t.y-b.y), adel=(t.x-ownGX)*dirF;
+    let rivCerca=1e9; for(const o of rivals){ if(o.isGK)continue; rivCerca=Math.min(rivCerca,Math.hypot(o.x-t.x,o.y-t.y)); }
+    // ¿la línea está limpia? (misma cuenta que fmTeamPass: ¿llega alguno a cortarla?)
+    const ux=(t.x-b.x)/(d||1), uy=(t.y-b.y)/(d||1), vel=Math.max(2.9,Math.min(9.6,2.1+d*0.0130));
+    let corta=0;
+    for(const m of rivals){ if(m.isGK)continue;
+      const pr=(m.x-b.x)*ux+(m.y-b.y)*uy; if(pr<14||pr>d+30)continue;
+      const pe=Math.abs((m.x-b.x)*uy-(m.y-b.y)*ux);
+      if(Math.max(0,pe-26)/Math.max(0.7,m.spd||1.5)<pr/vel+4)corta++; }
+    if(d>110&&d<fw*0.36&&adel<fw*0.50&&rivCerca>165&&!corta){
+      const banda=Math.abs(t.y-mid)/(f.VH/2);
+      corto.push({t,i,d,sc:rivCerca*0.15+banda*40-d*0.04+adel*0.05+Math.random()*25});
+    }
+    if(adel>fw*0.42){
+      // al pelotazo se lo gana el que está solo; en las bandas, no contra los centrales
+      let enCaida=0; for(const o of rivals){ if(!o.isGK&&Math.hypot(o.x-t.x,o.y-t.y)<200)enCaida++; }
+      const banda=Math.abs(t.y-mid)/(f.VH/2);
+      largo.push({t,i,d,sc:banda*120-enCaida*70+adel*0.08+Math.random()*30});
+    }
+  });
+  corto.sort((a,c)=>c.sc-a.sc); largo.sort((a,c)=>c.sc-a.sc);
+  // Salir jugando depende del técnico; contra un equipo que aprieta arriba, menos.
+  let pCorto=0.35+(1-(prof.direct||0.5))*0.55-((profR.press||0.5)>0.65?0.15:0);
+  if(p._saqueCorto&&f.ticks-p._saqueCorto<200) pCorto=Math.max(pCorto,0.85);   // el saque de arco que se armó en corto
+  let tipo='corto', T=null;
+  if(corto.length&&(Math.random()<pCorto||!largo.length)) T=corto[0];
+  else if(largo.length){ T=largo[0]; tipo='largo'; }
+  else if(corto.length) T=corto[0];
+  const g=f._x100gk||(f._x100gk=[]);
+  if(!T){
+    // nadie: la despeja lejos a la banda, nunca al medio
+    const ty=mid+(b.y<mid?-1:1)*f.VH*0.36, tx=ownGX+dirF*fw*0.55;
+    const dx=tx-b.x, dy=ty-b.y, dd=Math.hypot(dx,dy)||1, v=8.0+dd*0.0020;
+    b.vx=dx/dd*v; b.vy=dy/dd*v; b.air=Math.min(200,dd/v*0.9); tipo='despeje';
+  } else if(tipo==='corto'){
+    const t=T.t, lx=t.x+(t.vx||0)*8, ly=t.y+(t.vy||0)*8, dx=lx-b.x, dy=ly-b.y, dd=Math.hypot(dx,dy)||1;
+    const pwr=Math.max(2.4,Math.min(8.2,1.5+dd*0.0075))*(wxNow().passMul||1);
+    const er=(Math.random()*2-1)*0.05*(1.15-Math.min(95,saq)/100);
+    const c=Math.cos(er), s=Math.sin(er);
+    b.vx=((dx/dd)*c-(dy/dd)*s)*pwr; b.vy=((dx/dd)*s+(dy/dd)*c)*pwr; b.air=0;
+    t._recvTick=f.ticks;
+  } else {
+    const t=T.t, lx=t.x+(t.vx||0)*20, ly=t.y+(t.vy||0)*20, dx=lx-b.x, dy=ly-b.y, dd=Math.hypot(dx,dy)||1;
+    const er=(Math.random()*2-1)*0.09*(1.20-Math.min(95,saq)/100);
+    const c=Math.cos(er), s=Math.sin(er), v=7.6+dd*0.0022;
+    b.vx=((dx/dd)*c-(dy/dd)*s)*v; b.vy=((dx/dd)*s+(dy/dd)*c)*v;
+    b.air=Math.min(200,dd/v+4);                     // cae donde está él, no a mitad de camino
+    t._recvTick=f.ticks+~~(dd/v);
+  }
+  b.isShot=null;
+  // la suelta de verdad y no vuelve a agarrar su propio saque
+  if(f._gkHold&&f._gkHold.gk===p) f._gkHold=null;
+  f._gkPass={gk:p,until:f.ticks+30};
+  f._lastTouch=team; f._lastPasser={team,i:idx};
+  p._kickT=9; p._saqueCorto=0; fmSndKick(tipo==='corto'?0.4:0.7);
+  if(tipo!=='despeje') fmStat(team,'pass');
+  g.push({t:f.ticks,team,tipo});
+}
 function fmAI(p,team,idx,dt){
   const f=FM,b=f.ball,isM=team==='my';
   const players=isM?f.my:f.opp;
@@ -28464,34 +28637,15 @@ function fmAI(p,team,idx,dt){
       fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,returnSpd);
     }
 
-    if(bd<p.r+20&&!(b.air>2)){
-      // Distribución: DTs de posesión salen jugando en corto; los directos revientan
-      let shortT=null;
-      if(Math.random()<(0.25+(1-prof.direct)*0.5)){
-        let bestD=1e9;
-        players.forEach(q=>{
-          if(q.isGK)return;
-          const dGoal=attRight?q.x-f.leftGL:f.rightGL-q.x;
-          if(dGoal>fieldW*0.5)return;
-          if(rivals.some(o=>Math.hypot(o.x-q.x,o.y-q.y)<140))return;
-          const dd2=Math.hypot(q.x-b.x,q.y-b.y);
-          if(dd2>120&&dd2<bestD){bestD=dd2;shortT=q;}
-        });
-      }
-      if(shortT){
-        const dx=shortT.x-b.x,dy=shortT.y-b.y,dd=Math.hypot(dx,dy)||1;
-        const pw2=3.4+dd*0.008;
-        b.vx=(dx/dd)*pw2+fmErr(p,'vis',0.30);b.vy=(dy/dd)*pw2+fmErr(p,'vis',0.30);
-        shortT._recvTick=f.ticks;
-      }else{
-        const dx=tgx-b.x,dy=mid-b.y,dd=Math.hypot(dx,dy)||1;
-        b.vx=(dx/dd)*7.2+(Math.random()-.5)*0.9;
-        b.vy=(dy/dd)*5.8+(Math.random()-.5)*2.2;
-        b.air=22;
-      }
-      f._lastTouch=team;
-      p._kickT=9;
-      fmSndKick(0.6);
+    // Fase 100: la distribución vive en fmArqueroSaca (ver ahí lo que estaba
+    // mal). ⚠️ No mientras la tiene en las manos (fmBall se la vuelve a poner
+    // ahí cada tick) ni en los ticks siguientes a sacar: la pelota todavía está
+    // a su lado y volvía a "sacar" en cada tick — medido, 217 saques por partido.
+    // No se usa _kickT para esto: lo descuenta el DIBUJO, y sin dibujo no baja.
+    const _h=f._gkHold, _enMano=_h&&_h.gk===p&&(f.ticks-(_h.t0===undefined?f.ticks:_h.t0))<(_h.pausa||16);
+    if(bd<p.r+20&&!(b.air>2)&&!_enMano&&!(f.ticks-(p._sacoT||-99)<14)){
+      p._sacoT=f.ticks;
+      fmArqueroSaca(p,team,idx);
     }
     p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
     p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
@@ -28613,7 +28767,13 @@ function fmAI(p,team,idx,dt){
 
   // ═══ IA DE EQUIPO POR ESTADOS: atacamos / defendemos / pelota dividida ═══
   const ad=(!isM&&f.adapt&&!f.watch)?f.adapt:{laneShift:0,press:0,mark:0,gkDeep:0,aggr:prof.aggr*0.4};
-  const iHave=f.poss===p;
+  // ═══ FASE 100: EL QUE LA SOLTÓ NO LA VUELVE A JUGAR MIENTRAS SE VA ═══
+  // Después de patear, la pelota sigue unos ticks dentro de su radio y el
+  // motor lo seguía contando como "el que la tiene": volvía a decidir y la
+  // redirigía. Medido: 250 de los ~340 pases por partido eran eso — un pase
+  // que a los 3 ticks cambiaba de destino. Si la pelota se le quedó muerta
+  // al lado (pase flojo), sí la puede volver a jugar.
+  const iHave=f.poss===p&&!(p._solto&&f.ticks-p._solto<8&&Math.hypot(b.vx,b.vy)>1.2);
   const weHave=f.possSide===team&&!iHave;
   const theyHave=!!f.possSide&&f.possSide!==team;
   const isMid=['MC','MCO','MCD','MI','MD'].includes(p.role);
@@ -28917,7 +29077,7 @@ function fmAI(p,team,idx,dt){
         // quedaba a 141px) y el cabezazo defensivo no ocurría nunca.
         b.air=_pasado?Math.min(70,dd5/6.2*1.25):Math.min(70,dd5/6.2);
         if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.6);
+        f._lastTouch=team;p._kickT=9;p._solto=f.ticks;fmSndKick(0.6);
       } else if(_rodeado&&_enMiTercio&&!clearOnGoal&&Math.random()<FM13.despeje*dt&&fmSinSalida(team,p)){
         // ═══ DESPEJE DE EMERGENCIA ═══
         // Distinto de la rama de abajo: acá NO es "estoy apretado", es "estoy
@@ -28960,25 +29120,25 @@ function fmAI(p,team,idx,dt){
         const pwr=pica?(3.9+Math.random()*1.2):(8.5+Math.random()*3.0+Math.max(0,shotAttr-75)/13);
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.34);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.46);
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
-        b.isShot=team;                                   // es un remate, no un pase
+        b.isShot=team;p._solto=f.ticks;                  // es un remate, no un pase
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
-      } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0075+_pegada*0.0180)*dt){
+      } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0075+_pegada*0.0180)*FM100.media*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=9.2+Math.random()*2.4+Math.max(0,shotAttr-75)/13;
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
-        b.isShot=team;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');
-      } else if(longShot&&Math.random()<(0.0027+Math.max(0,shotAttr-74)/100*0.0140)*dt){
+        b.isShot=team;p._solto=f.ticks;
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');fmSay('longshot',team,p.name);
+      } else if(longShot&&Math.random()<(0.0027+Math.max(0,shotAttr-74)/100*0.0140)*FM100.lejos*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=10.8+Math.random()*1.8+Math.max(0,shotAttr-75)/11;
         b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
-        b.isShot=team;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');
+        b.isShot=team;p._solto=f.ticks;
+        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');fmSay('longshot',team,p.name);
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(!clearOnGoal&&!_mirando&&Math.random()<passBase*dt){
         // sólo pasa si NO está de cara al gol (si está solo, encara/define)
@@ -29040,11 +29200,11 @@ function fmAI(p,team,idx,dt){
           // EXITOSAS entre los dos equipos (los ~40 son los intentos), así que
           // 12 no está lejos.
           const _atrev=0.072+(1-(prof.direct||0.5))*0.060+Math.max(0,reg-70)/100*0.120;
-          if(nearD<p.r+nearDef.r+42&&Math.random()<_atrev*dt*(1+(reg-def)/40)){
+          if(nearD<p.r+nearDef.r+42&&Math.random()<_atrev*FM100.gamb*dt*(1+(reg-def)/40)){
             // lo pasó: acá SÍ la empuja al espacio y pica
             b.vx=dirF*5.6;b.vy=s*2.4;p._dribT=8;p._carryLong=f.ticks+16;
             if(f.learn)f.learn.dribbles=(f.learn.dribbles||0)+1;
-            if(Math.random()<0.5)fmSay('dribble',team,p.name);
+            fmSay('dribble',team,p.name);   // Fase 100: siempre (antes, la mitad: la gambeta pasaba sin que se notara)
           }
         } else {
           // ═══ CONDUCCIÓN ═══ El DT directo/rápido conduce más vertical.
@@ -29439,6 +29599,7 @@ function fmEsOffside(tx,ballX,offLine,attRight,f){
 }
 function fmTeamPass(team,fromIdx){
   const f=FM,b=f.ball;
+  { const _fp=(team==='my'?f.my:f.opp)[fromIdx]; if(_fp){ if(_fp._solto&&f.ticks-_fp._solto<8) fmX('repase'); _fp._solto=f.ticks; } }
   const isM=team==='my';
   const squad=isM?f.my:f.opp;
   const rivals=isM?f.opp:f.my;
@@ -29662,15 +29823,14 @@ function fmTeamPass(team,fromIdx){
     // ⚠️ OFFSIDE SIN DADO. Acá había un `Math.random()<0.65`: jugado el pase
     // al adelantado, el 35% de los fuera de juego no se cobraba. Si las dos
     // condiciones se cumplen en el frame del pase, es offside y se cobra.
-    if(bestOff){
-      const to=team==='my'?'opp':'my';
-      fmSndWhistle(1);
-      try{ fmBandera(t.x); }catch(e){}            // Fase 99: el asistente levanta la bandera
-      fmSetRestart('freekick',to,t.x,t.y,'🚩 FUERA DE JUEGO');
-      f._lastTouch=team;fmStat(team,'off');fmSay('offside',team);
-      if(FM.learn)FM.learn.offsides=(FM.learn.offsides||0)+1;
-      return;
-    }
+    // ═══ FASE 100: EL PASE SALE, Y EL OFFSIDE SE COBRA CUANDO PARTICIPA ═══
+    // Se cobraba en el instante en que el pasador DECIDÍA el pase, antes de
+    // patear: en la pantalla un jugador tenía la pelota y de golpe sonaba
+    // "FUERA DE JUEGO" sin que nadie hubiera recibido nada. La posición se
+    // sigue juzgando en el momento del pase (la regla), pero la sanción llega
+    // cuando el adelantado juega la pelota (fmOffsideTick). Si un rival la
+    // corta antes, o la agarra un compañero habilitado, no hay nada.
+    if(bestOff) f._offPend={team,t,from:fromP,desde:f.ticks};
     if(f._sinOffside&&f._sinOffside.team===team) f._sinOffside=null;   // la exención es sólo para el primer pase
     const leadX=t.x+(t.vx||0)*12;
     const leadY=t.y+(t.vy||0)*12;
@@ -30713,9 +30873,13 @@ function fmHUD(){
 
 function fmMsg(txt){
   const el=document.getElementById('fm-msg');if(!el)return;
+  if(FM) FM._msgRest=false;
   el.innerHTML=txt.replace(/\n/g,'<br>');el.style.display='block';
   clearTimeout(FM&&FM._mt);if(FM)FM._mt=setTimeout(()=>{if(el)el.style.display='none';},2200);
 }
+// Fase 100: el cartel de una pelota parada ("SAQUE DE BANDA", "FALTA"…) se va
+// apenas se reanuda: quedaba tapando la jugada hasta dos segundos después.
+function fmMsgFinRestart(){ if(!FM||!FM._msgRest)return; FM._msgRest=false; const el=document.getElementById('fm-msg'); if(el) el.style.display='none'; }
 // ═══ RELATO: narración de la jugada (ticker inferior) ═══
 function fmRelato(txt){
   const el=document.getElementById('fm-relato');if(!el||!FM)return;
@@ -30742,6 +30906,7 @@ function fmSay(kind,team,name){
     goalchance:[`¡MANO A MANO!`,`¡Solo frente al arquero!`,`¡Quedó de cara al gol!`],
     catch:[`La embolsó el arquero`,`Se queda con la pelota el arquero`,`La retiene el arquero`,`Atajó y la guardó`],
     chip:[`¡Se la picó!`,`¡Qué sutileza, la picó por arriba!`,`Vaselina de ${nm||club}`],
+    longshot:[`¡Le pegó de afuera ${nm||club}!`,`¡Remate de media distancia de ${nm||club}!`,`¡Probó de lejos ${nm||club}!`],
   }[kind];
   if(R)fmRelato(R[~~(Math.random()*R.length)]);
 }
@@ -33128,7 +33293,7 @@ function weeklyAITransfers(){
   if(Math.random()<(anyRebel?0.14:0.05)){
     // ⚠️ Sólo puede irse por cláusula el que TIENE cláusula: si no, el club
     // que lo quiere tiene que venir a negociar con vos como cualquiera.
-    const targets=G.squad.filter(p=>p.rat>=78&&!(p.club||'').includes('prést')&&clauseOf(p)>0);
+    const targets=G.squad.filter(p=>p.rat>=78&&!(p.club||'').includes('prést')&&clauseOf(p)>0&&!recienFichado(p));
     if(targets.length){
       targets.sort((a,b)=>(b.rat+(b.wantsOut?8:0))-(a.rat+(a.wantsOut?8:0)));
       const p=targets[~~(Math.random()*Math.min(3,targets.length))];
@@ -36150,7 +36315,12 @@ function fm3DEncender(){
     _FM3.on=true; _FM3.gaps=[]; _FM3.prev=0; _FM3.modo=_fm3CamIni(); cv.style.visibility='hidden';
     const b=document.getElementById('fm-3dbtn'); if(b) b.textContent='2D';
     const fit=()=>{ if(!_FM3.R)return; const w=gm.clientWidth,h=gm.clientHeight; _FM3.R.setSize(w,h,false);
-      _FM3.R.domElement.style.width='100%'; _FM3.R.domElement.style.height='100%'; _FM3.cam.aspect=w/Math.max(1,h); _FM3.cam.updateProjectionMatrix(); };
+      _FM3.R.domElement.style.width='100%'; _FM3.R.domElement.style.height='100%'; _FM3.cam.aspect=w/Math.max(1,h);
+      // Fase 100: con el celular parado, 38° de vertical son ~19° de
+      // horizontal: se veía una franja de 17 metros de cancha. Se abre el lente
+      // para que el horizontal no baje de 44°.
+      const asp=_FM3.cam.aspect; _FM3.cam.fov=asp<1?Math.min(80,2*Math.atan(Math.tan(22*Math.PI/180)/asp)*180/Math.PI):38;
+      _FM3.cam.updateProjectionMatrix(); };
     fit(); _FM3.fit=fit; window.addEventListener('resize',fit);
     fm3DFrame();
   });
@@ -36166,13 +36336,25 @@ function fm3DFrame(){
   // La cámara de juego sigue a TU jugador (con la pelota adentro del cuadro);
   // mirando, sigue a la pelota.
   if(juego){ const [px,pz]=_FM3.J.toW(c), k=_FM3.modo==='detras'?0.3:0.6; tx=px*k+b[0]*(1-k); tz=pz*k+b[1]*(1-k); }
-  _FM3.cx+=(tx-_FM3.cx)*0.08; _FM3.cz+=(tz-_FM3.cz)*0.08;
+  // Fase 100: en una pelota parada la pelota salta de lugar (saque de arco,
+  // tiro libre lejos); con el 8% fijo la cámara tardaba un segundo en llegar y
+  // la jugada arrancaba fuera de cuadro.
+  const _sig=Math.hypot(tx-_FM3.cx,tz-_FM3.cz)>18?0.22:0.08;
+  _FM3.cx+=(tx-_FM3.cx)*_sig; _FM3.cz+=(tz-_FM3.cz)*_sig;
   const cx=_FM3.cx, cz=Math.max(-A/2+4,Math.min(A/2-4,_FM3.cz));
   // ⚠️ 'cerca' y 'tv' miran desde la platea (+z hacia -z): arriba en la
   // pantalla es -y en el motor, igual que en 2D, así el joystick no cambia.
   // 'detras' da vuelta los ejes y fmCtrl rota la entrada (fm3DEntrada).
-  if(_FM3.modo==='tv'){ cam.position.set(cx*0.85,23,A/2+E.M+3); cam.lookAt(cx*0.85,0,b[1]*0.25); }
-  else if(_FM3.modo==='cerca'){ cam.position.set(cx,13.5,cz+24); cam.lookAt(cx,0.5,cz-3); }
+  // Fase 100: con el celular PARADO la cancha no entra de costado. La de TV
+  // pasa a mirar desde atrás y arriba de la jugada (el largo de la cancha va
+  // a lo alto de la pantalla, que es lo que sobra) y sigue a la pelota entera:
+  // con el 85% de antes, la pelota se iba del cuadro cerca de las áreas.
+  const vert=_fm3Vertical();
+  if(_FM3.modo==='tv'){
+    if(vert){ const d=FM.myAttRight?1:-1; cam.position.set(Math.max(-E.L/2-26,Math.min(E.L/2+26,cx-d*26)),34,cz*0.5); cam.lookAt(cx+d*3,0,cz*0.85); }
+    else { cam.position.set(cx*0.85,23,A/2+E.M+3); cam.lookAt(cx*0.85,0,b[1]*0.25); }
+  }
+  else if(_FM3.modo==='cerca'){ if(vert){ cam.position.set(cx,22,cz+19); cam.lookAt(cx,0.5,cz-2); } else { cam.position.set(cx,13.5,cz+24); cam.lookAt(cx,0.5,cz-3); } }
   else { const d=FM.myAttRight?1:-1; cam.position.set(cx-d*24,11,cz); cam.lookAt(cx+d*12,0.5,cz); }
   if(_FM3.lluvia) _FM3.lluvia.tick(cx,cz);
   _e3dSinAzar(()=>_FM3.R.render(E.S,cam));
@@ -36194,8 +36376,10 @@ function fm3DFrame(){
     if(g>60){ _FM3.avisoLento=true; try{ fmMsg('El 3D va lento en este equipo\n<span style="font-size:16px">tocá 2D arriba</span>'); }catch(e){} } }
 }
 // La entrada del joystick, en ejes del MOTOR. Sólo la cámara 'detras' rota.
+function _fm3Vertical(){ return !!(_FM3.cam&&_FM3.cam.aspect<0.9); }
 function fm3DEntrada(ix,iy){
-  if(!_FM3.on||_FM3.modo!=='detras'||!FM)return null;
+  // Fase 100: la de TV con el celular parado también mira desde atrás.
+  if(!_FM3.on||!FM||!(_FM3.modo==='detras'||(_FM3.modo==='tv'&&_fm3Vertical())))return null;
   // mirando hacia +x: arriba de la pantalla es +x y la derecha es +y
   return FM.myAttRight?[-iy,ix]:[iy,-ix];
 }
@@ -37354,6 +37538,215 @@ function dtPoolTemporada(){
       philosophy:'Primera experiencia',arq:k,club:null,league:null,until:0,generado:true,liga0:lg});
   }
   if(G.dtPool.length>1100) G.dtPool=G.dtPool.filter(d=>d.club||!d.generado||(d.age||50)<70);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 100: LOS TÉCNICOS DE CADA AÑO
+// ═══════════════════════════════════════════════════════════════════════
+// Jugando el 2000 el mercado ofrecía a Guardiola, que ese año era el cinco del
+// Barcelona, y el Atlético arrancaba con Simeone, que jugaba en la Lazio. El
+// pool de técnicos era el de 2026 para todos los años.
+//
+// Dos fuentes, y ninguna se escribe en el pool:
+//   · DTS_ANIOS (dts-anios.js, lo genera tools/dts-anios.js cruzando los
+//     nombres con las 26 temporadas de la carpeta): año de nacimiento y último
+//     año en que el técnico figura como JUGADOR. Ese año, y antes de cumplir
+//     DT_EDAD_MIN, no dirige.
+//   · DT_EPOCA: los técnicos que marcaron una época, con sus clubes por
+//     temporada (año de arranque de la temporada, como las de TM). Ese año el
+//     club arranca con ÉL. Cada club de la tabla está verificado contra las
+//     temporadas de la carpeta (los nombres son los de la base: 'Arsenal Fc',
+//     'Man Utd', 'Sevilla FC').
+// El que ese año no puede dirigir se guarda en G.dtEspera y vuelve al pool el
+// año en que se retira como jugador. Con la base de hoy no cambia nada.
+const DT_EDAD_MIN=34;
+const DT_LIBRES_ANIO=110;   // libres mínimos en el mercado de un año viejo
+// Técnicos jóvenes que nunca jugaron en primera (no figuran en las temporadas
+// y la base no trae su edad): sin esto les tocaba una edad sorteada y Farioli
+// (1989) dirigía al Porto en 2000.
+const DT_NAC_EXTRA={'Francesco Farioli':1989,'Kim Hellberg':1988,'Pellegrino Matarazzo':1977};
+// [nombre, nac, nacimiento, retiro (0 = sigue), [[club, liga, desde, hasta]…]]
+const DT_EPOCA=[
+['Alex Ferguson','ESC',1941,2012,[['Man Utd','Premier',1986,2012]]],
+['Arsène Wenger','FRA',1949,2017,[['Arsenal Fc','Premier',1996,2017]]],
+['Carlos Bianchi','ARG',1949,2014,[['Boca Juniors','Liga ARG',2000,2001],['Boca Juniors','Liga ARG',2003,2003]]],
+['Vicente del Bosque','ESP',1950,2016,[['Real Madrid','España',1999,2002]]],
+['Alfio Basile','ARG',1943,2011,[['Boca Juniors','Liga ARG',2005,2005]]],
+['Pep Guardiola','ESP',1971,0,[['Barcelona','España',2008,2011],['Bayern Munich','Alemania',2013,2015],['Man City','Premier',2016,2025]]],
+['Jürgen Klopp','ALE',1967,0,[['Mainz','Alemania',2001,2007],['Dortmund','Alemania',2008,2014],['Liverpool','Premier',2015,2023]]],
+['Diego Simeone','ARG',1970,0,[['Atlético','España',2011,2025]]],
+['José Mourinho','POR',1963,0,[['Porto','Portugal',2002,2003],['Chelsea','Premier',2004,2006],['Inter','Italia',2008,2009],['Real Madrid','España',2010,2012],['Chelsea','Premier',2013,2014],['Man Utd','Premier',2016,2017],['Tottenham','Premier',2020,2020],['Roma','Italia',2021,2023]]],
+['Carlo Ancelotti','ITA',1959,0,[['Juventus','Italia',2000,2000],['AC Milan','Italia',2001,2008],['Chelsea','Premier',2009,2010],['PSG','Francia',2012,2012],['Real Madrid','España',2013,2014],['Bayern Munich','Alemania',2016,2016],['Napoli','Italia',2018,2018],['Everton','Premier',2020,2020],['Real Madrid','España',2021,2024]]],
+['Frank Rijkaard','HOL',1962,2013,[['Barcelona','España',2003,2007]]],
+['Rafael Benítez','ESP',1960,0,[['Valencia','España',2001,2003],['Liverpool','Premier',2004,2009],['Napoli','Italia',2013,2014]]],
+['Fabio Capello','ITA',1946,2017,[['Roma','Italia',2000,2003],['Juventus','Italia',2004,2005],['Real Madrid','España',2006,2006]]],
+['Marcello Lippi','ITA',1948,2019,[['Juventus','Italia',2001,2003]]],
+['Ottmar Hitzfeld','SUI',1949,2014,[['Bayern Munich','Alemania',2000,2003],['Bayern Munich','Alemania',2007,2007]]],
+['Gérard Houllier','FRA',1947,2011,[['Liverpool','Premier',2000,2003]]],
+['Claudio Ranieri','ITA',1951,0,[['Chelsea','Premier',2000,2003],['Valencia','España',2004,2004],['Juventus','Italia',2007,2008],['Roma','Italia',2009,2010],['Leicester City','Premier',2015,2016]]],
+['Marcelo Gallardo','ARG',1976,0,[['River Plate','Liga ARG',2014,2022],['River Plate','Liga ARG',2024,2025]]],
+['Luis Enrique','ESP',1970,0,[['Roma','Italia',2011,2011],['Barcelona','España',2014,2016],['PSG','Francia',2023,2025]]],
+['Zinedine Zidane','FRA',1972,0,[['Real Madrid','España',2016,2017],['Real Madrid','España',2019,2020]]],
+['Mikel Arteta','ESP',1982,0,[['Arsenal Fc','Premier',2020,2025]]],
+['Xabi Alonso','ESP',1981,0,[['Leverkusen','Alemania',2022,2024],['Real Madrid','España',2025,2025]]],
+['Mauricio Pochettino','ARG',1972,0,[['Southampton','Premier',2013,2013],['Tottenham','Premier',2014,2018],['PSG','Francia',2021,2021],['Chelsea','Premier',2023,2023]]],
+['Antonio Conte','ITA',1969,0,[['Juventus','Italia',2011,2013],['Chelsea','Premier',2016,2017],['Inter','Italia',2019,2020],['Napoli','Italia',2024,2025]]],
+['Massimiliano Allegri','ITA',1967,0,[['AC Milan','Italia',2010,2013],['Juventus','Italia',2014,2018],['Juventus','Italia',2021,2023],['AC Milan','Italia',2025,2025]]],
+['Thomas Tuchel','ALE',1973,0,[['Mainz','Alemania',2009,2013],['Dortmund','Alemania',2015,2016],['PSG','Francia',2018,2020],['Chelsea','Premier',2021,2021],['Bayern Munich','Alemania',2023,2023]]],
+['Unai Emery','ESP',1971,0,[['Valencia','España',2008,2011],['Sevilla FC','España',2013,2015],['PSG','Francia',2016,2017],['Villarreal','España',2020,2021],['Aston Villa','Premier',2023,2025]]],
+['Marcelo Bielsa','ARG',1955,0,[['Athletic Club','España',2011,2012],['Leeds','Premier',2018,2021]]],
+['Jupp Heynckes','ALE',1945,2017,[['Bayern Munich','Alemania',2011,2012],['Bayern Munich','Alemania',2017,2017]]],
+['Louis van Gaal','HOL',1951,2022,[['Bayern Munich','Alemania',2009,2010],['Man Utd','Premier',2014,2015]]],
+['Manuel Pellegrini','CHI',1953,0,[['Villarreal','España',2004,2008],['Real Madrid','España',2009,2009],['Man City','Premier',2013,2015]]],
+['Ernesto Valverde','ESP',1964,0,[['Athletic Club','España',2013,2016],['Barcelona','España',2017,2019],['Athletic Club','España',2022,2025]]],
+['Jorge Jesus','POR',1954,0,[['Benfica','Portugal',2009,2014],['Benfica','Portugal',2020,2021]]],
+['Abel Ferreira','POR',1978,0,[['Palmeiras','Brasil',2021,2025]]],
+['Hansi Flick','ALE',1965,0,[['Barcelona','España',2024,2025]]],
+];
+let _dtEpocaMap=null;
+function _dtEpoca(name){
+  if(!_dtEpocaMap){ _dtEpocaMap={}; DT_EPOCA.forEach(e=>{ _dtEpocaMap[e[0]]=e; }); }
+  return _dtEpocaMap[name]||null;
+}
+// El año del mundo que se está jugando, o 0 si es el de hoy (o un evento de
+// leyendas, que mezcla años). En una partida que arrancó en 2000, la tercera
+// temporada es 2002: la base es la del 2000, pero los técnicos envejecen.
+function dtAnioMundo(){
+  const b=+anioBase();
+  if(!isFinite(b)||b>=2026) return 0;
+  const s=+(G&&G.season);
+  return (isFinite(s)&&s>=b)?s:b;
+}
+// La edad que la base o la lista curada dicen que tiene HOY (2026). La del
+// pool puede ser un número sorteado por hash (dtDesdeBase): ésa no sirve.
+let _dtEdadMap=null;
+function _dtEdad26(name){
+  if(!_dtEdadMap){ _dtEdadMap={};
+    (window.DTS_DB||[]).forEach(r=>{ if(r[1]>0&&!_dtEdadMap[r[0]]) _dtEdadMap[r[0]]=r[1]; });
+    (typeof DTS!=='undefined'?DTS:[]).forEach(d=>{ if(d.age>0) _dtEdadMap[d.name]=d.age; }); }
+  return _dtEdadMap[name]||0;
+}
+function dtNacimiento(d){
+  if(!d||!d.name) return 0;
+  const e=_dtEpoca(d.name); if(e) return e[2];
+  const a=(window.DTS_ANIOS||{})[d.name]; if(a) return a[0];
+  if(DT_NAC_EXTRA[d.name]) return DT_NAC_EXTRA[d.name];
+  const e26=_dtEdad26(d.name); if(e26) return 2026-e26;
+  // Sin dato: la misma edad que le sortea dtDesdeBase (45-64 en 2026). Así
+  // Farioli (nacido en 1989) no dirige al Porto en 2000 sólo porque la base
+  // no trae su edad: queda repartido como el resto de los técnicos.
+  if(!d.generado&&!d.exJugador&&!d.custom) return 2026-(45+_dtSeed(d.name)%20);
+  return 0;
+}
+// ¿Ese año podía dirigir? Los técnicos inventados por el juego (recién
+// recibidos, ex jugadores tuyos, el propio) siempre: son de ese mundo.
+function dtDisponibleEn(d,Y){
+  if(!Y||!d) return true;
+  if(d.generado||d.exJugador||d.custom||d.customProf) return true;
+  const e=_dtEpoca(d.name); if(e&&e[3]&&Y>e[3]) return false;
+  const a=(window.DTS_ANIOS||{})[d.name]; if(a&&a[1]>=Y) return false;
+  const n=dtNacimiento(d); if(n&&Y-n<DT_EDAD_MIN) return false;
+  return true;
+}
+function _dtDesdeEpoca(e){
+  const [name,nat,nac,,T]=e, s=_dtSeed(name);
+  const cur=(typeof DTS!=='undefined')&&DTS.find(d=>d.name===name);
+  if(cur) return Object.assign({},cur,{club:null,league:null,until:0});
+  let rat=84;
+  try{ const nv=Math.max(...T.map(t=>nivelClub(t[0])||0)); if(nv) rat=Math.max(78,Math.min(92,Math.round(73+(nv-63)*0.6))); }catch(er){}
+  const k=(typeof ARQ_DT!=='undefined'&&ARQ_DT[name])||null;
+  const fs=(k&&typeof ARQ!=='undefined'&&ARQ[k]&&ARQ[k].forms)||_DT_ST;
+  return {name,nat,age:2026-nac,rat,style:fs[s%fs.length],str:'Técnico de época',
+    salary:Math.round(60+rat-70+s%30),trait:_DT_TR[s%_DT_TR.length],
+    wantedPos:[_DT_POS[s%_DT_POS.length],_DT_POS[(s+3)%_DT_POS.length]],
+    philosophy:'Un ciclo que hizo historia',club:null,league:null,until:0,epoca:true};
+}
+function _dtMismaLiga(a,b){ if(!a||!b) return true; return a===b||ligaDB(a)===ligaDB(b); }
+// Le busca técnico a un club que ese año no tiene: un libre de su nivel, de
+// preferencia de la liga, determinista por club (recargar no lo cambia).
+function _dtAsignarLibre(pool,club,lg,Y){
+  let obj=70; try{ const nv=nivelClub(club); if(nv) obj=Math.max(55,Math.min(90,Math.round(70+(nv-63)*0.6))); }catch(e){}
+  let locales=[]; try{ locales=natsLocales(lg)||[]; }catch(e){}
+  const h=_dtSeed(club);
+  const c=pool.filter(x=>!x.club).map(x=>({x,
+    s:Math.abs((x.rat||65)-obj)+((_dtSeed(x.name)+h)%7)*0.6-(locales.includes(x.nat)?4:0)}))
+    .sort((a,b)=>a.s-b.s);
+  if(!c.length) return null;
+  const d=c[0].x; d.club=club; d.league=lg||d.league; d.until=Y+2;
+  return d;
+}
+function dtPoolAnio(){
+  if(!G||!G.dtPool) return;
+  const Y=dtAnioMundo();
+  if(!Y||G._dtPoolAnio===Y) return;
+  // La primera vez de una partida NUEVA también le pone el técnico de ese año
+  // a tu club; en una partida en curso tu técnico no se toca.
+  const inicio=G._dtPoolAnio===undefined&&!(G.history||[]).length&&!(G.calendar||[]).some(m=>m.played&&!m.friendly&&!m.amistoso);
+  G._dtPoolAnio=Y;
+  const todos=G.dtPool.concat(G.dtEspera||[]), nom=new Set(todos.map(d=>d.name));
+  DT_EPOCA.forEach(e=>{ if(!nom.has(e[0])){ todos.push(_dtDesdeEpoca(e)); nom.add(e[0]); } });
+  const pool=[], espera=[];
+  todos.forEach(d=>{
+    if(!dtDisponibleEn(d,Y)){ d.club=null; d.until=0; espera.push(d); return; }
+    const n=dtNacimiento(d); if(n) d.age=Y-n;
+    pool.push(d);
+  });
+  // Los de época: ese año están donde estaban, y en ningún otro club.
+  DT_EPOCA.forEach(e=>{
+    const d=pool.find(x=>x.name===e[0]); if(!d) return;
+    const t=e[4].find(t=>Y>=t[2]&&Y<=t[3]);
+    if(G.dt&&d.name===G.dt.name&&!inicio) return;        // lo contrataste vos
+    if(!t||(t[0]===G.teamName&&!inicio)){ d.club=null; d.until=0; return; }
+    pool.forEach(x=>{ if(x!==d&&x.club===t[0]&&_dtMismaLiga(x.league,t[1])){ x.club=null; x.until=0; } });
+    d.club=t[0]; d.league=t[1]; d.until=t[3]+1;
+  });
+  G.dtPool=pool; G.dtEspera=espera;
+  // Los clubes de tu liga que ese año quedaron sin técnico.
+  let lg=null, clubs=[]; try{ lg=ligaMia(); clubs=clubesDeLiga(lg)||[]; }catch(e){}
+  clubs.forEach(c=>{ if(c===G.teamName) return;
+    if(!pool.some(x=>x.club===c&&_dtMismaLiga(x.league,lg))) _dtAsignarLibre(pool,c,lg,Y); });
+  // Con los de 2026 que ese año no dirigían afuera, el mercado se queda corto:
+  // se completa con técnicos recién recibidos (nombres del pool de ese año).
+  const libres=pool.filter(x=>!x.club).length;
+  if(libres<DT_LIBRES_ANIO){
+    const ligas=(typeof ligasJugables==='function')?ligasJugables():['Liga ARG'];
+    const nArq=(typeof ARQ!=='undefined')?Object.keys(ARQ):['equilibrado'];
+    for(let i=0,f=0;i<DT_LIBRES_ANIO-libres&&f<400;f++){
+      const lg2=ligas[(i+f)%ligas.length]; let name; try{ name=_youthName(lg2); }catch(e){ break; }
+      if(pool.some(x=>x.name===name)||espera.some(x=>x.name===name)) continue;
+      const s=_dtSeed(name), k=nArq[s%nArq.length], base=(typeof ARQ!=='undefined'&&ARQ[k])||{n:'Equilibrado',forms:['4-4-2']};
+      pool.push({name,age:38+s%26,nat:((typeof LIGA_NAT!=='undefined'&&LIGA_NAT[lg2])||['ARG'])[0],rat:58+s%21,
+        style:(base.forms||['4-4-2'])[s%((base.forms||[1]).length)],str:'Ex jugador · '+(base.n||k),
+        trait:_DT_TR[s%_DT_TR.length],salary:20+s%40,wantedPos:[_DT_POS[s%_DT_POS.length],_DT_POS[(s+3)%_DT_POS.length]],
+        philosophy:'Recién recibido, con hambre',arq:k,club:null,league:null,until:0,generado:true,liga0:lg2});
+      i++;
+    }
+  }
+  // Tu técnico al arrancar: el de ese año, no el de 2026.
+  if(inicio&&G.dt&&G.modo!=='dt'&&!G.dt.custom&&!G.dt.customProf){
+    const mio=pool.find(x=>x.club===G.teamName&&_dtMismaLiga(x.league,lg)&&_dtEpoca(x.name));
+    if(mio||!dtDisponibleEn(G.dt,Y)){
+      pool.forEach(x=>{ if(x.club===G.teamName&&x!==mio&&_dtMismaLiga(x.league,lg)){ x.club=null; x.until=0; } });
+      const d=mio||_dtAsignarLibre(pool,G.teamName,lg,Y);
+      if(d){ G.dt=Object.assign({},d); delete G.dt.attrs; if(d.attrs) G.dt.attrs=Object.assign({},d.attrs); }
+    } else {
+      const n=dtNacimiento(G.dt); if(n) G.dt.age=Y-n;
+    }
+  }
+}
+// La IA del mercado de técnicos y el rival de cada partido leen el pool: en
+// un año viejo, a un club de afuera que no tiene técnico se le asigna uno la
+// primera vez que se lo cruza (y queda: no cambia de partido a partido).
+// ⚠️ Con la liga: hay homónimos (Racing Club en Argentina y Uruguay) y el
+// Racing de 2000 salía con el técnico del Racing uruguayo de hoy.
+function dtDelClubAnio(club){
+  if(!G||!G.dtPool||!dtAnioMundo()) return null;
+  let lg=null;
+  try{ const mi=ligaMia(); if((clubesDeLiga(mi)||[]).includes(club)) lg=mi; }catch(e){}
+  if(!lg) try{ lg=_ligaMap()[club]||null; }catch(e){}
+  const d=G.dtPool.find(x=>x.club===club&&_dtMismaLiga(x.league,lg));
+  if(d) return d;
+  return _dtAsignarLibre(G.dtPool,club,lg,dtAnioMundo());
 }
 
 // ═══════════════════════════════════════════════════════════════════════
