@@ -113,7 +113,9 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   const p90 = x => (x / Math.max(1, m.min) * 90).toFixed(1);
   chk('los dos partidos llegan al final', m.min >= 170, m.min + ' min');
   chk('nunca 8+ de un equipo amontonados (antes: 1,4% del partido, hasta 10)', m.monton <= 10, m.monton + ' ticks · máximo ' + m.max + ' juntos');
-  chk('remates en rango sano', p90(m.shots) >= 12 && p90(m.shots) <= 45, p90(m.shots) + ' por 90');
+  // Fase 100: sin los re-toques del pasador los remates reales son ~12 por
+  // partido (el arnés, 20 partidos); dos partidos sueltos bajan a 10.
+  chk('remates en rango sano', p90(m.shots) >= 6 && p90(m.shots) <= 45, p90(m.shots) + ' por 90');
   // Fase 100: sin los re-toques del pasador los pases reales son ~150 por 90.
   chk('el partido se juega', p90(m.pases) > 100 && p90(m.goles) <= 7, p90(m.pases) + ' pases · ' + p90(m.goles) + ' goles por 90');
   chk('0 errores de página', errs.length === 0, errs.slice(0, 3).join(' | '));

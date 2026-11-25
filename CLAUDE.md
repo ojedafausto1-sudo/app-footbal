@@ -8891,6 +8891,14 @@ de un grande; a la semana 22, 20 de 30.
 
 `tests/fase100.js`, **68 checks** (corre el arnés: tarda ~3 minutos).
 
+⚠️ **Tres tests viejos tenían el bug adentro del umbral**: `fase76` pedía más
+de 200 pases por 90, `fase77` más de 250 y `fase99` más de 280 — los tres
+contaban los re-toques. Ahora piden más de 100. `fase76` (faltas ≥1) y
+`fase77` (remates ≥6) se aflojaron por la calibración nueva: dos partidos
+sueltos dan 2 faltas o 10 remates. 🔶 `fase76` ("a las manos deslizándose",
+104 px en un tick) sigue siendo el flaky de la Fase 79: 1 de 3 corridas, el
+mismo número exacto, y no se reproduce en 6 partidos sueltos.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.

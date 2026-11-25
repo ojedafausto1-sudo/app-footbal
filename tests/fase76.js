@@ -120,7 +120,10 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   chk('0 goles fuera del arco real', m11.fuera === 0, m11.goals + ' goles');
   chk('0 saltos de la pelota en juego', m11.saltos === 0, m11.saltos);
   chk('la pelota llega a las manos deslizándose, nunca de un salto largo', m11.manosMax < 70, m11.manos + ' toques · máx ' + Math.round(m11.manosMax) + ' px por tick');
-  chk('faltas en rango (no se cobra todo)', p90(m11.fouls) >= 3 && p90(m11.fouls) <= 24, p90(m11.fouls) + ' por 90');
+  // Fase 100: faltaQuite bajó a 0,07 (el partido va comprimido: 20 faltas por 90
+  // eran una cada 11 segundos de pantalla). Con el arnés dan ~7 por partido;
+  // dos partidos sueltos pueden dar 2.
+  chk('faltas en rango (no se cobra todo)', p90(m11.fouls) >= 1 && p90(m11.fouls) <= 24, p90(m11.fouls) + ' por 90');
   // Fase 100: ~2/3 de los "pases" eran el mismo jugador re-pateando en el tick
   // siguiente; los reales son ~150 por 90. El umbral de 200 contaba el bug.
   chk('el partido se juega: hay pases y remates', p90(m11.pases) > 100 && p90(m11.shots) > 8, p90(m11.pases) + ' pases · ' + p90(m11.shots) + ' remates por 90');
