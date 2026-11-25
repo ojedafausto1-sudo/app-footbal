@@ -12,6 +12,8 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `players-db.js` | Base de jugadores generada por el extractor |
 | `players-hist-AÑO.js` | Planteles de una temporada vieja. **Opcional**: el que esté en la carpeta aparece solo en el selector (Fase 39) |
 | `dts-db.js` | Base de DTs, **curada a mano** (no pisarla sin fusionar) |
+| `dts-anios.js` | Año de nacimiento y último año como jugador de 323 técnicos. **Lo genera `tools/dts-anios.js`** cruzando los nombres con las temporadas históricas (Fase 100) |
+| `tools/arnes11.js` | El arnés determinista del 11v11, **en el repo** (Fase 100): `node tools/arnes11.js 12 1 --json=a.json` y `--vs=a.json` para comparar |
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
@@ -19,7 +21,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100` |
 
 ## Formato de `players-db.js`
 
@@ -8711,6 +8713,183 @@ bucle de la temporada corta en la semana 30 sin contestar lo que dejó la
 jugadas clave nunca arrancaban: 5 rojos juntos). La versión anterior
 (279ece6) caía igual en una de dos corridas. Ahora drena antes de jugar:
 3 de 3 en verde.
+
+## Fase 100: el 11v11 que se entiende, los técnicos de cada año y el recién fichado
+
+El presidente: *"no se entiende nada, el arquero hace mal los saques de arco,
+se cobra falta o offside a cualquier cosa, se amontonan todos, no hay regates
+ni tiros de lejos; en el 2000 me sale Guardiola para dirigir; contrato un
+jugador y al toque me llega una oferta de un club mejor, y si no la acepto se
+enoja"*.
+
+### El arnés está en el repo
+
+`tools/arnes11.js` es el arnés determinista de la Fase 67, que se había
+perdido con un contenedor: siembra el azar antes de `startFullMatch` y en la
+entrada de `fmInit`, arma el partido con el rAF síncrono, juega con
+`watch=true` y cuenta reanudaciones, faltas, fuera de juego, remates por zona
+(área / borde / lejos), gambetas, saques del arquero (¿la conservó 150 ticks
+después? ¿la perdió en su propio tercio?), el tercio, los montones de 8+ y un
+hash cada 500 ticks. `--det` corre todo dos veces y compara el hash;
+`--vs=otra.json` compara partido a partido y cuenta signos.
+
+### ⚠️ Dos tercios de los "pases" eran el mismo jugador pateando de nuevo
+
+`iHave` (`f.poss===p`) seguía siendo verdad el tick siguiente al pase, porque
+la pelota todavía estaba a menos de 46 px del pie: el pasador "la tenía" y
+volvía a decidir, y muchas veces volvía a patear. Medido con un contador en
+`fmTeamPass`: **~250 re-toques por partido** sobre ~400 pases. Inflaba pases,
+remates, fuera de juego (cada re-toque al adelantado era un offside) y el
+"amontonamiento" visual. Ahora el que acaba de soltar (`p._solto`, puesto en
+los pases, los tres remates y el centro) no la tiene mientras la pelota se
+aleja rápido. Re-toques: **1,2 por partido**.
+
+⚠️ **Todas las cuentas de pases y remates del 11v11 anteriores a esta fase
+están infladas** por este bug. Los ~150 pases de ahora son los de siempre; lo
+que se fue es la duplicación.
+
+### El arquero saca, una vez y bien
+
+Antes el arquero con la pelota en las manos salía de la retención y la
+reventaba al frente (`sacaPeligro` 27%: la perdía en su tercio). Un primer
+arreglo lo hizo patear **217 veces por partido**: `fmBodyBall` le renovaba
+`_gkHold` en cada tick y la falta del rival que llegaba se cobraba en cadena
+(73 faltas). Ahora:
+
+- La retención tiene **pausa** (`t0`/`pausa`: 16 ticks atrapando, 34 después
+  de una atajada) y no se renueva si ya la tiene; al sacar suelta la retención
+  y pone `_gkPass`.
+- `fmArqueroSaca` elige: **corto** a un compañero libre en campo propio
+  (sin rival a 165 px y con la línea limpia, la misma proyección que
+  `fmTeamPass`) o **largo** a uno adelantado, con preferencia por la banda.
+  La chance de corto sale del perfil del DT (`direct`) y de la presión rival;
+  después de un saque de arco corto (`_saqueCorto`) es casi seguro.
+
+| saque del arquero | antes | ahora |
+|---|---|---|
+| la conservó | 68% | **87%** |
+| la perdió en su tercio | 27% | **8%** |
+| saques por partido | — | 13 |
+
+### El fuera de juego se cobra cuando juega el adelantado
+
+Se cobraba en el frame del pase: el asistente levantaba la bandera aunque la
+pelota la cortara un rival o la agarrara un compañero habilitado. Ahora el
+pase al adelantado se patea igual y queda `f._offPend`; `fmOffsideTick` (en
+`fm99Tick`) lo resuelve: se anula si la toca un rival, si la controla un
+compañero habilitado o a los 160 ticks; se cobra si la toca el adelantado, si
+llega a 36 px, o si **queda claro** que es para él (el más cercano a donde
+se va a frenar la pelota). Con eso sale el relato "🚩 Fuera de juego de X:
+estaba adelantado cuando salió el pase".
+
+Medido: **0,3 por partido** (2 pases a adelantados: 0,9 los corta un rival,
+0,6 se vencen). ⚠️ Es **poco** contra los 4-5 reales; antes eran 4,9 pero la
+mitad eran re-toques. Si hay que subirlo, el lugar es el radio de "claro" o el
+`0.66` de "el pasador ve el offside", no la validación.
+
+### Faltas, remates de lejos y gambetas
+
+- `FM76.faltaQuite` 0,12 → **0,07**, `FM99.pAmaComun` 0,05 → 0,12.
+  ⚠️ **El partido va comprimido**: 90 minutos son ~3,75 minutos reales, así
+  que 20 faltas "reales" serían una cada 11 segundos de pantalla. Lo que se
+  ve es la densidad, no el número por 90. Medido: 10,4 → **6,9 por partido**.
+- `FM100={lejos:2.5, media:1.8, gamb:2.2}` multiplica el remate de afuera, el
+  de media distancia y el atrevimiento del gambeteador; `FM77.remArea` vuelve
+  a **1,0** (el 0,30 de la Fase 77 compensaba remates que ahora no existen).
+- El relato los cuenta: cada gambeta ("se saca a uno de encima"), cada remate
+  de lejos y cada falta con cómo fue (barrida, de atrás, fuerte, tarde).
+
+⚠️ **Los remates tienen techo geométrico** (~12 por partido): subir los
+multiplicadores más allá no los mueve. Es la ley de la Fase 30 otra vez.
+
+Medido con el arnés, 16-20 partidos de Boca mirados:
+
+| | antes | ahora |
+|---|---|---|
+| goles | 2,69 (mediana 3) | 1,85 (mediana 2) |
+| remates | 27,3 | 11,7 |
+| remates de lejos | 10,5 | 7,0 |
+| gambetas | 34,6 | 32,5 |
+| faltas | 10,4 | 6,9 |
+| fuera de juego | 4,9 | 0,3 |
+| parado | 25% | 19% |
+| montones de 8+ | 0 | 0 |
+
+⚠️ **Los goles quedaron abajo** (1,85 contra 2,5-3,0) y no se compensó: con
+±0,4 de ruido a 20 partidos, subirlos a ojo es lo que este archivo prohíbe.
+
+### El amontonamiento era la cámara
+
+Medido: 0% de ticks con 8+ de un equipo juntos, el tercio en 10,7. Lo que
+mostraba la captura es el celular **parado**: la cámara de TV con 38° de
+vertical son ~19° de horizontal, una franja de 17 metros. Ahora:
+
+- Con `aspect<1` el lente se abre hasta 44° de horizontal (`fit`).
+- La cámara de TV con el celular parado (`_fm3Vertical`) mira **desde atrás y
+  arriba** de la jugada (el largo de la cancha va a lo alto de la pantalla) y
+  `fm3DEntrada` rota el joystick igual que en la cámara `detras`.
+- La de juego (`cerca`) sube y se aleja.
+- Si la pelota salta más de 18 m (pelota parada) la cámara la sigue al 22% y
+  no al 8%: arrancaba la jugada fuera de cuadro.
+- El cartel grande (`#fm-msg`) bajó de 35% a 24% (20% en el celular) y se
+  borra al reanudar (`fmMsgFinRestart`): quedaba encima de la jugada.
+
+🛑 El modo JUGAR (con `watch=false`) no se midió: el arnés mira.
+
+### Los técnicos de cada año
+
+Jugando 2000 el mercado ofrecía a Guardiola (era el cinco del Barcelona) y el
+Atlético arrancaba con Simeone (jugaba en la Lazio). Dos fuentes:
+
+- **`dts-anios.js`**, generado por `tools/dts-anios.js`: para cada técnico de
+  `dts-db.js` y de la lista curada, el año de nacimiento y el último año en que
+  figura como JUGADOR en las temporadas de la carpeta. **323 de 700.** Los
+  homónimos se agrupan por año de nacimiento y gana el grupo que coincide con
+  la nacionalidad y la edad curada (que está corrida 1-3 años en varios:
+  Battaglia figura con 43 y nació en 1980); si quedan dos, no se anota nada.
+- **`DT_EPOCA`**: 35 técnicos con sus clubes por temporada (Ferguson en el
+  United 1986-2012, Wenger en el Arsenal, Bianchi en Boca 2000-01 y 2003, Del
+  Bosque en el Madrid 1999-2002, Guardiola, Klopp, Simeone, Mourinho,
+  Ancelotti, Gallardo…). ⚠️ Es memoria, no un dato extraído; los CLUBES están
+  verificados contra las 26 temporadas (los nombres son los de la base:
+  `'Arsenal Fc'`, `'Man Utd'`, `'Sevilla FC'`, `'Leicester City'`).
+
+`dtPoolAnio()` (desde `ensureDtPool`, una vez por año del mundo, que es
+`G.season` en una partida histórica) saca del pool al que ese año jugaba o
+tenía menos de `DT_EDAD_MIN`=34 (a `G.dtEspera`, de donde vuelve el año que
+se retira), pone a cada técnico de época en su club de ese año, cubre los
+clubes de tu liga que quedaron sin técnico con un libre de su nivel y
+completa el mercado con recién recibidos hasta `DT_LIBRES_ANIO`. En una
+partida **nueva** tu club arranca con el técnico de ese año: Boca 2000 con
+Bianchi, Real Madrid con Del Bosque, Man Utd con Ferguson, Barcelona 2008 con
+Guardiola, Atlético 2012 con Simeone, River 2015 con Gallardo. Tu técnico no
+se toca después.
+
+- ⚠️ **Sin dato de edad** se usa la que ya le sorteaba `dtDesdeBase` (45-64
+  en 2026). Un técnico joven que nunca jugó en primera puede colarse en un año
+  viejo: los tres conocidos están en `DT_NAC_EXTRA` (Farioli dirigía el Porto
+  en 2000).
+- `dtDelRival` y `dtDelClubAnio` buscan por club **y liga** (el Racing de 2000
+  salía con el técnico del Racing uruguayo) y le asignan un técnico al club de
+  afuera la primera vez que te lo cruzás. Con la base de hoy no cambia nada.
+- Los clubes que no están en `DT_EPOCA` conservan el técnico de 2026 si ese
+  año podía dirigir (Barros Schelotto en Vélez 2015): no hay de dónde sacar
+  los técnicos reales de cada año. El arreglo de verdad sería extraer
+  `/mitarbeiterhistorie/verein/{id}` de TM, una página por club; no se pudo
+  ni probar (el proxy da 403).
+
+### El recién fichado no se vende
+
+`movAnota('entra')` —el embudo de todo lo que entra— le pone `_llegoS` /
+`_llegoW` al jugador; `recienFichado(p)` dice si lleva menos de
+`FICHADO_GRACIA`=20 semanas. Mientras tanto no hay ofertas espontáneas
+(`genOffers`, `weeklyOffers`), ni cláusula depositada, ni "oferta
+irrechazable", ni el Director Deportivo lo propone para vender, y **rechazar
+una oferta no lo rebela** (`rejOff`). Si lo ponés vos en venta, las ofertas
+llegan igual. Medido: 0 ofertas en 600 sorteos y 0 rebeliones en 30 rechazos
+de un grande; a la semana 22, 20 de 30.
+
+`tests/fase100.js`, **68 checks** (corre el arnés: tarda ~3 minutos).
 
 ## Deploy
 
