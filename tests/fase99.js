@@ -213,7 +213,9 @@ const arrancar = (pg) => pg.evaluate(() => {
   chk('amarillas en rango (0,5 a 8 por partido)', prom('yel') >= 0.5 && prom('yel') <= 8, prom('yel').toFixed(1));
   chk('rojas raras (menos de 1,5 por partido)', prom('red') < 1.5, prom('red').toFixed(2));
   chk('el partido no se congela (pelota muerta sin nadie)', P.every(x => x.qmax < 200), P.map(x => x.qmax).join(' '));
-  chk('se sigue jugando la pelota (pases en rango del motor)', prom('pass') > 280, Math.round(prom('pass')));
+  // Fase 100: el 280 contaba los re-toques del pasador (~250 por partido);
+  // los pases reales del motor son ~150.
+  chk('se sigue jugando la pelota (pases en rango del motor)', prom('pass') > 100, Math.round(prom('pass')));
   chk('0 errores de página', errs.length === 0, errs.slice(0, 3).join(' | '));
   await b.close();
   console.log(`\n${fail ? '❌' : '✅'} ${ok} en verde · ${fail} en rojo`);
