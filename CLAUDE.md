@@ -8985,6 +8985,16 @@ ofertas por los que pusiste en venta o a préstamo.
 
 `tests/fase101.js`, **26 checks**.
 
+🔶 **Dos chequeos viejos son inestables y se midieron en esta fase**, sin
+relación con la moral:
+- `fase84` "se retiran veteranos del plantel" pide 2 de 4 veteranos forzados con
+  ~50% cada uno: falla solo una de cada 4-10 veces. Comparado en paralelo, 4
+  corridas con la versión anterior y 4 con la nueva: **8 de 8 en verde**
+  (3·6·3·3 contra 4·2·3·5 retirados).
+- `fase76` "el 2D queda de HUD (transparente)" en el tiro libre dio alfa 78, 32
+  y 0 en corridas del mismo código (y verde con la versión anterior). Esta fase
+  no toca nada de dibujo.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
