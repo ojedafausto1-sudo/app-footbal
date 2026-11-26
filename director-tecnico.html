@@ -6789,6 +6789,7 @@ function prensaResolver(i){
   if(o.morale && G.squad) G.squad.forEach(p=>{
     p.morale=Math.max(0,Math.min(100,(p.morale===undefined?60:p.morale)+Math.round(o.morale*0.5)));
   });
+  if(o.morale<0) moralGolpe(`lo que usted declaró en la conferencia`,Math.round(o.morale*0.5));
   const decl=`El Presidente declaró que ${o.decl}.`;
   if(!G.news)G.news=[];
   G.news.unshift({w:'S'+(G.week||1),ic:'🎙️',type:'misc',msg:decl});
@@ -7384,11 +7385,28 @@ function pickBuyer(rat,dir){
 // dirigiendo al Porto tu juvenil se iba cedido a Patronato.
 function pickLoanClub(rat){ return pickBuyer(rat,-1); }
 // Build a purchase offer. listed=true means the player is transfer-listed (bid around the asking price).
+// ⚠️ Fase 101: Barcelona ofrecía €52M —1,9 veces su valor— por Michael
+// Carrick con 33 años. La prima de una oferta no solicitada era sólo por
+// MEDIA, y la media de un veterano viene inflada por la curva de edad del
+// Excel (+5 de 30 a 34). Nadie paga el doble por un jugador al que le quedan
+// dos años: la prima se achica con la edad.
+function ofertaEdadFactor(p){
+  const a=p.age||26;
+  return a<=27?1:a<=29?0.92:a===30?0.85:a===31?0.78:a===32?0.68:0.58;
+}
+// A quién va a buscar un club grande sin que lo pongas en venta: al que vale
+// más en el mercado (no al de más media, que puede ser un veterano), y si
+// tiene 32 o más, sólo si no hay nadie más joven.
+function figurasCodiciadas(lista){
+  const c=lista.slice().sort((a,b)=>(b.val||0)-(a.val||0));
+  const jov=c.filter(p=>(p.age||26)<=31);
+  return jov.length?jov:c;
+}
 function buildBuyOffer(p, listed){
   const ask=listed?(p.askPrice||p.val):p.val;
   let mult;
   if(listed){ mult=0.82+Math.random()*0.30; }
-  else { mult=(p.rat>=85?1.7:p.rat>=80?1.45:p.rat>=75?1.25:1.1)+Math.random()*0.4; }
+  else { mult=((p.rat>=85?1.7:p.rat>=80?1.45:p.rat>=75?1.25:1.1)+Math.random()*0.4)*ofertaEdadFactor(p); }
   const amount=Math.round(ask*mult*10)/10;
   const o={player:p, from:pickBuyer(p.rat), amount, type:'compra', listed:!!listed};
   // Términos extra que hacen la oferta más rica y realista
@@ -7443,13 +7461,17 @@ function genOffers(){
   });
   // Unsolicited interest in unlisted stars
   const threshold=windowOpen?0.6:0.85, maxU=windowOpen?2:1;
-  G.squad.filter(p=>!p.injured&&p.rat>=78&&!p.listed&&!recienFichado(p)&&Math.random()>threshold)
-    .sort((a,b)=>b.rat-a.rat).slice(0,maxU)
+  figurasCodiciadas(G.squad.filter(p=>!p.injured&&p.rat>=78&&!p.listed&&!recienFichado(p)&&Math.random()>threshold))
+    .slice(0,maxU)
     .forEach(p=>offers.push(buildBuyOffer(p,false)));
   return offers;
 }
 // Weekly: append fresh offers for listed players (and the odd star bid), skipping players who already have a pending offer.
-function weeklyOffers(){
+// `diario`: la llamada de `dailyTick` (18% por día) — ahí sólo llegan ofertas
+// por los que pusiste en venta o a préstamo. La oferta no solicitada por una
+// figura es una vez por semana (Fase 101): corriendo también todos los días
+// llegaban ~13 por temporada, una cada cuatro semanas.
+function weeklyOffers(diario){
   if(!G) return;
   if(!G.offers) G.offers=[];
   const pending=new Set(G.offers.map(o=>o.player.id));
@@ -7472,8 +7494,8 @@ function weeklyOffers(){
     }
   });
   // Occasional unsolicited star bid
-  if(Math.random()<(windowOpen?0.25:0.10)){
-    const stars=G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)&&!recienFichado(p)).sort((a,b)=>b.rat-a.rat);
+  if(!diario&&Math.random()<(windowOpen?0.25:0.10)){
+    const stars=figurasCodiciadas(G.squad.filter(p=>!p.injured&&p.rat>=80&&!p.listed&&!pending.has(p.id)&&!recienFichado(p)));
     if(stars.length){ const o=buildBuyOffer(stars[0],false); G.offers.push(o); lg('📨',`${o.from} pretende a ${stars[0].name} (${fv(o.amount)})`);
       addPhoneMsg('agent', o.from, `⭐ ${o.from} hizo una oferta no solicitada por <b>${stars[0].name}</b>: <b style="color:var(--gold)">${fv(o.amount)}</b>. Revisá las ofertas en el Mercado.`, '💎', {gotoTab:'mkt', tabIdx:3});
     }
@@ -11033,6 +11055,7 @@ function dispararEmbargo(){
   // 1) el vestuario se hunde: no se cobró y se enteraron por el diario
   (G.squad||[]).forEach(p=>{ p.morale=0; });
   G.morale=0;
+  moralGolpe('el embargo por la deuda',-60);
   // 2) la sanción deportiva: la quita va a la tabla de verdad, la misma que
   //    leen la posición, el descenso y el archivo de la temporada
   let sanción=false;
@@ -11175,6 +11198,37 @@ function rolEsperado(p,xi){
   if(i<0)return 'suplente';
   return i<enXi?'titular':i<enXi+1?'recambio':'suplente';
 }
+// ═══ FASE 101: EL ÁNIMO DE FONDO Y LOS GOLPES AL VESTUARIO ═══
+// El fondo es a dónde vuelve la moral de cada uno, semana a semana:
+//   66 · + la forma del equipo (puntos por partido de los últimos 6 oficiales)
+//      · + cómo está con el DT (dtRel 60 = neutro)
+// El que pidió irse o está colgado no vuelve arriba hasta que se resuelva.
+const MORAL_VUELTA=0.10;        // 10% de la distancia por semana: un golpe se va a la mitad en ~6-7 semanas
+const MORAL_FONDO=66;
+function formaEquipo(){
+  const pl=((G&&G.calendar)||[]).filter(m=>m.played&&!m.friendly&&m.result).slice(-6);
+  if(pl.length<2) return null;
+  return pl.reduce((a,m)=>a+(m.result==='W'?3:m.result==='D'?1:0),0)/pl.length;
+}
+function moralFondo(p){
+  const f=formaEquipo();
+  let b=MORAL_FONDO+(f===null?0:(f-1.4)*7)+(pdRel(p)-60)*0.25;
+  if(p.wantsOut) b=Math.min(b,30);
+  if(p.colgado) b=Math.min(b,25);
+  return Math.max(20,Math.min(88,b));
+}
+// Los golpes que pegan a TODO el plantel quedan anotados (planos, en G) para
+// que el aviso de "entrenando de mala gana" pueda decir por qué.
+function moralGolpe(motivo,d){
+  if(!G||!d)return;
+  G._golpesMoral=(G._golpesMoral||[]).filter(x=>x&&((+G.season||0)-(x.s||0))*60+(G.week||1)-(x.w||1)<=10);
+  G._golpesMoral.push({s:+G.season||0,w:G.week||1,t:String(motivo).slice(0,80),d:Math.round(d*10)/10});
+  if(G._golpesMoral.length>8) G._golpesMoral.shift();
+}
+function golpesRecientes(sem){
+  const S=+G.season||0, W=G.week||1;
+  return (G._golpesMoral||[]).filter(x=>x&&x.d<0&&(S-(x.s||0))*60+W-(x.w||1)<=(sem||8));
+}
 function weeklyPlayerDt(){
   if(!G||!G.squad)return;
   const xi=Object.values(G.slots||{}).filter(Boolean);
@@ -11201,16 +11255,19 @@ function weeklyPlayerDt(){
     // Un decimal, como la línea de vestuario de más abajo: redondeando a
     // ENTERO cada semana, el +0.4 se perdía siempre (round(3+0.4)=3) y un
     // plantel hundido no se recuperaba nunca.
-    let dm=(p.dtRel>=62?0.4:p.dtRel<=30?-0.9:0);
-    if(!p.injured) dm+=dtMotDelta(G.dt);   // el DT que motiva (Fase 75): ±0,25 por semana
-    // ═══ SALIR DEL POZO ═══
-    // Con el +0.4 plano, un plantel devastado (un embargo lo deja en 0) tardaba
-    // 140 semanas —tres temporadas— en volver a 60: la partida quedaba muerta.
-    // Abajo de 35 la recuperación es proporcional al agujero, así que el pozo
-    // se sale rápido al principio y despacio al final. Arriba de 35 no cambia
-    // NADA: la economía de moral del juego queda igual que siempre.
+    // ═══ FASE 101: LA MORAL VUELVE A SU FONDO ═══
+    // Antes era +0,4 por semana con buena relación y −0,9 con mala, y nada
+    // más: los golpes "a todo el plantel" (el conflictivo que no juega, cada
+    // goleada, la conferencia, el clásico perdido, los sueldos atrasados) se
+    // ACUMULABAN enteros, y ganar partidos no le subía la moral a nadie. A
+    // mitad de temporada había 33 de 33 "entrenando de mala gana" sin un solo
+    // motivo grande (lo reportó el presidente con el United 2014). Ahora cada
+    // uno vuelve de a 10% por semana a su ánimo de fondo (`moralFondo`), que
+    // sale de cómo viene el equipo y de cómo está con el DT: un golpe se nota
+    // unas semanas y se va, y una racha buena levanta al vestuario.
     const _m0=(p.morale===undefined?60:p.morale);
-    if(_m0<35 && !p.wantsOut && !p.colgado) dm+=(35-_m0)*0.10;
+    let dm=(moralFondo(p)-_m0)*MORAL_VUELTA;
+    if(!p.injured) dm+=dtMotDelta(G.dt);   // el DT que motiva (Fase 75): ±0,25 por semana
     p.morale=Math.max(3,Math.min(99,Math.round((_m0+dm)*10)/10));
     // Si se rompe del todo, pide salir y lo dice
     if(p.dtRel<=12&&!p.wantsOut&&Math.random()<0.18){
@@ -15697,6 +15754,7 @@ const DILEMAS=[
          d:'No sale nada. Llegan fundidos: física al 80% en el próximo partido.',
          fx:()=>{ G.dilFitProx=80;
            G.squad.forEach(p=>{ p.morale=Math.max(10,(p.morale===undefined?70:p.morale)-5); });
+           moralGolpe('el viaje en el micro barato',-5);
            setDtRel&&setDtRel(-5);
            return `Once horas de micro. Llegan al próximo partido al 80% de física y el técnico puso el grito en el cielo.`; }},
       ]})
@@ -15719,6 +15777,7 @@ const DILEMAS=[
         {t:'🤝 Pedirles que aguanten',
          d:'No sale un peso. El vestuario entero se resiente.',
          fx:()=>{ G.squad.forEach(p=>{ p.morale=Math.max(6,(p.morale===undefined?70:p.morale)-16); });
+           moralGolpe('los sueldos atrasados',-16);
            autSuma(-10); setDtRel&&setDtRel(-9);
            G.boardConf=Math.max(0,(G.boardConf||50)-7);
            G.vestuario=Math.max(0,(G.vestuario===undefined?60:G.vestuario)-10);
@@ -16190,6 +16249,7 @@ function weeklyConflictivos(){
     if(q.id===roto.id)return;
     q.morale=Math.max(0,(q.morale===undefined?60:q.morale)-CONF_MORAL_IND);
   });
+  moralGolpe(`${roto.name} rompió el vestuario porque no juega`,-CONF_MORAL_IND);
   setDtRel&&setDtRel(-4);
   addPhoneMsg('dt',(G.dt&&G.dt.name)||'El DT',
     `😠 Presidente, <b>${roto.name}</b> me está rompiendo el vestuario porque no es titular. `+
@@ -20076,6 +20136,7 @@ function vestuarioTrasPartido(m,res,gf,ga,scorers){
     const capId=(G.roles&&G.roles.captain)||null;
     const cap=(capId&&G.squad.find(q=>q.id===capId))||conNota[0];
     G.squad.forEach(q=>{ q.morale=Math.max(3,(q.morale===undefined?60:q.morale)-5); });
+    moralGolpe(`la goleada ${gf}-${ga} con ${rival}`,-5);
     if(cap){
       chat(cap,`Presidente, lo de hoy es una vergüenza y me hago cargo como capitán. Hablo yo con el grupo, pero acá hay que cambiar cosas.`);
       addPhoneMsg('player',cap.name,`😠 El capitán salió a dar la cara tras el ${ga}-${gf} con ${rival}. El vestuario está roto.`,'😠');
@@ -21335,7 +21396,8 @@ function clasicoResultado(m,res,gf,ga,nom){
   if(res==='W'){ mueve('fanMood',Math.round(5*a)); mueve('boardConf',Math.round(3*a)); autSuma(2);
     (G.squad||[]).forEach(p=>{ p.morale=Math.min(99,(p.morale===undefined?65:p.morale)+Math.round(3*a)); }); }
   else if(res==='L'){ mueve('fanMood',-Math.round(6*a)); mueve('boardConf',-Math.round(4*a));
-    (G.squad||[]).forEach(p=>{ p.morale=Math.max(10,(p.morale===undefined?65:p.morale)-Math.round(3*a)); }); }
+    (G.squad||[]).forEach(p=>{ p.morale=Math.max(10,(p.morale===undefined?65:p.morale)-Math.round(3*a)); });
+    moralGolpe(`perder el ${nom} ${gf}-${ga}`,-Math.round(3*a)); }
   // Incidentes en la tribuna: la multa la paga el local, la sanción a los dos
   if(c.inc&&Math.random()<c.inc*((typeof seguridadActiva==='function'&&seguridadActiva())?0.4:1)){
     const multa=Math.round((0.2+Math.random()*0.4)*10)/10;
@@ -31950,6 +32012,7 @@ function dtReplyCtx(kind,pid){
     const r=pedidoDelDT();
     if(!r) return 'Hoy el plantel está completo, presidente. Si sale alguien, le aviso qué puesto tapar.';
     const {n,c}=r;
+    dtRecomAnota(c.map(o=>o.p),n.pos);
     return `Presidente, ${n.motivo}. ${c.length?`Me gustan ${c.map(o=>`<b>${_esc(o.p.name)}</b> (${o.p.rat}, ${_esc(o.p.club)}, ${fv(askingPrice(o.p))} — ${o.porque})`).join(' y ')}. Para lo que juego yo, ese perfil me sirve.`:'En el mercado, con la plata que hay, no encuentro nada que mejore ese puesto. Si aparece, le aviso.'}`;
   }
   if(kind==='porque'){
@@ -32632,7 +32695,7 @@ function dailyTick(){
   const rec=(G.trainIntensity==='suave'?2.4:G.trainIntensity==='intensa'?0.9:1.6);
   G.squad.forEach(p=>{ if(p.fit===undefined)p.fit=100; p.fit=Math.min(100,p.fit+rec); });
   if(Math.random()<0.22&&typeof weeklyChats==='function')weeklyChats();
-  if(Math.random()<0.18&&typeof weeklyOffers==='function')weeklyOffers();
+  if(Math.random()<0.18&&typeof weeklyOffers==='function')weeklyOffers(true);
   try{ vidaDeClub(); }catch(e){}
 }
 
@@ -32704,11 +32767,20 @@ function vidaDeClub(){
     addPhoneMsg('board','Seguridad del club',txt,'📣');
   }));
   // ── el plantel: quién entrena bien y quién no, con la moral real ──
-  const enojados=sq.filter(p=>(p.morale===undefined?60:p.morale)<35&&!p.injured);
+  // ⚠️ Fase 101: nombraba a los tres primeros del plantel (que son los
+  // arqueros, por el orden) y no decía por qué. Ahora nombra a los más caídos
+  // y cuenta los golpes de las últimas semanas que pegaron a todo el plantel.
+  const _mo=p=>(p.morale===undefined?60:p.morale);
+  const enojados=sq.filter(p=>_mo(p)<35&&!p.injured).sort((a,b)=>_mo(a)-_mo(b));
   if(enojados.length>=3) ramas.push(_vid('vestuario',()=>{
+    const gol=golpesRecientes(8).sort((a,b)=>a.d-b.d).slice(0,3).map(x=>_esc(x.t));
+    const fuera=enojados.filter(p=>p.wantsOut).length;
     addPhoneMsg('board','Cuerpo Técnico',
       `😕 El técnico avisa que hay <b>${enojados.length} jugadores</b> entrenando de mala gana. `+
-      `Nombres: ${enojados.slice(0,3).map(p=>'<b>'+p.name+'</b>').join(', ')}. Si esto sigue, se va a ver en la cancha.`,'😕');
+      `Los más caídos: ${enojados.slice(0,3).map(p=>'<b>'+_esc(p.name)+'</b>').join(', ')}. `+
+      (gol.length?`Lo que más pesó: ${gol.join('; ')}. `:'')+
+      (fuera?`${fuera} de ellos pidió irse y no va a levantar hasta que se resuelva. `:'')+
+      `Ganando, el grupo se levanta solo en unas semanas.`,'😕');
   }));
   // ── la caja, cuando aprieta de verdad ──
   if(G.budget<0) ramas.push(_vid('caja',()=>{
@@ -33790,6 +33862,7 @@ function weeklyDtVoice(){
   const flojo=grp.filter(x=>x.n>0).sort((a,b)=>a.avg-b.avg)[0];
   const nombreG={ARQ:'un arquero',DEF:'un defensor',MED:'un mediocampista',DEL:'un delantero'};
   const _nec=pedidoDelDT();
+  if(_nec&&isTransferWindowOpen()&&_nec.c.length) dtRecomAnota([_nec.c[0].p],_nec.n.pos);
   if(_nec&&isTransferWindowOpen())msgs.push(`Presidente, ${_nec.n.motivo}. ${_nec.c.length?`Yo iría por <b>${_esc(_nec.c[0].p.name)}</b> (${_nec.c[0].p.rat}, ${fv(askingPrice(_nec.c[0].p))}).`:'Necesito un '+_nec.n.pos+'.'}`);
   else if(flojo&&isTransferWindowOpen())msgs.push(`Presidente, si me quiere ayudar de verdad, necesito <b>${nombreG[flojo.g]}</b>. Es la línea que más floja tengo y se nota en la cancha.`);
   // Se queja de la condición física del plantel
@@ -37197,10 +37270,45 @@ function presDespachoHTML(){
 // Siempre se pudo fichar a quien quisieras; ahora el técnico se entera. Si el
 // refuerzo es de un puesto que él pidió o mejora el once, lo recibe bien. Si
 // no, se lo toma como una imposición: baja la relación y te gana autoridad.
+// ⚠️ Fase 101: el DT recomendaba a Kieran Gibbs en el chat ("me gustan Gibbs,
+// Baines y Filipe Luís") y cuando el presidente lo fichaba contestaba "a Gibbs
+// no lo pedí". La reacción sólo miraba `G.dtRequests` (el pedido formal) y
+// `wantedPos`. Ahora el DT se acuerda de a quiénes nombró (`G._dtRecom`,
+// ids planos) y del puesto que pidió tapar.
+function dtRecomAnota(ps,pos){
+  if(!G||!ps||!ps.length)return;
+  const S=+G.season||0, W=G.week||1;
+  G._dtRecom=(G._dtRecom||[]).filter(r=>r&&(S-(r.s||0))*60+W-(r.w||1)<=26);
+  ps.forEach(p=>{ if(p&&!G._dtRecom.some(r=>r.id===p.id)) G._dtRecom.push({id:p.id,pos:pos||p.pos,s:S,w:W}); });
+  if(G._dtRecom.length>15) G._dtRecom=G._dtRecom.slice(-15);
+}
+function dtLoRecomendo(p){
+  const S=+G.season||0, W=G.week||1;
+  return (G._dtRecom||[]).some(r=>r&&r.id===p.id&&(S-(r.s||0))*60+W-(r.w||1)<=26);
+}
+// ¿Tapa el puesto que hoy le falta? Se mira el plantel SIN él.
+function dtTapaNecesidad(p){
+  const i=G.squad.indexOf(p); if(i<0) return null;
+  G.squad.splice(i,1);
+  let N=[]; try{ N=necesidadPlantel(); }catch(e){}
+  G.squad.splice(i,0,p);
+  return N.find(n=>n.urg>=35&&(n.pos===p.pos||n.pos===p.pos2)&&p.rat>=(n.ref||0)-(n.tipo==='titular'?0:6))||null;
+}
 function dtReaccionFichaje(p,f){
   if(!G||!G.dt||modoDT()||dtIsMine())return;
   const pidio=(G.dtRequests||[]).some(r=>r&&r.player&&r.player.id===p.id)||(f&&/pedido del DT/.test(f.motivo||''));
   if(pidio)return;
+  if(dtLoRecomendo(p)){
+    try{ setDtRel(3,'le trajiste al que él recomendó'); }catch(e){}
+    addPhoneMsg('dt',G.dt.name,`👍 Gracias, presidente. <b>${_esc(p.name)}</b> era uno de los que le pedí: me tapa el ${_esc(p.pos)}.`,'⚽');
+    return;
+  }
+  const _tapa=dtTapaNecesidad(p);
+  if(_tapa){
+    try{ setDtRel(2,'le trajiste un refuerzo para el puesto que pedía'); }catch(e){}
+    addPhoneMsg('dt',G.dt.name,`👍 <b>${_esc(p.name)}</b> me sirve, presidente: era el ${_esc(_tapa.pos)} que me faltaba.`,'⚽');
+    return;
+  }
   if((p.rat||0)<60)return;                   // un pibe de relleno no ofende a nadie
   const mej=_presMejora(p), quiere=(G.dt.wantedPos||[]).includes(p.pos);
   if(quiere||mej>=3){

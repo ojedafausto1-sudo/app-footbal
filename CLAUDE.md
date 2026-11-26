@@ -21,7 +21,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101` |
 
 ## Formato de `players-db.js`
 
@@ -773,6 +773,9 @@ celular antes (semana 1 y semana 3) y el contador se resetea al salir del rojo.
   proporcional (`+(35-morale)*0.10` sólo por debajo de 35, y sólo si no pidió
   salir ni está colgado). Medido: de 0 a **29 en 16 semanas**, y **arriba de 35
   no cambia nada** — un plantel sano en 72 sigue con el mismo +0,4 de siempre.
+  ⚠️ **Desde la Fase 101 la salida del pozo y el +0,4 se fueron**: la moral
+  vuelve de a 10% por semana a su ánimo de fondo (`moralFondo`). Después de un
+  embargo el plantel llega a ~50-54 en 16 semanas según la forma (antes 29).
 - **`fv()` con negativos** mostraba `€-3000K` en vez de `-€3.0M`: los negativos
   caían siempre en la rama de los miles porque `-3` no es `>=1`. Ahora el signo
   se extrae antes.
@@ -8898,6 +8901,89 @@ contaban los re-toques. Ahora piden más de 100. `fase76` (faltas ≥1) y
 sueltos dan 2 faltas o 10 remates. 🔶 `fase76` ("a las manos deslizándose",
 104 px en un tick) sigue siendo el flaky de la Fase 79: 1 de 3 corridas, el
 mismo número exacto, y no se reproduce en 6 partidos sueltos.
+
+## Fase 101: el vestuario se recupera (y tres cosas que el presidente vio en el United 2014)
+
+El presidente, a mitad de temporada con el Man Utd 2014: **"hay 33 jugadores
+entrenando de mala gana"** (nombrando a De Gea, Valdés y Lindegaard), Di María y
+Fellaini que se plantan, van Gaal recomendando a Kieran Gibbs en el chat y
+diciendo "a Gibbs no lo pedí" cuando lo fichó, y Barcelona ofreciendo **€52M
+por Michael Carrick con 33 años**.
+
+### La moral se acumulaba entera: no había un bug, había una cuenta sin vuelta
+
+Se buscó primero el golpe grande y no estaba: con la caja en €39,6M no era el
+embargo (que sí lo reproduce, 32 de 32 en cero), y ninguna función sola lo
+explica. Instrumentando la moral media función por función (`scratchpad/mor/`),
+el cuadro es otro: hay muchos golpes **a todo el plantel** —el conflictivo que
+no juega (−6, mensual), cada goleada (−5), la conferencia de "faltó actitud"
+(−10), el clásico perdido (−3 a −7), los sueldos atrasados (−16)— y la moral de
+cada jugador **no tenía cómo volver**: +0,4 por semana con buena relación con el
+DT, −0,9 con mala, y **ganar partidos no le subía la moral a nadie** (sólo al
+medidor del club, `G.morale`). Medio año de golpes quedaba entero.
+
+`moralFondo(p)` es a dónde vuelve cada uno, de a **10% por semana**
+(`MORAL_VUELTA`):
+
+```
+fondo = 66 + (pts por partido de los últimos 6 oficiales − 1,4) × 7 + (dtRel − 60) × 0,25
+```
+
+con techo 30 para el que pidió irse (25 colgado) y entre 20 y 88. Un golpe se va
+a la mitad en ~6-7 semanas, y una racha buena levanta al vestuario.
+
+Medido con el **modelo aislado** (la comparación con temporadas simuladas no
+sirve: cada corrida pierde partidos distintos y recibe otros golpes), la misma
+media temporada de golpes para las dos cuentas (−80 en total, un caso extremo):
+
+| forma del equipo | antes: bajo 35 | ahora | media antes → ahora |
+|---|---|---|---|
+| perdiendo (0,8 pts/p) | 33 de 33 | 30 | 16 → 31 |
+| mitad de tabla (1,4) | 33 de 33 | 18 | 16 → 35 |
+| ganando (2,2) | 33 de 33 | 2 | 16 → 39 |
+
+Antes daba **lo mismo ganar o perder** (14-18 todos). Un plantel hundido en 20
+llega a ~53 en 10 semanas tranquilas, y el que estaba en 99 ya no queda clavado
+ahí: baja a su fondo (~75).
+
+- ⚠️ **Reemplaza a la salida del pozo** (la de los embargos, `(35−m)×0,10`) y al
+  +0,4 / −0,9: los dos son casos de la misma vuelta al fondo.
+- `dtMotDelta` (Fase 75) se sigue sumando encima.
+- ⚠️ **Un plantel que gana termina más bajo que antes** (~75-80 en vez de
+  trepar a 99 de a +0,4). Es a propósito: 99 no era "contento", era "nunca bajó".
+
+### El aviso dice por qué
+
+`moralGolpe(motivo,d)` anota los golpes a todo el plantel en `G._golpesMoral`
+(planos, los últimos 8, de las últimas 10 semanas): el conflictivo, la goleada,
+la conferencia, el clásico perdido, los sueldos, el micro y el embargo. El aviso
+de `vidaDeClub` nombra a **los más caídos** (antes a los tres primeros del
+plantel, que son los arqueros) y dice **lo que más pesó**.
+
+### El DT se acuerda de a quién recomendó
+
+`dtReaccionFichaje` miraba sólo el pedido formal (`G.dtRequests`) y `wantedPos`,
+y el chat ("me gustan Gibbs, Baines y Filipe Luís") no dejaba nada. Ahora
+`dtRecomAnota` guarda los recomendados (`G._dtRecom`, ids planos, 26 semanas)
+desde la charla y la voz semanal, y antes de quejarse mira `dtLoRecomendo(p)` y
+`dtTapaNecesidad(p)` (¿tapa el puesto que hoy le falta? se mide el plantel SIN
+él). Un jugador que no pidió y no le sirve sigue siendo una imposición.
+
+### Nadie paga el doble por un jugador de 33
+
+La oferta no solicitada pagaba 1,7-2,1× el valor **por media**, y la media del
+veterano viene inflada por la curva de edad del Excel (+5 de 30 a 34): Carrick
+salía 91, el mejor del plantel. `ofertaEdadFactor` achica la prima con la edad
+(1 hasta 27 · 0,92 · 0,85 · 0,78 · 0,68 · 0,58 desde 33): **1,10× en vez de
+1,9×**. Y el club grande va por el que más VALE (`figurasCodiciadas`, por valor
+de mercado y con preferencia por los de 31 o menos), no por el de más media.
+
+⚠️ **Las ofertas no solicitadas corrían también todos los días**:
+`dailyTick` llama a `weeklyOffers` con 18% por día, además del bloque semanal.
+Eran ~13 por temporada. Ahora la llamada diaria (`weeklyOffers(true)`) sólo trae
+ofertas por los que pusiste en venta o a préstamo.
+
+`tests/fase101.js`, **26 checks**.
 
 ## Deploy
 
