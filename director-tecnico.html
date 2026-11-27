@@ -4094,10 +4094,56 @@ function arAttachLeague(){
 // `buildCal` y **no lo escribía nadie**: el torneo salía de `TEAMS[id].initRep
 // >= 72`, una constante. Salir campeón no te metía en la Libertadores y salir
 // último no te sacaba, en toda la carrera. Lo escribe `archiveSeason`.
-function _tierCont(teamId){
-  if(typeof G==='object'&&G&&G.qualifiedLib!==undefined)return G.qualifiedLib?1:2;
+// ═══ FASE 102: TAMBIÉN SE PUEDE QUEDAR AFUERA ═══
+// `_tierCont` devolvía 1 o 2, nunca "nada": el que no entraba a la grande
+// jugaba la chica. Medido en la auditoría: San Martín (SJ) salió último de 30
+// y jugó la Sudamericana al año siguiente, y en LaLiga el 20º jugaba la Europa
+// League. Ahora hay cupos por liga (`CUPOS_CONT`: [a la grande, a la chica])
+// y del puesto a+b para abajo, 0 = sin copa. Una liga sin segunda copa (Liga
+// MX, MLS, Arabia) tiene b=0.
+const CUPOS_CONT={
+  'Liga ARG':[4,6], 'Brasil':[6,6],
+  'Chile':[4,4], 'Colombia':[4,4], 'Uruguay':[4,4], 'Paraguay':[4,4], 'Perú':[4,4],
+  'Ecuador':[4,4], 'Bolivia':[4,4], 'Venezuela':[4,4],
+  'España':[4,2], 'Premier':[4,2], 'Italia':[4,2], 'Alemania':[4,2], 'Francia':[3,2],
+  'Portugal':[2,2], 'Holanda':[2,2], 'Bélgica':[2,2], 'Turquía':[2,2], 'Grecia':[2,2], 'Rusia':[2,2],
+  'Liga MX':[4,0], 'MLS':[4,0], 'Arabia':[3,0],
+};
+function cuposCont(lg){
+  const l=lg||((typeof ligaMia==='function')?ligaMia():'Liga ARG');
+  return CUPOS_CONT[l]||[4,4];
+}
+function tierPorPuesto(pos,lg){
+  const c=cuposCont(lg);
+  if(pos>0&&pos<=c[0]) return 1;
+  if(pos>0&&pos<=c[0]+c[1]) return 2;
+  return 0;
+}
+// La primera temporada no hay tabla del año anterior: manda el lugar del club
+// en su liga por reputación. El `initRep>=72` de siempre se respeta (Boca y
+// River siguen en la Libertadores), lo nuevo es que el de abajo no juega nada.
+function tierInicial(tc,lg){
+  if(!tc) return 2;
+  if((tc.initRep||0)>=72) return 1;
+  try{
+    const noms=(typeof clubesDeCategoria==='function')?(clubesDeCategoria(lg)||[]):[];
+    if(noms.length<6) return 2;
+    const T=Object.values(TEAMS||{});
+    const rep=n=>{ const t=T.find(x=>x&&x.name===n&&(!x.liga||x.liga===lg))||T.find(x=>x&&x.name===n);
+      return t?(t.initRep||0):0; };
+    if(noms.indexOf(tc.name)<0) return 2;
+    const orden=noms.slice().sort((a,b)=>(rep(b)-rep(a))||a.localeCompare(b));
+    return tierPorPuesto(orden.indexOf(tc.name)+1,lg);
+  }catch(e){ return 2; }
+}
+function _tierCont(teamId,lg){
+  if(typeof G==='object'&&G){
+    if(G.tierCont!==undefined) return G.tierCont;
+    if(G.qualifiedLib!==undefined) return G.qualifiedLib?1:2;   // save de antes de la Fase 102
+  }
   const tc=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId||(G&&G.teamId)||'boca']:null;
-  return (tc&&tc.initRep>=72)?1:2;
+  const l=lg||((typeof G==='object'&&G&&G.miLiga)||(typeof _LIGA_ELEGIDA!=='undefined'?_LIGA_ELEGIDA:'Liga ARG'));
+  return tierInicial(tc,l);
 }
 // Arma el grupo continental de la liga que dirigís. Devuelve la clave de la
 // copa o null si esa categoría no juega ninguna (la 2ª división argentina).
@@ -4106,7 +4152,9 @@ function _copaIntArmar(teamName,lg,teamId,sch,weeks){
   // desde el segundo, la que se gane en la tabla (`G.qualifiedLib`, archiveSeason).
   try{ const _tf=(typeof TEAMS==='object'&&TEAMS)?TEAMS[teamId]:null;
     if(_tf&&_tf.fundado&&!(typeof G==='object'&&G&&G.qualifiedLib!==undefined)) return null; }catch(e){}
-  const copa=copaIntDeLiga(lg,_tierCont(teamId));
+  const _tier=_tierCont(teamId,lg);
+  if(!_tier) return null;                      // Fase 102: no clasificó a ninguna
+  const copa=copaIntDeLiga(lg,_tier);
   if(!copa)return null;
   // Desde 2025 la Champions es una fase liga de 36 (Fase 73)
   if(copa==='ucl'&&uclFormatoLiga()){
@@ -4452,13 +4500,14 @@ function buildCal(teamName, teamId){
   // ⚠️ `G.qualifiedLib` no lo escribía nadie (ver `_tierCont`): en qué copa
   // jugás quedaba clavado en `initRep` para toda la carrera. Ahora lo decide
   // la tabla del año anterior, y `_tierCont` es el único que lo lee.
-  const qualifiesLib=_tierCont(resolvedTeamId)===1;
+  const _tierAR=_tierCont(resolvedTeamId,'Liga ARG');
+  const qualifiesLib=_tierAR===1;
   // ═══ EL GRUPO ES UN GRUPO: 4 CLUBES, TODOS CONTRA TODOS, IDA Y VUELTA ═══
   // Los otros tres también juegan entre ellos (intBuildGroup deja ese fixture
   // aparte y lo levanta arAttachLeague en G.intGrp).
   // Fase 90: un club recién fundado no juega copa continental en su primer año
   const _sinCopa=!!(tc&&tc.fundado&&!(typeof G==='object'&&G&&G.qualifiedLib!==undefined));
-  if(_sinCopa){ buildCal._intGrp=null; }
+  if(_sinCopa||!_tierAR){ buildCal._intGrp=null; }   // Fase 102: tier 0 = sin copa
   else if(qualifiesLib){
     const libWeeks=[2,4,6,8,11,13].map(w=>w+PRE_SEMANAS);
     // libG son los bombos 2, 3 y 4 del sorteo: el índice es la jerarquía
@@ -7595,6 +7644,9 @@ function autoFill(){
     }
     else G.slots[i]=null;
   });
+  // Fase 102: sin arquero sano el arco quedaba VACÍO y se jugaba con diez
+  // (medido en la auditoría). Ataja uno de campo, como en la cancha.
+  sl.forEach((s,i)=>{ if(s&&s.pos==='ARQ'&&!G.slots[i]){ const q=arqDeEmergencia(used); if(q){ G.slots[i]=q.id; used.add(q.id); } } });
   G.bench = G.squad.filter(p=>!Object.values(G.slots).includes(p.id));
   // ═══ LA CINTA Y LA QUÍMICA SE RESUELVEN DESPUÉS DE ARMAR EL ONCE ═══
   try{ capitanTrasOnce(); }catch(e){}
@@ -7692,6 +7744,13 @@ function recienFichado(p){
   const sp=(G&&G.squad||[]).find(x=>x.id===p.id)||p;
   return semanasEnClub(sp)<FICHADO_GRACIA;
 }
+// El que va al arco cuando no hay arquero: el de campo de menor nivel que
+// esté sano y libre (no se saca a un titular para mandarlo al arco).
+function arqDeEmergencia(usados){
+  const U=usados||new Set(Object.values(G.slots||{}).filter(Boolean));
+  return (G.squad||[]).filter(p=>!U.has(p.id)&&!p.injured&&!(p.susp>0)&&!p.colgado&&!(p.selUp>0)&&p.pos!=='ARQ')
+    .sort((a,b)=>a.rat-b.rat)[0]||null;
+}
 // Rellena un puesto del once con el mejor disponible para esa posición
 function taparHueco(k){
   if(!G||!G.slots)return null;
@@ -7709,6 +7768,7 @@ function taparHueco(k){
     const sc=p.rat-((typeof posPenaltyFor==='function')?posPenaltyFor(p,s.pos):0)*2.2;
     if(sc>bestSc){bestSc=sc;best=p;}
   }
+  if(!best&&s.pos==='ARQ') best=arqDeEmergencia(usados);   // Fase 102: ataja uno de campo
   if(best){
     G.slots[k]=best.id;
     G.bench=(G.squad||[]).filter(q=>!Object.values(G.slots).includes(q.id));
@@ -7856,8 +7916,45 @@ function refillKeeping(){
 // Con un DT personalizado mandás vos: el once que armaste queda intacto.
 function dtPicksXI(){
   if(!G||!G.dt)return;
-  if(G.dt.customProf)return;      // tu DT personalizado: vos elegís
+  if(G.dt.customProf){ cubrirIndisponibles(); return; }   // tu DT: vos elegís, el ayudante tapa las bajas
   autoFill();
+}
+// ═══ FASE 102: EL AYUDANTE TAPA LAS BAJAS ANTES DEL PARTIDO ═══
+// Con el DT tuyo (modo DT o DT personalizado) nadie tocaba el once: el que se
+// lesionaba o se ganaba una suspensión seguía anotado y el partido se jugaba
+// con él adentro. Medido en la auditoría, Lanús en modo DT: 80 partidos con
+// menos de 11 disponibles (a veces 7), 69 con un suspendido y 46 con un
+// lesionado en cancha. El once sigue siendo tuyo: sólo se reemplaza al que NO
+// PUEDE jugar, con el mejor del banco para ese puesto (`taparHueco`, que
+// respeta el cupo de extranjeros), y se avisa una vez por partido.
+function cubrirIndisponibles(){
+  if(!G||!G.slots) return [];
+  const sl=(typeof getForm==='function')?getForm():[];
+  const cambios=[];
+  for(let k=0;k<Math.min(11,sl.length);k++){
+    const id=G.slots[k];
+    const p=id?(G.squad||[]).find(q=>q.id===id):null;
+    const fuera=!p||p.injured||(p.susp>0)||p.colgado;
+    if(!fuera) continue;
+    const motivo=!p?'hueco':p.injured?'lesionado':(p.susp>0)?'suspendido':'apartado';
+    G.slots[k]=null;
+    const r=taparHueco(k);
+    cambios.push({sale:p?p.name:null,entra:r?r.name:null,motivo,pos:sl[k]&&sl[k].pos});
+  }
+  if(cambios.length){
+    const m=(G.calendar||[]).find(x=>!x.played);
+    const key=(G.season||0)+':'+(m?m.week+':'+m.home+':'+m.away:'-');
+    if(G._cubrioKey!==key){
+      G._cubrioKey=key;
+      const txt=cambios.map(c=>c.sale
+        ?`<b>${c.entra||'nadie'}</b> por ${c.sale} (${c.motivo})`
+        :`<b>${c.entra||'nadie'}</b> al puesto de ${c.pos||'?'} que estaba vacío`).join(', ');
+      try{ addPhoneMsg('dt','Ayudante de campo',`📋 ${G.modo==='dt'?'Profe':'Presidente'}, para el partido armé el once con lo que hay: ${txt}. Si quiere otra cosa, cámbielo en Táctica.`,'📋'); }catch(e){}
+      try{ lg('📋','El ayudante cubrió '+cambios.length+' baja(s) del once'); }catch(e){}
+      try{ flash('📋 El ayudante cubrió '+cambios.length+' baja'+(cambios.length>1?'s':'')+' del once','draw'); }catch(e){}
+    }
+  }
+  return cambios;
 }
 
 // =============================================
@@ -10969,7 +11066,7 @@ function rLoans(){
            🚨 EN ROJO HACE ${sem} ${sem===1?'SEMANA':'SEMANAS'} — límite ${EMBARGO_SEMANAS}</div>
          <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin:5px 0 4px">
            <div style="width:${Math.min(100,sem/EMBARGO_SEMANAS*100)}%;height:100%;background:var(--red)"></div></div>
-         <div style="font-size:9.5px;color:var(--t2)">Pasadas las ${EMBARGO_SEMANAS} semanas bajo ${fv(EMBARGO_LIMITE)} la AFA embarga:
+         <div style="font-size:9.5px;color:var(--t2)">Pasadas las ${EMBARGO_SEMANAS} semanas bajo ${fv(EMBARGO_LIMITE)} ${federacion()} embarga:
            <b>−${EMBARGO_PUNTOS} puntos</b> y el vestuario se va al descenso anímico.
            ${G.embargos?`Ya te pasó <b>${G.embargos}</b> ${G.embargos===1?'vez':'veces'}.`:''}</div>
        </div>`
@@ -11024,6 +11121,21 @@ function takeRescue(i){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ═══ FASE 102: EL EMBARGO LO HACE LA FEDERACIÓN DE TU LIGA ═══
+// Todos los textos decían "la AFA" aunque dirigieras en la Premier o en Brasil.
+const FEDERACION={
+  'Liga ARG':'la AFA','Primera Nacional':'la AFA','España':'LaLiga','Premier':'la Premier League',
+  'Italia':'la FIGC','Alemania':'la DFL','Francia':'la LFP','Portugal':'la Liga Portugal',
+  'Holanda':'la KNVB','Bélgica':'la Pro League','Turquía':'la TFF','Grecia':'la Super League',
+  'Rusia':'la RFS','Brasil':'la CBF','Liga MX':'la FMF','MLS':'la MLS','Arabia':'la SAFF',
+  'Chile':'la ANFP','Uruguay':'la AUF','Colombia':'la Dimayor','Paraguay':'la APF',
+  'Perú':'la FPF','Ecuador':'la LigaPro','Bolivia':'la FBF','Venezuela':'la FVF'};
+function federacion(mayus){
+  const l=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  const f=FEDERACION[l]||'la federación';
+  return mayus?f.charAt(0).toUpperCase()+f.slice(1):f;
+}
+function federacionSigla(){ return federacion().replace(/^la /,''); }
 // EMBARGO DE LA AFA — quedarse en rojo tiene consecuencias deportivas
 // ═══════════════════════════════════════════════════════════════════════
 // Antes podías vivir en −20M para siempre: el rojo era un número feo en la
@@ -11039,14 +11151,14 @@ function weeklyEmbargo(){
     // Dos avisos antes del garrote: nadie tiene que perder 3 puntos de sorpresa
     if(G.rojoSemanas===1)
       addPhoneMsg('board','Tesorería',
-        `⚠️ La caja quedó en <b style="color:#ef4444">${fv(G.budget)}</b>. Si seguimos bajo ${fv(EMBARGO_LIMITE)} tres semanas seguidas, la AFA nos sanciona. Vendé, pedí un salvataje o bajá el gasto.`,'🏛️');
+        `⚠️ La caja quedó en <b style="color:#ef4444">${fv(G.budget)}</b>. Si seguimos bajo ${fv(EMBARGO_LIMITE)} tres semanas seguidas, ${federacion()} nos sanciona. Vendé, pedí un salvataje o bajá el gasto.`,'🏛️');
     else if(G.rojoSemanas===EMBARGO_SEMANAS)
-      addPhoneMsg('board','AFA — Departamento Económico',
+      addPhoneMsg('board',federacionSigla()+' — Departamento Económico',
         `🚨 <b>ÚLTIMO AVISO.</b> ${G.teamName} lleva ${G.rojoSemanas} semanas por debajo del mínimo exigido. Si la semana que viene no regulariza, se ejecuta el embargo: <b>−${EMBARGO_PUNTOS} puntos</b> en la tabla.`,'⚖️');
     else if(G.rojoSemanas>EMBARGO_SEMANAS) dispararEmbargo();
   }else{
     if((G.rojoSemanas||0)>=EMBARGO_SEMANAS)
-      addPhoneMsg('board','Tesorería','✅ Salimos del rojo. Se levanta la intimación de la AFA.','🏛️');
+      addPhoneMsg('board','Tesorería','✅ Salimos del rojo. Se levanta la intimación de '+federacion()+'.','🏛️');
     G.rojoSemanas=0;
   }
 }
@@ -11070,12 +11182,12 @@ function dispararEmbargo(){
   G.fanMood=Math.max(0,(G.fanMood||55)-12);
   if(typeof repSuma==='function')repSuma(-4);
   if(typeof autSuma==='function')autSuma(-10);
-  addPhoneMsg('board','AFA — Departamento Económico',
+  addPhoneMsg('board',federacionSigla()+' — Departamento Económico',
     `⚖️ <b>EMBARGO EJECUTADO.</b> Por deuda impaga, a ${G.teamName} se le descuentan <b>${EMBARGO_PUNTOS} puntos</b> de la tabla${sanción?'':' (se aplicarán al reanudarse el torneo)'} y se le inhibe la caja. El plantel no cobró: la moral está por el piso.`,'⚖️');
   addPhoneMsg('player','Capitán del plantel',
     `😤 Presidente, no cobramos. Nos enteramos del embargo por el diario. Así no se puede entrenar ni jugar.`,'😤');
   lg('⚖️',`EMBARGO: −${EMBARGO_PUNTOS} puntos por deuda · moral del plantel a 0`);
-  flash(`⚖️ EMBARGO DE LA AFA: −${EMBARGO_PUNTOS} puntos`,'loss');
+  flash(`⚖️ EMBARGO DE ${federacion().toUpperCase()}: −${EMBARGO_PUNTOS} puntos`,'loss');
   if(typeof _pubRumor==='function')try{_pubRumor(`⚖️ Escándalo: le descuentan ${EMBARGO_PUNTOS} puntos a ${G.teamName} por deuda impaga.`,'misc');}catch(e){}
   // el reloj vuelve a cero: si seguís en rojo, en 4 semanas te sancionan de nuevo
   G.rojoSemanas=0;
@@ -11928,6 +12040,7 @@ function trAttr(id, attr){
   if(!p) return;
   p.attrs[attr] = Math.min(99, p.attrs[attr]+3);
   G.budget = Math.round((G.budget-.1)*10)/10;
+  finAnota('otros_out',0.1,'Entrenamiento individual de '+p.name);
   const avg = Math.round(Object.values(p.attrs).reduce((a,b)=>a+b,0)/Object.values(p.attrs).length);
   if(avg>p.rat){ p.rat = Math.min(p.pot,p.rat+1); p.val = calcVal(p); }
   lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]}`);
@@ -12185,6 +12298,11 @@ function obrasHTML(tipo){
 function obraIniciar(u,tipo){
   if(!G)return;
   if(!G.activeConstructions)G.activeConstructions=[];
+  // Fase 102: las tres puertas (estadio, academia y la Carpeta del Director
+  // Deportivo) cobran ANTES de llamar acá y ninguna lo anotaba: el rubro
+  // "Obras" de Finanzas quedaba vacío. Medido en la auditoría, el Real Madrid
+  // gastó 432M en obras en una temporada sin que aparecieran en ningún lado.
+  if(u&&u.cost>0) finAnota('obras',u.cost,'Obra: '+u.name);
   const sem=obraSemanas(u);
   G.activeConstructions.push({id:u.id,tipo,name:u.name,sem,total:sem,eff:u.eff||'',desde:G.week||1});
   const esCap=(u.eff||'').indexOf('cap+')===0;
@@ -12358,7 +12476,32 @@ function _youthNames(lg){
 }
 function _youthName(lg){
   const n=_youthNames(lg||_ligaActual());
-  return n.fn[~~(Math.random()*n.fn.length)]+' '+n.ln[~~(Math.random()*n.ln.length)];
+  const uno=()=>n.fn[~~(Math.random()*n.fn.length)]+' '+n.ln[~~(Math.random()*n.ln.length)];
+  // Fase 102: el nombre se arma con nombres y apellidos REALES de la liga, así
+  // que a veces sale uno que ya existe ("Fernando Alarcón", que juega en
+  // Instituto). Medido en la auditoría: dos Fernando Alarcón en el plantel de
+  // Boca. Se prueba otro si ya está en el plantel, la cantera o el mercado.
+  // El conjunto se arma una vez por semana (las camadas del mercado piden
+  // cientos de nombres juntos) y cada nombre nuevo se suma al salir.
+  let usados=null;
+  try{
+    if(typeof G==='object'&&G){
+      const C=_youthName._c;
+      if(C&&C.g===G&&C.k===(G.season+':'+G.week)) usados=C.s;
+      else {
+        usados=new Set();
+        (G.squad||[]).forEach(p=>usados.add(p.name));
+        ((G.youth&&G.youth.players)||[]).forEach(p=>usados.add(p.name));
+        (G.youthIntake||[]).forEach(p=>usados.add(p.name));
+        (G.market||[]).forEach(p=>usados.add(p.name));
+        _youthName._c={g:G,k:G.season+':'+G.week,s:usados};
+      }
+    }
+  }catch(e){ usados=null; }
+  let nom=uno();
+  for(let i=0;usados&&usados.has(nom)&&i<15;i++) nom=uno();
+  if(usados) usados.add(nom);
+  return nom;
 }
 // El techo de potencial lo pone la academia: nivel 1 → 66, nivel 5 → 90.
 function youthPotTecho(){
@@ -12843,6 +12986,7 @@ function upgradeStaff(id){
   if(!nextL){ flash('Ya está al máximo nivel','draw'); return; }
   if(G.budget < nextL.cost){ flash(`❌ Presupuesto insuficiente (€${nextL.cost}M necesario)`,'loss'); return; }
   G.budget = Math.round((G.budget-nextL.cost)*10)/10;
+  if(nextL.cost>0) finAnota('cuerpo',nextL.cost,'Mejora del cuerpo técnico: '+nextL.name);
   G.staffLevels[id] = nextL.lv;
   lg('✅',`${role.role} actualizado a ${nextL.name}`);
   rStaff(); updateUI();
@@ -15099,20 +15243,43 @@ function checkSeasonEnd(){
 }
 
 function showSeasonSummary(){
-  const pts = G.wins*3+G.draws;
-  const pj = G.wins+G.draws+G.losses;
-  const eff = pj>0?Math.round((G.wins*3+G.draws)/(pj*3)*100):0;
+  // Fase 102: "Puntos liga" sumaba TODOS los partidos (copas incluidas), con
+  // G.wins. Ahora sale de la liga sola, como la pestaña de Estadísticas.
+  const _SL=(typeof statsLiga==='function')?statsLiga():null;
+  const pts = (_SL&&_SL.pj)?_SL.pts:(G.wins*3+G.draws);
+  const pj = (_SL&&_SL.pj)?_SL.pj:(G.wins+G.draws+G.losses);
+  const eff = pj>0?Math.round(pts/(pj*3)*100):0;
   const topScorer = G.squad.filter(p=>p.goals>0).sort((a,b)=>b.goals-a.goals)[0];
   const topApp = G.squad.filter(p=>p.apps>0).sort((a,b)=>b.apps-a.apps)[0];
-  const wageM = (G.squad.reduce((a,p)=>a+p.wage,0)/1000).toFixed(1);
+  // Fase 102: decía "Salarios año" y mostraba lo de UNA semana (la suma de los
+  // sueldos semanales). Ahora es lo que se pagó en el año, de Finanzas.
+  const _finT=(typeof finTemporada==='function')?finTemporada(G.season):null;
+  const wageM = ((_finT&&_finT.d&&_finT.d.sueldos)?_finT.d.sueldos:(G.squad.reduce((a,p)=>a+p.wage,0)*52/1000)).toFixed(1);
   const t=G.tourney||{liga:{pts:0,gf:0,ga:0,pj:0},lib:{pts:0,gf:0,ga:0,pj:0},copa:{pts:0,gf:0,ga:0,pj:0}};
   const ligaRank=myLeaguePos()||Math.max(1,Math.min(20,Math.round(20-pts/3)));
   const nClubs=(G.league&&G.league.clubs.length)||19;
-  const resultLabel=ligaRank===1?'🏆 ¡CAMPEÓN DE LA LIGA!':ligaRank<=3?`🥇 ${ligaRank}º puesto — ¡Temporada excelente!`:ligaRank<=8?`✅ ${ligaRank}º puesto — Buena temporada`:ligaRank<=13?`⚽ ${ligaRank}º puesto — Temporada regular`:ligaRank<nClubs-1?`😤 ${ligaRank}º puesto — Zona de riesgo`:`💔 ${ligaRank}º puesto — Temporada para el olvido`;
-  if(ligaRank===1){
+  // En la Liga ARG la tabla anual no da título (salvo el torneo largo): el 1º
+  // de la anual no es "campeón de la liga".
+  const _daTit=!(ligaMia()==='Liga ARG')||(typeof tablaDaTituloARG==='function'&&tablaDaTituloARG());
+  const resultLabel=ligaRank===1?(_daTit?'🏆 ¡CAMPEÓN DE LA LIGA!':'🥇 1º de la tabla anual'):ligaRank<=3?`🥇 ${ligaRank}º puesto — ¡Temporada excelente!`:ligaRank<=8?`✅ ${ligaRank}º puesto — Buena temporada`:ligaRank<=13?`⚽ ${ligaRank}º puesto — Temporada regular`:ligaRank<nClubs-1?`😤 ${ligaRank}º puesto — Zona de riesgo`:`💔 ${ligaRank}º puesto — Temporada para el olvido`;
+  // ⚠️ Fase 102: el resumen se puede abrir varias veces (el botón "Ver resumen"
+  // y cada intento de jugar sin partidos pendientes) y CADA vez sumaba +25 de
+  // confianza y mandaba otro "¡CAMPEONES!". Una vez por temporada.
+  if(ligaRank===1&&_daTit&&G._resumenTemp!==G.season){
+    G._resumenTemp=G.season;
     G.boardConf=Math.min(100,(G.boardConf||50)+25);
     addPhoneMsg('board','Secretaría del Club',`🏆 ¡CAMPEONES, presidente! La comisión directiva está eufórica. Su gestión queda en la historia del club.`,'🏛️');
   }
+  // Los dos recuadros: la liga, y la copa continental o la nacional que se jugó
+  const _resCopa=filtro=>{ const r={pj:0,pts:0,gf:0,ga:0,nom:''};
+    (G.calendar||[]).forEach(m=>{ if(!m.played||m.friendly||!m.score||!filtro(m.comp))return;
+      const [h,a]=String(m.score).split('-').map(Number); if(isNaN(h)||isNaN(a))return;
+      const yo=m.home===G.teamName, gf=yo?h:a, gc=yo?a:h;
+      r.pj++; r.gf+=gf; r.ga+=gc; r.pts+=gf>gc?3:gf===gc?1:0; if(!r.nom) r.nom=String(m.comp).replace(/ - .*| (R\d+|QF|SF|Final|Octavos|Cuartos|Semis)$/,''); });
+    return r; };
+  const _cInt=_resCopa(c=>esCopaInt(c)), _cNac=_resCopa(c=>esCopaNac(c));
+  const _c2=_cInt.pj?_cInt:_cNac;
+  const _ligaNom=(typeof ligaComp==='function'&&ligaComp())||'Liga';
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
     <div style="text-align:center;margin-bottom:12px;padding:10px;background:linear-gradient(135deg,rgba(22,25,32,.8),rgba(var(--gold-rgb),.05));border-radius:8px">
@@ -15147,21 +15314,19 @@ function showSeasonSummary(){
 
     <div class="g2" style="gap:6px;margin-bottom:10px">
       <div class="card">
-        <div class="ctitle" style="font-size:9px">🇦🇷 Liga</div>
-        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.liga.pts||pts}</span></div>
-        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.liga.pj||pj}</span></div>
-        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.liga.gf||G.gf}/${t.liga.ga||G.ga}</span></div>
+        <div class="ctitle" style="font-size:9px">🏟️ ${_ligaNom}</div>
+        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${pts}</span></div>
+        <div class="sr"><span class="sl">PJ</span><span class="sv">${pj}</span></div>
+        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${_SL&&_SL.pj?_SL.gf+'/'+_SL.gc:G.gf+'/'+G.ga}</span></div>
       </div>
-      ${(t.lib.pj>0)?`<div class="card">
-        <div class="ctitle" style="font-size:9px">🏆 Copa</div>
-        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.lib.pts}</span></div>
-        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.lib.pj}</span></div>
-        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.lib.gf}/${t.lib.ga}</span></div>
+      ${_c2.pj?`<div class="card">
+        <div class="ctitle" style="font-size:9px">🏆 ${_c2.nom}</div>
+        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${_c2.pts}</span></div>
+        <div class="sr"><span class="sl">PJ</span><span class="sv">${_c2.pj}</span></div>
+        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${_c2.gf}/${_c2.ga}</span></div>
       </div>`:`<div class="card">
-        <div class="ctitle" style="font-size:9px">🥈 Sud.</div>
-        <div class="sr"><span class="sl">Pts</span><span class="sv" style="color:var(--gold)">${t.copa.pts||0}</span></div>
-        <div class="sr"><span class="sl">PJ</span><span class="sv">${t.copa.pj||0}</span></div>
-        <div class="sr"><span class="sl">GF/GC</span><span class="sv">${t.copa.gf||0}/${t.copa.ga||0}</span></div>
+        <div class="ctitle" style="font-size:9px">🏆 Copas</div>
+        <div class="sr"><span class="sl">Sin partidos de copa</span><span class="sv">—</span></div>
       </div>`}
     </div>
 
@@ -15253,7 +15418,7 @@ function juntaRenovFin(){
   porVencer.forEach(p=>{
     // La MISMA cuenta que `openContract` y que `weeklyJunta`: si el automático
     // usara otros números, delegar cambiaría el precio de las cosas.
-    const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+    const exp=renovPretension(p);
     const ratio=Math.max(renovPiso(p), 1.22-(n-40)/50*0.34);
     const wage=Math.round(exp*ratio);
     const years=n>=70?2:1;                       // a último momento se firma corto
@@ -15399,6 +15564,8 @@ function acceptCareerOffer(club){
     // destitución seguías con la CD en 5 y la hinchada en 0: la aprobación
     // arrancaba en 2 y te echaban otra vez a la semana siguiente.
     G.boardConf=50; G.fanMood=55;
+    // Fase 102: la copa que ganaste con el club anterior no viaja con vos
+    G.tierCont=undefined; G.qualifiedLib=undefined;
     flash('Asumiste en '+club,'win');
   }
   // ⚠️ El modal de "fin del ciclo" deja `G._fired=true` y ofrece seguir la
@@ -15941,7 +16108,7 @@ function weeklyJunta(){
   let prop=0, fallo=0;
   porVencer.slice(0,3).forEach(p=>{
     // Cuánto pide, con el recargo del mercenario que ya aplica openContract
-    const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+    const exp=renovPretension(p);
     // Un director bueno cierra cerca del piso; uno malo paga de más
     const ratio=Math.max(renovPiso(p), 1.22-(n-40)/50*0.34);
     const wage=Math.round(exp*ratio);
@@ -17178,14 +17345,27 @@ function archiveSeason(){
     const _copaNac=(typeof copaNacPref==='function')?copaNacPref():'Copa Argentina';
     // Fase 78: salir 1º de la Nacional te sube, no te mete en la copa
     // continental. Ganar la Copa Argentina sí, como en la realidad.
-    const _clasif=(pos>0&&pos<=4&&!esSegundaARG(ligaMia()))||_titAño.indexOf(_copaNac)>=0;
-    if(G.qualifiedLib!==_clasif){
-      G.qualifiedLib=_clasif;
+    // Fase 102: tres salidas, no dos — a la grande, a la chica o a ninguna.
+    const _lgM=ligaMia(), _seg=esSegundaARG(_lgM);
+    const _sudam=['lib','sud'].includes(copaIntDeLiga(_lgM,1)||'');
+    let _tier=_seg?0:tierPorPuesto(pos,_lgM);
+    if(!_seg){
+      // La copa nacional te mete en la grande en Sudamérica y en la chica en Europa
+      if(_titAño.indexOf(_copaNac)>=0) _tier=_sudam?1:(_tier===1?1:(cuposCont(_lgM)[1]?2:1));
+      // Salir campeón de un torneo de liga (Apertura/Clausura) o ganar una copa
+      // continental te deja en la grande del año que viene
+      const _intNom=Object.values(INT_COPAS).map(c=>c.nombre);
+      if(_titAño.some(n=>_intNom.indexOf(n)>=0||/^Torneo |^Copa de la Liga|^Liga Profesional$/.test(n))) _tier=1;
+    }
+    const _clasif=_tier===1;
+    if(G.tierCont!==_tier){
       const _cn=(typeof copaCont==='function')?copaCont():'copa internacional';
-      lg(_clasif?'🏆':'📉',_clasif
-        ? `${G.teamName} clasificó a la ${_cn} del año que viene (${pos}º)`
-        : `${G.teamName} quedó afuera de la ${_cn} del año que viene (${pos}º)`);
-    } else G.qualifiedLib=_clasif;
+      const _c2=copaIntDeLiga(_lgM,2), _n2=_c2&&INT_COPAS[_c2]?INT_COPAS[_c2].nombre:'la copa chica';
+      if(_tier===1) lg('🏆',`${G.teamName} clasificó a la ${_cn} del año que viene (${pos}º)`);
+      else if(_tier===2) lg('🥈',`${G.teamName} jugará la ${_n2} el año que viene (${pos}º)`);
+      else if(!_seg) lg('📉',`${G.teamName} se quedó sin copa internacional para el año que viene (${pos}º)`);
+    }
+    G.tierCont=_tier; G.qualifiedLib=_clasif;
   }catch(e){}
   // ═══ DESCENSOS Y ASCENSOS (Fase 78) ═══
   // La tabla anual (G.league.table acumula Apertura y Clausura) manda los dos
@@ -17215,7 +17395,7 @@ function archiveSeason(){
   }
   if(pos===t.length&&t.length&&!(G._catMov&&G._catMov.season===G.season&&G._catMov.tipo==='baja')){
     G.boardConf=Math.max(0,(G.boardConf||50)-40);
-    addPhoneMsg('board','Secretaría del Club',`🚨 Presidente, terminamos ÚLTIMOS. Nos salvó la reestructuración de la AFA, pero la confianza de la comisión quedó por el piso. Otra así y le piden la renuncia.`,'🏛️');
+    addPhoneMsg('board','Secretaría del Club',`🚨 Presidente, terminamos ÚLTIMOS. Nos salvó la reestructuración de ${federacion()}, pero la confianza de la comisión quedó por el piso. Otra así y le piden la renuncia.`,'🏛️');
   }
   // Bonos de sponsors por objetivos de temporada
   (G.sponsors||[]).forEach(s=>{
@@ -17609,8 +17789,9 @@ function devolverPrestamo(p){
   if(!G||!p)return;
   sacarDelPlantel(p,'sale',{motivo:'terminó el préstamo',club:p.loanOrigin||''});
   p.club=p.loanOrigin||p.club.replace(' (prést)','');
+  if(p.loanOrigLg) p.lg=p.loanOrigLg;          // vuelve a su liga
   p.onLoanIn=false;p.loanUntil=null;
-  delete p.loanBuyOption;delete p.loanBuyObligation;delete p.loanOrigin;
+  delete p.loanBuyOption;delete p.loanBuyObligation;delete p.loanOrigin;delete p.loanOrigLg;
   (G.market=G.market||[]).push(p);
   lg('📤',`${p.name} terminó su préstamo y volvió a ${p.club}`);
   addPhoneMsg('player',p.name,`📤 Se terminó mi préstamo, presidente. Vuelvo a ${p.club}. Gracias por todo.`,'📤');
@@ -17823,6 +18004,14 @@ function nextSeason(){
     if(p.rat !== oldRat) p.val = calcVal(p);
     p._nTAcc=0; p._nTCnt=0;            // las notas de la temporada vuelven a cero
     p._appsUlt = p.apps||0;   // Fase 84: el retiro mira cuánto jugó la temporada que terminó
+    // Fase 102: el que vino a préstamo cruza la temporada. `loanUntil` es una
+    // semana de ESTA temporada (la semana vuelve a 1, como `returnWeek` de los
+    // cedidos) y `loanApps0` se descuenta con los partidos que se borran, si
+    // no la obligación de compra contaba los de la temporada nueva solamente.
+    if(p.onLoanIn){
+      if(typeof p.loanUntil==='number') p.loanUntil=Math.max(1,p.loanUntil-(G.week||0));
+      if(p.loanApps0!==undefined) p.loanApps0=(p.loanApps0||0)-(p.apps||0);
+    }
     p.goals = 0; p.apps = 0; p.assists = 0;
     // p.contract es el AÑO de vencimiento, no los años que faltan: no se resta.
     // Restarlo acá quemaba dos años por temporada (el año bajaba y G.season
@@ -18909,7 +19098,11 @@ function applyMatchResult(m, gf, ga, providedScorers){
 
   // === TOURNEY TRACKING ===
   if(!G.tourney) G.tourney = buildTourney();
-  const t = esCopaInt(m.comp)?G.tourney.lib:(m.comp.includes('Liga')?G.tourney.liga:G.tourney.copa);
+  // Fase 102: la liga es la competencia de la liga (ligaComp), no cualquier
+  // cosa con "Liga" en el nombre: la Premier League y el Brasileirão caían en
+  // "copa" y LaLiga sí contaba.
+  const _esLigaT=m.comp===ligaComp()||(m.comp.includes('Liga')&&!esCopaNac(m.comp)&&!/Supercopa|League/.test(m.comp));
+  const t = esCopaInt(m.comp)?G.tourney.lib:(_esLigaT?G.tourney.liga:G.tourney.copa);
   t.pj++; t.gf+=gf; t.ga+=ga;
   if(res==='W') t.pts=(t.pts||0)+3;
   else if(res==='D') t.pts=(t.pts||0)+1;
@@ -20008,6 +20201,40 @@ function showMatchLive(m, res, gf, ga, scorersList, stats, isLastMatch){
 // El titular sale del partido que se jugó, no de una plantilla: el resultado,
 // contra quién, la racha y el nombre propio que lo definió.
 const PRENSA_DIARIOS=['Olé','El Gráfico','La Nación Deportes','TyC Sports','Doble Amarilla','Radio Continental'];
+// ═══ FASE 102: CADA PAÍS TIENE SUS DIARIOS ═══
+// Dirigiendo al Real Madrid, la prensa y las redes citaban a Olé, TyC Sports y
+// "Transfermarkt ARG". El primero de cada lista es el diario, el segundo la
+// TV, el tercero el de estadísticas/mercado.
+const MEDIOS_LIGA={
+  'Liga ARG':PRENSA_DIARIOS, 'Primera Nacional':PRENSA_DIARIOS,
+  'España':['Marca','AS','Mundo Deportivo','Sport','El Larguero','Relevo'],
+  'Premier':['The Athletic','Sky Sports','BBC Sport','The Guardian','talkSPORT','The Sun'],
+  'Italia':['La Gazzetta dello Sport','Sky Sport Italia','Corriere dello Sport','Tuttosport','Calciomercato'],
+  'Alemania':['Kicker','Sky Sport','Bild','Sport1','11Freunde'],
+  'Francia':["L'Équipe",'RMC Sport','Le Parisien','France Football','Canal+ Sport'],
+  'Portugal':['A Bola','Sport TV','Record','O Jogo'],
+  'Holanda':['De Telegraaf','NOS Sport','Voetbal International','AD Sportwereld'],
+  'Bélgica':['Het Nieuwsblad','Sporza','La Dernière Heure','Het Laatste Nieuws'],
+  'Turquía':['Fanatik','beIN Sports','Fotomaç','Hürriyet Spor'],
+  'Grecia':['Sport24','Novasports','Gazzetta.gr','Sportday'],
+  'Rusia':['Sport-Express','Match TV','Sovetsky Sport','Championat'],
+  'Brasil':['Lance!','Globo Esporte','ESPN Brasil','UOL Esporte','Gazeta Esportiva'],
+  'Liga MX':['Récord','TUDN','ESPN México','Mediotiempo','Estadio Deportes'],
+  'MLS':['The Athletic','ESPN FC','MLSsoccer.com','Fox Sports'],
+  'Arabia':['Arriyadiyah','SSC','Al-Riyadiah','Arab News Sport'],
+  'Chile':['La Tercera Deportes','TNT Sports Chile','El Mercurio Deportes','AS Chile'],
+  'Uruguay':['Ovación','Tenfield','El País Deportes','Referí'],
+  'Colombia':['El Tiempo Deportes','Win Sports','Futbolred','Antena 2'],
+  'Paraguay':['ABC Color Deportes','Tigo Sports','Última Hora Deportes'],
+  'Perú':['Líbero','Gol Perú','Depor','El Bocón'],
+  'Ecuador':['El Universo Deportes','GolTV Ecuador','Estadio'],
+  'Bolivia':['El Deber Deportes','Tigo Sports Bolivia','Página Siete Deportes'],
+  'Venezuela':['Meridiano','Líder','El Universal Deportes'],
+};
+function mediosLiga(){
+  const l=(typeof ligaMia==='function')?ligaMia():'Liga ARG';
+  return MEDIOS_LIGA[l]||PRENSA_DIARIOS;
+}
 function prensaCubrePartido(m,res,gf,ga,scorers,stats){
   if(!G)return;
   G.news=G.news||[];
@@ -20021,7 +20248,7 @@ function prensaCubrePartido(m,res,gf,ga,scorers,stats){
   const N=G._notas||null;
   const derby=(typeof isDerby==='function')?isDerby(m):null;
   const _h=_notaHash(yo+rival+gf+'-'+ga+'x',m);
-  const diario=PRENSA_DIARIOS[_h%PRENSA_DIARIOS.length];
+  const _md=mediosLiga(), diario=_md[_h%_md.length];
   let ic='📰', tit='';
   if(hat)                     { ic='🎩'; tit=`<b>${top[0]}</b> se llevó la pelota: tres goles en el ${gf}-${ga} de ${yo} a ${rival}.`; }
   else if(derby&&res==='W')   { ic='🔥'; tit=`${yo} ganó el <b>${derby}</b> ${gf}-${ga}. La ciudad es suya por una semana.`; }
@@ -20761,7 +20988,8 @@ function pushHeadline(res,gf,ga,derby,m){
   const wStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='W')s++;else break;}return s;})();
   const lStreak=(()=>{let s=0;for(let i=last.length-1;i>=0;i--){if(last[i]==='L')s++;else break;}return s;})();
   const pos=(typeof myLeaguePos==='function'&&esLigaLocal(m.comp))?myLeaguePos():0;
-  const diario=['Olé','TyC','ESPN','DirecTV Sports','La Nación Deportiva'][~~(Math.random()*5)];
+  const _md=(ligaMia()==='Liga ARG'||ligaMia()==='Primera Nacional')?['Olé','TyC','ESPN','DirecTV Sports','La Nación Deportiva']:mediosLiga();
+  const diario=_md[~~(Math.random()*_md.length)];
   let t,tone;
   if(derby&&res==='W'){t=`¡${tn.toUpperCase()} SE QUEDÓ CON EL ${derby.toUpperCase()}!`;tone='good';}
   else if(derby&&res==='L'){t=`DOLOR: ${tn} perdió el ${derby}`;tone='bad';}
@@ -24102,6 +24330,10 @@ function rStats(){
   const _ek=copaMatch&&intCopaDe(copaMatch.comp), _ec=INT_COPAS[_ek]||{};
   const copaLabel=!copaMatch?('🏆 '+copaCont()):((_ec.emoji||'🏆')+' '+(_ec.nombre||copaCont()));
   const copaT=t.lib;
+  // Fase 102: el recuadro de la liga decía "🇦🇷 Liga Profesional" en las 25
+  // ligas y contaba con G.tourney.liga, que agarraba sólo las competencias
+  // con "Liga" en el nombre: la Premier, el Brasileirão o la Serie A daban 0.
+  const _slT=statsLiga();
   // Best scorer across all comps
   const allScorers=Object.entries({...(t.liga.scorers||{}),...(t.lib.scorers||{}),...(t.copa.scorers||{})})
     .reduce((acc,[name,g])=>{const ex=acc.find(x=>x.name===name);ex?ex.goals+=g:acc.push({name,goals:g});return acc;},[])
@@ -24135,11 +24367,11 @@ function rStats(){
     </div>
     <div class="g2" style="margin-bottom:10px">
       <div class="card">
-        <div class="ctitle">🇦🇷 Liga Profesional</div>
-        <div class="sr"><span class="sl">Partidos</span><span class="sv">${t.liga.pj}</span></div>
-        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${t.liga.pts||0}</span></div>
-        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${t.liga.gf}/${t.liga.ga}</span></div>
-        <div class="sr"><span class="sl">Diferencia</span><span class="sv" style="color:${t.liga.gf-t.liga.ga>=0?'var(--green)':'var(--red)'}">${t.liga.gf-t.liga.ga>=0?'+':''}${t.liga.gf-t.liga.ga}</span></div>
+        <div class="ctitle">${(LIGA_PAIS[ligaMia()]||{}).f||'🏟️'} ${ligaComp()}</div>
+        <div class="sr"><span class="sl">Partidos</span><span class="sv">${_slT.pj}</span></div>
+        <div class="sr"><span class="sl">Puntos</span><span class="sv" style="color:var(--gold)">${_slT.pts||0}</span></div>
+        <div class="sr"><span class="sl">Goles F/C</span><span class="sv">${_slT.gf}/${_slT.gc}</span></div>
+        <div class="sr"><span class="sl">Diferencia</span><span class="sv" style="color:${_slT.gf-_slT.gc>=0?'var(--green)':'var(--red)'}">${_slT.gf-_slT.gc>=0?'+':''}${_slT.gf-_slT.gc}</span></div>
       </div>
       <div class="card">
         <div class="ctitle">${copaLabel}</div>
@@ -24814,7 +25046,7 @@ function sellPlayer(id){
     <div class="note">Definí el precio. Cuanto más bajo, más rápido y más ofertas de clubes recibirás. No se vende al instante: las ofertas llegan con el correr de las semanas.</div>
     <div class="sr"><span class="sl">Valor de mercado</span><span class="sv" style="color:var(--green)">${fv(p.val)}</span></div>
     <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
-      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
+      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">€</span>
       <input type="number" id="askInp" step="0.1" min="0.1" value="${rec}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px 10px;color:var(--gold);font-family:'Rajdhani';font-size:24px;font-weight:700;text-align:center;outline:none"
         oninput="updAsk(${p.val})">
@@ -24988,11 +25220,35 @@ function confirmRescind(id,cost){
 // pero el LEAL firma hasta 20% abajo sin ponerse denso — es lo que lo hace
 // valer la pena aunque no se vea en ninguna ficha.
 function renovPiso(p){ return esLeal(p)?PERS_LEAL_REBAJA:0.85; }
+// ═══ FASE 102: LO QUE PIDE PARA RENOVAR SALE DE LA MISMA CURVA QUE UN FICHAJE ═══
+// Era `rat*0.55`, LINEAL, en cuatro lugares (la renovación a mano, las dos de
+// la Junta y la del presidente de la IA), mientras el sueldo del plantel
+// (`wageDeRat`) y lo que pide un fichaje (`_negWageExpect`) son CONVEXOS.
+// Medido: un pibe de media 50 que cobra 12k pedía 28k para renovar (2,3×) y
+// una figura de 90 que cobra 47k pedía 50k (1,05×): renovar al suplente era
+// carísimo y a la figura, gratis. Ahora es la curva de un fichaje con lo que
+// es de él (ambición a medias —ya está en casa—, momento de la carrera y el
+// recargo del mercenario), sin lo que es del mercado (liga, club, agente).
+// Y no renueva por menos de lo que cobra, salvo el veterano pasado de su pico.
+function renovPretension(p){
+  if(!p) return 5;
+  const r=p.rat||65;
+  let base=Math.pow(Math.max(40,r)/70,2.35)*38;
+  base*=0.5+wageGreed(p)*0.5;
+  let d=0;
+  if(typeof peakAge==='function'){
+    d=(p.age||26)-peakAge(p);
+    base*= d<=-5?0.80 : d<=-2?0.92 : d<=1?1.10 : d<=4?1.00 : 0.80;
+  }
+  if(esMercenario(p)) base*=PERS_MERC_WAGE;
+  const piso=(p.wage||0)*(d>4?0.85:1.0);
+  return Math.max(5,Math.round(Math.max(base,piso)));
+}
 function openContract(id){
   const p=G.squad.find(x=>x.id===id); if(!p) return;
   // El mercenario también aprieta al renovar: acá la pretensión no sale de
   // `_negWageExpect` (es otra cuenta), así que el recargo hay que aplicarlo.
-  const expected=Math.max(5,Math.round(p.rat*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+  const expected=renovPretension(p);
   const recWage=Math.round(expected*1.05);
   window._cYears=3; window._cPid=id;
   // La cláusula arranca en la que YA tiene (si tiene), no en el estándar: una
@@ -25266,7 +25522,7 @@ function accOffAt(i, val){
       // mirar el cupo.
       if(typeof pIsForeign==='function'&&pIsForeign(inc)&&foreignCount(G.squad)>=cupoExt()){
         addPhoneMsg('board','Secretaría Deportiva',
-          `🛂 No podemos inscribir a <b>${inc.name}</b>: el cupo de extranjeros está lleno (5/5). Se cae la parte del canje.`,'🏛️');
+          `🛂 No podemos inscribir a <b>${inc.name}</b>: el cupo de ${labelCupo().toLowerCase()} está lleno (${foreignCount(G.squad)}/${cupoExt()}). Se cae la parte del canje.`,'🏛️');
         lg('🛂',`${inc.name} no pudo inscribirse: cupo de extranjeros lleno`);
       } else {
       G.market=G.market.filter(x=>x.id!==inc.id);
@@ -25427,19 +25683,32 @@ function rSocial(){
   const topP=G.squad.length?[...G.squad].sort((a,b)=>b.rat-a.rat)[0]:null;
   const rumMkt=G.squad.length?[...G.squad].sort(()=>Math.random()-.5).slice(0,2):[];
   const tnHandle='@'+tn.replace(/\s+/g,'').toLowerCase().slice(0,10);
+  // Fase 102: las cuentas de medios salen del país de tu liga
+  const _SOC=(()=>{
+    const arg=ligaMia()==='Liga ARG'||ligaMia()==='Primera Nacional';
+    const h=n=>'@'+String(n).toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'').slice(0,15);
+    if(arg) return {arg,tv:{h:'@TyCSports',n:'TyC Sports'},espn:{h:'@espnfutbolarg',n:'ESPN Fútbol ARG'},
+      stats:{h:'@futbolstats_arg',n:'FútbolStats ARG'},copa:{h:'@copalibertadores',n:'Copa Watch ARG'},
+      diario:{h:'@olé',n:'Diario Olé'},tm:{h:'@transfermarkt_ar',n:'Transfermarkt ARG'}};
+    const M=mediosLiga(), cc=String((LIGA_PAIS[ligaMia()]||{}).p||'').slice(0,3).toUpperCase();
+    const cn=(typeof copaCont==='function')?copaCont():'Copa';
+    return {arg,tv:{h:h(M[1]||M[0]),n:M[1]||M[0]},espn:{h:h(M[2]||M[0]),n:M[2]||M[0]},
+      stats:{h:'@futbolstats_'+cc.toLowerCase(),n:'FútbolStats '+cc},copa:{h:h(cn)+'watch',n:cn+' Watch'},
+      diario:{h:h(M[0]),n:M[0]},tm:{h:'@transfermarkt_'+cc.toLowerCase(),n:'Transfermarkt '+cc}};
+  })();
   const fans=[
     {av:'🔵',handle:tnHandle+'_fan1',name:'Hincha Fanático #1',v:false},
     {av:'❤️',handle:'@loco_del_futbol',name:'Hincha Fanático',v:false},
-    {av:'⭐',handle:'@TyCSports',name:'TyC Sports',v:true},
-    {av:'🎙️',handle:'@espnfutbolarg',name:'ESPN Fútbol ARG',v:true},
+    {av:'⭐',handle:_SOC.tv.h,name:_SOC.tv.n,v:true},
+    {av:'🎙️',handle:_SOC.espn.h,name:_SOC.espn.n,v:true},
     {av:'😤',handle:'@rival_eterno',name:'Hincha Rival',v:false},
-    {av:'📊',handle:'@futbolstats_arg',name:'FútbolStats ARG',v:true},
-    {av:'🏆',handle:'@copalibertadores',name:'Copa Watch ARG',v:true},
-    {av:'👀',handle:'@scouting_latam',name:'Scouting Latinoamérica',v:false},
-    {av:'📰',handle:'@olé',name:'Diario Olé',v:true},
+    {av:'📊',handle:_SOC.stats.h,name:_SOC.stats.n,v:true},
+    {av:'🏆',handle:_SOC.copa.h,name:_SOC.copa.n,v:true},
+    {av:'👀',handle:'@scouting_'+(_SOC.arg?'latam':'pro'),name:_SOC.arg?'Scouting Latinoamérica':'Scouting PRO',v:false},
+    {av:'📰',handle:_SOC.diario.h,name:_SOC.diario.n,v:true},
     {av:'🎯',handle:'@tactica_pro',name:'Táctica PRO',v:false},
     {av:'💬',handle:tnHandle+'_oficial',name:tn+' Oficial',v:true},
-    {av:'🌟',handle:'@transfermarkt_ar',name:'Transfermarkt ARG',v:true},
+    {av:'🌟',handle:_SOC.tm.h,name:_SOC.tm.n,v:true},
   ];
   // ═══ LAS REDES SIGUEN LO QUE PASA DE VERDAD ═══
   // Antes los trending eran casi fijos. Ahora salen de hechos reales: el pase
@@ -25460,12 +25729,13 @@ function rSocial(){
   if(racha.length===3&&racha.every(r=>r==='W')) trending.push('#RachaGanadora');
   if(racha.length===3&&racha.every(r=>r==='L')) trending.push('#CrisisEn'+tn.replace(/\s/g,'').slice(0,8));
   if((G.boardConf||50)<30) trending.push('#DTAfuera');
-  trending.push('#TorneoArgentino');
+  // Fase 102: el hashtag del torneo es el de tu liga (era #TorneoArgentino en las 25)
+  trending.push('#'+String(ligaComp()).replace(/[^A-Za-zÀ-ÿ0-9]/g,''));
   // Posteos que citan hechos concretos, no frases genéricas
   const realNews=[];
-  if(ultPase) realNews.push({av:'🌟',handle:'@transfermarkt_ar',name:'Transfermarkt ARG',v:true,
+  if(ultPase) realNews.push({av:'🌟',handle:_SOC.tm.h,name:_SOC.tm.n,v:true,
     txt:`OFICIAL ⚪ <b>${ultPase.name}</b> (${ultPase.rat}) pasa de ${ultPase.from} a <b>${ultPase.to}</b>. Operación cerrada en ${fv(ultPase.fee)}.`});
-  if(ultAmis) realNews.push({av:'📰',handle:'@olé',name:'Diario Olé',v:true,
+  if(ultAmis) realNews.push({av:'📰',handle:_SOC.diario.h,name:_SOC.diario.n,v:true,
     txt:`🤝 Amistoso de pretemporada: <b>${tn} ${ultAmis.score} ${ultAmis.away}</b>. Rodaje para la temporada que viene.`});
   if(lesion) realNews.push({av:'❤️',handle:'@loco_del_futbol',name:'Hincha Fanático',v:false,
     txt:`Justo ahora se nos lesiona <b>${lesion.name}</b> 😩 ${lesion.injType||''}. ¡Fuerza que te necesitamos!`});
@@ -25484,13 +25754,13 @@ function rSocial(){
     ()=>`💸 Mercado caliente: se dice que ${rumMkt[0]?.name||'un jugador importante'} (${rumMkt[0]?.pos||'MC'}, ${rumMkt[0]?.rat||76}★) del plantel de ${tn} tiene ofertas del exterior. El DT ${G.dt.name} preferiría no venderlo. Seguimos...`,
     ()=>`📺 Conferencia de prensa — DT ${G.dt.name}: "${lastRes==='W'?'El equipo supo sufrir y aguantar, fuimos superiores.':lastRes==='D'?'El empate fue justo, ambos equipos mostraron cosas buenas.':'Duele la derrota, pero tenemos que seguir trabajando.'}" 🎙️`,
     ()=>`😡 Yo a ${tn} no los entiendo. Cuando tienen que ganar ${lastRes==='D'?'empatan':'pierden'}, cuando tienen que empatar... bueno. ${G.losses>4?'Demasiadas derrotas, el DT tiene que dar explicaciones 😤':'Confío que van a dar vuelta la situación.'}`,
-    ()=>`🔍 SCOUTING: ${rumMkt[1]?.name||'Jugador del mercado'} (${rumMkt[1]?.pos||'DEF'}, ${rumMkt[1]?.nat||'ARG'}, ${rumMkt[1]?.rat||72}★) estaría en el radar de ${tn}. Para el nivel del club ${(rumMkt[1]?.rat||72)>=78?'sería una incorporación de jerarquía 💪':'es una opción viable, aunque no espectacular.'}`,
+    ()=>`🔍 SCOUTING: ${rumMkt[1]?.name||'Jugador del mercado'} (${rumMkt[1]?.pos||'DEF'}, ${rumMkt[1]?.nat||natLocalPrincipal()}, ${rumMkt[1]?.rat||72}★) estaría en el radar de ${tn}. Para el nivel del club ${(rumMkt[1]?.rat||72)>=78?'sería una incorporación de jerarquía 💪':'es una opción viable, aunque no espectacular.'}`,
     ()=>`🏟️ ${G.stadium.name} se llena cuando ${tn} juega bien. ${G.stadium.capacity.toLocaleString()} fanáticos. Capacidad al ${lastRes==='W'?Math.min(100,Math.round(G.morale*1.1))+'%':Math.round(G.morale*0.7)+'%'}. ${lastRes==='W'?'¡Fiesta en las tribunas! 🙌':'El público, paciente pero expectante.'}`,
     ()=>`⚡ Estado del vestuario de ${tn}: moral ${G.morale}%. ${G.morale>=80?'El equipo está en llamas — de buena manera! 🔥 La energía se contagia.':G.morale>=55?'Ambiente estable, con foco en la semana de trabajo.':'Tensión palpable... el DT necesita un discurso motivacional.'}`,
-    ()=>`📈 Reputación de ${tn} en el fútbol sudamericano: ${G.rep}/100. ${G.rep>=88?'Son un GRANDE con mayúsculas 🏆':G.rep>=72?'Club respetado y en crecimiento continuo.':'Queda camino por recorrer pero los resultados hablarán.'}`,
+    ()=>`📈 Reputación de ${tn} en el fútbol ${_SOC.arg||['lib','sud'].includes(copaIntDeLiga(ligaMia(),1)||'')?'sudamericano':'internacional'}: ${G.rep}/100. ${G.rep>=88?'Son un GRANDE con mayúsculas 🏆':G.rep>=72?'Club respetado y en crecimiento continuo.':'Queda camino por recorrer pero los resultados hablarán.'}`,
     ()=>`🗣️ ${G.dt.name} en el entrenamiento: "Cada partido es una final, hay que salir al 100%." ${G.wins>=G.losses?'Y los números respaldan su discurso ✅':'Los jugadores escuchan, pero los resultados aún no llegan.'}`,
     ()=>`🔁 RUMOR: ${tn} estaría buscando refuerzos en el mercado. Presupuesto estimado: ${fv(G.budget)}. ${G.budget>=20?'Tienen poder de fuego para ir por figuras 💎':G.budget>=10?'Algo podrán hacer en el mercado.':'El bolsillo apretado limita las opciones 😅'}`,
-    ()=>copaMs.length?`🌍 ${tn} en la ${copaLabel}: ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pj||0} partidos jugados. ${G.tourney[copaLabel==='Libertadores'?'lib':'copa']?.pts||0} puntos. El torneo continental es otro nivel de presión 🏆`:`📰 El fixture de ${tn} es exigente esta semana. El DT tiene que decidir la rotación para no fundir el plantel.`,
+    ()=>copaMs.length?`🌍 ${tn} en la ${copaLabel}: ${((G.tourney||{}).lib||{}).pj||0} partidos jugados. ${((G.tourney||{}).lib||{}).pts||0} puntos. El torneo continental es otro nivel de presión 🏆`:`📰 El fixture de ${tn} es exigente esta semana. El DT tiene que decidir la rotación para no fundir el plantel.`,
     ()=>injured.length?`🏥 ${tn} sufre por las lesiones: ${injured.map(p=>p.name.split(' ').pop()).join(', ')} fuera del equipo. El médico trabaja para que vuelvan pronto. El DT tiene que improvisar.`:`💪 Buenas noticias para ${tn}: plantel completo, sin lesiones. El DT ${G.dt.name} puede elegir con libertad para el próximo partido 🙌`,
     ()=>`⚽ Dato estadístico: ${tn} promedia ${G.wins+G.draws+G.losses>0?(G.gf/(G.wins+G.draws+G.losses)).toFixed(1):'-'} goles/partido. ${G.gf/(G.wins+G.draws+G.losses||1)>=1.8?'Ataque potente, de los mejores del torneo 🔥':G.gf/(G.wins+G.draws+G.losses||1)>=1.2?'Producción ofensiva aceptable.':'Hay que mejorar la efectividad adelante 😬'}`,
   ];
@@ -25937,6 +26207,8 @@ function startFullMatch(watch){
   if(!G)return;
   const m=G.calendar.find(x=>!x.played);
   if(!m){flash('No hay partidos pendientes','loss');return;}
+  // Fase 102: con el DT tuyo el 11v11 también sale sin lesionados ni suspendidos
+  try{ if(typeof dtIsMine==='function'&&dtIsMine()) cubrirIndisponibles(); }catch(e){}
   window._fmWatch=!!watch;
   try{ if(typeof _FM3!=='undefined'&&_FM3.on)fm3DApagar(); }catch(e){}
   document.getElementById('fm-ov')?.remove();
@@ -26083,7 +26355,12 @@ function fmInit(m,W,H){
   const oppPos=myPos.map(([x,y])=>[VW-x,VH-y]);
 
   const myXI=S.xi.slice(0,11);
-  while(myXI.length<11)myXI.push({name:'Suplente',rat:68,pos:'MC'});
+  // Fase 102: si falta alguien entra uno de verdad del banco (sano), no un
+  // "Suplente" de 68 inventado, que a un club chico le regalaba nivel.
+  const _banco=(G.squad||[]).filter(q=>!myXI.some(x=>x.id===q.id)&&!q.injured&&!(q.susp>0)&&!q.colgado&&q.pos!=='ARQ')
+    .sort((a,b)=>b.rat-a.rat);
+  while(myXI.length<11&&_banco.length)myXI.push(_banco.shift());
+  while(myXI.length<11)myXI.push({name:'Suplente',rat:Math.round(S.avgR||60)-6,pos:'MC'});
 
   // Better opponent names (Argentine/South American style)
   const oNms=['Ruiz','Herrera','Méndez','Vargas','Solís','Benítez','Suárez','Morales','Delgado','Ibarra','Núñez'];
@@ -32457,7 +32734,7 @@ function negOpenClub(pid){
     <div class="sr"><span class="sl">Tu presupuesto</span><span class="sv">${fv(G.budget)}</span></div>
     ${n.rivals&&n.rivals.length?`<div class="note" style="margin:8px 0;border-color:var(--red)">⚠️ <b>${n.rivals.join(' y ')}</b> ${n.rivals.length>1?'también preguntaron':'también preguntó'} por él. Si te dormís, te lo llevan.</div>`:''}
     <div style="display:flex;align-items:center;gap:8px;margin:10px 0">
-      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">$</span>
+      <span style="font-size:22px;color:var(--gold);font-family:'Rajdhani';font-weight:700">€</span>
       <input type="number" id="negBid" step="0.1" min="0.1" value="${rec}"
         style="flex:1;background:var(--d3);border:1px solid var(--bdr);border-radius:7px;padding:9px;color:var(--gold);font-family:'Rajdhani';font-size:22px;font-weight:700;text-align:center;outline:none">
       <span style="font-size:12px;color:var(--t3)">M</span>
@@ -32523,9 +32800,13 @@ function negExecDeal(n,p){
   // En un canje se van jugadores, así que el cupo se mide descontándolos:
   // extranjero por extranjero no cambia el conteo y antes se caía igual.
   if(typeof pIsForeign==='function'&&pIsForeign(p)){
-    if(foreignCount(_quedan)>=5){
-      addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de extranjeros está lleno (5/5). La operación se cae.`,'🏛️');
-      lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
+    // ⚠️ Fase 102: era un 5 FIJO. Con el cupo de la liga en 99 (Premier,
+    // Alemania…) el Man City, que arranca con 16 extranjeros, no podía cerrar
+    // NINGUNA negociación por un extranjero: "cupo lleno (5/5)" y se caía.
+    if(foreignCount(_quedan)>=cupoExt()){
+      const _lc=labelCupo().toLowerCase();
+      addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: el cupo de ${_lc} está lleno (${foreignCount(_quedan)}/${cupoExt()}). La operación se cae.`,'🏛️');
+      lg('🛂',`${p.name} no pudo inscribirse: cupo de ${_lc} lleno`);
       n.stage='cerrada';return;
     }
   }
@@ -32542,8 +32823,9 @@ function negExecDeal(n,p){
     // ANTES: sólo le cambiaba el nombre del club a "(prést)" y no guardaba NADA
     // más. Sin fecha de vuelta ni club de origen, el jugador se quedaba para
     // siempre: pedías una cesión y en la práctica lo comprabas gratis.
-    p.loanOrigin=p.club;
-    p.club=(G.teamName||'Boca')+' (prést)';p.lg='Liga ARG';p.wage=n.wage;
+    p.loanOrigin=p.club; p.loanOrigLg=p.lg;
+    // Fase 102: juega en TU liga (era 'Liga ARG' fijo, el octavo de este tipo)
+    p.club=(G.teamName||'Boca')+' (prést)';p.lg=ligaMia();p.wage=n.wage;
     p.onLoanIn=true;
     p.loanUntil=(G.week||1)+((d.semanas)||26);
     if(d.loanType==='option') p.loanBuyOption=d.buyOption;
@@ -32975,9 +33257,9 @@ function negComplete(n,p,price,isPre){
     // Se llega acá desde un click (igualar contraoferta): si sólo mandaba un
     // mensaje al teléfono, el modal se cerraba y la operación desaparecía sin
     // que se entendiera por qué.
-    flash('🛂 Cupo de extranjeros lleno (5/5): no se puede inscribir a '+p.name,'loss');
+    flash('🛂 Cupo de '+labelCupo().toLowerCase()+' lleno ('+foreignCount(G.squad)+'/'+cupoExt()+'): no se puede inscribir a '+p.name,'loss');
     lg('🛂',`${p.name} no pudo inscribirse: cupo de extranjeros lleno`);
-    addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: cupo de extranjeros lleno (5/5).`,'🏛️');
+    addPhoneMsg('board','Secretaría Deportiva',`🛂 No podemos inscribir a <b>${p.name}</b>: cupo de ${labelCupo().toLowerCase()} lleno (${foreignCount(G.squad)}/${cupoExt()}).`,'🏛️');
     n.stage='cerrada';updateUI();return;
   }
   if(price>G.budget){flash('❌ Sin presupuesto','loss');n.stage='cerrada';return;}
@@ -37098,11 +37380,11 @@ function presPedidosTick(){
     }
   });
 }
-// Renueva a uno: la cuenta de `openContract` (rat×0,55, el recargo del
+// Renueva a uno: la cuenta de `openContract` (`renovPretension`, con el recargo del
 // mercenario) con lo que el presidente acepta pagar. Devuelve {ok,wage,motivo}.
 function presRenovarUno(p,pedido){
   const pf=presPerfil();
-  const exp=Math.max(5,Math.round((p.rat||65)*0.55*(esMercenario(p)?PERS_MERC_WAGE:1)));
+  const exp=renovPretension(p);
   const wage=Math.round(exp*1.05);
   const years=p.age<=25?4:p.age<=30?3:p.age<=33?2:1;
   const cost=Math.round(wage*years*4/1000*10)/10;

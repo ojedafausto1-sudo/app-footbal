@@ -14,6 +14,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `dts-db.js` | Base de DTs, **curada a mano** (no pisarla sin fusionar) |
 | `dts-anios.js` | Año de nacimiento y último año como jugador de 323 técnicos. **Lo genera `tools/dts-anios.js`** cruzando los nombres con las temporadas históricas (Fase 100) |
 | `tools/arnes11.js` | El arnés determinista del 11v11, **en el repo** (Fase 100): `node tools/arnes11.js 12 1 --json=a.json` y `--vs=a.json` para comparar |
+| `tools/auditoria.js` | Juega carreras enteras como un usuario y anota todo lo raro (Fase 102): `node tools/auditoria.js madrid 2 1`. Escenarios: boca, madrid, city, flamengo, lanusdt (modo DT), sanmartin, boca2005, river2018, nacional, fundar |
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
@@ -21,7 +22,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102` |
 
 ## Formato de `players-db.js`
 
@@ -8994,6 +8995,145 @@ relación con la moral:
 - `fase76` "el 2D queda de HUD (transparente)" en el tiro libre dio alfa 78, 32
   y 0 en corridas del mismo código (y verde con la versión anterior). Esta fase
   no toca nada de dibujo.
+
+## Fase 102: la auditoría — diez escenarios jugados de punta a punta
+
+El presidente pidió analizar el juego entero, simulando todas las funciones.
+`tools/auditoria.js` juega temporadas completas **como un usuario**: día por
+día hasta el partido, aceptando o rechazando ofertas, firmando la Carpeta y los
+sponsors, construyendo, subiendo pibes, contestando dilemas y conferencias. En
+cada fecha revisa invariantes (plantel, once, tabla, medidores, pestañas) y al
+cerrar la temporada guarda, carga y busca funciones en `G`. Además cuadra la
+**caja**: anota quién mueve `G.budget` y si lo anotó en Finanzas.
+
+Se corrieron Boca, Real Madrid, Man City, Flamengo, Lanús en modo DT, San
+Martín (SJ) en difícil, Boca 2005, River 2018, Almirante Brown en la Nacional y
+un club fundado en la Premier. **Cero errores de página, cero NaN, cero textos
+rotos, la tabla siempre consistente y el guardado siempre carga (3,1-3,9 MB).**
+Lo que sí apareció:
+
+### Modo DT: se jugaba con lesionados, suspendidos y hasta con 7
+
+Con el DT tuyo (modo DT o DT personalizado), `dtPicksXI` no tocaba el once: el
+que se lesionaba o se ganaba una suspensión seguía anotado y el partido se
+jugaba con él. Medido con Lanús: **80 partidos con menos de 11 disponibles (a
+veces 7), 69 con un suspendido y 46 con un lesionado en cancha.**
+`cubrirIndisponibles()` (desde `dtPicksXI` y `startFullMatch`) cambia SÓLO al
+que no puede jugar por el mejor del banco para ese puesto (`taparHueco`, con el
+cupo) y avisa una vez por partido ("📋 Profe, armé el once con lo que hay…").
+Después: 0, 0 y 0. El resto del once sigue siendo tuyo.
+
+Dos cosas más del mismo tipo:
+- **Sin arquero sano el arco quedaba vacío** y se jugaba con diez (`autoFill`
+  y `taparHueco` no ponen a uno de campo en el arco). `arqDeEmergencia()`:
+  ataja el de campo de menor nivel que esté libre.
+- El 11v11 rellenaba los huecos con un **"Suplente" inventado de media 68** (a
+  un club chico le regalaba nivel). Ahora entra uno de verdad del banco.
+
+### El último de la tabla jugaba la copa internacional
+
+`_tierCont` devolvía 1 (la grande) o 2 (la chica), nunca "nada". San Martín
+(SJ) salió **30º de 30 y jugó la Sudamericana**; en LaLiga el 20º jugaba la
+Europa League. `CUPOS_CONT` da los cupos reales por liga ([a la grande, a la
+chica]: Liga ARG 4+6, Brasil 6+6, España/Premier/Italia/Alemania 4+2, Francia
+3+2, Portugal/Holanda/Bélgica/Turquía/Grecia 2+2, Liga MX/MLS 4+0, Arabia 3+0,
+resto de Sudamérica 4+4) y `tierPorPuesto` decide. `archiveSeason` escribe
+**`G.tierCont`** (1/2/0) además de `G.qualifiedLib`.
+- La copa nacional da la grande en Sudamérica y la chica en Europa; un torneo
+  argentino (Apertura/Clausura/Copa de la Liga) o una copa continental, la
+  grande.
+- **La primera temporada** sale del lugar del club en su liga por reputación
+  (`tierInicial`), respetando el `initRep>=72` de siempre.
+- Retro-compatible: un save sin `tierCont` sigue con `qualifiedLib` (1 o 2).
+- `acceptCareerOffer` (rama que conserva `G`) borra la clasificación: la copa
+  que ganaste con el club anterior no viaja con vos.
+
+### La plata que se iba sin anotarse: las obras
+
+Cuadrando la caja, en Boca faltaban ~98M en un año y en el Madrid ~390M que
+salían de `G.budget` sin aparecer en ningún rubro de Finanzas. Eran **las
+obras**: el rubro `obras` existía y **no lo escribía nadie**. Las tres puertas
+(estadio, academia y la Carpeta del Director Deportivo) cobran y llaman a
+`obraIniciar`, que ahora anota. También el cuerpo técnico (`upgradeStaff`) y el
+entrenamiento individual. Después, en las cinco carreras: **lo anotado coincide
+con lo que se movió, ±1,5M de redondeo**.
+
+⚠️ Un Director Deportivo con caja recomienda obras seguido: en el Madrid,
+firmando el 70% de la Carpeta, fueron 355M en una temporada. Es decisión del
+presidente y ahora se ve.
+
+### El cupo de las negociaciones era un 5 fijo
+
+`negExecDeal` comparaba `foreignCount(plantel)>=5`. **El Man City (cupo 99,
+16 extranjeros) no podía cerrar ninguna negociación por un extranjero**: "cupo
+lleno (5/5)" y se caía. Ahora `cupoExt()`, y los tres mensajes dicen el cupo
+real ("10/9"). ⚠️ La regla de bloquear el fichaje con el PLANTEL lleno (Fase
+14) no se tocó: Flamengo (10/9) y Boca (6/6) siguen sin poder sumar
+extranjeros hasta liberar una plaza.
+
+### Renovar al suplente era carísimo y a la figura, gratis
+
+La pretensión de renovación era `rat*0.55`, LINEAL, en cuatro lugares
+(`openContract`, `juntaRenovFin`, `weeklyJunta`, `presRenovarUno`), con el
+sueldo del plantel y los fichajes en curvas convexas. Un pibe de 50 que cobra
+12k pedía 28k (2,3×) y una figura de 90 que cobra 47k pedía 50k (1,05×).
+`renovPretension(p)` usa la curva de `_negWageExpect` con lo que es del jugador
+(ambición a medias, momento de la carrera, mercenario) y sin lo del mercado, y
+no renueva por menos de lo que cobra salvo el veterano pasado de su pico.
+Medido sobre los planteles enteros: **Boca 1.343k → 1.342k** (igual), Real
+Madrid +16% (sus figuras), San Martín −21% (sus suplentes).
+
+### Préstamos entrantes
+
+- Quedaban con `p.lg='Liga ARG'` fijo (el octavo valor argentino escrito a
+  mano). Ahora `ligaMia()`, y al volver recupera su liga (`p.loanOrigLg`).
+- **Una cesión que cruzaba la temporada no volvía nunca**: `loanUntil` es una
+  semana y la semana vuelve a 1. `nextSeason` le descuenta lo que corrió (como
+  ya hacía con `G.loaned[].returnWeek`) y corrige `loanApps0`, porque `p.apps`
+  vuelve a 0 y la obligación de compra contaba sólo la temporada nueva.
+
+### El resumen de fin de temporada
+
+- **Abrirlo dos veces sumaba +25 de confianza dos veces** (se abre desde "Ver
+  resumen" y desde cada intento de jugar sin partidos): una vez por temporada
+  (`G._resumenTemp`).
+- Decía "¡CAMPEÓN DE LA LIGA!" al 1º de la tabla anual argentina, que no da
+  título: ahora "1º de la tabla anual" (salvo el torneo largo).
+- "Puntos liga" sumaba TODOS los partidos (`G.wins`); ahora `statsLiga()`.
+- "Salarios año" mostraba lo de UNA semana; ahora lo pagado (Finanzas).
+- Los recuadros tenían "🇦🇷 Liga" y "🥈 Sud." fijos.
+
+### Textos argentinos en las otras 24 ligas
+
+- El embargo lo hacía **"la AFA"** también en la Premier: `FEDERACION` /
+  `federacion()` (LaLiga, la Premier League, la CBF…).
+- La prensa y las redes citaban a **Olé, TyC Sports y "Transfermarkt ARG"** y
+  la tendencia era **#TorneoArgentino**: `MEDIOS_LIGA` / `mediosLiga()` tiene
+  los medios reales de cada país, y el hashtag sale de `ligaComp()`.
+- La pestaña Estadísticas decía **"🇦🇷 Liga Profesional"** en las 25 ligas y
+  contaba con `G.tourney.liga`, que agarraba sólo las competencias con "Liga"
+  en el nombre: **la Premier y el Brasileirão daban 0 partidos**. Ahora
+  `statsLiga()` con la bandera y el nombre de la liga, y `G.tourney` separa la
+  liga por `ligaComp()`.
+- Dos montos se escribían con **`$`** (la venta y la oferta): `€`.
+
+### Nombres repetidos
+
+Los nombres de la cantera se arman con nombres y apellidos REALES de la liga, y
+a veces sale uno que existe: **dos "Fernando Alarcón" en el plantel de Boca**
+(el otro juega en Instituto). `_youthName` prueba otro si ya está en el
+plantel, la cantera o el mercado (conjunto armado una vez por semana).
+
+### Lo que se miró y NO es un bug
+
+- **La Primera Nacional y el club fundado terminan el ciclo al descender** (no
+  hay Federal A ni segunda división fuera de la Argentina): correcto.
+- El Madrid que pasa de 374M a 807M en un año vendió figuras por oferta (el
+  arnés acepta el 30%): ventas de verdad, no una fuga.
+- Los Bocas que llegan a 84-88 en dos años son juveniles con potencial (la
+  regla de la Fase 76 los deja crecer hasta los 23).
+
+`tests/fase102.js`, **41 checks**.
 
 ## Deploy
 
