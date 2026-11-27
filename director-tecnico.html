@@ -5485,14 +5485,28 @@ function unpackPlayer(row){
 // ⚠️ El `beforeunload` es obligatorio: sin él, cerrar el navegador dentro de
 // esos 900 ms perdía la última jugada, y eso sería peor que el lag.
 const SAVE_DEBOUNCE=900;
-let _saveT=null, _savePend=false;
-function saveSoon(){
+let _saveT=null, _savePend=false, _saveDue=0;
+// Fase 104: saveSoon(ms) acepta un plazo más corto (nunca lo alarga). El fin de
+// partido pide 400 ms en vez de guardar en el acto: guardar son 3,2 MB y medido
+// era el 75% de simular un partido (100 ms, 400 ms con la CPU de un celular de
+// gama media). Así el resumen aparece primero, y en la seguidilla —que es un
+// bucle síncrono— los 40 guardados se juntan en UNO al terminar.
+function saveSoon(ms){
   _savePend=true;
-  if(_saveT) return;
-  _saveT=setTimeout(()=>{ _saveT=null; if(_savePend) saveGame(); }, SAVE_DEBOUNCE);
+  ms=ms===undefined?SAVE_DEBOUNCE:ms;
+  const due=Date.now()+ms;
+  if(_saveT&&_saveDue<=due) return;
+  if(_saveT) clearTimeout(_saveT);
+  _saveDue=due;
+  _saveT=setTimeout(()=>{ _saveT=null; if(_savePend) saveGame(); }, ms);
 }
 function saveFlush(){ if(_saveT){clearTimeout(_saveT);_saveT=null;} if(_savePend) saveGame(); }
 try{ window.addEventListener('beforeunload',()=>{ try{saveFlush();}catch(e){} }); }catch(e){}
+// ⚠️ Fase 104: en el celular `beforeunload` casi nunca llega (se cierra la app o
+// se cambia de pestaña y el sistema la mata después). Lo que sí llega es el
+// paso a segundo plano: ahí se guarda lo pendiente.
+try{ window.addEventListener('pagehide',()=>{ try{saveFlush();}catch(e){} }); }catch(e){}
+try{ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ try{saveFlush();}catch(e){} } }); }catch(e){}
 function saveGame(){
   if(!G) return;
   _savePend=false;
@@ -9864,10 +9878,15 @@ function renderMkt(){
   else if(sort==='ganga') _ordenar(p=>ratEst(p)/Math.max(0.3,p.val));
   else _ordenar(p=>-p.age);
   const totalFound=pl.length;
-  pl = pl.slice(0,150);
+  // ⚠️ Fase 104: se dibujan de a MK_PAGINA. Con 150 filas, mostrar la pestaña
+  // (reacomodar y pintar) costaba ~300 ms en un celular de gama media aunque el
+  // JS ya estuviera hecho. Cambiar cualquier filtro vuelve a la primera página.
+  const _firma=[q,pos,lg2,team,nat,mv,minV,maxAge,minAge,minR,minPot,estado,virt,sort,_mkLibres?1:0].join('|');
+  if(_firma!==_mkVerFirma){ _mkVerFirma=_firma; _mkVer=MK_PAGINA; }
+  pl = pl.slice(0,Math.min(150,_mkVer));
   const sinInf=pl.filter(p=>!isKnown(p)).length;
   const winOpen=isTransferWindowOpen();
-  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>150?' — mostrando 150 (afiná los filtros)':''}</span></div>
+  const winBanner=`<div style="padding:7px 10px;border-radius:6px;margin-bottom:8px;font-size:11px;font-weight:700;font-family:'Rajdhani';background:${winOpen?'rgba(15,184,102,.15)':'rgba(232,69,69,.1)'};border:1px solid ${winOpen?'#0fb866':'#e84545'};color:${winOpen?'#0fb866':'#e84545'}">${getWindowStatus()} · <span style="color:var(--t2)">${totalFound} jugadores encontrados${totalFound>pl.length?' — mostrando '+pl.length+(pl.length>=150?' (afiná los filtros)':''):''}</span></div>
   ${sinInf?`<div style="padding:5px 10px;border-radius:6px;margin-bottom:8px;font-size:10px;background:rgba(var(--gold-rgb),.08);border:1px solid rgba(var(--gold-rgb),.25);color:var(--t2)">🔎 <b style="color:var(--gold)">${sinInf}</b> de estos ${pl.length} están fuera de ${ligaComp()}: ves un rango estimado, no su media real. Abrí la ficha y pedí un informe (€0.1M) o mandá un ojeador a la liga.</div>`:''}
   ${estado&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">${estado==='precontrato'?`✍️ <b style="color:var(--gold)">Todavía no hay nadie a 6 meses del final.</b><br><span style="font-size:10px;color:var(--t3)">Los contratos se miden contra la temporada en curso: los que se vencen aparecen recién <b>sobre el final del año</b>. Mientras tanto probá "⏳ Último año de contrato".</span>`:`🔍 <b style="color:var(--gold)">Ningún jugador queda con esta situación contractual</b> junto al resto de los filtros. Aflojá alguno.`}</div>`:''}
   ${_mkLibres&&!totalFound?`<div style="padding:9px 11px;border-radius:6px;margin-bottom:8px;font-size:11px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);color:var(--t2)">🆓 <b style="color:var(--green)">No hay agentes libres todavía.</b><br><span style="font-size:10px;color:var(--t3)">Los jugadores quedan libres cuando se les vence el contrato, y eso pasa <b>al cerrar la temporada</b>. Medido: la primera temporada arranca con 0 y después del cierre aparecen ~950. Mientras tanto, al que le quedan 6 meses o menos podés hacerle un <b>precontrato</b> y que llegue gratis.</span></div>`:''}
@@ -9898,9 +9917,13 @@ function renderMkt(){
         <button class="btn bo bs" onclick="event.stopPropagation();loanIn('${p.id}')" ${winOpen?'':'disabled style="opacity:.4"'}>📥</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('')+((totalFound>pl.length&&pl.length<150)?`<button class="btn bo bs" style="width:100%;margin:6px 0 10px" onclick="mkVerMas()">⬇️ Mostrar ${Math.min(MK_PAGINA,Math.min(150,totalFound)-pl.length)} más (de ${totalFound})</button>`:'');
   if(!pl.length) el.innerHTML=winBanner+'<div style="text-align:center;padding:20px;color:var(--t3)">Sin resultados con esos filtros.</div>';
 }
+// Estado de pantalla, fuera de G (como _mkLibres o _sqFiltro).
+const MK_PAGINA=50;
+var _mkVer=MK_PAGINA, _mkVerFirma='';
+function mkVerMas(){ _mkVer=Math.min(150,_mkVer+MK_PAGINA); renderMkt(); }
 
 // ═══ MOVIMIENTOS: TODO EL QUE ENTRÓ Y SALIÓ ═══
 // Antes un jugador desaparecía del plantel y no había forma de saber por qué.
@@ -9990,7 +10013,7 @@ function rOffs(){
     const src = o.listed?'<span class="badge bau" style="margin-left:5px">📋 EN LISTA</span>':'<span class="badge baB" style="margin-left:5px">💬 INTERÉS</span>';
     const typeIco = o.type==='préstamo'?'📤 Cesión':'💰 Compra';
     return `
-    <div class="card" style="margin-bottom:7px">
+    <div class="mpanel" style="margin-bottom:7px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <div>${rb(o.player.rat)}</div>
         <div style="flex:1">
@@ -12411,7 +12434,7 @@ function rJuv(){
   `;
   e2.innerHTML = `<div class="ctitle">Jugadores Sub-20</div>` +
     y.players.map(p=>`
-      <div class="card" style="padding:9px;margin-bottom:7px">
+      <div class="mpanel" style="padding:9px;margin-bottom:7px">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div>
             <div style="font-weight:600;font-size:12px">${p.name} <span style="font-size:9px;color:var(--t3)">${p.age}a · ${p.pos}</span></div>
@@ -12811,7 +12834,7 @@ function rDtList(){
     lista.map(d=>{
       const a=(typeof dtArq==='function')?dtArq(d):null;
       return `
-      <div class="card" style="margin-bottom:6px">
+      <div class="mpanel" style="margin-bottom:6px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap">
           <div>
             <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:13px">${d.name}</div>
@@ -14849,7 +14872,7 @@ function openScouting(){
   const ligas=[...new Set(G.market.map(p=>p.lg))].sort();
   const activas=G.scoutMissions.map(ms=>`<div class="sr"><span class="sl">🔭 ${ms.liga} — ${SCOUT_FOCUS[ms.focus].label}</span><span class="sv">informe en ${Math.max(0,ms.doneWeek-G.week)} sem</span></div>`).join('');
   const reports=G.scoutReports.slice(0,5).map((r,ri)=>`
-    <div class="card" style="margin-bottom:6px">
+    <div class="mpanel" style="margin-bottom:6px">
       <div class="ctitle">📋 ${r.liga} — ${SCOUT_FOCUS[r.focus].label} <span style="font-weight:400;color:var(--t3)">(sem ${r.week})</span></div>
       ${r.picks.map(id=>{
         const p=G.market.find(x=>x.id===id);
@@ -19568,8 +19591,9 @@ function applyMatchResult(m, gf, ga, providedScorers){
   const em = res==='W'?'🏆':res==='D'?'🤝':'💔';
   lg(em,`${m.home} ${m.score} ${m.away} (${m.comp})`);
   const isLastMatch = G.calendar.every(x=>x.played);
-  // Un partido jugado no se puede perder por el agrupado de 900 ms.
-  try{ saveFlush(); }catch(e){}
+  // Un partido jugado no se puede perder por el agrupado de 900 ms: se pide en
+  // 400 (Fase 104) y lo que quede pendiente se guarda al esconder la página.
+  try{ saveSoon(400); }catch(e){}
   return {res, scorersList, stats, isLastMatch};
 }
 
@@ -22997,7 +23021,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     :`🎯 <span style="color:var(--gold)">¡PENAL!</span> ${mainP.name.split(' ').pop()} al punto`;
   s.hint=isOpp
     ?'← →: movete en la línea · Z: ¡tirate! (adiviná el palo)'
-    :'Tocá la pelota donde le pegás (o ← → ↑ ↓) · mantené para la fuerza y soltá';
+    :'Tocá el arco donde la querés poner · o la pelota donde le pegás (mantené = fuerza)';
   s.ball={wx:0,wz:0.10,wy:0};
   s.gkWx=0; s.swayT=0; s.kicked=false; s.dove=false; s.diveDir=1; s.flightT=0;
   s.aimAx=0.55; s.aimAy=0.45; s.power=0.6; s.charging=false;
@@ -23039,9 +23063,13 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
   };
   s._fireContacto=fireContacto;
   const enBola=(x,y)=>Math.hypot(x-bolaX,y-bolaY)<=bolaR*1.25;
+  // tocar el ARCO patea ahí (Fase 104): es lo primero que hace cualquiera
+  const enArco=(x,y)=>{ const L=proj(-GOAL_HW,1,0), R=proj(GOAL_HW,1,0), T=proj(0,1,BAR);
+    const ax=((x-L.x)/((R.x-L.x)||1))*2-1, ay=(L.y-y)/((L.y-T.y)||1);
+    return (ax>-1.35&&ax<1.35&&ay>-0.25&&ay<1.35)?{ax,ay}:null; };
   s.onTap=(x,y,mov)=>{
     if(isOpp||s.kicked)return;
-    if(!mov&&!enBola(x,y))return;
+    if(!mov&&!enBola(x,y)){ const a=enArco(x,y); if(a){ s.charging=false; fire(a.ax,a.ay,0.95); } return; }
     const nx=sC((x-bolaX)/bolaR,-1,1), ny=sC((y-bolaY)/bolaR,-1,1);
     const n=Math.hypot(nx,ny); s.pc={nx:n>1?nx/n:nx, ny:n>1?ny/n:ny};
     s._tocando=true; s.charging=true;
@@ -23076,6 +23104,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
       s.err=penError(mainP,s.power);
       s.swayT+=dt; s.gkWx=Math.sin(s.swayT*0.035)*0.10;
       if(s._clickFire){ s._clickFire=false; s.charging=false; return fireContacto(s.pc.nx,s.pc.ny,Math.max(0.75,s.power)); }
+      if(s.t>=S104.DECIDE){ s.charging=false; return fireContacto(s.pc.nx,s.pc.ny,0.95); }
       const suelto=s._tocando?!s._held:!k.shoot;
       if(s.charging&&suelto){ s.charging=false; s._tocando=false; fireContacto(s.pc.nx,s.pc.ny,Math.max(0.70,s.power)); return; }
     } else {
@@ -23194,7 +23223,7 @@ function sitSetupPenalty(W,H,oR,mainP,isOpp){
     }
     if(s.kicked&&s.shank&&!isOpp){ ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(W/2-90,H*0.10-14,180,28);
       ctx.fillStyle='#fff';ctx.font='bold 13px Rajdhani,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('¡La mordió!',W/2,H*0.10); }
-    sitDrawHint(ctx,W,H,s.hint);
+    if(!isOpp)_s104Cuenta(ctx,W,H,s); sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -23635,6 +23664,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
       }
       // DISPARO por Z: cuando venías cargando y soltás
       if(!k.shoot&&s.charging&&!s._drag){ fire(s.aimAx,s.aimAy,Math.max(0.7,s.power),(k.left?-0.4:0)+(k.right?0.4:0)); return; }
+      if(s.t>=S104.DECIDE&&!s._drag){ fire(s.aimAx,s.aimAy,0.92,0); return; }
     } else {
       s.flightT+=dt;
       const u=Math.min(1,s.flightT/s.dur);
@@ -23729,7 +23759,7 @@ function sitSetupFreeKick(W,H,oR,mainP,pool){
     ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=0.8;ctx.stroke();
     }
     if(!s.kicked)drawAimUI(ctx);
-    sitDrawHint(ctx,W,H,s.hint);
+    _s104Cuenta(ctx,W,H,s); sitDrawHint(ctx,W,H,s.hint);
   };
 }
 
@@ -23896,6 +23926,18 @@ function sitSetupDefense(W,H,oR){
 // ⚠️ En 3D la escena la arma `_s3Escena` con `s.figs3d()`; las marcas del HUD
 // (dónde cae el córner, a dónde apuntás) se proyectan con `_s91P`.
 const S91={BR:6.5, TIMEOUT:900};
+// Fase 104: el penal y el tiro libre a favor esperaban el toque PARA SIEMPRE.
+// Medido en tiempo real sin tocar nada: el partido quedó clavado 4 minutos en
+// el penal. Ahora, a S104.DECIDE ticks (~9 s) sin patear, patea solo, con
+// cuenta regresiva desde S104.AVISO.
+const S104={DECIDE:540, AVISO:360};
+function _s104Cuenta(ctx,W,H,s){
+  if(s.kicked||s.t<S104.AVISO) return;
+  const n=Math.max(1,Math.ceil((S104.DECIDE-s.t)/60));
+  ctx.save(); ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(W/2-70,H*0.46-15,140,30);
+  ctx.fillStyle=GOLD(); ctx.font='bold 16px Rajdhani,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('Patea solo en '+n,W/2,H*0.46); ctx.restore();
+}
 
 function _s91Atr(p,k){ return (p&&p.attrs&&p.attrs[k])||(p&&p.rat)||65; }
 // Pasar una posición de la cancha a la pantalla (2D: igual; 3D: la cámara)
@@ -25889,6 +25931,8 @@ const FM100={lejos:2.5, media:1.8, gamb:2.2};
 // ⚠️ Fase 100: faltaQuite 0,12 → 0,07. Un partido mirado dura ~4 minutos
 // reales: 15 faltas eran un pitazo cada 15 segundos ("se cobra falta por
 // todo"). Con 0,07 quedan ~7, una cada medio minuto.
+// Fase 104: perillas del arquero y del remate (ver fmBodyBall / fmAI ARQ).
+const FM104={pies:1, aimMid:1, llega:0.12, cruceGK:1, faltaHumano:0.4, autoIdle:70};
 const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.07, alcance:1};
 
 // ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
@@ -25961,7 +26005,14 @@ function fmBodyBall(p,b,team){
     const _t=(Math.abs(b.vx)>0.05)?(ownGoalX-b.x)/b.vx:-1;
     const _yCruce=(_t>0)?(b.y+b.vy*_t):b.y;
     const vaAlArco=(_t>0&&_t<70&&_yCruce>_gy1-8&&_yCruce<_gy2+8);
-    const estirada=Math.abs(_yCruce-p.y);
+    // ⚠️ Fase 104: lo que se estira es hasta donde la pelota le pasa A ÉL, no
+    // hasta donde cruzaría la línea. Con el arquero adelantado (achicando) la
+    // cuenta vieja le pedía estirarse hasta un punto que la pelota todavía no
+    // alcanzó: salir a achicar lo hacía PEOR arquero. Medido: en casi todos los
+    // goles el arquero estaba a 140-160 px (5-6 m) de su línea y ni la tocó.
+    const _tG=(Math.abs(b.vx)>0.05)?Math.max(0,(p.x-b.x)/b.vx):0;
+    const _yEnGK=b.y+b.vy*Math.min(_tG,Math.max(0,_t));
+    const estirada=Math.abs((FM104.cruceGK?_yEnGK:_yCruce)-p.y);
     // ⚠️ Fase 76: y la pelota tiene que LLEGAR hasta él. Sólo miraba dónde iba
     // a cruzar la línea, así que con la pelota a 390 px (medido) ya la
     // "embolsaba" y aparecía en sus manos desde 15 metros.
@@ -26005,7 +26056,7 @@ function fmBodyBall(p,b,team){
       // hombre parado. Se sube la base y se aflojan los castigos por potencia y
       // por lo pegado al palo que va el remate.
       const llega = Math.max(0.20,Math.min(0.92,
-                    ref/100*1.17 - power*0.022 - lejos*0.26 + (b.air>2?-0.06:0.04)));
+                    ref/100*1.17 - power*0.022 - lejos*0.26 + (b.air>2?-0.06:0.04) + FM104.llega));
       if(Math.random()>=llega){
         b.isShot=null;                                  // se le escapó: sigue de largo
         // ═══ Y NO SE LA PUEDE VOLVER A AGARRAR ═══
@@ -26305,6 +26356,7 @@ function startFullMatch(watch){
            mitad de los toques se perdían. Al apoyar el dedo, el joystick se
            mueve ahí y ESE punto pasa a ser el centro, así que nunca arrancás
            dando una dirección que no pediste. -->
+      <div id="fm-auto" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:11;pointer-events:none;background:rgba(6,10,18,.78);border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 10px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:#fff">🤖 Piloto automático · tocá para jugar</div>
       <div id="fm-joyzone" style="position:absolute;left:0;bottom:0;width:52%;height:46%;z-index:9;touch-action:none"></div>
       <div id="fm-joy" style="position:absolute;bottom:calc(22px + env(safe-area-inset-bottom,0px));left:20px;width:126px;height:126px;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.20);z-index:10;touch-action:none;pointer-events:none;transition:opacity .18s ease;opacity:.55">
         <div id="fm-jdot" style="position:absolute;top:38px;left:38px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.30);border:2px solid rgba(255,255,255,.55);pointer-events:none;transition:none"></div>
@@ -26342,12 +26394,13 @@ function startFullMatch(watch){
             </div>
             <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:12px">
               <div style="font-family:'Rajdhani';font-size:15px;font-weight:800;color:#fff;margin-bottom:8px">🛡️ SIN PELOTA (defensa)</div>
-              <div class="fm-hrow"><b>A</b><span>Barrida (¡cuidado, quedás en el piso!)</span></div>
+              <div class="fm-hrow"><b>A</b><span>Barrida (¡cuidado, quedás en el piso, y de atrás es tarjeta!)</span></div>
               <div class="fm-hrow"><b>B</b><span>Presionar al rival (mantené)</span></div>
               <div class="fm-hrow"><b>C</b><span>Despeje (cerca de la pelota)</span></div>
               <div style="font-family:'Rajdhani';font-size:15px;font-weight:800;color:#fff;margin:10px 0 8px">📱 TÁCTIL</div>
               <div class="fm-hrow"><b>Joystick</b><span>Moverse (al borde = sprint)</span></div>
               <div class="fm-hrow"><b>A / B / C</b><span>Igual que teclado (mantener = potencia)</span></div>
+              <div class="fm-hrow"><b>🤖</b><span>Si pasás un segundo sin tocar nada, tu equipo juega solo hasta que vuelvas a tocar</span></div>
             </div>
           </div>
           <div id="fm-keycfg" style="margin-top:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"></div>
@@ -26370,7 +26423,7 @@ function startFullMatch(watch){
     fmBind();fmJoySetup();fmRenderKeyCfg();
     const mb=document.getElementById('fm-mutebtn');
     if(mb)mb.textContent=FMS.muted?'🔇':'🔊';
-    if(window._fmWatch)fmSetupWatch();
+    if(window._fmWatch)fmSetupWatch(); else { try{ fmPerfiles(FM); fmUpdateTactics(); }catch(e){} }
     FM.raf=requestAnimationFrame(fmLoop);
     try{ fm3DAuto(); }catch(e){ console.error('3D',e); }
   });
@@ -26564,6 +26617,24 @@ function buildBenchPool(myXI){
 }
 
 // ═══ MODO SIMULACIÓN TÁCTICA: se mira, no se juega — los DTs dirigen ═══
+// ═══ FASE 104: LOS DOS DTs DIRIGEN TAMBIÉN CUANDO JUGÁS VOS ═══
+// Los perfiles sólo se cargaban en fmSetupWatch, o sea en el modo mirar. En
+// el modo JUGAR —el del botón grande— f.myProf y f.oppProf quedaban en
+// undefined, fmUpdateTactics salía en la primera línea y los 21 jugadores de
+// la IA jugaban con el perfil neutro de 0,5: ni el arquetipo del técnico
+// rival, ni tus instrucciones, ni el "duerme el partido" del resultadista.
+function fmPerfiles(f){
+  if(!f)return;
+  f.myProf=dtProfile(G.dt);
+  if(G.pressure==='Alta')f.myProf.press=Math.min(1,f.myProf.press+0.15);
+  if(G.pressure==='Baja')f.myProf.press=Math.max(0,f.myProf.press-0.15);
+  if(G.tempo==='Rápido')f.myProf.tempo=Math.min(1,f.myProf.tempo+0.15);
+  if(G.tempo==='Lento')f.myProf.tempo=Math.max(0,f.myProf.tempo-0.15);
+  if(G.width==='Amplio')f.myProf.width=Math.min(1,f.myProf.width+0.15);
+  if(G.width==='Estrecho')f.myProf.width=Math.max(0,f.myProf.width-0.15);
+  f.oppDT=dtDelRival(f.oppName||'');
+  f.oppProf=dtProfile(f.oppDT);
+}
 function fmSetupWatch(){
   const f=FM;if(!f)return;
   f.watch=true;f.speed=1;
@@ -27422,8 +27493,11 @@ function fmVentajaPosible(offTeam,victim,J,inBox){
   const f=FM; if(inBox||!J||J.c==='r'||J.c==='r2'||J.dogso||J.sev>=1.0) return false;
   const vt=offTeam==='my'?'opp':'my', vSq=vt==='my'?f.my:f.opp;
   const atacaDer=(vt==='my')===f.myAttRight;
-  const enAtaque=atacaDer?f.ball.x>f.VW*0.5:f.ball.x<f.VW*0.5;
   const victimaSigue=J.sev<0.7&&Math.hypot(victim.x-f.ball.x,victim.y-f.ball.y)<40;
+  // Fase 104: si el que manejás vos sigue con la pelota, el árbitro deja seguir
+  // en cualquier mitad: cortarte el avance para darte un tiro libre en tu campo
+  // es lo que hacía que el partido no fluyera.
+  const enAtaque=(atacaDer?f.ball.x>f.VW*0.5:f.ball.x<f.VW*0.5)||(!f.watch&&vt==='my'&&victim===f.my[f.ctrl]&&victimaSigue);
   const companero=vSq.some(q=>q!==victim&&!q.isGK&&Math.hypot(q.x-f.ball.x,q.y-f.ball.y)<75);
   return enAtaque&&(victimaSigue||companero);
 }
@@ -28256,7 +28330,24 @@ function fmTick(dt){
     }
   }
   if(!f.watch){if(k.tab&&!f.tabWas){f.tabWas=1;fmSwitch();}else if(!k.tab)f.tabWas=0;}
+  // ═══ FASE 104: PILOTO AUTOMÁTICO ═══
+  // El jugador que manejás no tiene IA: si no tocás nada, se queda parado y tu
+  // equipo juega con diez. En el celular pasa todo el tiempo (mirás la jugada
+  // lejos, soltás el joystick). Medido con un bot que no toca nada: 6 derrotas
+  // de 6, 0-4,5 de promedio. Ahora, a FM104.autoIdle ticks sin ningún toque, lo
+  // maneja la IA hasta que vuelvas a tocar algo.
   if(!f.watch){
+    const _toca=k.up||k.dn||k.lf||k.rt||k.z||k.x||k.c||k.sprint||k.tab||f.joyVec||f._joyId!==null&&f._joyId!==undefined||f.chargeA>0||f.chargeC>0||f.xHold>0||(f.slide&&f.slide.t>0);
+    f._idleT=_toca?0:(f._idleT||0)+dt;
+    const _auto=FM104.autoIdle>0&&f._idleT>FM104.autoIdle;
+    if(_auto!==!!f._auto){ f._auto=_auto; const ap=document.getElementById('fm-auto'); if(ap)ap.style.display=_auto?'block':'none'; }
+  }
+  if(!f.watch&&f._auto){
+    // sigue el cambio automático al más cercano, así cuando vuelvas a tocar
+    // agarrás al que está en la jugada
+    const cp=f.my[f.ctrl],b2=f.ball, cpD=cp?Math.hypot(cp.x-b2.x,cp.y-b2.y):9999;
+    if(cpD>38){ let bestI=f.ctrl,bestD=cpD; f.my.forEach((p,i)=>{ if(p.isGK||i===f.ctrl)return; const d=Math.hypot(p.x-b2.x,p.y-b2.y); if(d<bestD-35){bestD=d;bestI=i;} }); f.ctrl=bestI; }
+  } else if(!f.watch){
     // Auto-switch: always control the non-GK closest to the ball
     const cp=f.my[f.ctrl],b2=f.ball;
     const cpD=cp?Math.hypot(cp.x-b2.x,cp.y-b2.y):9999;
@@ -28304,7 +28395,7 @@ function fmTick(dt){
     if(f.possSide&&f.possSide!==f._prevPoss){f._transSide=f.possSide;f._transT=f.ticks;}
     if(f.possSide)f._prevPoss=f.possSide;
   }
-  f.my.forEach((p,i)=>{if(f.watch||i!==f.ctrl)fmAI(p,'my',i,dt);});
+  f.my.forEach((p,i)=>{if(f.watch||f._auto||i!==f.ctrl)fmAI(p,'my',i,dt);});
   f.opp.forEach((p,i)=>fmAI(p,'opp',i,dt));
   // Player-player collision: push apart any overlapping players
   const allP=[...f.my,...f.opp];
@@ -28330,7 +28421,14 @@ function fmCtrl(dt){
   const f=FM,k=f.keys,p=f.my[f.ctrl];if(!p)return;
   const b=f.ball,bd=Math.hypot(p.x-b.x,p.y-b.y);
   const KICK_R=p.r+7+20;
-  const hasBall=bd<=KICK_R&&!(b.air>2);
+  // ⚠️ Fase 104: el TIRONEO. Cuando un rival te sacaba la pelota (la manda a
+  // 3,2 de velocidad lejos tuyo), la conducción de abajo la volvía a pegar al
+  // pie en el cuadro siguiente: el rival volvía a tirar el quite, y cada quite
+  // fallido podía ser falta. Medido con un bot manejando: 14 faltas por partido
+  // SOBRE el jugador que controlás (en modo mirar son 7 entre los dos) y 30-48
+  // tiros libres a favor: el partido se cortaba todo el tiempo.
+  const robada=b._quiteDe===p&&f.ticks-(b._quiteT||-99)<16;
+  const hasBall=bd<=KICK_R&&!(b.air>2)&&!robada;
 
   // === INPUT: joystick analógico (dirección + magnitud) o teclado ===
   let ix=k.rt-k.lf,iy=k.dn-k.up,mag=(ix||iy)?1:0;
@@ -28410,21 +28508,47 @@ function fmCtrl(dt){
       f.chargeA=Math.min(1,f.chargeA+dt*0.032);
       f.zWas=1;
     }else if(f.chargeA>0){
-      const pow=0.42+0.58*f.chargeA;
-      // Dirección: input del jugador, o al arco si no está apuntando
+      // Fase 104: el toque corto es lo normal en el celular, y con 0,42+0,58·carga
+      // salía a 5-7 de velocidad: medido, 0 goles en 120 desde 11 m. El arquero
+      // tenía tiempo de acomodarse a cualquier remate de menos de 8,5 (el piso del
+      // de la IA). Ahora el toque ya pega como la IA y cargar suma potencia.
+      const pow=0.82+0.18*f.chargeA;
+      // ═══ FASE 104: EL REMATE TUYO APUNTA COMO EL DE LA IA ═══
+      // Antes, sin tocar el joystick salía derecho al medio del arco —donde
+      // está parado el arquero— y tocándolo salía para donde corrías, que casi
+      // nunca es el arco. Y salía más lento que el de la IA (8,2 contra 8,5-11,5
+      // con la carga entera). Medido aislado, 120 remates por caso desde 11, 16
+      // y 20 metros: 0 goles en los nueve casos.
+      // Ahora: el joystick ELIGE EL PALO (arriba / abajo en la pantalla) y sin
+      // tocarlo apunta al lado que dejó libre el arquero (fmAim, la misma
+      // cuenta de la IA). La puntería sale de tu remate y la potencia de la carga;
+      // cargar a fondo pega más fuerte pero abre la dispersión.
       let dxk,dyk;
-      if(moving){const dm=Math.hypot(ix,iy)||1;dxk=ix/dm;dyk=iy/dm;}
-      else{
-        const tgx=f.myAttRight?f.rightGL:f.leftGL;
-        const aimY=f.VH/2+(Math.random()*(f.GM||FM76.GM)-(f.GM||FM76.GM)/2)*0.6;
-        const dd=Math.hypot(tgx-b.x,aimY-b.y)||1;
+      {
+        const tgx=f.myAttRight?f.rightGL:f.leftGL, mid=f.VH/2, GMh=f.GM||FM76.GM;
+        const gkR=f.opp.find(q=>q.isGK&&!q._sentOff);
+        const shotAttr=(p.attrs&&(p.attrs.TIR||p.attrs.sho))||p.rat||70;
+        const dist=Math.abs(tgx-b.x);
+        const lat=moving?iy/(Math.hypot(ix,iy)||1):0;
+        let off;
+        if(Math.abs(lat)>0.25){
+          const cal=Math.max(0,Math.min(1,(shotAttr-55)/40));
+          const cerca=Math.max(0.42,Math.min(1.25,dist/(f.VW*0.20)));
+          off=Math.sign(lat)*GMh*0.58+(Math.random()*2-1)*GMh*(0.24-cal*0.13)*cerca;
+        } else off=fmAim(f,p,shotAttr,gkR,mid,0.80,dist);
+        if(f.chargeA>0.92) off+=(Math.random()*2-1)*GMh*0.16;   // a fondo: más fuerte, menos preciso
+        const aimY=mid+off, dd=Math.hypot(tgx-b.x,aimY-b.y)||1;
         dxk=(tgx-b.x)/dd;dyk=(aimY-b.y)/dd;
       }
-      const spd=(5.4+(p.attrs.sho/99)*3.4)*pow;
-      b.vx=dxk*spd+(Math.random()-.5)*.14+fmErr(p,'pun',0.30);
-      b.vy=dyk*spd+(Math.random()-.5)*.14+fmErr(p,'pun',0.42);
+      const spd=(7.6+(p.attrs.sho/99)*3.6)*pow;
+      b.vx=dxk*spd+fmErr(p,'pun',0.30);
+      b.vy=dyk*spd+fmErr(p,'pun',0.42);
       if(pow>0.85)b.air=16; // tiro potente: la pelota se eleva
       f._lastTouch='my';
+      // ⚠️ Fase 104: el remate tuyo NO se marcaba como remate (b.isShot), así
+      // que el arquero lo tomaba por la rama de "pelota suelta" y lo embolsaba
+      // siempre. Medido con un bot: 31 remates en 6 partidos, 0 al arco, 0 goles.
+      b.isShot='my'; p._solto=f.ticks;
       p._kickT=9;
       fmSndKick(pow);
       fmStat('my','shots');   // Fase 98: lo que hace el humano también cuenta
@@ -28486,7 +28610,7 @@ function fmCtrl(dt){
         b.vx=dirx/dm2*8.0;b.vy=diry/dm2*8.0;
         b.air=36;
         f._lastTouch='my';fmStat('my','pass');
-        p._kickT=9;
+        p._kickT=9; p._solto=f.ticks;
         fmSndKick(0.75);
       }
     }
@@ -28528,7 +28652,7 @@ function fmLofted(fromIdx,pow){
   b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
   b.air=Math.min(95,d/pwr*0.75); // frames de vuelo: pasa por arriba de todos
   f._lastTouch='my';
-  p._kickT=9;
+  p._kickT=9; p._solto=f.ticks;      // Fase 104: el que la soltó no la vuelve a tocar (tiene IA desde ya)
   fmSndKick(0.55);
   f.learn.lofted++;f.learn.passes++;fmStat('my','pass');
   if(recv>=0)f.ctrl=recv;
@@ -28560,7 +28684,7 @@ function fmPass(fromIdx,through){
     const pwr=4.4+d*0.011;
     b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
     f._lastTouch='my';fmStat('my','pass');
-    p._kickT=9;
+    p._kickT=9; p._solto=f.ticks;
     f.ctrl=best;
     return;
   }
@@ -28580,7 +28704,7 @@ function fmPass(fromIdx,through){
   const d=Math.hypot(dx,dy)||1;
   b.vx=(dx/d)*(3.2+d*.0115);b.vy=(dy/d)*(3.2+d*.0115);
   f._lastTouch='my';fmStat('my','pass');
-  p._kickT=9;
+  p._kickT=9; p._solto=f.ticks;
   fmSndKick(0.3);
   f.ctrl=best;
 }
@@ -29030,7 +29154,13 @@ function fmAI(p,team,idx,dt){
     // a su lado y volvía a "sacar" en cada tick — medido, 217 saques por partido.
     // No se usa _kickT para esto: lo descuenta el DIBUJO, y sin dibujo no baja.
     const _h=f._gkHold, _enMano=_h&&_h.gk===p&&(f.ticks-(_h.t0===undefined?f.ticks:_h.t0))<(_h.pausa||16);
-    if(bd<p.r+20&&!(b.air>2)&&!_enMano&&!(f.ticks-(p._sacoT||-99)<14)){
+    // ⚠️ Fase 104: el remate que YA le ganó (fmBodyBall puso _gkPass) no se lo
+    // despeja con los pies. La guarda estaba en las manos y no acá: la pelota
+    // pasaba a menos de p.r+20 del arquero vencido y la sacaba igual al cuadro
+    // siguiente. Medido aislado: de cada dos remates que le ganaban, uno
+    // terminaba en este despeje.
+    const _vencido=FM104.pies&&f._gkPass&&f._gkPass.gk===p&&f.ticks<f._gkPass.until&&b._beat&&f.ticks-b._beat<45;
+    if(bd<p.r+20&&!(b.air>2)&&!_enMano&&!_vencido&&!(f.ticks-(p._sacoT||-99)<14)){
       p._sacoT=f.ticks;
       fmArqueroSaca(p,team,idx);
     }
@@ -29041,7 +29171,7 @@ function fmAI(p,team,idx,dt){
 
   const bd=Math.hypot(p.x-b.x,p.y-b.y);
   const KICK_R=p.r+7+18;
-  const activeAI=!isM||f.watch; // en modo simulación, TU equipo también juega solo
+  const activeAI=!isM||f.watch||f._auto; // en modo simulación (o en piloto automático, Fase 104) TU equipo juega solo
 
   if(!activeAI){
     // ═══ EQUIPO DEL JUGADOR (modo jugable): sostener forma + desmarques ═══
@@ -29501,7 +29631,7 @@ function fmAI(p,team,idx,dt){
       } else if(inBox&&Math.random()<(0.0550+shotAttr/2400)*FM77.remArea*dt){
         // EN EL ÁREA: define al palo, y si el arquero salió se la pica.
         const _gk=rivals.find(q=>q.isGK);
-        const aimY=fmAim(f,p,shotAttr,_gk,0,0.80,Math.abs(tgx-b.x));
+        const aimY=fmAim(f,p,shotAttr,_gk,FM104.aimMid?mid:0,0.80,Math.abs(tgx-b.x));
         const pica=fmPicaLa(p,_gk,b,f,shotAttr,attRight);
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=pica?(3.9+Math.random()*1.2):(8.5+Math.random()*3.0+Math.max(0,shotAttr-75)/13);
@@ -29511,7 +29641,7 @@ function fmAI(p,team,idx,dt){
         f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
       } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0075+_pegada*0.0180)*FM100.media*dt){
         const _gk2=rivals.find(q=>q.isGK);
-        const aimY=fmAim(f,p,shotAttr,_gk2,0,0.72,Math.abs(tgx-b.x));
+        const aimY=fmAim(f,p,shotAttr,_gk2,FM104.aimMid?mid:0,0.72,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=9.2+Math.random()*2.4+Math.max(0,shotAttr-75)/13;
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
@@ -29520,7 +29650,7 @@ function fmAI(p,team,idx,dt){
       } else if(longShot&&Math.random()<(0.0027+Math.max(0,shotAttr-74)/100*0.0140)*FM100.lejos*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
-        const aimY=fmAim(f,p,shotAttr,_gk3,0,0.66,Math.abs(tgx-b.x));
+        const aimY=fmAim(f,p,shotAttr,_gk3,FM104.aimMid?mid:0,0.66,Math.abs(tgx-b.x));
         const ddx=tgx-b.x,ddy=mid+aimY-b.y,dd=Math.hypot(ddx,ddy)||1;
         const pwr=10.8+Math.random()*1.8+Math.max(0,shotAttr-75)/11;
         b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
@@ -29719,6 +29849,9 @@ function fmAI(p,team,idx,dt){
             const dd4=Math.hypot(awayX,awayY)||1;
             b.vx=awayX/dd4*3.2;b.vy=awayY/dd4*3.2;
             f._lastTouch=team;
+            // Fase 104: el que la perdió no la vuelve a pegar al pie en el
+            // cuadro siguiente (ver fmCtrl, `robada`).
+            b._quiteT=f.ticks; b._quiteDe=carrier;
             if(f.learn)f.learn.tackles=(f.learn.tackles||0)+1;
           }
           // ═══ EL QUITE QUE NO LLEGA PUEDE SER FALTA (Fase 76) ═══
@@ -29729,7 +29862,11 @@ function fmAI(p,team,idx,dt){
             const _am=p._aggrMul||((p.roleStyle==='Destructor'||p.roleStyle==='Marcador')?1.5:1);
             const _area=Math.abs(p.x-ownGX)<fieldW*0.165&&Math.abs(p.y-mid)<f.GH*1.25;
             // Fase 99: el amonestado mide las entradas (si no, la segunda amarilla era moneda corriente)
-            if(Math.random()<FM76.faltaQuite*(0.6+prof.aggr)*_am*(_area?0.16:1)*Math.max(0.6,1-(defA-carA)/120)*(p._yc?0.45:1)){
+            // Fase 104: el jugador que manejás vos lleva la pelota un cuarto del
+            // partido (la IA la suelta enseguida), así que con la misma chance por
+            // duelo le hacían 11-14 faltas por partido y el juego no fluía.
+            const _hum=!f.watch&&carrier===f.my[f.ctrl]?FM104.faltaHumano:1;
+            if(Math.random()<FM76.faltaQuite*(0.6+prof.aggr)*_am*(_area?0.16:1)*Math.max(0.6,1-(defA-carA)/120)*(p._yc?0.45:1)*_hum){
               p._slideT=10;
               fmFoul(team,p,carrier,'entrada');
               return;
@@ -33509,7 +33646,7 @@ function openNegsPanel(){
     ${!ns.length?'<div class="note">No tenés operaciones en curso. Buscá un jugador en el mercado y arrancá por los términos personales.</div>':
       ns.map(n=>{
         const p=G.market.find(x=>x.id===n.pid);
-        return `<div class="card" style="margin-bottom:7px;padding:9px">
+        return `<div class="mpanel" style="margin-bottom:7px;padding:9px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div><div style="font-weight:700;font-size:12px">${n.name}</div>
             <div style="font-size:9px;color:var(--t3)">${n.kind&&n.kind!=='compra'?KIND_LBL[n.kind]+' · ':''}${n.club} · ${n.wage}k/sem${n.kind==='prestamo'?'':' · '+n.years+' años'}</div></div>
@@ -35144,25 +35281,34 @@ const TAB_NOM={ov:'Inicio',news:'Noticias',social:'Redes',sq:'Plantel',tac:'Tác
 const TAB_EXTRA={tac:'rTacticaTab',dt:'rDtTab',pat:'rSponsors',stats:'rStats',news:'rNewsTab',social:'rSocial',pres:'rPresTab'};
 let _hubSec='central';
 
+// ⚠️ Fase 104: el scroll vuelve arriba ANTES de redibujar. Hecho después,
+// obligaba al navegador a reacomodar la pestaña nueva entera a mitad del click
+// (para saber hasta dónde se puede scrollear) y otra vez para pintar.
 function irTab(name){
+  const m=document.querySelector('#game .main'); if(m&&m.scrollTop) m.scrollTop=0;
   gTab(name,null);
   const f=TAB_EXTRA[name];
   if(f&&typeof window[f]==='function'){ try{ window[f](); }catch(e){ console.error('irTab',name,e); } }
-  const m=document.querySelector('#game .main'); if(m) m.scrollTop=0;
 }
 function irSec(sec){
   if(sec==='central'){ irTab('ov'); return; }
+  const m=document.querySelector('#game .main'); if(m&&m.scrollTop) m.scrollTop=0;
   _hubSec=sec; _tabSucia.hub=true;
   gTab('hub',null);
-  const m=document.querySelector('#game .main'); if(m) m.scrollTop=0;
 }
 // Lo llama gTab cada vez: resalta la sección, arma la miga y decide si el
 // fondo 3D se ve nítido (tablero) o desenfocado (adentro de una página).
 function fUISync(name){
   const sec=name==='hub'?_hubSec:(TAB_SEC[name]||'central');
-  document.querySelectorAll('#fnav .fs').forEach(b=>{ const on=b.dataset.sec===sec; b.classList.toggle('on',on);
-    // En el celular la barra se desplaza: la sección activa tiene que quedar a la vista.
-    if(on&&b.parentNode&&b.parentNode.scrollWidth>b.parentNode.clientWidth) b.parentNode.scrollLeft=Math.max(0,b.offsetLeft-b.parentNode.clientWidth/2+b.offsetWidth/2); });
+  let _act=null;
+  document.querySelectorAll('#fnav .fs').forEach(b=>{ const on=b.dataset.sec===sec; b.classList.toggle('on',on); if(on)_act=b; });
+  // En el celular la barra se desplaza: la sección activa tiene que quedar a la vista.
+  // ⚠️ Fase 104: medir scrollWidth/offsetLeft acá forzaba el reacomodo de TODA la
+  // página recién redibujada, a mitad del cambio de pestaña. Medido con el
+  // perfilador: el 75% de entrar al Mercado. Se mide en el cuadro siguiente,
+  // cuando el navegador ya hizo ese reacomodo para pintar.
+  if(_act) requestAnimationFrame(()=>{ try{ const pn=_act.parentNode;
+    if(pn&&pn.scrollWidth>pn.clientWidth) pn.scrollLeft=Math.max(0,_act.offsetLeft-pn.clientWidth/2+_act.offsetWidth/2); }catch(e){} });
   const cr=document.getElementById('fCrumb');
   if(cr){
     const enTablero=(name==='hub'||name==='ov');

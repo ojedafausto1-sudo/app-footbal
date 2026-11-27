@@ -23,7 +23,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104` |
 
 ## Formato de `players-db.js`
 
@@ -9284,6 +9284,200 @@ movió.
   años, que con la curva nueva bajó de 76 a 74): ahora arma uno si no hay.
 
 `tests/fase103.js`, **33 checks**.
+
+## Fase 104: el modo JUGAR, el arquero y la fluidez
+
+El presidente preguntó si el juego estaba listo para publicar y pidió medir el
+modo JUGAR, las jugadas clave y el 11v11, y buscar dónde se traba. El modo
+JUGAR (el 11v11 donde manejás a un jugador, el del botón grande desde la Fase
+73) **nunca se había medido**: todos los arneses miran.
+
+### El bot que juega
+
+`FM.keys` y `FM.joyVec` se pueden escribir desde afuera como haría el dedo, así
+que un bot (en el scratchpad) juega con `startFullMatch(false)`: va a la
+pelota, la lleva al arco, patea cerca del área, pasa si lo apuran y barre si
+el rival está encima. Tres variantes: **quieto** (no toca nada), **bot**
+(barre a lo loco) y **botsin** (presiona con B en vez de barrer).
+
+⚠️ `startFullMatch(false)` arranca en la pantalla de controles (`phase:'help'`):
+sin `fmCloseHelp()` el partido no empieza y `f.possT` queda sin crear.
+
+### Lo que estaba roto (medido con el bot, 6-8 partidos por variante)
+
+| | antes |
+|---|---|
+| goles del bot en 18 partidos | **0** |
+| remates al arco del bot | **0 de 31** |
+| faltas sobre el jugador que manejás | 11-14 por partido (en modo mirar son 7 entre los dos) |
+| amarillas por partido | 9 |
+| sin tocar nada | 6 derrotas de 6, 0-4,5 |
+
+Siete causas, una por una:
+
+1. **Los DTs no dirigían en el modo JUGAR.** `f.myProf` / `f.oppProf` sólo se
+   cargaban en `fmSetupWatch`. Jugando, `fmUpdateTactics` salía en la primera
+   línea y los 21 de la IA jugaban con el perfil neutro de 0,5: ni el
+   arquetipo del rival, ni tus instrucciones. Ahora `fmPerfiles(f)` corre en
+   los dos modos.
+2. **Tu remate no era un remate.** `fmCtrl` no ponía `b.isShot`, así que el
+   arquero lo tomaba por la rama de "pelota suelta" y lo embolsaba siempre.
+3. **Y apuntaba al arquero.** Sin joystick salía al medio del arco, y con el
+   joystick para donde corrías. Ahora el joystick elige el palo (arriba/abajo
+   en la pantalla) y sin tocarlo apunta como la IA (`fmAim`, al lado que dejó
+   libre el arquero). Cargar a fondo pega más y abre la dispersión.
+4. **El toque corto era un pase al arquero.** `0,42+0,58·carga` daba 5-7 de
+   velocidad; con eso el arquero se acomoda a cualquier cosa (medido: 0 goles
+   de 120 desde 11 m). Ahora `0,82+0,18·carga`: el toque ya pega como la IA.
+5. **El tironeo.** El rival te sacaba la pelota y la conducción de `fmCtrl` la
+   volvía a pegar al pie en el cuadro siguiente: el rival tiraba otro quite, y
+   cada quite fallido podía ser falta. `b._quiteDe`/`b._quiteT` (16 ticks).
+6. **Llevás la pelota un cuarto del partido** (la IA la suelta enseguida), así
+   que con la misma chance por duelo te hacían 11-14 faltas. `FM104.faltaHumano`
+   (0,4) sobre el quite al que manejás, y el árbitro deja seguir **en cualquier
+   mitad** si seguís con la pelota (`fmVentajaPosible`).
+7. **Sin tocar nada jugabas con diez.** El que manejás no tiene IA. Ahora hay
+   **piloto automático**: a `FM104.autoIdle` (70) ticks sin ningún toque —un
+   poco más de un segundo— lo maneja la IA, y con `activeAI` el equipo entero
+   pasa a la IA completa del modo mirar (jugando, tus compañeros usan una IA
+   más simple: se acomodan y la pelota la juega el que manejás). Cartel
+   `#fm-auto` arriba; cualquier toque devuelve el control.
+
+⚠️ Y los pases y despejes tuyos no marcaban `p._solto` (Fase 100): el que
+pasaba recibía IA al instante (el control salta al receptor) y podía volver a
+patear la pelota que acababa de soltar.
+
+Medido después, 8 partidos cada uno:
+
+| | resultado | goles | faltas | amarillas | rojas |
+|---|---|---|---|---|---|
+| quieto (piloto automático) | G2 E4 P2 | 1,38-1,25 | 3,9 | 1,4 | 0 |
+| botsin | G2 E3 P3 | 1,5-1,75 | 7,5 | 3,3 | 0,13 |
+| bot (barre a lo loco) | G2 E2 P4 | 1,25-1,75 | 12,3 | 5,6 | **1,6** |
+| mirar (control) | G4 E1 P3 | 1,63-0,88 | 7,1 | 2,0 | 0 |
+
+⚠️ **Las rojas del bot que barre son el castigo de barrer de atrás** y no se
+tocaron: la barrida que toca al rival sin llegar a la pelota de atrás es falta
+el 85% de las veces, y si iba solo al arco es el último hombre. La pantalla de
+controles ahora lo dice.
+
+Y el remate aislado (120 por caso, sólo contra el arquero): **11 m 24-34%**,
+16 m 19-26%, 20 m 16%, 25 m 12%. Antes, 0 en todos.
+
+### El arquero: dos errores que se compensaban
+
+Midiendo el remate tuyo apareció que en el 11v11 **mirado** también había dos
+errores, y que el balance de goles estaba calibrado con los dos adentro:
+
+- **La IA apuntaba siempre al mismo palo.** Los tres remates de `fmAI` le
+  pasaban `0` como centro del arco a `fmAim`, así que `gk.y-0` daba siempre
+  positivo y `lado` era siempre −1. Ahora le pasan `mid` (`FM104.aimMid`).
+- **El arquero adelantado se estiraba hasta la línea.** La estirada se medía
+  hasta donde la pelota cruzaría la línea del arco, no hasta donde le pasa A
+  ÉL. Con el arquero achicando 5-6 m adelante, se le pedía llegar a un punto
+  que la pelota todavía no alcanzó: **salir a achicar lo hacía peor arquero**.
+  Medido: en casi todos los goles el arquero estaba a 140-160 px de su línea y
+  ni la tocó. `FM104.cruceGK`.
+- **Y el arquero vencido despejaba con los pies.** La guarda `_gkPass` estaba
+  en las manos (`fmBodyBall`) y no en la rama de `fmAI` que llama a
+  `fmArqueroSaca`: la pelota que le ganaba pasaba a menos de `p.r+20` y la
+  sacaba igual al cuadro siguiente. Medido: de 1,63 veces por partido que el
+  remate le ganaba al arquero, **sólo 0,25 terminaban en gol**. `FM104.pies`.
+
+Las tres apagadas reproducen la versión anterior **hash por hash** (16
+partidos, `--vs`), así que lo que movieron es de ellas. Prendidas sin más, los
+goles iban de 2,25 a 3,7: el arquero estaba calibrado con los errores. Se
+recalibró la atajada (`FM104.llega`, que suma a `llega` en `fmBodyBall`):
+
+| `llega` | 0 | 0,10 | 0,12 | 0,20 |
+|---|---|---|---|---|
+| goles (2 semillas × 16) | 3,1-3,8 | 2,38-3,25 | **2,25-3,19** | 2,06-2,69 |
+
+Final, 32 partidos mirados contra la versión anterior:
+
+| | antes | ahora | real |
+|---|---|---|---|
+| goles | 2,47 | 2,72 | 2,5-3,0 |
+| al arco | 6,7 | **8,8** | 8-9 |
+| goles / al arco | 37% | **31%** | 31% |
+| pases | 166 | 158 | — |
+| faltas | 8,5 | 7,7 | — |
+
+⚠️ **El alcance del arquero (`FM76.alcance`) no era la perilla**: con la
+puntería arreglada, de 1 a 1,24 los goles casi no se movían (3,69 → 3,56). Lo
+que pasaba era la geometría de la estirada, no el tamaño.
+
+⚠️ **Dos semillas dan 0,9 goles de diferencia** sobre el mismo código (3,19
+contra 2,25). Con 16 partidos no se puede calibrar: hacen falta las dos.
+
+### Las jugadas clave: el penal y el tiro libre esperaban para siempre
+
+Medido en tiempo real sin tocar nada: el penal y el tiro libre a favor
+**esperaban el toque indefinidamente** — el partido quedó clavado 4 minutos.
+Las demás jugadas se resuelven solas a los 4-8 segundos. Ahora, a
+`S104.DECIDE` (540 ticks, ~9 s) sin patear, patea solo, con "Patea solo en N"
+desde `S104.AVISO`. Y en el penal **tocar el arco patea ahí** (antes sólo
+servía tocar la pelota chica de abajo a la derecha, y tocar el arco no hacía
+nada).
+
+Medido después: los partidos de jugadas clave duran **35-67 segundos** sin
+tocar nada o tocando al azar, 0 errores. Con las jugadas en 3D y sin placa de
+video tardan 2-3 veces más: `sitLoop` topea el paso en 2,5 (24 fps) y abajo de
+eso la jugada se hace lenta. 🛑 Con GPU no se midió.
+
+### Fluidez
+
+Medido con la CPU ×4 (`Emulation.setCPUThrottlingRate`, un celular de gama
+media):
+
+| | antes | ahora |
+|---|---|---|
+| simular un partido de liga | 0,6-1,0 s | 0,13-0,47 s |
+| simular 40 partidos seguidos | 32 s | **12 s** |
+| entrar al Mercado (hasta pintar) | 467 ms | ~150-230 ms |
+| entrar a Cuerpo Técnico | 255-300 ms | ~40-240 ms |
+| abrir el juego | 1,0 s | 1,0 s |
+| 11v11 en 2D | 57 fps | 60 fps |
+
+Cuatro causas:
+
+1. **Guardar era el 75% de simular un partido** (3,2 MB, 100 ms; 400 con la CPU
+   lenta). El fin de partido hacía `saveFlush()`. Ahora pide `saveSoon(400)`:
+   el resumen aparece primero, y la seguidilla —un bucle síncrono— junta los
+   40 guardados en uno. `saveSoon(ms)` acepta un plazo más corto, nunca lo
+   alarga.
+   ⚠️ **En el celular `beforeunload` casi nunca llega.** Se guarda lo pendiente
+   en `pagehide` y en `visibilitychange` a `hidden`, que es lo que sí llega
+   cuando cerrás la app o cambiás de pestaña. Antes el agrupado de 900 ms
+   dependía de un evento que en el teléfono no existe.
+2. **`fUISync` forzaba el reacomodo de toda la página** leyendo
+   `scrollWidth`/`offsetLeft` de la barra justo después de redibujar la
+   pestaña: el perfilador lo marcó como el 75% de entrar al Mercado. Va en el
+   cuadro siguiente.
+3. **`irTab` volvía el scroll arriba DESPUÉS de redibujar**, que obliga a
+   reacomodar la pestaña nueva para saber hasta dónde se puede scrollear. Va
+   antes.
+4. **El Mercado dibujaba 150 filas y la lista de técnicos 40 `.card` con vidrio
+   real.** El Mercado va de a 50 (`MK_PAGINA`, botón "Mostrar más", cambiar un
+   filtro vuelve a la primera página; estado fuera de `G`) y cinco listas que
+   tenían `.card` por fila (técnicos, juveniles, ofertas, ojeadores,
+   negociaciones) pasaron a `.mpanel` — la regla de siempre: el vidrio va en
+   los contenedores, no en las filas.
+
+⚠️ **Medir una pestaña hasta el cuadro pintado, no sólo el JS.** Con la CPU
+lenta, el mismo cambio daba 3 ms de JS y 300 de pintar. Y es ruidoso: dos
+corridas del mismo código dan 145 y 228 ms en el Mercado.
+
+### Lo que se midió y está bien
+
+- **Frenos obligatorios por temporada** (dilemas, prensa, lesiones, clásico):
+  1-3 en ~55 partidos (Boca, River, Racing).
+- **El 11v11 no se traba**: 0 tramos de 300+ ticks con la pelota quieta en
+  juego, en los tres modos.
+- **El cambio automático de jugador** salta ~330-400 veces por partido (cada
+  ~1 s): es el más cercano a la pelota, como en cualquier juego de fútbol.
+
+`tests/fase104.js`, **26 checks**.
 
 ## Deploy
 
