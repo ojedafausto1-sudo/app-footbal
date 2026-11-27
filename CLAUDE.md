@@ -23,7 +23,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105` |
 
 ## Formato de `players-db.js`
 
@@ -9478,6 +9478,121 @@ corridas del mismo código dan 145 y 228 ms en el Mercado.
   ~1 s): es el más cercano a la pelota, como en cualquier juego de fútbol.
 
 `tests/fase104.js`, **26 checks**.
+
+## Fase 105: el pase hacia donde apuntás, la repetición del gol y la cancha 3D
+
+El presidente: *"¿podemos mejorar los gráficos y la jugabilidad? Hacerlo más
+parecido al PES 6"*. Se tomó lo que hace que un juego de fútbol de consola se
+sienta así —el pase hacia donde apuntás, un botón para el filtrado, la
+repetición del gol, la cancha de transmisión— y **no** su aspecto, sus nombres
+ni sus menús.
+
+### El pase va hacia donde apuntás
+
+`fmPass` mandaba **siempre** el pase al compañero más cercano adelantado,
+apuntaras donde apuntaras: no se podía abrir a la banda, tocar para atrás ni
+elegir a quién. Ahora `fmPaseDir` lee el joystick y `fmReceptor` elige del
+cono de 66° (cos ≥ 0,40) hacia donde apuntás.
+
+- ⚠️ **Manda el ÁNGULO, no la distancia.** Con `d·(1+(1−cos)·2,4)`, apuntándole
+  derecho a uno a 30 m ganaba el que estaba a 8 m y 60° corrido: medido, **36 de
+  90** pases iban al apuntado. Con `d·0,4 + 12 por grado`, los que no van al
+  apuntado van a uno que está casi en la misma línea (≤15°) y más cerca, o sea
+  en el camino. Una línea con un rival adentro suma 160 (`fmLineaTapada`).
+- Para atrás anda (si no hay nadie en el cono, se abre a 90° y entra el
+  arquero con cos ≥ 0,6). Al arquero, sólo apuntándole (cos ≥ 0,85).
+- ⚠️ **Sin joystick, el pase de siempre.** Restringir el pase sin apuntar al
+  cono de "hacia donde corrés" daba, con el bot, **0 victorias en 8** contra
+  G2 E3 P3; con la dirección apagada daba exactamente lo de antes, partido por
+  partido. Por eso la dirección sólo manda cuando `dir.dado`.
+- El **elevado** (C) también: apuntando lejos del área elige por dirección y
+  alcance, y apuntando para atrás o al otro costado es un cambio de frente,
+  no un centro.
+- **F = pase filtrado** (tecla V, botón nuevo al lado de B): al que pica en
+  la dirección del joystick, a la pelota al espacio delante de él. Mantener B
+  sigue siendo filtrado, como antes.
+- **F sin pelota = doble presión** (`fmDoblePresion`): mientras lo mantenés, el
+  compañero más cercano a la pelota va al portador. ⚠️ Corre después de la IA y
+  toca **sólo la velocidad**: llamar a `fmMove` lo movía dos veces por tick y
+  corría al doble.
+
+Medido con el bot del modo JUGAR (8 partidos por versión). El resultado queda
+dentro del ruido (G1 E3 P4 contra G2 E3 P3 tocando sin apuntar; G2 E3 P3 contra
+G3 E1 P4 apuntando), y los **pases completados suben**: 157 contra 92 (20%
+contra 12%) y 109 contra 57 (17% contra 10%), contando el primero que la toca a
+menos de 24 px.
+⚠️ El bot "sin apuntar" en realidad suelta B con el joystick hacia el arco (el
+tick en que suelta ya está corriendo), así que mide el pase con dirección; fue
+lo que confundió la primera medición.
+
+### La repetición del gol
+
+`fmRpGrabar` (al final de `fmTick`) guarda cada tick de juego —posición,
+velocidad y postura de los 22 y la pelota— en un buffer circular de
+`Float32Array` (284 ticks). Al gol, a `RP.desde` (55) ticks de festejo, `fmLoop`
+deja de avanzar el partido y dibuja lo grabado: `RP.tick` (260) ticks a 0,9× y
+los últimos `RP.lenta` (95) en cámara lenta, con franjas de cine y el cartel
+**REPETICIÓN**. En 3D tiene su propia cámara, baja y de tres cuartos desde
+atrás del que hizo el gol.
+
+- El estado vivo se **guarda, se pisa con el cuadro grabado, se dibuja y se
+  restaura** en el mismo cuadro (`fmRpPoner` / `fmRpSacar`, también la fase,
+  así no sale el velo de pelota parada). Verificado: el reloj del partido no
+  se mueve y el estado vivo queda idéntico mientras dura.
+- ⚠️ **No cambia el partido.** No usa azar y el arnés (que llama a `fmTick`
+  sin `fmLoop`) da el mismo hash con y sin grabación; `tools/arnes11.js` contra
+  la versión anterior: **0↑ 0↓ en las 11 métricas**.
+- No cruza una pelota parada ni el saque del medio (`_rpCorte`). ⚠️ El corte no
+  se toma en la fase del festejo: la primera versión lo hacía y no quedaba nada
+  que repetir.
+- Sólo a ×1 y con `dt_replay` prendido (del navegador; interruptor en la
+  ayuda). Se saltea tocando la pantalla o cualquier tecla. `fmSimularResto` y
+  `fmClean` la cortan.
+
+### La cancha 3D
+
+- ⚠️ **Todo lo dibujado en un canvas salía lavado.** Las texturas de canvas se
+  cargaban sin espacio de color, o sea como lineales, y la salida las
+  codificaba a sRGB: el verde `#3a9a44` del pasto se veía verde pastel. Los
+  materiales de color liso venían bien, por eso los jugadores no se notaban.
+  Ahora todas pasan por `_e3dTex` (sRGB; la sombra, que es sólo alfa, no). Las
+  luces subieron un poco (hemisférica 1,12, sol 1,7) porque la escena "clara"
+  de antes era el error.
+- **El pasto** (`_e3dCanchaTex`): 2048 px (antes 1024), filtrado anisotrópico,
+  grano, desgaste frente a los arcos y **todas** las líneas (faltaban los
+  puntos penales, las medialunas y los arcos de córner).
+- **Los arcos** (`_e3dArcos`): palos redondos y red de verdad (costados, techo y
+  fondo con una malla transparente), en vez de una caja blanca al 25%.
+- **Banderines** y **carteles LED** alrededor de la cancha (`_e3dCarteles`),
+  que corren despacio. ⚠️ Sin marcas reales: el club local, "DIRECTOR
+  TÉCNICO", la liga y la temporada.
+- **Cielo** con degradé (`_e3dCielo`), una esfera de 820 m sin niebla.
+- **La gente se mueve** (en la GPU: `onBeforeCompile` del material de la
+  `InstancedMesh`, la fase sale de la posición de cada uno) y **salta con el
+  gol de la casa**, también en la repetición. Las bandejas sin el color del
+  club pasaron de blanco a gris oscuro: el blanco con la gente encima se leía
+  como ruido.
+- **El nombre del que manejás va arriba de su cabeza**, con su energía abajo
+  (antes era un cartel fijo al pie que pisaba el radar).
+- **Celular acostado** (`max-height:500px`): el radar va arriba a la derecha y
+  más chico, en 3D y en 2D. Abajo al medio tapaba la jugada.
+- Lo aprovechan las tres escenas: el 11v11, las jugadas clave y el visor del
+  estadio.
+
+Medido en Chromium sin placa de video: dibujar un cuadro cuesta lo mismo que
+antes (2 ms de mediana, mismas llamadas de dibujo, ~100.000 triángulos) y
+**0 llamadas a `Math.random`** al dibujar.
+🛑 Sigue sin medirse en un celular de verdad.
+
+### Lo que no se hizo
+
+- **Camisetas con rayas o bandas**: los kits son dos colores (`c1`, `c2`) y no
+  hay un dato de diseño por club. Sería una tabla nueva a mano.
+- **Sprint con botón en el celular**: ya existe (joystick al borde = sprint).
+- **Patear por arriba del travesaño cargando de más**: tocaría la calibración
+  de goles de la Fase 104, que costó dos semillas de 16 partidos.
+
+`tests/fase105.js`, **25 checks**.
 
 ## Deploy
 
