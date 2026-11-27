@@ -9135,6 +9135,13 @@ plantel, la cantera o el mercado (conjunto armado una vez por semana).
 
 `tests/fase102.js`, **41 checks**.
 
+🔶 **Cuatro tests fallan si se corren de a cuatro en paralelo y pasan solos**:
+`fase90` (espera 700 ms la gira), `fase94` (1,7 s la respuesta del DT),
+`ui-fifa` (el 11v11 en 3D a pocos fps) y `fase91`, cuyo "20-40% de jugadas
+nuevas" es un sorteo que dio 19, 21 y 25 en tres corridas del mismo código.
+Con la máquina cargada las esperas fijas no alcanzan. Si los ves rojos,
+corrélos solos antes de creerles.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
