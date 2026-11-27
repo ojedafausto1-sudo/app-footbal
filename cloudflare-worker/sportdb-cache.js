@@ -34,7 +34,12 @@
 
 // Se sube cada vez que cambia algo que el extractor necesita saber.
 // `?api=ping` la devuelve: es la forma de verificar que el deploy tomó.
-const WORKER_VERSION = '2026.09-hist';
+const WORKER_VERSION = '2026.11-valor';
+// Fase 103: el parser de planteles cambió (el valor de mercado ya no es el
+// traspaso). La clave del caché de tmkader lleva esta marca para que un
+// plantel parseado con el código viejo NO vuelva a salir del KV durante 30
+// días: con la misma clave, actualizar el Worker no habría cambiado nada.
+const KADER_PARSER = 'v2';
 
 const DEFAULT_TTL = 60 * 60 * 24 * 30; // 30 días — los valores TM cambian pocas veces por temporada
 
@@ -70,6 +75,8 @@ export default {
         version: WORKER_VERSION,
         apis: ['transfermarkt', 'flashscore', 'tmapi', 'tmcoach', 'tmkader', 'tmclubs'],
         historicos: true,
+        // Fase 103: el valor de mercado sale de la celda, no del traspaso
+        valorDeMercado: true,
         cacheKV: !!env.CACHE,
       });
     }
@@ -82,7 +89,7 @@ export default {
 
     // La clave de caché NO incluye la API key: si cambiás de cuenta
     // de SportDB, el caché acumulado se sigue aprovechando.
-    const cacheKey = `${api}:${path}`;
+    const cacheKey = api === 'tmkader' ? `${api}:${KADER_PARSER}:${path}` : `${api}:${path}`;
 
     // 1. ¿Está en KV?
     if (!fresh && env.CACHE) {
@@ -345,26 +352,37 @@ function parseKader(html, year) {
     // contrato: la ÚLTIMA fecha suelta de la fila (la columna de vencimiento)
     const fechas = f.match(/([A-Za-z]{3}\s+\d{1,2},\s*\d{4}|\d{1,2}[./]\d{1,2}[./]\d{4})/g) || [];
     const contract = fechas.length > 1 ? fechas[fechas.length - 1] : '';
-    // valor de mercado: la celda de la derecha
+    // ═══ VALOR DE MERCADO Y TRASPASO, POR SEPARADO (Fase 103) ═══
+    // ⚠️ Se tomaba el PRIMER "€" de la fila, y en la vista detallada el
+    // primero no es el valor de mercado: es el TRASPASO, que TM esconde en el
+    // `title` del escudo de "Llegó de" ("Manchester United: Ablöse €94.00m").
+    // Cristiano quedaba con €94M en todas las temporadas de 2009 a 2017 y, en
+    // las 26 temporadas bajadas, el 70% de las filas de €10M+ era un traspaso.
+    // El valor de mercado es TEXTO VISIBLE (el link de la última celda) y el
+    // traspaso vive sólo en un atributo, así que: valor = el último "€" del
+    // texto sin etiquetas; traspaso = el "€" de un `title`.
+    // ⚠️ El traspaso es el del ÚLTIMO pase a ese club, también en las
+    // temporadas de antes (Pogba en el United 2010 trae los €105M de 2016).
     // ⚠️ LA UNIDAD SE CAPTURA ENTERA, con `[a-zäöü.]*` y no con una
     // alternancia. Acá estaba la otra mitad del bug que la Fase 43 arregló a
     // medias: `(?:bn|m|k|mil|th)?` prueba `m` antes que `mil`, así que
     // "€500 mil" se capturaba como "€500 m" y `valorEnMillones` —que SÍ lee
     // la unidad completa— recibía ya la palabra TRUNCADA y devolvía 500
-    // MILLONES en vez de 0,5. Medido sobre la extracción de 21 ligas: 120
-    // filas infladas ×1000 (Gianluca Curci, 17 años, a €500M). Y al revés,
-    // "€500 Tsd." perdía la unidad entera (Tsd no está en la lista) y daba
-    // 0,001. El `.es` escribe "mil" y el `.de` "Tsd.", y el Worker cae a
-    // esos dominios cuando el `.com` falla, así que no es un caso de borde.
-    const value = valorEnMillones((f.match(/(€\s*[\d.,]+\s*[a-zäöü.]*)/i) || [])[1]);
+    // MILLONES en vez de 0,5. Y al revés, "€500 Tsd." perdía la unidad entera
+    // y daba 0,001. El `.es` escribe "mil" y el `.de` "Tsd.".
+    const visibles = txt(f).match(/€\s*[\d.,]+\s*[a-zäöü.]*/gi) || [];
+    const value = valorEnMillones(visibles[visibles.length - 1]);
+    const tFee = f.match(/title="[^"]*?(€\s*[\d.,]+\s*[a-zäöü.]*)[^"]*"/i);
+    const fee = tFee ? valorEnMillones(tFee[1]) : 0;
 
     players.push({ id: pid, name, num, pos, age, birth,
       nat: nats[0] || '', nat2: nats[1] || '',
-      height, foot, contract, value });
+      height, foot, contract, value, fee });
   }
   return { players, _rawFirst: raw,
     diag: { filas: filas.length, parseados: players.length,
       conValor: players.filter(p => p.value > 0).length,
+      conTraspaso: players.filter(p => p.fee > 0).length,
       conNac: players.filter(p => p.nat).length,
       conPos: players.filter(p => p.pos).length,
       temporada: year || null } };

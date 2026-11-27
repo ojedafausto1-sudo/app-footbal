@@ -1790,8 +1790,31 @@ function ratValPts(val,year){
 // mueve de 67,24 a 67,08 — el reparto queda igual, se corren las dos puntas.
 // ⚠️ `ratToVal` es la INVERSA y resta esta misma función, así que se ajusta
 // sola: no hay una segunda tabla que se pueda desincronizar.
+// ═══ FASE 103: LA MISMA CURVA, SIN ESCALONES ═══
+// Eran seis escalones y el salto de 29 a 30 era de CUATRO puntos (+1 → +5):
+// el mismo jugador con el mismo valor ganaba 4 de media al cumplir años, y
+// de ahí salían las inversiones que se ven en cualquier año — Capdevila (33,
+// €7M) arriba de Müller (21, €28M) en 2010, Cañizares (35, €7M) en 91 en
+// 2004. Ahora sube de a un punto y conserva el promedio de cada tramo del
+// Excel (19-21 −2,5 contra −3; 30-34 +4,7 contra +5; 35+ 7-8 contra 8).
+// Medido, sobre los planteles enteros de cada año: los pares en que el más
+// barato (3× o más) queda arriba bajan a la mitad — 2014: 122 → 59, 2020:
+// 268 → 168, 2026: 89 → 48 — y el reparto casi no se mueve (2026: mediana
+// 66 igual, 88+ de 71 a 68; el top-15 de Boca de 76,7 a 76,3).
+const AGE_ADJ={17:-5,18:-4.5,19:-3.5,20:-2.5,21:-1.5,22:-0.5,23:0,24:0,25:1,26:1,27:1,28:1,
+  29:2,30:3,31:4,32:5,33:5.5,34:6,35:7};
 function ageAdj(age){
-  return age<=18?-5:age<=21?-3:age<=24?0:age<=29?1:age<=34?5:8;
+  const a=Math.round(age||25);
+  return a<=17?-5:a>=36?8:AGE_ADJ[a];
+}
+// ⚠️ EL ARQUERO ENVEJECE MÁS TARDE (Fase 103). Al +3 del puesto se le sumaba
+// el +8 de los 35 años y un arquero de €5M a esa edad llegaba a 91: Chilavert
+// en 2000, Lehmann y Cañizares en 2005, todos arriba de Kaká y de Henry. El
+// mercado no le descuenta al arquero de 33 lo que le descuenta a un nueve de
+// 33, porque el arquero sigue atajando, así que desde los 30 se le aplica la
+// curva de tres años menos. Al pibe no se lo toca.
+function ageAdjPos(age,pos){
+  return (pos==='ARQ'&&age>=30)?ageAdj(Math.max(29,age-3)):ageAdj(age);
 }
 function ratPosMod(pos){
   if(pos==='ARQ')return 3;
@@ -1800,7 +1823,7 @@ function ratPosMod(pos){
   return 0;
 }
 function valToRat(val, age, pos, year){
-  return Math.min(91,Math.max(55,Math.round(55+ratValPts(val,year)+ageAdj(age)+ratPosMod(pos))));
+  return Math.min(91,Math.max(55,Math.round(55+ratValPts(val,year)+ageAdjPos(age,pos)+ratPosMod(pos))));
 }
 function valToPot(val, age, pos, year){
   // Potencial: su nivel proyectado en plenitud (+1) más margen de crecimiento joven
@@ -1970,7 +1993,7 @@ function devFactor(p){
 // reescribía ×5 solo, de a un jugador por vez, en cuanto empezaban a
 // entrenar — justo lo que la regla prohíbe, pero en cámara lenta.
 function ratToVal(rat, age, pos, year) {
-  const pts=Math.max(0,Math.min(36,rat-55-ageAdj(age)-ratPosMod(pos||'MC')));
+  const pts=Math.max(0,Math.min(36,rat-55-ageAdjPos(age,pos||'MC')-ratPosMod(pos||'MC')));
   const hoy=0.1*Math.exp(pts/36*RAT_LNR);
   const k=getYearInflation(year||(typeof anioBase==='function'?anioBase():2026));
   return Math.max(0.1,Math.round(hoy/(k||1)*10)/10);
@@ -2016,7 +2039,21 @@ const PERF_ADJ = {
   'Germán Pezzella':+2, 'Guido Rodríguez':+2, 'Lucas Ocampos':+2,
   'Paulo Dybala':+3, 'Cristian Pavón':+1, 'Sebastián Villa':+2,
 };
-function perfAdj(name){ return PERF_ADJ[name]||0; }
+// ⚠️ FASE 103: LA TABLA ES DE HOY. Los +5 de Enzo Pérez son por lo que hizo
+// en su carrera, medidos contra su valor de 2026 (40 años, Dep. Maipú).
+// Aplicados en cualquier temporada, en 2014 —con 29 años y €25M en el
+// Valencia— lo llevaban a 91, la misma media que Messi. Y la tabla es por
+// NOMBRE: en la base de 2014 hay otros dos Enzo Pérez, uruguayos de 24
+// años, que también se llevaban el +5. Sólo vale en la base de hoy (ni en un
+// año viejo ni en un evento de leyendas) y para el veterano de 28+.
+function perfAdj(name,age){
+  const v=PERF_ADJ[name]||0;
+  if(!v)return 0;
+  // (en try: P() puede correr antes de que se declare `_PDB_ACTUAL`)
+  try{ if(anioBase()!==2026||esHistorica())return 0; }catch(e){}
+  if(age!==undefined&&age<28)return 0;
+  return v;
+}
 // ═══ EL SUELDO NO ERA LINEAL EN LA VIDA REAL Y ACÁ SÍ ═══
 // El sueldo inicial salía de `rat*0.4`, o sea LINEAL, y ese es el motivo por
 // el que NINGÚN club chico del juego podía sobrevivir un año. Medido: un
@@ -2033,7 +2070,7 @@ function wageDeRat(rat){
 }
 function P(n,name,pos,age,nat,club,lg,val,rat_override,wage,_potIgnored,contractUntil,heightCm,pos2,clauseM,gls,ast,aps,nat2) {
   const rat = (rat_override > 0) ? Math.min(91,rat_override)
-    : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
+    : Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name, age)));
   const pot = Math.max(rat, valToPot(val, age, pos));
   // El vencimiento de contrato viene de la base real cuando está disponible
   // (lo usa todo el mercado: precontratos, libres, descuentos por poco vínculo).
@@ -2365,6 +2402,13 @@ function _filaAJugador(r,num,club,ratOv){
   const pl=P(num,r[1],r[2],r[3],r[4],club,r[6],v,ratOv||0,0,0,r[9],r[10],r[11],r[12],r[13],r[14],r[15],r[16]);
   if(r[8])pl.foot=r[8];
   if(v!==r[7])pl.valRef=r[18];      // el valor es una estimación: de qué año sale
+  // Fase 103: r[19] es lo que se pagó por él al llegar al club, y r[20]=1 dice
+  // que r[7] es un valor RECONSTRUIDO desde ese traspaso (tools/hist-valores.js)
+  // porque el extractor guardaba el traspaso en vez del valor de mercado.
+  // ⚠️ r[20]=2 es un traspaso del FUTURO (TM muestra el último pase a ese club
+  // también en las temporadas de antes): ése no se muestra, no llegó por eso.
+  // `trClub`: el traspaso es a ESE club; si después se muda, deja de mostrarse.
+  if(r[19]>0&&r[20]!==2){ pl.traspaso=r[19]; pl.trClub=club; if(r[20]===1)pl.valRec=1; }
   return pl;
 }
 
@@ -8510,12 +8554,12 @@ function openP(id, inSquad){
     </div>
     <div class="card" style="padding:8px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">${p.valRef?'Valor estimado':'Valor Transfermarkt'}</span>
-        <span style="font-size:16px;font-weight:700;color:${tmColor};font-family:'Rajdhani',sans-serif">${p.valRef?'~':''}${fv(p.val)}</span>
+        <span style="font-size:10px;color:var(--t3);font-family:'Rajdhani',sans-serif;text-transform:uppercase">${(p.valRef||(p.valRec&&p.club===p.trClub))?'Valor estimado':'Valor Transfermarkt'}</span>
+        <span style="font-size:16px;font-weight:700;color:${tmColor};font-family:'Rajdhani',sans-serif">${(p.valRef||(p.valRec&&p.club===p.trClub))?'~':''}${fv(p.val)}</span>
       </div>
       <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
         <div style="width:${tmPct}%;height:100%;background:${tmColor};border-radius:3px;transition:width .5s"></div>
-      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}${typeof p.notaProm==='number'?`<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px"><span style="color:var(--t3)">📊 Promedio de notas (últimos partidos)</span><b style="font-family:'Chakra Petch';color:${p.notaProm>=JUG_SUBE?'var(--green)':p.notaProm<=JUG_BAJA?'var(--red)':'var(--t2)'}">${p.notaProm.toFixed(1)}</b></div><div style="font-size:9px;color:var(--t3)">${notaVentanaTxt(p)}</div>`:''}
+      </div>${p.valRef?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Transfermarkt no lo tasó esta temporada: sale de su tasación de ${p.valRef}, llevada a la plata y la edad de este año.</div>`:''}${(p.traspaso&&p.club===p.trClub)?`<div style="font-size:9.5px;color:var(--t3);margin-top:4px">Llegó al club por ${fv(p.traspaso)}${p.valRec?'. Transfermarkt no guardó su valor de esta temporada: sale de ese traspaso y de lo que valió en otros años, llevados a su edad y a la plata de este año.':'.'}</div>`:''}${typeof p.notaProm==='number'?`<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px"><span style="color:var(--t3)">📊 Promedio de notas (últimos partidos)</span><b style="font-family:'Chakra Petch';color:${p.notaProm>=JUG_SUBE?'var(--green)':p.notaProm<=JUG_BAJA?'var(--red)':'var(--t2)'}">${p.notaProm.toFixed(1)}</b></div><div style="font-size:9px;color:var(--t3)">${notaVentanaTxt(p)}</div>`:''}
       <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-top:2px"><span>€0</span><span>€200M</span></div>
     </div>
     <div class="g4" style="margin-bottom:10px">
@@ -9810,7 +9854,11 @@ function renderMkt(){
     pl=tmp.map(x=>x.p);
   };
   if(sort==='pos') pl=ordenarPlantel(pl);        // arqueros, defensa, medio, ataque
-  else if(sort==='rat') _ordenar(ratEst);
+  // Fase 103: entre dos de la misma media, primero el que más vale. Con el
+  // techo en 91 hay varios empatados arriba y el orden lo decidía el archivo:
+  // Messi podía salir abajo de Thiago Silva. El valor ya está en la fila, no
+  // regala nada que la niebla tape.
+  else if(sort==='rat') _ordenar(p=>ratEst(p)+Math.log10(1+(p.val||0))/10);
   else if(sort==='val') _ordenar(p=>p.val);
   else if(sort==='pot') _ordenar(potEst);
   else if(sort==='ganga') _ordenar(p=>ratEst(p)/Math.max(0.3,p.val));

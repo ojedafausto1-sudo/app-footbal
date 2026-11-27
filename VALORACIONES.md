@@ -81,37 +81,51 @@ en el piso.
 
 ## 3. El ajuste por edad: el veterano está premiado
 
+⚠️ **Desde la Fase 103 la curva no tiene escalones.** Eran seis tramos y de 29 a
+30 años saltaba **cuatro puntos** (+1 → +5): el mismo jugador, con el mismo
+valor, ganaba 4 de media al cumplir años. Ahora sube de a un punto y conserva
+el promedio de cada tramo del Excel del presidente:
+
 ```js
-function ageAdj(age){
-  return age<=18 ? -3 : age<=21 ? -2 : age<=24 ? 0 : age<=29 ? 1 : age<=34 ? 5 : 7;
-}
+const AGE_ADJ={17:-5,18:-4.5,19:-3.5,20:-2.5,21:-1.5,22:-0.5,23:0,24:0,25:1,26:1,27:1,28:1,
+  29:2,30:3,31:4,32:5,33:5.5,34:6,35:7};
+function ageAdj(age){ const a=Math.round(age||25); return a<=17?-5:a>=36?8:AGE_ADJ[a]; }
 ```
 
-| edad | ajuste |
-|---|---|
-| ≤18 | **−3** |
-| 19-21 | −2 |
-| 22-24 | 0 |
-| 25-29 | +1 |
-| 30-34 | **+5** |
-| 35+ | **+7** |
+| edad | antes (Excel) | ahora |
+|---|---|---|
+| ≤17 | −5 | **−5** |
+| 18 | −5 | −4,5 |
+| 19 · 20 · 21 | −3 | −3,5 · −2,5 · −1,5 |
+| 22 · 23-24 | 0 | −0,5 · 0 |
+| 25-28 | +1 | +1 |
+| 29 | +1 | +2 |
+| 30 · 31 · 32 | +5 | +3 · +4 · +5 |
+| 33 · 34 | +5 | +5,5 · +6 |
+| 35 · 36+ | +8 | +7 · **+8** |
 
 Esto **no es un bug, es una corrección**: el valor de mercado castiga fuerte al
 veterano porque nadie lo compra para revenderlo, pero en la cancha sigue siendo
-bueno. Sin este ajuste, un tipo de 34 años con €3M de valor daría 70 de media
-cuando en realidad juega como 77.
+bueno. Y al pibe lo premia de más, porque su precio es proyección.
 
-El efecto es grande y conviene verlo. **Mismo valor, distinta edad** (puesto DC):
+⚠️ **El arquero envejece tres años más tarde** (`ageAdjPos`, Fase 103): desde
+los 30 se le aplica la curva de tres años menos. Al +3 del puesto se le sumaba
+el +8 de los 35 y un arquero de €5M a esa edad llegaba a 91 (Chilavert en
+2000; Lehmann y Cañizares en 2005, arriba de Kaká y de Henry).
+
+**Mismo valor, distinta edad** (puesto DC, base de hoy):
 
 | valor | 17 años | 22 | 25 | 27 | 30 | 33 | 36 |
 |---|---|---|---|---|---|---|---|
-| €0,5M | 60 | 63 | 64 | 64 | **68** | 68 | **70** |
-| €2M | 66 | 69 | 70 | 70 | 74 | 74 | 76 |
-| €10M | 74 | 77 | 78 | 78 | 82 | 82 | **84** |
-| €30M | 79 | 82 | 83 | 83 | 87 | 87 | 89 |
-| €80M | 84 | 87 | 88 | 88 | **91** | 91 | 91 |
+| €0,5M | 58 | 62 | 64 | 64 | 66 | 68 | **71** |
+| €2M | 64 | 69 | 70 | 70 | 72 | 75 | 77 |
+| €10M | 72 | 76 | 78 | 78 | 80 | 82 | **85** |
+| €30M | 77 | 82 | 83 | 83 | 85 | 88 | 90 |
+| €80M | 82 | 86 | 88 | 88 | 90 | **91** | 91 |
 
-O sea: **el mismo precio a los 33 vale 4 puntos más de media que a los 27**.
+Medido: los pares en que el jugador más barato (3× o más) queda arriba bajan a
+la mitad — 2014 122 → 59, 2026 89 → 48 — y el reparto de 2026 casi no se mueve
+(mediana 66 igual, 88+ de 71 a 68).
 
 ---
 
@@ -165,8 +179,15 @@ media** — ninguno queda comido por el techo de 91.
 Se aplica **después** de la calculadora y **antes** del recorte:
 
 ```js
-const rat = Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name)));
+const rat = Math.min(91, Math.max(55, valToRat(val, age, pos) + perfAdj(name, age)));
 ```
+
+⚠️ **Desde la Fase 103 vale sólo en la base de hoy y para el de 28+.** La
+tabla está medida contra el valor de 2026 (Enzo Pérez: 40 años, Dep. Maipú).
+Aplicada en cualquier temporada, en 2014 —con 29 años y €25M en el Valencia—
+lo llevaba a 91, la misma media que Messi. Y como es por NOMBRE, también les
+daba +5 a dos Enzo Pérez uruguayos de 24 años. En un año viejo o en un evento
+de leyendas no se aplica.
 
 ⚠️ `squadFromDB` acepta un parámetro `overrides` por nombre, pero **ninguno de
 los dos lugares que la llaman le pasa algo**: hoy está sin usar. Si algún día
@@ -429,21 +450,48 @@ con `??`).
 
 ---
 
-## 13. Las temporadas históricas se corrigen por inflación
+## 13. Las temporadas históricas: inflación y traspasos
 
-Un año viejo no se mide con la plata de hoy. El factor **se deriva**, comparando
-la misma liga contra sí misma (promedio de los 10 valores más altos de Primera
-contra el de 2026):
+**La inflación va adentro de la media, nunca en el precio** (Fases 50 y 69). El
+techo de la escala son €200M de HOY, así que el valor de un año viejo se lleva
+a plata de hoy en una variable local antes de calcular la media:
+`INFL_TABLA` / `getYearInflation(year)`, derivada de la mediana de los 100
+valores más altos de las big-5 de cada año contra la de 2026:
 
-| año | 2000 | 2003 | 2005 | 2010 | 2015 | 2020 | 2025 |
+| año | 2000 | 2005 | 2010 | 2014 | 2018 | 2022 | 2025 |
 |---|---|---|---|---|---|---|---|
-| factor | **×6,86** | ×5,52 | ×1,70 | ×1,79 | ×1,11 | ×0,87 | ×0,87 |
+| factor | ×4,69 | ×3,75 | ×2,76 | ×2,38 | ×1,50 | ×1,17 | ×1,12 |
 
-Como el rating es logarítmico, multiplicar el valor **suma puntos fijos**. El
-2000 pasa de mediana 56 / máximo 76 a **mediana 65 / máximo 85**.
+`p.val` y `r[7]` muestran el euro del archivo; lo único que se corrige es la
+media. `ratToVal` divide por el mismo factor.
 
-⚠️ **El archivo del disco no se toca**: `_dbInflada(y,db)` devuelve una copia y
-la cachea por año, así que ir y volver entre temporadas no escala dos veces.
+### ⚠️ Los archivos traían el TRASPASO como valor (Fase 103)
+
+El extractor tomaba el primer "€" de la fila de Transfermarkt, que es lo que
+se pagó por el jugador al llegar al club, no su valor de mercado. Cristiano
+figuraba con €94M de 2009 a 2017, Nedved con €45M a los 36 años y Enzo Pérez
+con los €25M que pagó el Valencia — por eso en 2014 daba 91, igual que Messi.
+Era el 70% de las filas de €10M o más.
+
+`tools/hist-valores.js` los reconstruye: detecta el tramo (mismo jugador, mismo
+club, temporadas seguidas, siempre el mismo valor) y estima el valor de cada
+temporada con el traspaso (llevado a la edad y a la plata del año) y con los
+valores reales del mismo jugador en otros años, pesados por cuánto se
+equivoca cada uno. Validado contra el valor real de 2026: el error medio baja
+de 0,57 a 0,45 en escala log, y de 1,26 a 0,63 a los ocho años de llegado.
+
+El traspaso queda en **r[19]** y **r[20]=1** marca que **r[7] es una
+estimación**: la ficha dice "Valor estimado" y "Llegó al club por €X".
+
+| 2014 | antes | ahora |
+|---|---|---|
+| jugadores en 91 | 32 | **8** |
+| Messi | 91 | 91 |
+| Enzo Pérez (Valencia) | 91 | **85** |
+| arriba de todo | Messi = Bale = Cristiano = Neymar = Suárez = Torres… | Messi, Di María, Cristiano, Müller, Iniesta |
+
+⚠️ **Es una reconstrucción.** El valor de verdad sale de volver a extraer con
+el Worker nuevo, que ya separa valor de mercado y traspaso.
 
 ⚠️ **Una partida ya guardada conserva las medias viejas**, porque `G.squad` se
 serializa con el `rat` ya calculado. La corrección se ve en partidas nuevas.

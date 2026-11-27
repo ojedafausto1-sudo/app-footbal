@@ -15,6 +15,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `dts-anios.js` | Año de nacimiento y último año como jugador de 323 técnicos. **Lo genera `tools/dts-anios.js`** cruzando los nombres con las temporadas históricas (Fase 100) |
 | `tools/arnes11.js` | El arnés determinista del 11v11, **en el repo** (Fase 100): `node tools/arnes11.js 12 1 --json=a.json` y `--vs=a.json` para comparar |
 | `tools/auditoria.js` | Juega carreras enteras como un usuario y anota todo lo raro (Fase 102): `node tools/auditoria.js madrid 2 1`. Escenarios: boca, madrid, city, flamengo, lanusdt (modo DT), sanmartin, boca2005, river2018, nacional, fundar |
+| `tools/hist-valores.js` | Repara los `players-hist-*.js`: el extractor guardaba el **traspaso** como valor de mercado (Fase 103). `node tools/hist-valores.js --verdad` valida contra 2026, `--escribir` reescribe. Idempotente |
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
@@ -22,7 +23,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103` |
 
 ## Formato de `players-db.js`
 
@@ -9141,6 +9142,148 @@ plantel, la cantera o el mercado (conjunto armado una vez por semana).
 nuevas" es un sorteo que dio 19, 21 y 25 en tres corridas del mismo código.
 Con la máquina cargada las esperas fijas no alcanzan. Si los ves rojos,
 corrélos solos antes de creerles.
+
+## Fase 103: las valoraciones de cada año — y el traspaso que se guardaba como valor
+
+El presidente: *"año 2014, Enzo Pérez tiene mejor valoración que Messi"*. Era
+cierto: los dos daban 91. Había tres causas, y la grande no estaba en la cuenta
+sino en los datos.
+
+### ⚠️ Los históricos traían lo que SE PAGÓ, no lo que VALÍA
+
+El parser del Worker (`parseKader`) tomaba el **primer "€" de la fila** del
+plantel, y en la vista detallada de Transfermarkt el primero es el traspaso,
+escondido en el `title` del escudo de "Llegó de" ("Manchester United: Ablöse
+€94.00m"). El valor de mercado es la última celda. Todo el que llegó a su club
+por plata quedaba con el traspaso **en todas las temporadas que jugó ahí**:
+
+| | archivo | de verdad |
+|---|---|---|
+| Cristiano, Real Madrid 2009-2017 | **94** los nueve años | su valor de cada año |
+| Nedved, Juventus 2008 (36 años) | **45** (lo de 2001) | ~4 |
+| Enzo Pérez, Valencia 2014 | **25** (lo que pagó el Valencia) | ~12-20 |
+| Lukaku, Chelsea 2011 (19 años) | **113** (¡el pase de 2021!) | — |
+
+Medido sobre las 26 temporadas: **de las 13.913 filas de €10M o más, 9.702
+(el 70%) eran un traspaso**. De ahí salían los veteranos en 91 en todos los
+años viejos (Fase 69 lo atribuyó a la edad, y era esto), los 32 empatados en
+91 en 2014 y los 40 de 2008, contra 8 en 2026. Messi tenía sus €120M de verdad
+porque salió de La Masía: no hay traspaso que tapar.
+
+⚠️ **El traspaso puede ser del FUTURO.** TM pone en "Llegó de" el ÚLTIMO pase
+del jugador a ese club, también en las temporadas de antes: Pogba en el United
+2010 trae los €105M de 2016. r[9] —que en los históricos es la fecha de
+llegada, no el vencimiento— lo delata cuando es mayor que el año.
+
+### El arreglo del dato: `tools/hist-valores.js`
+
+No se puede volver a bajar (Transfermarkt da 403 desde acá), así que se
+**reconstruye**, y se verifica contra la única verdad que hay: los traspasos
+del archivo 2025 contra el valor real de 2026 de `players-db.js` (SportDB, otra
+fuente), **sin usar 2026 para estimar**.
+
+1. **El tramo**: mismo jugador (nombre + año de nacimiento ±1), mismo CLUB (no
+   club+liga: el que asciende cambia de etiqueta), temporadas contiguas, y las
+   tasadas —2 o más— todas iguales. Un valor de mercado real cambia casi siempre.
+2. **Dos fuentes, pesadas por su error medido**: el traspaso (llevado a la
+   plata y a la edad de cada temporada, encogido hacia la media si fue caro) y
+   los valores REALES del mismo jugador en otros años y otros clubes —o en
+   2026— proyectados con la misma curva. Haaland 2025 sale de sus €220M de
+   2026, no de los €60M que pagó el City.
+3. **El traspaso del futuro** queda sin tasar (r[20]=2) y lo completa la
+   tasación de otro año (r[17]/r[18], Fase 74), que se recalcula entera.
+4. El traspaso queda en **r[19]** y **r[20]=1** marca "r[7] es una
+   estimación". Volver a correrla parte de r[19]: **idempotente** (el test
+   corre la herramienta sobre lo commiteado y exige el mismo archivo).
+
+| contra el valor real de 2026 (2.565 casos) | sesgo | \|error\| (log) |
+|---|---|---|
+| el traspaso crudo, como estaba | +0,05 | 0,57 (**1,26 a los 8 años de llegado**) |
+| sólo el traspaso, con la curva | −0,08 | 0,54 |
+| **traspaso + valores reales** | −0,12 | **0,45** |
+
+⚠️ **Tres decisiones medidas, para no repetirlas:**
+- **La curva de los pibes se dejó en +6% por año, no en el +13% que daba el
+  ajuste.** La muestra son tramos que siguen abiertos en 2025, o sea los que
+  anduvieron; en los históricos están los fracasos y con +13% Martial (€60M a
+  los 19) terminaba en €122M y 91 de media en 2022.
+- **Lo caro vuelve a la media (`B`=0,85).** Sin eso, los traspasos de €20M+
+  quedaban 46% arriba del valor de 2026 (Maguire 87 → 8, Casemiro 70 → 6).
+  ⚠️ Es estadística: Cristiano 2014 sale ~€69M contra los €120M que tenía.
+  Su media no cambia (está en el techo), pero su precio en el mercado sí.
+- **El sesgo de la proyección NO se corrige.** Medido, la proyección de un
+  valor real se pasa 10-70%; corregirlo dejaba todo −0,21 abajo de 2026. La
+  población de la que sale (canteranos, libres) no es la de los fichajes.
+
+⚠️ **Lo que no se puede reparar**: un jugador que estuvo UNA sola temporada en
+el club (no hay tramo que delate el traspaso) y los préstamos (la "Leihgebühr"
+de un préstamo es mucho menor que el valor). **El arreglo de verdad es volver a
+extraer con el Worker nuevo**: separa valor y traspaso, y con eso r[7] es el
+valor de Transfermarkt y r[19] lo que se pagó.
+
+### El Worker y el extractor
+
+- `parseKader`: **valor = el último "€" del texto visible** de la fila (el
+  traspaso vive sólo en un atributo); **traspaso = el "€" de un `title`**.
+  Verificado sobre filas armadas como las de TM (los dos formatos de unidad).
+  🛑 **No verificado contra el TM de verdad** (403 desde acá).
+- `WORKER_VERSION` 2026.11-valor, `?api=ping` contesta `valorDeMercado:true` y
+  el extractor **avisa** si el Worker no lo tiene ("va a guardar el traspaso
+  como valor").
+- ⚠️ **El caché de `tmkader` lleva la versión del parser en la clave**
+  (`KADER_PARSER`): con la clave de antes, actualizar el Worker no habría
+  cambiado nada durante 30 días — el KV devolvía los planteles parseados mal.
+- `histFila` guarda el traspaso en r[19]; `histRefValores` ya **no corta la
+  fila en 17** (borraba r[19]).
+
+### Las tres cosas de la cuenta
+
+1. **`PERF_ADJ` es de HOY.** Los +5 de Enzo Pérez están medidos contra su
+   valor de 2026 (40 años, Dep. Maipú). Aplicados en 2014 lo llevaban a 91, y
+   como la tabla es por NOMBRE, también a dos uruguayos de 24 años. Ahora sólo
+   en la base de hoy (ni años viejos ni eventos) y para el de 28+.
+2. **La curva de edad sin escalones.** De 29 a 30 saltaba **cuatro puntos**
+   (+1 → +5). Ahora sube de a un punto (`AGE_ADJ`): −5 a los 17 … +1 de 25 a 28,
+   +2, +3, +4, +5, +5,5, +6, +7 y +8 desde los 36. Conserva el promedio de cada
+   tramo del Excel. Los pares en que el más barato (3×) queda arriba bajan a
+   la mitad: **2014 122 → 59, 2026 89 → 48**.
+3. **El arquero envejece tres años más tarde** (`ageAdjPos`): al +3 del puesto
+   se le sumaba el +8 de los 35 y Chilavert, Lehmann y Cañizares llegaban a 91
+   arriba de Kaká y de Henry. `ratToVal` usa la misma función: sigue siendo la
+   inversa (verificado ±0).
+
+Y **a igual media, el Mercado ordena por valor**: con el techo en 91 el orden
+lo decidía el archivo y Messi podía salir abajo de Thiago Silva.
+
+⚠️ **La tabla de inflación NO se re-derivó**, aunque los datos cambiaron. Con
+el método de la Fase 69 sobre los valores reparados da más alto (2014 ×3,49
+contra ×2,38) porque el arreglo encoge a los cracks comprados, y con esa tabla
+**2000 tenía 67 jugadores en 91**. Con la tabla de siempre cada año queda
+cerca de 2026 (mediana 64-68 contra 66).
+
+### Medido, antes y después
+
+| año | en 91 | 88+ | arriba |
+|---|---|---|---|
+| 2000 | 25 → **8** | 122 → 62 | Figo, Crespo, Batistuta, Verón, Nesta |
+| 2008 | 40 → **16** | 124 → 55 | Cristiano, Kaká, Gerrard, Xavi, Iniesta (Messi 90, a los 22) |
+| 2014 | 32 → **8** | 116 → 40 | Messi, Di María, Cristiano, Müller, Iniesta |
+| 2026 | 8 → **8** | 71 → 66 | Haaland, Mbappé, Bellingham, Pedri |
+
+Enzo Pérez 2014: **91 → 85** (€12M estimado, "llegó por €25M"); Messi 91.
+En 2026 Boca pasa de 76,7 a 76,3 de top-15: el balance del juego casi no se
+movió.
+
+- La ficha dice **"Valor estimado"** y **"Llegó al club por €X"**
+  (`p.traspaso`, `p.valRec`); el traspaso del futuro no se muestra.
+- `VALORACIONES.md` está actualizado con todo esto.
+
+- ⚠️ El traspaso es a SU club (`p.trClub`): si el jugador se muda, la ficha
+  deja de decir "Llegó al club por".
+- `tests/fase101.js` dependía de UN candidato del mercado real (Florentín, 30
+  años, que con la curva nueva bajó de 76 a 74): ahora arma uno si no hay.
+
+`tests/fase103.js`, **33 checks**.
 
 ## Deploy
 

@@ -125,7 +125,16 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     G.budget = 400;
     const msgs = () => (G.phoneMsgs || []).filter(m => m.from === G.dt.name).map(m => m.body);
     // 1) el que nombró en el chat
-    const r = pedidoDelDT();
+    // ⚠️ Fase 103: el mercado real puede no tener un candidato (dependía de UN
+    // jugador, Florentín, que con la curva de edad nueva bajó de 76 a 74). Lo
+    // que se prueba es la memoria del DT, no la suerte del mercado: si no hay,
+    // se arma uno clonando al mejor conocido del puesto que hace falta.
+    let r = pedidoDelDT();
+    if (r && r.n && !(r.c && r.c.length)) {
+      const n = r.n, base = G.market.filter(x => (x.pos === n.pos) && isKnown(x) && !esClasico(G.teamName, x.club)).sort((a, b) => b.rat - a.rat)[0];
+      if (base) { const cl = JSON.parse(JSON.stringify(base)); cl.id = 'reg101c'; cl.name = 'Refuerzo de Prueba'; cl.rat = Math.max(cl.rat, (n.ref || 70) + 4); cl.val = Math.min(cl.val, 3); G.market.push(cl); }
+      r = pedidoDelDT();
+    }
     o.hayPedido = !!(r && r.c && r.c.length);
     if (!o.hayPedido) return o;
     dtReplyCtx('refuerzo');

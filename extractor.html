@@ -1684,6 +1684,14 @@ async function probarWorker() {
     return;
   }
   let j = null; try { j = JSON.parse(r.body); } catch (e) {}
+  if (j && j.ok && j.historicos && !j.valorDeMercado) {
+    log(`   ⚠️ WORKER SIN EL ARREGLO DEL VALOR — versión ${j.version}`);
+    log('   Baja los planteles, pero a todo el que llegó por plata le pone lo que se');
+    log('   pagó por él en vez de su valor de mercado (Cristiano 94 de 2009 a 2017).');
+    log('   → Actualizalo: Cloudflare → tu Worker → Edit code → pegar');
+    log('     cloudflare-worker/sportdb-cache.js del repo → Deploy, y volvé a probar.');
+    return;
+  }
   if (j && j.ok && j.historicos) {
     log(`   ✅ ACTUALIZADO — versión ${j.version}`);
     log(`   Fuentes: ${(j.apis || []).join(', ')}`);
@@ -2209,8 +2217,10 @@ function histRefValores(H, opt) {
     if (opt.solo && y !== +opt.solo) return;
     (H[y] || []).forEach(r => {
       res.filas++;
-      if (r.length > 17) r.length = 17;          // volver a correrlo no acumula
-      if (r[7] > RELLENO) return;
+      // volver a correrlo no acumula — pero r[19] y r[20] (el traspaso, Fase
+      // 103) se conservan: antes esto cortaba la fila en 17 y los borraba.
+      if (r.length > 17) { r[17] = 0; r[18] = 0; }
+      if (r[7] > RELLENO) { if (r.length === 19) r.length = 17; return; }
       res.sinValor++;
       const c = idx[r[1]]; if (!c) return;
       let best = null, bk = 99;
@@ -2221,8 +2231,8 @@ function histRefValores(H, opt) {
         const k = Math.abs(d) * 2 + (d < 0 ? 1 : 0);
         if (k < bk || (k === bk && v > best[2])) { bk = k; best = [y2, a2, v]; }
       }
-      if (!best) return;
-      while (r.length < 17) r.push(r.length === 11 || r.length === 16 ? '' : 0);
+      if (!best) { if (r.length === 19) r.length = 17; return; }
+      while (r.length < 19) r.push(r.length === 11 || r.length === 16 ? '' : 0);
       r[17] = best[2]; r[18] = best[0]; res.conRef++;
     });
   });
@@ -2805,8 +2815,14 @@ function histFila(p, club, liga) {
   const pie = /left|links/.test(p.foot || '') ? 'izq' : /both|beid/.test(p.foot || '') ? 'amb' : 'der';
   const num = parseInt(p.num, 10) || (pos === 'ARQ' ? 1 : pos.indexOf('DF') === 0 ? 4 : pos.indexOf('MC') === 0 ? 8 : 9);
   const cUntil = parseContractYear(p.contract) || 0;
-  return [num, String(p.name || ''), pos, p.age || 25, nat, club, liga,
+  const fila = [num, String(p.name || ''), pos, p.age || 25, nat, club, liga,
     p.value || 0.1, pie, cUntil, p.height || 0, '', 0, 0, 0, 0, nat2];
+  // Fase 103: lo que se pagó por él al llegar va APARTE, en r[19] (r[17] y
+  // r[18] son la tasación de otro año). El Worker viejo mandaba el traspaso
+  // COMO valor; el nuevo (2026.11-valor) los separa. Sin valor de mercado y
+  // con traspaso, tools/hist-valores.js lo estima desde el traspaso.
+  if (p.fee > 0) fila.push(0, 0, p.fee);
+  return fila;
 }
 
 function histDescargar(year, filas, clubes, porLiga) {
