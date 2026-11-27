@@ -23,7 +23,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106` |
 
 ## Formato de `players-db.js`
 
@@ -9593,6 +9593,158 @@ antes (2 ms de mediana, mismas llamadas de dibujo, ~100.000 triángulos) y
   de goles de la Fase 104, que costó dos semillas de 16 partidos.
 
 `tests/fase105.js`, **25 checks**.
+
+## Fase 106: el arquero que vuela, el lateral con las manos y el movimiento sin tirones
+
+El presidente: *"mejorar las físicas, algo parecido al PES: ver al arquero volar
+de palo a palo, gráficos de pases, tacos, chilenas, todo más fluido, el arquero
+que achique, el lateral con la mano, los cabezazos"*. Casi todo es DIBUJO de lo
+que el motor ya hacía; lo único que cambia el partido es el achique, y se midió.
+
+### Un observador del motor que no toca el partido
+
+Todo lo nuevo sale de `fm106Post(f)`, que corre al final de cada tick de juego
+(y al principio, por los toques de la pelota parada). **No usa azar y sólo
+escribe campos que lee el dibujo** (`_toqK`, `_toqT`, `_dvT0`, `_dvTc`, `_dvY`,
+`_dvH`, `b._air0`, `b._mano`). Medido con el arnés contra la versión anterior:
+**0↑ 0↓ en las 11 métricas, partido por partido** (con el achique apagado).
+
+- **Cada patada pasa por `fmPatea(p)`**: las 19 líneas que hacían
+  `p._kickT=9` ahora lo llaman, y eso encola el toque. Si agregás una patada
+  nueva, usá `fmPatea`, no `_kickT=9`.
+- **El toque se clasifica** (`fmToqueClasif`) con la altura de la pelota ANTES
+  del tick (`f._bAirIni`) y con hacia dónde salió contra hacia dónde corría:
+  cabeza (≥1,45 m), chilena (0,7-1,45 m, remate, de espaldas: cos < −0,45),
+  volea, pecho (la baja sin rematar, `fmToqueAereo` desde `fmBodyBall`), taco
+  y pie. El lateral es el primer toque del que lo saca (`f._lat106`, lo pone
+  `fmDoRestart`).
+- ⚠️ **El taco salía 15 veces por partido** con cos < −0,72 y 1,0 de velocidad:
+  el motor no frena para pasar para atrás. Con −0,94 y 2,0 quedan **1,6-1,9**;
+  el resto se dibuja como un giro (el que la toca mira para donde la manda).
+- Medido por partido: pie ~165, lateral con las manos ~7, cabezazo 3-5, pecho
+  ~1, taco ~1,7, volea 0,1-0,4. **Chilenas casi nunca**: salen solas cuando se
+  da la geometría, no se fuerzan.
+- Relato nuevo: «🚲 ¡De chilena!», «💥 De volea», «🗣️ Cabezazo de…», «👠 De
+  taco». Uno cada 45 ticks como mucho (la chilena siempre).
+
+### La altura de la pelota estaba mal desde siempre
+
+`b.air` son los ticks que le quedan de vuelo, y el 3D dibujaba
+`sin(min(1,air/60)·π)·5`: **un centro de 200 ticks se veía RODANDO por el piso
+140 ticks** y recién al final subía y bajaba (en 2D igual, con 52 px). Ahora
+`fmAlturaM(air, air0)` es una parábola sobre el vuelo entero (`b._air0`, con
+cuánto salió) y la altura de la comba es la que hace falta para que **a 13
+ticks del final esté a 2,2 m**, que es exactamente lo que supone el motor
+(`b.air<=13` se disputa de cabeza). Un pelotazo largo pasa a 9 m por el medio.
+`fmAlturaPelota(f)` suma el lateral que sale de las manos y la que tiene
+agarrada el arquero.
+
+### El arquero vuela
+
+Al salir un remate, `fmEstiradaArmar` calcula **con la misma proyección que
+`fmBodyBall`** cuándo y dónde le pasa la pelota al arquero y hasta dónde le da
+el alcance (`reachG`). `fmAnim106` arma la curva: arranca 24 ticks antes del
+contacto, se estira, cae al piso y se levanta (34 ticks después). Tres tipos
+según cuánto se tiene que correr: **frente** (<16 px: se agacha con las manos
+adelante), **paso** y **vuelo** (de costado, los brazos por encima de la
+cabeza, levantado hasta la altura de la pelota).
+
+- En 3D el cuerpo hace el alcance: los pies se corren poco y la mano llega a la
+  pelota (como una estirada de verdad); si la agarró, la pelota se dibuja en
+  sus manos (`J._manos`).
+- No se tira a un remate que se va lejos, y si la desvían antes de que arranque
+  cancela (la pelota cambió de sentido o perdió fuerza: `g._dvV`).
+- ⚠️ `_dvT0=0` quiere decir "no se está tirando": con `f.ticks` en 0 se guarda
+  0,001.
+
+### El achique: el único cambio de motor, medido
+
+`FM106.achique`: un rival con la pelota de frente al arco, a 0,8-1,6 del largo
+del área y **sin ningún compañero entre él y el arco** → el arquero sale sobre
+la línea pelota–centro del arco a `0,3·D` (tope 0,42 del área, ~8 m) y se
+planta. `FM106.angulo`: fuera de eso se para sobre esa misma línea en vez de
+pegarse al palo del lado de la pelota (con la pelota abierta a 30 m quedaba en
+el primer palo y el cruzado entraba solo).
+
+⚠️ **Un arquero mejor ubicado ataja más, y hubo que recalibrar.** Arnés, 2
+semillas × 16 partidos contra la versión anterior:
+
+| | goles | al arco | pareado |
+|---|---|---|---|
+| antes | 2,75 | 9,0 | — |
+| achique + ángulo, `llega` 0,12 | 2,10 | 9,4 | 10↑ 18↓ |
+| `llega` 0,06 | 2,50 | 9,5 | 13↑ 16↓ |
+| **`llega` 0,02** | **2,85** | **9,9** | **15↑ 14↓** |
+
+`FM104.llega` (la suma a la chance de llegar del arquero) bajó de **0,12 a
+0,02**: es la misma calibración de la Fase 104 con un arquero que ahora está
+donde tiene que estar. Achica 7-9 veces por partido; el resto de las métricas,
+dentro del ruido.
+
+Modo JUGAR, el bot que encara (Fase 104), 3 semillas × 8: **goles a favor 1,21
+antes y 1,21 ahora**, en contra 2,25 → 1,71. La primera semilla sola daba la
+mitad de goles: era ruido. Hacen falta las tres.
+
+### El movimiento, interpolado
+
+El motor avanza a pasos fijos de 9,3 ms y el cuadro cae cuando cae: en 2D hay
+cuadros de 1 paso y de 2, y en 3D (×0,55) de 0 y de 2. `fmLoop` guarda dónde
+estaba cada uno antes de los últimos pasos (`fmInterpGuardar`) y dibuja entre
+eso y el estado actual según lo que sobra del acumulador (`fmInterpPoner` /
+`fmInterpSacar`, el mismo truco de guardar-pisar-restaurar de la repetición).
+Un paso de demora (9 ms). Un salto de más de 70 px (pelota parada) no se
+interpola, y la repetición se dibuja entre dos cuadros grabados.
+
+Medido simulando cuadros de 60 fps (cuánto cambia el paso de un cuadro al
+siguiente, sobre los 22 y la pelota):
+
+| | sin | con |
+|---|---|---|
+| 2D, cuadros parejos | 0,28 | **0,04** |
+| 3D, cuadros parejos | 0,054 | **0,021** |
+| 2D, reloj irregular (±2,5 ms) | 0,27 | 0,13 |
+| 3D, reloj irregular | 0,17 | 0,12 |
+
+⚠️ **No lo midas en el navegador sin placa de video**: ahí el 3D va a 8
+cuadros por segundo (7 pasos por cuadro) y la interpolación no se nota. Hay
+que emular los cuadros de 60 fps llamando a `fmLoop(ts)` con el reloj fijo.
+
+### Pases y la pelota
+
+- **El receptor del pase se marca mientras cargás B** (aro verde y una línea en
+  el pasto, en 3D y en 2D). Sale de `fmPaseQuien`, que es la elección de
+  `fmPass` separada en una función pura (sin azar): lo que se marca es
+  exactamente a quién va. Verificado: 140 de 140.
+- **Estela** de la pelota cuando va rápida o alta (3D: 9 esferas que se achican).
+- El 2D usa la misma altura (10,4 px por metro).
+
+### Poses (3D en `e3dFab.anim`, 2D en `drawP3`)
+
+La animación va ENCIMA de la pose de correr. Cabezazo (salta, se arquea y
+cabecea), chilena (sube, se acuesta de espaldas en el aire, la pierna pasa por
+arriba de la cabeza, cae), volea (de costado, la pierna alta), pecho, taco (la
+pierna para atrás), lateral (la pelota arriba de la cabeza con las dos manos,
+mirando a la cancha, y el envío) y la que el arquero agarra alta (salta con los
+brazos arriba) o baja (se agacha).
+
+- `posar` acepta `o.yaw` para fijar hacia dónde mira: la chilena mira para el
+  lado contrario de donde sale la pelota y el arquero sigue mirando al que
+  remató mientras vuela.
+- La repetición guarda los toques y la estirada como EDAD, no como tick
+  (`_RP_POR` = 14): durante la repetición el reloj está quieto.
+- Costo: el cuadro 3D pasa de 2,1 a 2,4-2,6 ms de mediana. **0 Math.random al
+  dibujar.**
+
+### Lo que no se hizo
+
+- **Chilenas forzadas**: salen cuando el motor las da (de espaldas, la pelota a
+  la cintura, remate). Forzarlas sería inventar un toque que no pasó.
+- **El lateral sigue siendo un pase del motor** (con el pie, por dentro): lo que
+  cambia es el dibujo. ~1,5 por partido el que lo saca se la lleva caminando en
+  vez de pasarla, y ahí no hay envío con las manos que mostrar.
+- 🛑 Igual que siempre: **sin medir en un celular de verdad**.
+
+`tests/fase106.js`, **45 checks** (corre el arnés con `--det`).
 
 ## Deploy
 

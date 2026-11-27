@@ -25946,7 +25946,9 @@ const FM100={lejos:2.5, media:1.8, gamb:2.2};
 // reales: 15 faltas eran un pitazo cada 15 segundos ("se cobra falta por
 // todo"). Con 0,07 quedan ~7, una cada medio minuto.
 // Fase 104: perillas del arquero y del remate (ver fmBodyBall / fmAI ARQ).
-const FM104={pies:1, aimMid:1, llega:0.12, cruceGK:1, faltaHumano:0.4, autoIdle:70};
+// ⚠️ Fase 106: `llega` bajó de 0,12 a 0,02 porque el arquero ahora achica y se para
+// en el ángulo (FM106): con 0,12 los goles caían de 2,75 a 2,1 por partido.
+const FM104={pies:1, aimMid:1, llega:0.02, cruceGK:1, faltaHumano:0.4, autoIdle:70};
 const FM76={GM:86, pegarPaso:11, gkLerp:0.35, restLerp:0.10, restPaso:26, faltaQuite:0.07, alcance:1};
 
 // ═══ DEFINICIÓN: AL PALO, NO AL ARQUERO ═══
@@ -26033,6 +26035,7 @@ function fmBodyBall(p,b,team){
     const _llego=Math.abs(b.x-p.x)<p.r+26+Math.abs(b.vx)*2.2;
     if((vaAlArco?(estirada<reachG&&_llego):dG<p.r+26)&&b.air<=6&&(towardGoal||power<3.5)){
       const ref=(p.attrs&&(p.attrs.REF||p.attrs.ATA||p.rat))||70;
+      const _h106=fmAlturaM(b.air||0,b._air0||0);     // Fase 106: a qué altura la agarra (sólo para el dibujo)
       // ANTES: tope 0.66 y −0.05 por cada punto de potencia. Un arquero de 75
       // con un remate fuerte atajaba el 21%: el 79% restante eran rebotes que
       // quedaban picando en el área, el delantero volvía a rematar y salían 50
@@ -26052,7 +26055,7 @@ function fmBodyBall(p,b,team){
         // Fase 100: si ya la tenía, no se renueva la retención (si no, la
         // pelota quieta en las manos se "volvía a agarrar" cada tick y no la
         // soltaba nunca). t0/pausa: cuándo la agarró y cuánto la aguanta.
-        if(!(f._gkHold&&f._gkHold.gk===p)) f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16),t0:f.ticks,pausa:16};
+        if(!(f._gkHold&&f._gkHold.gk===p)){ f._gkHold={gk:p,until:f.ticks+18+~~(Math.random()*16),t0:f.ticks,pausa:16}; fmToqueArquero(p,_h106); }
         f._lastTouch=team;
         return true;
       }
@@ -26091,6 +26094,7 @@ function fmBodyBall(p,b,team){
         // suelta a un metro de sus manos.
         b.vx=0;b.vy=0;b.air=0;p._recvTick=f.ticks;     // va a las manos deslizándose (_gkHold)
         f._gkHold={gk:p,until:f.ticks+34+~~(Math.random()*30),t0:f.ticks,pausa:34};
+        fmToqueArquero(p,_h106);
         fmSay('catch');
         if(f.learn)f.learn.gkCatch=(f.learn.gkCatch||0)+1;
       }else if(shooter&&shooter!==team&&Math.random()<0.55){
@@ -26215,13 +26219,13 @@ function fmBodyBall(p,b,team){
       b.vx=dx4/dd4*pw4+fmErr(p,'pun',0.55);
       b.vy=dy4/dd4*pw4+fmErr(p,'pun',0.75);
       b.air=0;b.isShot=team;
-      f4._lastTouch=team;f4._fmScorer=p;p._kickT=9;
+      f4._lastTouch=team;f4._fmScorer=p;fmPatea(p);
       fmSndKick(0.7);fmStat(team,'shots');fmSay('shot',team,p.name);
       if(f4.learn)f4.learn.headers=(f4.learn.headers||0)+1;
       return true;
     }
   }
-  if(aereo)b.air=Math.min(b.air,9);   // la bajó: deja de volar
+  if(aereo){ if(!p.isGK)fmToqueAereo(p); b.air=Math.min(b.air,9); }   // la bajó: deja de volar (Fase 106: de cabeza o de pecho)
   if(b._beat&&FM&&FM.ticks-b._beat<80){b._beat=0;if(FM.learn)FM.learn.beatTocada=(FM.learn.beatTocada||0)+1;}
   b.isShot=null;            // la tocó un jugador de campo: ya no es un remate
   if(team&&FM){FM._lastTouch=team;FM._fmScorer=p;}   // quién la tocó: sirve para el festejo
@@ -26952,6 +26956,7 @@ function fmDoRestart(){
       b.vx=dx/dd*pwr;b.vy=dy/dd*pwr;b.air=Math.random()<0.4?4:0;
       f._lastTouch=r.team;f.restart=null;
       fmSndKick(0.95);
+      try{ fmEstiradaArmar(f,r.team); }catch(e){}       // Fase 106: sólo el dibujo
       if(f.learn)f.learn.fkShots=(f.learn.fkShots||0)+1;
       return;
     }
@@ -26981,6 +26986,7 @@ function fmDoRestart(){
     taker.x=b.x-cxs*14;taker.y=b.y-cys*12;
     taker.vx=0;taker.vy=0;
     if(r.team==='my'&&r.type!=='goalkick'&&!f.watch)f.ctrl=ti;
+    if(r.type==='throw') f._lat106={p:taker,t:f.ticks};   // Fase 106: lo saca con las manos
     if(r.team==='opp'||f.watch){
       taker._recvTick=f.ticks;
       if(r.type==='corner')taker._forceCross=1;
@@ -27002,7 +27008,7 @@ function fmDoRestart(){
     const c=Math.cos(err), sn=Math.sin(err), ux=(dx/dd)*c-(dy/dd)*sn, uy=(dx/dd)*sn+(dy/dd)*c;
     const v=7.6+dd*0.0022;
     b.vx=ux*v; b.vy=uy*v; b.air=Math.min(200,dd/v+6);
-    taker._kickT=9; T._recvTick=f.ticks; fmSndKick(0.8); fmStat(r.team,'pass');
+    fmPatea(taker); T._recvTick=f.ticks; fmSndKick(0.8); fmStat(r.team,'pass');
     f._lastTouch=r.team; f.restart=null; f._sinOffside={team:r.team,hasta:f.ticks+260};
     return;
   }
@@ -28012,9 +28018,13 @@ function fmLoop(ts){
   FM.acc=(FM.acc||0)+real/PASO_MS*((typeof _FM3!=='undefined'&&_FM3.on)?FM3_TIEMPO:1);
   const enteros=Math.floor(FM.acc);
   FM.acc-=enteros;
-  let pasos=enteros*(FM.watch?(FM.speed||1):1);
+  const _mult=FM.watch?(FM.speed||1):1;
+  let pasos=enteros*_mult;
   if(pasos>170)pasos=170;            // si el navegador se trabó, no recupera todo de golpe
-  for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++)fmTick(1);
+  // Fase 106: antes de los últimos pasos de este cuadro se guarda dónde estaba
+  // cada uno, para dibujar entre ese momento y el actual.
+  const _iSnap=Math.max(0,pasos-_mult);
+  for(let i=0;i<pasos&&FM&&FM.phase!=='done';i++){ if(i===_iSnap) fmInterpGuardar(FM); fmTick(1); }
   if(FM)FM._dtLast=Math.max(0.3,Math.min(4,real/PASO_MS));   // cuánto avanza la lluvia este cuadro
   if(FM){ if(FM.phase==='goal_my'||FM.phase==='goal_opp'){ if(!FM._rpHecho&&FM.phaseT>=RP.desde){ FM._rpHecho=true; fmRpEmpezar(); } }
           else FM._rpHecho=false; }
@@ -28024,9 +28034,12 @@ function fmLoop(ts){
   // requestAnimationFrame de abajo no se agendaba y el partido quedaba
   // congelado sin aviso. Se vuelve al 2D y se sigue jugando.
   if(FM&&FM.phase!=='done'){
-    if(typeof _FM3!=='undefined'&&_FM3.on){
-      try{ fm3DFrame(); }catch(e){ console.error('3D',e); try{ fm3DApagar(); }catch(e2){} flash('El 3D falló en este equipo: seguimos en 2D','draw'); }
-    } else fmDraw();
+    const _f=FM, _ip=fmInterpPoner(_f,_f.acc||0);
+    try{
+      if(typeof _FM3!=='undefined'&&_FM3.on){
+        try{ fm3DFrame(); }catch(e){ console.error('3D',e); try{ fm3DApagar(); }catch(e2){} flash('El 3D falló en este equipo: seguimos en 2D','draw'); }
+      } else fmDraw();
+    } finally { if(_ip) fmInterpSacar(_f); }
   }
   if(FM)FM.raf=requestAnimationFrame(fmLoop);
 }
@@ -28050,31 +28063,47 @@ function fmRpToggle(btn){
   const on=!fmRpPref(); try{ localStorage.setItem('dt_replay',on?'1':'0'); }catch(e){}
   if(btn) btn.textContent='🔁 Repeticiones: '+(on?'SÍ':'NO');
 }
-const _RP_POR=8;   // por jugador: x, y, vx, vy, _kickT, _slideT, _diveT, _tiradoT
+// Fase 106: además el toque que está haciendo (y hace cuánto) y la estirada
+// del arquero, guardados como EDAD y no como el tick: durante la repetición el
+// reloj del partido está quieto, así que el tick vivo no sirve.
+const _RP_POR=14;  // x, y, vx, vy, _kickT, _slideT, _diveT, _tiradoT, toque, su edad, edad de la estirada, _dvY, _dvTc, _dvH
 function fmRpGrabar(f){
-  const n=f.my.length+f.opp.length, st=n*_RP_POR+5, cap=RP.tick+24;
+  const n=f.my.length+f.opp.length, st=n*_RP_POR+7, cap=RP.tick+24;
   if(!f._rp||f._rp.st!==st) f._rp={st,cap,buf:new Float32Array(cap*st),tot:0};
   const R=f._rp, B=R.buf; let k=(R.tot%cap)*st;
-  const put=p=>{ B[k++]=p.x;B[k++]=p.y;B[k++]=p.vx||0;B[k++]=p.vy||0;B[k++]=p._kickT||0;B[k++]=p._slideT||0;B[k++]=p._diveT||0;B[k++]=p._tiradoT||0; };
+  const put=p=>{ B[k++]=p.x;B[k++]=p.y;B[k++]=p.vx||0;B[k++]=p.vy||0;B[k++]=p._kickT||0;B[k++]=p._slideT||0;B[k++]=p._diveT||0;B[k++]=p._tiradoT||0;
+    B[k++]=p._toqK||0; B[k++]=p._toqK?f.ticks-(p._toqT||0):999; B[k++]=p._dvT0?f.ticks-p._dvT0:-1; B[k++]=p._dvY||0; B[k++]=p._dvTc||0; B[k++]=p._dvH||0; };
   for(let i=0;i<f.my.length;i++)put(f.my[i]); for(let i=0;i<f.opp.length;i++)put(f.opp[i]);
-  const b=f.ball; B[k++]=b.x;B[k++]=b.y;B[k++]=b.vx||0;B[k++]=b.vy||0;B[k++]=b.air||0;
+  const b=f.ball; B[k++]=b.x;B[k++]=b.y;B[k++]=b.vx||0;B[k++]=b.vy||0;B[k++]=b.air||0;B[k++]=b._air0||0;B[k++]=b._mano?f.ticks-b._mano:-1;
   R.tot++;
 }
-const _RP_CAMPOS=['x','y','vx','vy','_kickT','_slideT','_diveT','_tiradoT'];
-function fmRpPoner(f,idx){
-  const R=f._rp, B=R.buf; let k=(idx%R.cap)*R.st;
+const _RP_CAMPOS=['x','y','vx','vy','_kickT','_slideT','_diveT','_tiradoT','_toqK','_toqT','_dvT0','_dvY','_dvTc','_dvH'];
+// Fase 106: `c` puede tener decimales: se dibuja entre el cuadro grabado y el
+// siguiente (en cámara lenta cada tick grabado duraba 2,5 cuadros y se veía a
+// los saltos).
+function fmRpPoner(f,c){
+  const R=f._rp, B=R.buf, i0=Math.floor(c), fr=Math.max(0,Math.min(1,c-i0)), sig=i0+1<R.tot;
+  let k=(i0%R.cap)*R.st, k2=((i0+1)%R.cap)*R.st;
+  const S2=FM106.salto*FM106.salto;
   const sv=f._rpSv=[];
-  const take=p=>{ for(const c of _RP_CAMPOS){ sv.push(p[c]); p[c]=B[k++]; } };
+  const take=p=>{ for(const c2 of _RP_CAMPOS) sv.push(p[c2]);
+    let x=B[k],y=B[k+1];
+    if(sig){ const x2=B[k2],y2=B[k2+1]; if((x2-x)*(x2-x)+(y2-y)*(y2-y)<S2){ x+=(x2-x)*fr; y+=(y2-y)*fr; } }
+    p.x=x;p.y=y;p.vx=B[k+2];p.vy=B[k+3];p._kickT=B[k+4];p._slideT=B[k+5];p._diveT=B[k+6];p._tiradoT=B[k+7];
+    p._toqK=B[k+8]; p._toqT=f.ticks-(B[k+9]+fr); p._dvT0=B[k+10]<0?0:f.ticks-(B[k+10]+fr); p._dvY=B[k+11]; p._dvTc=B[k+12]; p._dvH=B[k+13];
+    k+=_RP_POR; k2+=_RP_POR; };
   for(const p of f.my)take(p); for(const p of f.opp)take(p);
-  const b=f.ball; sv.push(b.x,b.y,b.vx,b.vy,b.air,f.phase);
-  b.x=B[k++];b.y=B[k++];b.vx=B[k++];b.vy=B[k++];b.air=B[k++];
+  const b=f.ball; sv.push(b.x,b.y,b.vx,b.vy,b.air,b._air0,b._mano,f.phase);
+  let bx=B[k],by=B[k+1],ba=B[k+4];
+  if(sig){ const x2=B[k2],y2=B[k2+1],a2=B[k2+4]; if((x2-bx)*(x2-bx)+(y2-by)*(y2-by)<S2*2.25){ bx+=(x2-bx)*fr; by+=(y2-by)*fr; } if(Math.abs(a2-ba)<8) ba+=(a2-ba)*fr; }
+  b.x=bx;b.y=by;b.vx=B[k+2];b.vy=B[k+3];b.air=ba;b._air0=B[k+5];b._mano=B[k+6]<0?0:f.ticks-(B[k+6]+fr);
   f.phase='play';            // se dibuja como juego, sin el velo de pelota parada
 }
 function fmRpSacar(f){
   const sv=f._rpSv; if(!sv)return; let j=0;
   const back=p=>{ for(const c of _RP_CAMPOS) p[c]=sv[j++]; };
   for(const p of f.my)back(p); for(const p of f.opp)back(p);
-  const b=f.ball; b.x=sv[j++];b.y=sv[j++];b.vx=sv[j++];b.vy=sv[j++];b.air=sv[j++]; f.phase=sv[j++];
+  const b=f.ball; b.x=sv[j++];b.y=sv[j++];b.vx=sv[j++];b.vy=sv[j++];b.air=sv[j++];b._air0=sv[j++];b._mano=sv[j++]; f.phase=sv[j++];
   f._rpSv=null;
 }
 function fmRpEmpezar(){
@@ -28094,7 +28123,7 @@ function fmRpPaso(pasos){
   const lento=P.c>P.fin-RP.lenta;
   P.c+=pasos*(lento?RP.velLenta:RP.vel);
   if(P.c>=P.fin-1){ fmRpFin(); return; }
-  fmRpPoner(f,Math.floor(P.c));
+  fmRpPoner(f,P.c);
   try{
     if(typeof _FM3!=='undefined'&&_FM3.on) fm3DFrame(); else fmDraw();
   }catch(e){ console.error('repetición',e); }
@@ -28104,6 +28133,193 @@ function fmRpFin(){
   const f=FM; if(f){ if(f._rpSv) fmRpSacar(f); f._rpOn=null; }
   const el=document.getElementById('fm-rp'); if(el) el.style.display='none';
   if(typeof _FM3!=='undefined') _FM3.rpCam=null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 106: LO QUE HACE EL MOTOR, DIBUJADO COMO SE VE EN UNA CANCHA
+// ═══════════════════════════════════════════════════════════════════════
+// Nada de este bloque cambia el partido: no usa azar y sólo ESCRIBE campos que
+// lee el dibujo (_toqK, _toqT, _dvT0…, b._air0, b._mano). El arnés, que llama
+// a fmTick sin dibujar, da el mismo partido hash por hash.
+//  1. Interpolación: el motor avanza a pasos fijos de 9,3 ms y el cuadro cae
+//     cuando cae; en 3D (×0,55) hay cuadros con 0 pasos y cuadros con 2, y el
+//     movimiento salía a los tirones. Se dibuja entre el paso anterior y el
+//     actual según lo que sobra del acumulador (un paso de demora, 9 ms).
+//  2. La altura de la pelota: b.air son los ticks que le quedan de vuelo, y el
+//     dibujo hacía sin(air/60·π): un centro de 200 ticks se veía RODANDO por
+//     el piso 140 ticks y recién al final subía y bajaba. Ahora es una parábola
+//     sobre el vuelo entero (b._air0, el largo con que salió), con la altura
+//     que hace falta para que a 13 ticks del final esté a la altura de la
+//     cabeza, que es lo que el motor ya supone (b.air<=13 se disputa).
+//  3. Cada toque se clasifica por lo que pasó: a qué altura venía la pelota y
+//     hacia dónde salió contra hacia dónde corría el jugador. Cabezazo, volea,
+//     chilena, pecho, taco o pie; el lateral, con las manos.
+//  4. El arquero se tira: al salir el remate se calcula dónde y cuándo le pasa
+//     la pelota (la misma proyección que usa fmBodyBall) y el dibujo lo hace
+//     volar hasta ahí, hasta donde le da el alcance.
+const FM106={interp:true, salto:70, anim:true, estela:true, relato:true,
+  // el arquero achica (cambia el partido: medido con el arnés)
+  achique:true, achD:1.6, achMin:0.8, achK:0.3, achMax:0.42, achCono:70, achVel:0.09, angulo:true, angK:1};
+const TOQ106={pie:1,taco:2,cabeza:3,chilena:4,volea:5,pecho:6,lateral:7,atrapa:8};
+const TOQ106_NOM=['','pie','taco','cabeza','chilena','volea','pecho','lateral','atrapa'];
+const TOQ106_DUR=[0,10,16,22,40,20,16,22,30];   // ticks que dura cada animación
+// Altura de la pelota en metros. air = ticks que le quedan, air0 = con cuántos salió.
+function fmAlturaM(air,air0){
+  if(!(air>0))return 0;
+  const T=Math.max(air0||0,air), u=1-air/T;
+  const H=T<=16?0.05*T+0.1:Math.min(11,2.2*T*T/(52*(T-13)));
+  return 4*H*u*(1-u);
+}
+function fmPatea(p){ if(!p)return; p._kickT=9; const f=FM; if(f)(f._kq||(f._kq=[])).push(p); }
+function fmToqueAereo(p){ const f=FM; if(f&&p)(f._kqA||(f._kqA=[])).push(p); }
+function fmToqueArquero(p,h){ const f=FM; if(!f||!p)return; p._toqK=TOQ106.atrapa; p._toqT=f.ticks; if(!p._dvT0||f.ticks-p._dvT0>(p._dvTc||0)+6) p._dvH=h; }
+function _fm106Rel(f,txt,fuerte){
+  if(!FM106.relato)return;
+  if(!fuerte&&f.ticks-(f._rel106||-999)<45)return;
+  f._rel106=f.ticks; try{ fmRelato(txt); }catch(e){}
+}
+function fmToqueClasif(f,p,airIni,aereo){
+  if(!p||p.isGK)return;
+  const b=f.ball, team=f.my.indexOf(p)>=0?'my':'opp';
+  let k='pie';
+  const L=f._lat106;
+  if(L&&L.p!==p&&!aereo){ f._lat106=null; try{ fmX('lat_otro'); }catch(e){} }
+  if(L&&L.p===p&&!aereo&&f.ticks-L.t<160){ k='lateral'; f._lat106=null; b._mano=f.ticks; }
+  else{
+    const h=airIni>0?fmAlturaM(airIni,b._air0):0;
+    const sp=Math.hypot(p.vx||0,p.vy||0), bv=Math.hypot(b.vx||0,b.vy||0);
+    const cosA=(sp>0.01&&bv>0.01)?((p.vx||0)*b.vx+(p.vy||0)*b.vy)/(sp*bv):1;
+    const tiro=b.isShot===team;
+    if(aereo||airIni>2){
+      if(h>=1.45) k='cabeza';
+      else if(h>=0.7&&tiro&&sp>0.5&&cosA<-0.45) k='chilena';
+      else if(aereo&&!tiro) k=h>=0.95?'pecho':'pie';
+      else k='volea';
+    // El taco es el pase para atrás SIN frenar, corriendo para adelante. El
+    // que va más despacio gira y la toca (el dibujo lo hace mirar a la pelota).
+    // ⚠️ Con cos<−0,72 y 1,0 de velocidad salían 15 tacos por partido; con
+    // −0,90 y 1,8, 3,6. Con −0,94 y 2,0 quedan los de verdad.
+    } else if(!tiro&&sp>2.0&&bv>2.4&&cosA<-0.94) k='taco';
+    if(tiro){
+      if(k==='chilena') _fm106Rel(f,'🚲 ¡De chilena, '+p.name+'!',true);
+      else if(k==='volea') _fm106Rel(f,'💥 De volea, '+p.name);
+      else if(k==='cabeza') _fm106Rel(f,'🗣️ Cabezazo de '+p.name);
+    } else if(k==='taco') _fm106Rel(f,'👠 De taco, '+p.name);
+  }
+  p._toqK=TOQ106[k]; p._toqT=f.ticks;
+  try{ fmX('t_'+k); }catch(e){}
+  if(b.isShot===team) fmEstiradaArmar(f,team);
+}
+// El arquero que defiende contra un remate de `team`: dónde y cuándo le pasa.
+function fmEstiradaArmar(f,team){
+  const b=f.ball, def=team==='my'?f.opp:f.my, g=def&&def.find(q=>q.isGK&&!q._sentOff);
+  if(!g||Math.abs(b.vx||0)<0.5)return;
+  const tG=(g.x-b.x)/b.vx; if(!(tG>1.5&&tG<110))return;
+  const own=(g.x<f.VW/2)?f.leftGL:f.rightGL, tL=(own-b.x)/b.vx, GM=f.GM||FM76.GM;
+  const yL=b.y+b.vy*(tL>0?tL:tG);
+  if(Math.abs(yL-f.VH/2)>GM+50)return;          // se va lejos: la mira pasar
+  const ref=(g.attrs&&(g.attrs.REF||g.attrs.ATA||g.rat))||70;
+  const R=((g.r+22)+f.GH*(0.26+Math.max(0,Math.min(100,ref))/100*0.38))*(GM/f.GH)*FM76.alcance;
+  const yEn=b.y+b.vy*tG;
+  g._dvT0=f.ticks||0.001;                 // (0 quiere decir "no se está tirando")
+  g._dvTc=tG; g._dvY=g.y+Math.max(-R*1.05,Math.min(R*1.05,yEn-g.y)); g._dvV=b.vx;
+  g._dvH=fmAlturaM(Math.max(0,(b.air||0)-tG),b.air||0);
+}
+// Al final de cada tick (y al principio, por los toques de la pelota parada).
+function fm106Post(f){
+  if(!f||!f.ball)return;
+  const b=f.ball, aIni=f._bAirIni||0;
+  const q=f._kq, qa=f._kqA; let pateo=false;
+  if(q&&q.length){ pateo=true; for(const p of q) fmToqueClasif(f,p,aIni,false); q.length=0; }
+  if(qa&&qa.length){ for(const p of qa) fmToqueClasif(f,p,aIni,true); qa.length=0; }
+  const a=b.air||0;
+  if(pateo) b._air0=a>0?a:0;
+  else if(a>(b._airV||0)+0.01) b._air0=a;     // salió volando sin un pase (despeje, rebote)
+  if(!(a>0)) b._air0=0;
+  b._airV=a; f._bAirIni=a;
+  if(f._lat106&&f.ticks-f._lat106.t>=160){ f._lat106=null; try{ fmX('lat_sin'); }catch(e){} }
+  // la estirada que no llegó a empezar se cancela si la desviaron antes
+  for(const eq of [f.my,f.opp]) for(const g of eq) if(g.isGK&&g._dvT0){
+    const el=f.ticks-g._dvT0, tc=g._dvTc||0;
+    if(el>tc+60) g._dvT0=0;
+    // (la tocó otro: la pelota cambió de sentido o perdió fuerza)
+    else if(el<tc-Math.min(tc,24)&&((b.vx||0)*(g._dvV||0)<=0||Math.abs(b.vx||0)<Math.abs(g._dvV||0)*0.4)) g._dvT0=0;
+  }
+}
+// ── interpolación ──
+function fmInterpGuardar(f){
+  const one=p=>{ if(p){ p._ix=p.x; p._iy=p.y; } };
+  f.my.forEach(one); f.opp.forEach(one); one(f.ref); (f.asis||[]).forEach(one);
+  const b=f.ball; b._ix=b.x; b._iy=b.y; b._ia=b.air||0; f._iOk=1;
+}
+function fmInterpPoner(f,al){
+  if(!FM106.interp||!f||!f._iOk||f._rpOn)return false;
+  al=Math.max(0,Math.min(1,al)); const S2=FM106.salto*FM106.salto, sv=f._iSv=[];
+  const one=p=>{ if(!p||p._ix===undefined)return; const dx=p.x-p._ix, dy=p.y-p._iy; if(dx*dx+dy*dy>S2)return;
+    sv.push(p,p.x,p.y); p.x=p._ix+dx*al; p.y=p._iy+dy*al; };
+  f.my.forEach(one); f.opp.forEach(one); one(f.ref); (f.asis||[]).forEach(one);
+  const b=f.ball;
+  if(b._ix!==undefined){ const dx=b.x-b._ix, dy=b.y-b._iy; if(dx*dx+dy*dy<=S2*2.25){ sv.push(b,b.x,b.y); b.x=b._ix+dx*al; b.y=b._iy+dy*al; } }
+  f._iAir=b.air; if(b._ia!==undefined&&Math.abs((b.air||0)-b._ia)<8) b.air=b._ia+((b.air||0)-b._ia)*al;
+  return true;
+}
+function fmInterpSacar(f){
+  const sv=f&&f._iSv; if(!sv)return;
+  for(let j=0;j<sv.length;j+=3){ sv[j].x=sv[j+1]; sv[j].y=sv[j+2]; }
+  if(f._iAir!==undefined){ f.ball.air=f._iAir; f._iAir=undefined; }
+  f._iSv=null;
+}
+// ── qué animación está haciendo cada uno (lo leen el 3D y el 2D) ──
+// estirada: {k:'estirada', tipo:'vuelo'|'paso'|'frente', e (0-1 cuánto se
+// estiró), piso (0-1), off (px del motor, a lo ancho), h (m)}.
+// el resto: {k, u (0-1 de la animación), h}.
+function fmAnim106(p,f){
+  if(!FM106.anim||!f||!p)return null;
+  if(p.isGK&&p._dvT0){
+    const el=f.ticks-p._dvT0, tc=Math.max(2,p._dvTc||8), D=Math.min(tc,24), t1=tc-D;
+    if(el>=t1&&el<tc+34){
+      const key=Math.round(p._dvY*10)+'|'+Math.round(tc*10);
+      if(p._dvK106!==key){ p._dvK106=key; const d0=Math.abs(p._dvY-p.y); p._dvTipo106=d0<16?'frente':d0<36?'paso':'vuelo'; }
+      const tipo=p._dvTipo106;
+      let e, piso=0, vuelta=1, pasado=false;
+      if(el<tc){ const u=(el-t1)/D; e=u*u*(3-2*u); }
+      else { pasado=true; e=1; const a=el-tc; piso=Math.min(1,a/12); if(a>22){ vuelta=Math.max(0,1-(a-22)/12); piso=vuelta; } }
+      const dy=p._dvY-p.y;
+      return {k:'estirada',tipo,e,piso,vuelta,pasado,dy,off:dy*(pasado?vuelta:e),h:p._dvH||0};
+    }
+  }
+  if(p._toqK){
+    const age=f.ticks-(p._toqT||0), dur=TOQ106_DUR[p._toqK]||12;
+    if(age>=0&&age<dur){
+      const k=TOQ106_NOM[p._toqK];
+      if(k!=='pie') return {k,u:age/dur,h:p._dvH||0};
+    }
+  }
+  // el que va a sacar el lateral, con la pelota en las manos
+  const r=f.restart;
+  if(f.phase==='restart'&&r&&r.type==='throw'&&!p.isGK){
+    const eq=r.team==='my'?f.my:f.opp;
+    if(eq.indexOf(p)>=0){
+      const b=f.ball; let best=null, bd=1e9;
+      for(const q of eq){ if(q.isGK||q._sentOff)continue; const d=Math.hypot(q.x-b.x,q.y-b.y); if(d<bd){bd=d;best=q;} }
+      if(best===p&&bd<46) return {k:'latEspera',u:0};
+    }
+  }
+  return null;
+}
+// La altura de la pelota que se dibuja (m): la parábola, el lateral que sale
+// de las manos y la que tiene el arquero agarrada.
+function fmAlturaPelota(f){
+  const b=f.ball; let h=fmAlturaM(b.air||0,b._air0||0);
+  if(b._mano){ const a=f.ticks-b._mano; if(a>=0&&a<16) h=Math.max(h,2.2*(1-a/16)); }
+  const H=f._gkHold; if(H&&H.gk&&Math.hypot(H.gk.x-b.x,H.gk.y-b.y)<34) h=Math.max(h,0.85);
+  return h;
+}
+// El receptor que se marca mientras cargás el pase raso (Fase 105: el mismo
+// que va a elegir fmPass al soltar).
+function fmPaseVista(f){
+  const v=f&&f._pv106; if(!v||f.watch||f.ticks-v.t>3||v.i<0)return null;
+  return f.my[v.i]||null;
 }
 
 // Cuánto tarda cada pelota parada en ejecutarse (ticks; ~60 por segundo).
@@ -28339,6 +28555,7 @@ function fmIdleMove(dt,festeja){
 function fmTick(dt){
   const f=FM,k=f.keys;
   if(f.phase==='paused'||f.phase==='help')return;
+  fm106Post(f);                      // Fase 106: los toques de la pelota parada (lateral…)
   // Fase 105: la repetición no cruza una pelota parada ni un saque del medio
   // (el festejo del gol mismo no corta: si no, no quedaría nada que repetir)
   if(f.phase!=='play'&&f.phase!=='goal_my'&&f.phase!=='goal_opp') f._rpCorte=f._rp?f._rp.tot:0;
@@ -28521,6 +28738,7 @@ function fmTick(dt){
   // Última línea de la física: si después de fmBall (que ya resolvió lateral,
   // córner y saque de arco) la pelota quedó en NaN o afuera, se la rescata.
   fmBallGuard(f);
+  fm106Post(f);                      // Fase 106: qué toque fue cada uno, y la estirada del arquero
   fmRpGrabar(f);                     // Fase 105: lo último que pasó, para la repetición del gol
   document.getElementById('fm-pw')&&(document.getElementById('fm-pw').style.display='none');
 }
@@ -28659,7 +28877,7 @@ function fmCtrl(dt){
       // que el arquero lo tomaba por la rama de "pelota suelta" y lo embolsaba
       // siempre. Medido con un bot: 31 remates en 6 partidos, 0 al arco, 0 goles.
       b.isShot='my'; p._solto=f.ticks;
-      p._kickT=9;
+      fmPatea(p);
       fmSndKick(pow);
       fmStat('my','shots');   // Fase 98: lo que hace el humano también cuenta
       // IA aprende
@@ -28681,7 +28899,7 @@ function fmCtrl(dt){
     }
     if(!k.c)f.cWas=0;
     // B = PASE: tap = pase corto, mantené = PASE FILTRADO al espacio
-    if(k.x){f.xHold=(f.xHold||0)+dt;f.xWas=1;}
+    if(k.x){f.xHold=(f.xHold||0)+dt;f.xWas=1; f._pv106={i:fmPaseQuien(f.ctrl,f.xHold>22,_pd),t:f.ticks};}   // Fase 106: se marca a quién va
     else if(f.xHold>0){
       fmPass(f.ctrl,f.xHold>22,_pd);
       f.learn.passes++;
@@ -28728,7 +28946,7 @@ function fmCtrl(dt){
         b.vx=dirx/dm2*8.0;b.vy=diry/dm2*8.0;
         b.air=36;
         f._lastTouch='my';fmStat('my','pass');
-        p._kickT=9; p._solto=f.ticks;
+        fmPatea(p); p._solto=f.ticks;
         fmSndKick(0.75);
       }
     }
@@ -28824,22 +29042,21 @@ function fmLofted(fromIdx,pow,dir){
   b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
   b.air=Math.min(95,d/pwr*0.75); // frames de vuelo: pasa por arriba de todos
   f._lastTouch='my';
-  p._kickT=9; p._solto=f.ticks;      // Fase 104: el que la soltó no la vuelve a tocar (tiene IA desde ya)
+  fmPatea(p); p._solto=f.ticks;      // Fase 104: el que la soltó no la vuelve a tocar (tiene IA desde ya)
   fmSndKick(0.55);
   f.learn.lofted++;f.learn.passes++;fmStat('my','pass');
   if(recv>=0)f.ctrl=recv;
 }
 
-// Pase raso: tap = al de la dirección del joystick · hold o F = FILTRADO al espacio
-function fmPass(fromIdx,through,dir){
-  const f=FM,p=f.my[fromIdx],b=f.ball;
-  const KICK_R=p.r+6.5+14;
-  if(Math.hypot(p.x-b.x,p.y-b.y)>KICK_R)return;
-  let best=-1,bst=Infinity;
-  const att=f.myAttRight?1:-1;
+// Fase 106: a quién va el pase raso, sin patear (sin azar). La usa fmPass al
+// soltar y fmCtrl mientras lo cargás, para marcarlo en la cancha: así lo que
+// se marca es exactamente a quién va a ir.
+function fmPaseQuien(fromIdx,through,dir){
+  const f=FM,b=f.ball,att=f.myAttRight?1:-1;
+  let best=-1;
   if(through){
     // PASE FILTRADO: el que pica en la dirección del joystick (sin joystick,
-    // el más adelantado) y la pelota al espacio delante de él
+    // el más adelantado)
     if(dir&&dir.dado) best=fmReceptor(fromIdx,dir,{cono:0.30,dMin:80,sinArq:true,tapada:0,
       score:(t,d,cos)=>-(t.x-b.x)*att-cos*150+Math.abs(t.y-b.y)*0.2});
     if(best<0){
@@ -28853,7 +29070,34 @@ function fmPass(fromIdx,through,dir){
         if(s>bestFwd){bestFwd=s;best=i;}
       });
     }
-    if(best<0)return;
+    return best;
+  }
+  // ⚠️ Sólo apuntando. Sin joystick sigue la elección de siempre (el más
+  // cercano, con premio por ir para adelante): medido con el bot que pasa sin
+  // apuntar, restringirlo al cono de "hacia donde corrés" daba 0 victorias en
+  // 8 contra G2 E3 P3 (y apagando el cono, exactamente lo de antes).
+  if(dir&&dir.dado) best=fmReceptor(fromIdx,dir);
+  // nadie en el cono: el más cercano a esa dirección en el medio campo (y el
+  // arquero, si le apuntás más o menos)
+  if(best<0&&dir&&dir.dado) best=fmReceptor(fromIdx,dir,{cono:0,arqCos:0.6});
+  if(best<0){ let bst=Infinity; f.my.forEach((t,i)=>{
+    if(i===fromIdx||t._sentOff)return;
+    const d=Math.hypot(t.x-b.x,t.y-b.y);
+    const fwd=f.myAttRight?t.x-b.x:b.x-t.x;
+    const s=d-fwd*.45+(i===0?500:0);
+    if(s<bst){bst=s;best=i;}
+  }); }
+  return best;
+}
+// Pase raso: tap = al de la dirección del joystick · hold o F = FILTRADO al espacio
+function fmPass(fromIdx,through,dir){
+  const f=FM,p=f.my[fromIdx],b=f.ball;
+  const KICK_R=p.r+6.5+14;
+  if(Math.hypot(p.x-b.x,p.y-b.y)>KICK_R)return;
+  const att=f.myAttRight?1:-1;
+  const best=fmPaseQuien(fromIdx,!!through,dir);
+  if(best<0)return;
+  if(through){
     const t=f.my[best];
     // Al ESPACIO: delante del receptor, hacia el arco (y abierto hacia el lado
     // del joystick)
@@ -28865,26 +29109,10 @@ function fmPass(fromIdx,through,dir){
     const pwr=4.4+d*0.011;
     b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
     f._lastTouch='my';fmStat('my','pass');
-    p._kickT=9; p._solto=f.ticks;
+    fmPatea(p); p._solto=f.ticks;
     f.ctrl=best;
     return;
   }
-  // ⚠️ Sólo apuntando. Sin joystick sigue la elección de siempre (el más
-  // cercano, con premio por ir para adelante): medido con el bot que pasa sin
-  // apuntar, restringirlo al cono de "hacia donde corrés" daba 0 victorias en
-  // 8 contra G2 E3 P3 (y apagando el cono, exactamente lo de antes).
-  if(dir&&dir.dado) best=fmReceptor(fromIdx,dir);
-  // nadie en el cono: el más cercano a esa dirección en el medio campo (y el
-  // arquero, si le apuntás más o menos)
-  if(best<0&&dir&&dir.dado) best=fmReceptor(fromIdx,dir,{cono:0,arqCos:0.6});
-  if(best<0) f.my.forEach((t,i)=>{
-    if(i===fromIdx||t._sentOff)return;
-    const d=Math.hypot(t.x-b.x,t.y-b.y);
-    const fwd=f.myAttRight?t.x-b.x:b.x-t.x;
-    const s=d-fwd*.45+(i===0?500:0);
-    if(s<bst){bst=s;best=i;}
-  });
-  if(best<0)return;
   const t=f.my[best];
   // Le tiraba a donde ESTÁ el compañero, no a donde va: si venía corriendo, la
   // pelota le pasaba por detrás y el pase moría solo en el pasto.
@@ -28893,7 +29121,7 @@ function fmPass(fromIdx,through,dir){
   const d=Math.hypot(dx,dy)||1;
   b.vx=(dx/d)*(3.2+d*.0115);b.vy=(dy/d)*(3.2+d*.0115);
   f._lastTouch='my';fmStat('my','pass');
-  p._kickT=9; p._solto=f.ticks;
+  fmPatea(p); p._solto=f.ticks;
   fmSndKick(0.3);
   f.ctrl=best;
 }
@@ -29289,7 +29517,7 @@ function fmArqueroSaca(p,team,idx){
   if(f._gkHold&&f._gkHold.gk===p) f._gkHold=null;
   f._gkPass={gk:p,until:f.ticks+30};
   f._lastTouch=team; f._lastPasser={team,i:idx};
-  p._kickT=9; p._saqueCorto=0; fmSndKick(tipo==='corto'?0.4:0.7);
+  fmPatea(p); p._saqueCorto=0; fmSndKick(tipo==='corto'?0.4:0.7);
   if(tipo!=='despeje') fmStat(team,'pass');
   g.push({t:f.ticks,team,tipo});
 }
@@ -29312,8 +29540,30 @@ function fmAI(p,team,idx,dt){
     const ballInBox=ballGoalDist<paW&&Math.abs(b.y-mid)<paHH;
     const ballThreat=attRight?(b.vx<-0.5):(b.vx>0.5);
     const ballNearGoal=ballGoalDist<paW*(1.15+prof.line*0.5);
+    // ═══ FASE 106: ACHICA EL MANO A MANO ═══
+    // Un rival con la pelota, de frente, sin ningún compañero entre él y el
+    // arco: el arquero sale sobre la línea pelota–centro del arco a cerrarle
+    // el ángulo, y se planta (no se tira a los pies desde 25 metros).
+    let _uno=null;
+    if(FM106.achique&&f.phase==='play'){
+      const c=f.poss;
+      if(c&&rivals.indexOf(c)>=0&&Math.hypot(c.x-b.x,c.y-b.y)<40&&!(b.air>2)){
+        const D=Math.abs(b.x-ownGX);
+        if(D>paW*FM106.achMin&&D<paW*FM106.achD&&Math.abs(b.y-mid)<f.GH*2.6){
+          const libre=!players.some(q=>{ if(q===p||q.isGK||q._sentOff)return false;
+            const dq=Math.abs(q.x-ownGX); if(dq>D-12)return false;
+            const ly=mid+(b.y-mid)*(dq/D); return Math.abs(q.y-ly)<FM106.achCono; });
+          if(libre){ const a=Math.max(paW*0.10,Math.min(paW*FM106.achMax,D*FM106.achK));
+            _uno={x:attRight?ownGX+a:ownGX-a, y:mid+(b.y-mid)*(a/D)}; }
+        }
+      }
+    }
 
-    if(ballNearGoal&&(bd<380||(ballInBox&&ballThreat))){
+    if(!_uno) p._uno106=0;
+    if(_uno){
+      fmMove(p,_uno.x-p.x,_uno.y-p.y,dt,FM106.achVel);
+      if(!p._uno106){ p._uno106=1; try{ fmX('achica'); }catch(e){} }
+    } else if(ballNearGoal&&(bd<380||(ballInBox&&ballThreat))){
       // ═══ SALE, PERO NO A CUALQUIER LADO ═══
       // Antes corría hacia la pelota SIN NINGÚN LÍMITE: alcanzaba con que
       // estuviera a 14 metros suyos para que abandonara el arco y se fuera
@@ -29346,7 +29596,12 @@ function fmAI(p,team,idx,dt){
       fwdFrac=Math.max(0.03,Math.min(0.50,fwdFrac));
       if(!isM&&f.adapt&&!f.watch) fwdFrac*=(1-f.adapt.gkDeep*0.5);
       const gkTargX=attRight?f.leftGL+paW*fwdFrac:f.rightGL-paW*fwdFrac;
-      const gkTargY=Math.max(mid-(f.GM||FM76.GM)*1.1,Math.min(mid+(f.GM||FM76.GM)*1.1,b.y));
+      let gkTargY=Math.max(mid-(f.GM||FM76.GM)*1.1,Math.min(mid+(f.GM||FM76.GM)*1.1,b.y));
+      // Fase 106: parado sobre la línea pelota–centro del arco (el ángulo), no
+      // pegado al palo del lado de la pelota: con la pelota abierta a 30 m
+      // quedaba en el primer palo y el remate cruzado al segundo entraba solo.
+      if(FM106.angulo){ const a=Math.abs(gkTargX-ownGX), D=Math.max(a+1,Math.abs(b.x-ownGX));
+        gkTargY=Math.max(mid-(f.GM||FM76.GM)*1.1,Math.min(mid+(f.GM||FM76.GM)*1.1,mid+(b.y-mid)*Math.min(1,a/D*FM106.angK))); }
       const returnSpd=ballNearGoal?0.065:0.09;
       fmMove(p,gkTargX-p.x,gkTargY-p.y,dt,returnSpd);
     }
@@ -29586,7 +29841,7 @@ function fmAI(p,team,idx,dt){
     b.vx=ux*v;b.vy=uy*v;
     b.air=Math.min(200,dd3/v+7);      // a la altura de la cabeza al llegar (b.air<=13 se disputa)
     if(f.learn)f.learn.cCorner=(f.learn.cCorner||0)+1;
-    f._lastTouch=team;p._kickT=9;
+    f._lastTouch=team;fmPatea(p);
     fmSndKick(0.6);
   }
 
@@ -29797,7 +30052,7 @@ function fmAI(p,team,idx,dt){
         // quedaba a 141px) y el cabezazo defensivo no ocurría nunca.
         b.air=_pasado?Math.min(70,dd5/6.2*1.25):Math.min(70,dd5/6.2);
         if(f.learn)f.learn.cBanda=(f.learn.cBanda||0)+1;
-        f._lastTouch=team;p._kickT=9;p._solto=f.ticks;fmSndKick(0.6);
+        f._lastTouch=team;fmPatea(p);p._solto=f.ticks;fmSndKick(0.6);
       } else if(_rodeado&&_enMiTercio&&!clearOnGoal&&Math.random()<FM13.despeje*dt&&fmSinSalida(team,p)){
         // ═══ DESPEJE DE EMERGENCIA ═══
         // Distinto de la rama de abajo: acá NO es "estoy apretado", es "estoy
@@ -29805,7 +30060,7 @@ function fmAI(p,team,idx,dt){
         // cancha manda la pelota a la tribuna o al otro campo, y la que faltaba
         // para que la pelota cruce las líneas sin inventar dados nuevos.
         fmDespejeEmergencia(team,p);
-        p._recvTick=0;p._kickT=9;fmSndKick(0.72);
+        p._recvTick=0;fmPatea(p);fmSndKick(0.72);
       } else if(_apretado&&!clearOnGoal&&Math.abs(p.x-ownGX)<fieldW*0.40&&Math.random()<0.030*dt){
         // ═══ LA TIRA AFUERA PARA CORTAR ═══
         // Segunda fuente de salidas, después del despeje del defensor. El
@@ -29816,7 +30071,7 @@ function fmAI(p,team,idx,dt){
         // el compromiso queda parejo. Si querés MÁS laterales, este número es
         // el que hay que subir, pero mirá siempre los pases y los goles.
         fmMandarALaBanda(team);
-        p._recvTick=0;p._kickT=9;fmSndKick(0.5);
+        p._recvTick=0;fmPatea(p);fmSndKick(0.5);
       } else if(justReceived&&!clearOnGoal&&Math.random()<oneTouch*dt){
         fmTeamPass(team,idx);
         p._recvTick=0;
@@ -29841,7 +30096,7 @@ function fmAI(p,team,idx,dt){
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.34);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.46);
         if(pica){ b.air=9+Math.random()*5; if(f.learn)f.learn.chips=(f.learn.chips||0)+1; }
         b.isShot=team;p._solto=f.ticks;                  // es un remate, no un pase
-        f._lastTouch=team;p._kickT=9;fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
+        f._lastTouch=team;fmPatea(p);fmSndKick(pica?0.5:0.8);fmStat(team,'shots');fmSay(pica?'chip':'shot',team,p.name);
       } else if(canShoot&&!inBox&&Math.random()<(0.0072+prof.direct*0.0075+_pegada*0.0180)*FM100.media*dt){
         const _gk2=rivals.find(q=>q.isGK);
         const aimY=fmAim(f,p,shotAttr,_gk2,FM104.aimMid?mid:0,0.72,Math.abs(tgx-b.x));
@@ -29849,7 +30104,7 @@ function fmAI(p,team,idx,dt){
         const pwr=9.2+Math.random()*2.4+Math.max(0,shotAttr-75)/13;
         b.vx=(ddx/dd)*pwr+fmErr(p,'pun',0.52);b.vy=(ddy/dd)*pwr+fmErr(p,'pun',0.70);
         b.isShot=team;p._solto=f.ticks;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.85);fmStat(team,'shots');fmSay('longshot',team,p.name);
+        f._lastTouch=team;fmPatea(p);fmSndKick(0.85);fmStat(team,'shots');fmSay('longshot',team,p.name);
       } else if(longShot&&Math.random()<(0.0027+Math.max(0,shotAttr-74)/100*0.0140)*FM100.lejos*dt){
         // Cañonazo: más fuerte y con algo de dispersión (por eso a veces son rebotes/afuera)
         const _gk3=rivals.find(q=>q.isGK);
@@ -29858,7 +30113,7 @@ function fmAI(p,team,idx,dt){
         const pwr=10.8+Math.random()*1.8+Math.max(0,shotAttr-75)/11;
         b.vx=(ddx/dd)*pwr+fmErr(p,'vis',0.42);b.vy=(ddy/dd)*pwr+fmErr(p,'vis',0.42);b.air=Math.random()<0.3?4:0;
         b.isShot=team;p._solto=f.ticks;
-        f._lastTouch=team;p._kickT=9;fmSndKick(0.95);fmStat(team,'shots');fmSay('longshot',team,p.name);
+        f._lastTouch=team;fmPatea(p);fmSndKick(0.95);fmStat(team,'shots');fmSay('longshot',team,p.name);
         if(f.learn)f.learn.longShots=(f.learn.longShots||0)+1;
       } else if(!clearOnGoal&&!_mirando&&Math.random()<passBase*dt){
         // sólo pasa si NO está de cara al gol (si está solo, encara/define)
@@ -30413,7 +30668,7 @@ function fmTeamPass(team,fromIdx){
       b.air=Math.min(46,dd/pwr*(_pas?0.55:0.80));
       b.isShot=null;
       f._lastTouch=team; f._lastPasser={team,i:fromIdx};
-      fromP._kickT=9; if(_tg)_tg._recvTick=f.ticks+~~(dd/pwr);
+      fmPatea(fromP); if(_tg)_tg._recvTick=f.ticks+~~(dd/pwr);
       fmSndKick(0.6);
       if(f.learn){ f.learn.centros=(f.learn.centros||0)+1;
                    if(_pas)f.learn.centrosPasados=(f.learn.centrosPasados||0)+1;
@@ -30446,7 +30701,7 @@ function fmTeamPass(team,fromIdx){
       b.air=Math.min(70,dd/pwr*0.75);        // pelota elevada, viaja por arriba
       if(f.learn)f.learn.cLargo=(f.learn.cLargo||0)+1;
       f._lastTouch=team;f._lastPasser={team,i:fromIdx};
-      fromP._kickT=9;t._recvTick=f.ticks+~~(dd/pwr);
+      fmPatea(fromP);t._recvTick=f.ticks+~~(dd/pwr);
       fmSndKick(0.55);
       if(f.learn)f.learn.longPass=(f.learn.longPass||0)+1;
       return;
@@ -30607,7 +30862,7 @@ function fmTeamPass(team,fromIdx){
     f._lastTouch=team;
     f._lastPasser={team,i:fromIdx}; // para la pared de vuelta
     if(fromP)fromP._giveGo=f.ticks; // el que pasa pica al vacío (uno-dos)
-    squad[fromIdx]._kickT=9;
+    fmPatea(squad[fromIdx]);
     fmSndKick(0.32);fmStat(team,'pass');
     t._recvTick=f.ticks;
   }
@@ -30967,7 +31222,7 @@ function fmDrawSim(cv,ctx){
   f.my.forEach(p=>drawToken(p,true));
 
   // PELOTA
-  const airH=b.air>0?Math.sin(Math.min(1,b.air/60)*Math.PI)*30:0;
+  const airH=Math.min(48,fmAlturaPelota(f)*6);   // Fase 106: la parábola entera
   ctx.beginPath();ctx.ellipse(b.x+airH*.2,b.y+6,7,3,0,0,Math.PI*2);
   ctx.fillStyle='rgba(0,0,0,.3)';ctx.fill();
   ctx.beginPath();ctx.arc(b.x,b.y-airH,9,0,Math.PI*2);
@@ -31259,11 +31514,25 @@ function fmDraw(){
   // Próximo jugador a cambiar
   let nextCtrl=-1,nbd=Infinity;
   f.my.forEach((p,i)=>{if(i===f.ctrl)return;const d=Math.hypot(p.x-f.ball.x,p.y-f.ball.y);if(d<nbd){nbd=d;nextCtrl=i;}});
+  // Fase 106: mientras cargás el pase, a quién va (línea en el pasto)
+  let rv6=null; try{ rv6=fmPaseVista(f); }catch(e){}
+  if(rv6){ const a=P(f.ball.x,f.ball.y), c=P(rv6.x,rv6.y);
+    ctx.save(); ctx.setLineDash([9,6]); ctx.strokeStyle='rgba(125,255,168,.7)'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
 
   // ═══ JUGADORES 2.5D (humanoides con animaciones, escalados por profundidad) ═══
+  // Fase 106: el que va a sacar el lateral (la pelota va en sus manos)
+  let _lat6=null;
+  if(f.phase==='restart'&&f.restart&&f.restart.type==='throw'){
+    const eq=f.restart.team==='my'?f.my:f.opp; let bd6=46;
+    eq.forEach(q=>{ if(q.isGK||q._sentOff)return; const d=Math.hypot(q.x-b.x,q.y-b.y); if(d<bd6){bd6=d;_lat6=q;} });
+  }
   const drawP3=(p,isCtrl,isNext)=>{
     const sc=kxAt(p.y)/s;
-    const[sx,syF]=P(p.x,p.y);
+    // Fase 106: la animación que corresponde a lo que hizo el motor
+    let A6=null; try{ A6=fmAnim106(p,f); }catch(e){}
+    const est6=A6&&A6.k==='estirada'?A6:null;
+    const[sx,syF]=P(p.x,p.y+(est6?est6.off:0));
     const hg=52*sc,rw=hg*0.27;
     const mv=Math.hypot(p.vx||0,p.vy||0);
     // El desfasaje de la animación salía de Math.random(), o sea de la MISMA
@@ -31287,9 +31556,20 @@ function fmDraw(){
     if(p._kickT>0)p._kickT-=1;
     if(p._diveT>0)p._diveT-=1;
     const kick=(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0;
-    const lying=(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0;
+    const vuela6=est6&&est6.tipo!=='frente'&&(est6.pasado?est6.vuelta>0.3:est6.e>0.35);
+    const lying=vuela6||(!A6&&((p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0));
+    const a6k=A6?A6.k:'', a6u=A6?A6.u||0:0, a6arco=Math.sin(Math.PI*Math.min(1,a6u));
+    // brazos arriba: el lateral, la que agarra alta, el arquero que vuela
+    const brazosArriba6=a6k==='latEspera'||(a6k==='lateral'&&a6u<0.5)||(a6k==='atrapa'&&(A6.h||0)>1.55)||vuela6;
+    // salto (px de pantalla): cabezazo, la que agarra alta, la chilena, el vuelo del arquero
+    let salto6=0;
+    if(a6k==='cabeza') salto6=hg*(0.16+Math.min(0.5,Math.max(0,(A6.h||1.6)-1.75)))*a6arco*0.55;
+    else if(a6k==='atrapa'&&(A6.h||0)>1.55) salto6=hg*Math.min(0.45,(A6.h-1.55)*0.55)*a6arco;
+    else if(a6k==='chilena') salto6=hg*0.55*Math.sin(Math.PI*Math.min(1,a6u/0.8));
+    else if(est6&&vuela6) salto6=Math.min(hg*0.9,Math.max(0,(est6.h||0.4)-0.4)*10.4*sc)*est6.e*(1-est6.piso);
 
     // Indicadores en el piso
+    if(rv6===p){ ctx.beginPath();ctx.ellipse(sx,syF,rw*1.9,rw*0.66,0,0,Math.PI*2); ctx.strokeStyle='rgba(125,255,168,.9)';ctx.lineWidth=2.2;ctx.stroke(); }
     if(isCtrl){
       ctx.beginPath();ctx.ellipse(sx,syF,rw*1.85,rw*0.62,0,0,Math.PI*2);
       ctx.strokeStyle='rgba(255,240,120,.72)';ctx.lineWidth=1.8;ctx.stroke();
@@ -31308,8 +31588,15 @@ function fmDraw(){
     }
 
     ctx.save();
-    ctx.translate(sx,syF-bob);
-    if(lying){
+    ctx.translate(sx,syF-bob-salto6);
+    if(a6k==='chilena'){        // se acuesta de espaldas en el aire
+      const t=a6u<0.2?a6u/0.2:a6u<0.78?1:1-(a6u-0.78)/0.22;
+      ctx.translate(0,-hg*0.42); ctx.rotate(-face*Math.PI*0.82*t); ctx.translate(0,hg*0.42);
+    } else if(est6&&vuela6){
+      const lado=(est6.dy>=0?1:-1)*face;
+      ctx.rotate(lado*Math.PI/2*0.88*(est6.pasado?est6.vuelta:est6.e));
+      ctx.translate(0,-hg*0.12);
+    } else if(lying){
       const ang=Math.atan2(p.vy||0,(p.vx||0.001));
       ctx.fillStyle='rgba(255,255,255,.22)';
       ctx.beginPath();ctx.arc(-Math.cos(ang)*hg*0.45,-Math.sin(ang)*hg*0.18,hg*0.09,0,Math.PI*2);ctx.fill();
@@ -31331,6 +31618,9 @@ function fmDraw(){
       let swing=running?Math.sin(phase)*0.78*spdF:0.03;
       let bend=running?Math.max(0.12,-Math.cos(phase)*0.95)*spdF:0.10;
       if(isFront&&kick>0){swing=swing*(1-kick)-1.15*kick;bend=0.15+kick*0.25;}
+      if(isFront&&a6k==='taco'){swing=1.05*a6arco;bend=0.9*a6arco;}
+      else if(isFront&&a6k==='chilena'){swing=-2.4*a6arco;bend=0.1;}
+      else if(isFront&&a6k==='volea'){swing=-1.5*a6arco;bend=0.15;}
       const hx=(isFront?1:-1)*rw*0.36;
       const kneeX=hx+Math.sin(swing)*Lt*face;
       const kneeY=hipY+Math.cos(swing)*Lt;
@@ -31349,7 +31639,10 @@ function fmDraw(){
     };
     // ── BRAZO articulado (hombro→codo→mano), balancea opuesto a las piernas
     const drawArm=(phase,isFront)=>{
-      const swing=running?Math.sin(phase)*0.62*spdF:0.10*(isFront?1:-1);
+      let swing=running?Math.sin(phase)*0.62*spdF:0.10*(isFront?1:-1);
+      if(brazosArriba6) swing=Math.PI*(isFront?0.92:1.06);
+      else if(a6k==='cabeza'||a6k==='pecho') swing=(isFront?1:-1)*1.2*a6arco;
+      else if(est6&&est6.tipo==='frente') swing=-face*1.3*est6.e;
       const shX=(isFront?1:-1)*rw*0.66;
       const elX=shX+Math.sin(swing)*La*face;
       const elY=shY+Math.cos(swing)*La;
@@ -31438,7 +31731,12 @@ function fmDraw(){
   // ═══ PELOTA 2.5D (con altura real de vuelo) ═══
   const drawBall3=()=>{
     const scB=kxAt(b.y)/s;
-    const z=b.air>0?Math.sin(Math.min(1,b.air/60)*Math.PI)*52:0;
+    if(_lat6){   // en las manos, arriba de la cabeza
+      const sc6=kxAt(_lat6.y)/s, [qx,qy]=P(_lat6.x,_lat6.y), r6=5.6*sc6;
+      ctx.beginPath();ctx.arc(qx,qy-52*sc6*1.06,r6,0,Math.PI*2);ctx.fillStyle='#f4f4f4';ctx.fill();
+      ctx.strokeStyle='#555';ctx.lineWidth=.8;ctx.stroke(); return;
+    }
+    const z=Math.min(78,fmAlturaPelota(f)*10.4);    // Fase 106: la parábola sobre el vuelo entero (10,4 px por metro)
     const bspd=Math.hypot(b.vx||0,b.vy||0);
     const[bx3,by3]=P(b.x,b.y,z);
     const[shx,shy]=P(b.x,b.y,0);
@@ -31471,7 +31769,7 @@ function fmDraw(){
   const ents=[];
   f.opp.forEach(p=>ents.push({y:p.y,fn:()=>drawP3(p,false,false)}));
   f.my.forEach((p,i)=>ents.push({y:p.y,fn:()=>drawP3(p,!f.watch&&i===f.ctrl,!f.watch&&i===nextCtrl)}));
-  ents.push({y:b.y,fn:drawBall3});
+  ents.push({y:_lat6?_lat6.y+0.5:b.y,fn:drawBall3});
   // Fase 99: el árbitro (con la tarjeta en alto) y los asistentes (bandera)
   try{
     const RF=fmRef();
@@ -36540,7 +36838,8 @@ function e3dFab(S,esc){
     const x=o.x, z=o.z;
     const dx=J.lx===null?0:x-J.lx, dz=J.lz===null?0:z-J.lz; J.lx=x; J.lz=z;
     const mv=o.mv!=null?o.mv:Math.hypot(dx,dz)*26.4/Math.max(0.3,o.dt||1), corre=mv>0.3, sp=Math.min(1,mv/2.1);
-    if(Math.hypot(dx,dz)>0.004){ const obj=Math.atan2(dx,dz); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.25; }
+    if(o.yaw!=null){ let d=o.yaw-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*(o.giro||0.35); }
+    else if(Math.hypot(dx,dz)>0.004){ const obj=Math.atan2(dx,dz); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*0.25; }
     else if(o.mira){ const obj=Math.atan2(o.mira[0]-x,o.mira[1]-z); let d=obj-J.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); J.yaw+=d*(o.giro||0.06); }
     J.ph+=mv*0.30+0.02; const ph=J.ph;
     const tirado=!!o.tirado, patada=o.patada||0;
@@ -36558,6 +36857,77 @@ function e3dFab(S,esc){
     J.raiz.rotation.set(0,J.yaw,tirado?(o.roll!=null?o.roll:(J.yaw>0?1:-1)*1.35):0);
     J.raiz.position.set(x,(corre?Math.abs(Math.cos(ph))*0.06*sp:0)+(tirado?0.25:0)+(o.salto||0),z);
     J.som.position.set(x+0.25,0.02,z+0.15);
+    if(o.anim) anim(J,o.anim);
+  };
+  // ═══ Fase 106: las animaciones que salen de lo que hizo el motor ═══
+  // Se aplican ENCIMA de la pose de correr (posar ya dejó todo puesto).
+  // Ejes del muñeco: +z adelante, +y arriba; rotation.x de un brazo en π lo
+  // pone para arriba (más de π lo inclina adelante), rotation.z lo abre al
+  // costado (el derecho con +, el izquierdo con −).
+  const anim=(J,A)=>{
+    const S0=Math.sin, PI=Math.PI, u=A.u||0, arco=S0(PI*Math.min(1,u));
+    const codos=v=>{ if(J.bi.userData.codo){ J.bi.userData.codo.rotation.x=v; J.bd.userData.codo.rotation.x=v; } };
+    const pies=(a,b,ka,kb)=>{ J.pi.cad.rotation.x=a; J.pd.cad.rotation.x=b; J.pi.rod.rotation.x=ka; J.pd.rod.rotation.x=kb; };
+    const brazos=(x,zAb)=>{ J.bi.rotation.x=J.bd.rotation.x=x; J.bi.rotation.z=-zAb; J.bd.rotation.z=zAb; };
+    J.pi.cad.rotation.z=0; J.pd.cad.rotation.z=0;
+    const y0=J.raiz.position.y, k=A.k;
+    if(k==='estirada'){
+      const e=A.e;
+      if(A.tipo==='frente'){                     // se agacha y la espera con las manos adelante
+        J.cuerpo.rotation.x=0.42*e; brazos(-1.3*e,0.18); codos(-0.35*e);
+        pies(-0.55*e,-0.55*e,1.05*e,1.05*e); J.raiz.position.y=y0-0.2*e; J.raiz.rotation.z=0; return;
+      }
+      J.raiz.rotation.z=A.rs*A.roll*e;          // de costado hacia el palo
+      if(A.tipo==='vuelo'){ brazos(0,2.95*e); codos(0); }
+      else { brazos(-0.25*e,1.85*e); codos(-0.2); }
+      pies(0.15*e,-0.25*e,0.35*e,0.15*e); J.pi.cad.rotation.z=-0.12*e; J.pd.cad.rotation.z=0.12*e;
+      J.cuerpo.rotation.x=0.05;
+      J.raiz.position.y=y0+(A.lift||0); return;
+    }
+    if(k==='atrapa'){
+      const h=A.h||1;
+      if(h>1.55){ brazos(0,2.7*arco+0.2); codos(-0.25*arco); J.raiz.position.y=y0+Math.min(0.75,(h-1.55))*arco; pies(-0.35*arco,-0.1,0.8*arco,0.4*arco); }
+      else if(h<0.55){ J.cuerpo.rotation.x=0.75*arco; brazos(-0.95*arco,0.12); codos(-0.15); pies(-0.6*arco,-0.6*arco,1.2*arco,1.2*arco); J.raiz.position.y=y0-0.18*arco; }
+      else { brazos(-1.25*arco,0.15); codos(-0.9*arco); J.cuerpo.rotation.x=0.18*arco; }
+      return;
+    }
+    if(k==='cabeza'){
+      const Hj=Math.min(0.62,Math.max(0,(A.h||1.6)-1.75))+0.16;
+      J.raiz.position.y=y0+Hj*arco;
+      J.cuerpo.rotation.x=u<0.45?-0.38*S0(PI*u/0.9):-0.38*S0(PI*0.5)+0.85*Math.min(1,(u-0.45)/0.3)*(1-Math.max(0,(u-0.75)/0.25));
+      brazos(-0.5*arco,0.95*arco); codos(-0.6*arco);
+      pies(-0.55*arco,-0.15*arco,1.05*arco,0.55*arco); return;
+    }
+    if(k==='pecho'){
+      J.cuerpo.rotation.x=-0.5*arco; brazos(-0.2*arco,1.05*arco); codos(-0.3*arco);
+      J.raiz.position.y=y0+0.1*arco; return;
+    }
+    if(k==='volea'){
+      J.raiz.rotation.z=0.55*arco; J.raiz.position.y=y0+0.18*arco;
+      J.pd.cad.rotation.x=-1.6*arco; J.pd.cad.rotation.z=0.75*arco; J.pd.rod.rotation.x=0.25;
+      J.pi.cad.rotation.x=0.15; J.pi.rod.rotation.x=0.35*arco;
+      brazos(-0.2,1.2*arco); codos(-0.3); return;
+    }
+    if(k==='chilena'){
+      // sube, se acuesta de espaldas en el aire, la pierna pasa por arriba de la cabeza, cae
+      let alto, tumbo, pat;
+      if(u<0.2){ const a=u/0.2; alto=1.0*a; tumbo=-0.9*a; pat=-0.6*a; }
+      else if(u<0.5){ const a=(u-0.2)/0.3; alto=1.05; tumbo=-0.9-0.75*a; pat=-0.6-2.0*a; }
+      else if(u<0.78){ const a=(u-0.5)/0.28; alto=1.05*(1-a)+0.18*a; tumbo=-1.65+0.05*a; pat=-2.6+1.6*a; }
+      else { const a=(u-0.78)/0.22; alto=0.18*(1-a); tumbo=-1.6*(1-a); pat=-1.0*(1-a); }
+      J.cuerpo.rotation.x=tumbo; J.raiz.position.y=y0+alto;
+      pies(-0.6*Math.min(1,u/0.3),pat,0.6,0.1); brazos(-0.3,1.35); codos(-0.4); return;
+    }
+    if(k==='taco'){
+      J.pd.cad.rotation.x=1.15*arco; J.pd.rod.rotation.x=1.35*arco; J.cuerpo.rotation.x=0.22*arco; return;
+    }
+    if(k==='latEspera'){
+      brazos(PI*0.82,0.08); codos(-1.15); J.cuerpo.rotation.x=-0.1; pies(0.08,-0.08,0.1,0.1); return;
+    }
+    if(k==='lateral'){
+      const sm=u<0.6?u/0.6:1, tt=sm*sm*(3-2*sm);
+      brazos(PI*(0.8+0.55*tt),0.08); codos(-1.2*(1-tt)); J.cuerpo.rotation.x=-0.25+0.55*tt; return;
+    }
   };
   // la pelota: pentágonos dibujados en la textura, gira según la velocidad
   const pelota=(r)=>{
@@ -36575,6 +36945,15 @@ function e3dJugadores(E){
   const S=E.S, jugs=[], F=e3dFab(S,E3_ESC);
   const {pel,som:pelSom}=F.pelota(0.11*E3_ESC*1.6);
   const aro=F.anillo(0xffe066,0.95), aroSig=F.anillo(0x44ddff,0.6);
+  // Fase 106: la estela de la pelota y la línea del pase que estás cargando
+  const est=[], estHist=[];
+  _e3dSinAzar(()=>{
+    const gE=new THREE.SphereGeometry(1,8,6), mE=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.14,depthWrite:false});
+    for(let i=0;i<9;i++){ const m=new THREE.Mesh(gE,mE); m.visible=false; S.add(m); est.push(m); }
+  });
+  const aroPase=F.anillo(0x7dffa8,0.9);
+  const lineaPase=_e3dSinAzar(()=>{ const g=new THREE.PlaneGeometry(1,1); g.rotateX(-Math.PI/2); g.translate(0,0,0.5);
+    const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x7dffa8,transparent:true,opacity:0.32,depthWrite:false})); m.visible=false; S.add(m); return m; });
   const w=()=>(FM.rightGL-FM.leftGL)||1;
   const toW=p=>[((p.x-FM.leftGL)/w()-.5)*E.L,(p.y/FM.VH-.5)*E.A];
   const R={pel,jugs,toW,sig:-1,sync(){
@@ -36584,14 +36963,54 @@ function e3dJugadores(E){
       FM.my.forEach(p=>jugs.push(F.muneco(p,FM.myKit||{c1:'#1d4ed8',c2:'#fff'})));
       FM.opp.forEach(p=>jugs.push(F.muneco(p,FM.oppKit||{c1:'#fff',c2:'#222'}))); });
     const mira=FM.ball?toW(FM.ball):null;
+    const b0=FM.ball, bvW=[(b0.vx||0)/w()*E.L,(b0.vy||0)/FM.VH*E.A];
+    let mano=null;
     todos.forEach((p,i)=>{ const J=jugs[i]; if(!J)return;
       // ⚠️ drawP3 descuenta estos dos relojes al dibujar; con el 2D apagado
       // nadie los bajaba y el arquero quedaba tirado para siempre.
       if(p._kickT>0)p._kickT-=1; if(p._diveT>0)p._diveT-=1;
-      const [x,z]=toW(p);
-      F.posar(J,{x,z,mv:Math.hypot(p.vx||0,p.vy||0),mira,gk:p.isGK,
-        tirado:(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0});
+      let [x,z]=toW(p);
+      const o={x,z,mv:Math.hypot(p.vx||0,p.vy||0),mira,gk:p.isGK,
+        tirado:(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0};
+      // ═══ Fase 106: la animación que corresponde a lo que hizo el motor ═══
+      let A=null; try{ A=fmAnim106(p,FM); }catch(e){}
+      if(A){
+        const age=A.k==='estirada'?-1:A.u;
+        if(A.k!=='estirada'&&(J._aK!==A.k||age<(J._aU||0)-0.02)){   // empezó una nueva: hacia dónde mira
+          J._aK=A.k; const bl=Math.hypot(bvW[0],bvW[1]);
+          J._aYaw=A.k==='chilena'&&bl>0.01?Math.atan2(-bvW[0],-bvW[1]):(A.k==='taco'||bl<0.01)?null:Math.atan2(bvW[0],bvW[1]);
+        }
+        J._aU=age;
+        if(A.k==='estirada'){
+          const key=p._dvK106;
+          if(J._dvKey!==key){ J._dvKey=key; J._dvYaw=mira?Math.atan2(mira[0]-x,mira[1]-z):J.yaw; }
+          const dzF=(A.dy/FM.VH)*E.A, sg=dzF>=0?1:-1, ad=Math.abs(dzF);
+          const vuelo=A.tipo==='vuelo', paso=A.tipo==='paso';
+          const ext=A.pasado?A.vuelta:A.e, kE=E3_ESC/1.25;
+          // el cuerpo hace el alcance: los pies se corren poco y la mano llega a la pelota
+          const raizFull=Math.min(ad,Math.max(0,ad-2.6*kE)+(vuelo?0.35:paso?0.25:0));
+          z+=sg*raizFull*ext;
+          const roll=vuelo?Math.min(1.45,Math.asin(Math.max(0.35,Math.min(0.99,(ad-raizFull)/(2.9*kE))))+0.4):paso?0.7:0;
+          const lift=vuelo?0.25*ext+Math.max(0,Math.min(1.7,(A.h||0.4)-0.15))*A.e*(1-A.piso):0;
+          o.x=x; o.z=z; o.yaw=J._dvYaw; o.giro=0.5; o.tirado=false;
+          o.anim={k:'estirada',tipo:A.tipo,e:ext,rs:(Math.sin(J.yaw)*sg>=0?1:-1),roll,lift};
+          // dónde le quedan las manos (si la agarró, la pelota va ahí)
+          const re=roll*ext, lm=(vuelo?2.3:paso?1.3:0.7)*kE*E3_ESC;
+          J._manos=[x,(vuelo?lift+0.25:0.9)+Math.cos(re)*0.2,z+sg*lm*Math.sin(Math.max(re,paso?0.6:0.2))];
+        } else {
+          o.anim=A; if(J._aYaw!=null){ o.yaw=J._aYaw; o.giro=A.k==='chilena'?0.6:0.3; }
+          if(A.k==='latEspera'){ o.mv=0; o.yaw=(FM.ball&&FM.ball.y<FM.VH/2)?0:Math.PI; o.giro=0.15; mano=J; }   // mirando a la cancha
+          o.tirado=false; o.patada=0;
+        }
+        if(A.k!=='estirada') J._manos=null;
+      } else if(o.patada>0&&!p.isGK){
+        // el que la toca mira para donde la manda
+        const bl=Math.hypot(bvW[0],bvW[1]); if(bl>0.05){ o.yaw=Math.atan2(bvW[0],bvW[1]); o.giro=0.3; }
+        J._aK=null; J._manos=null;
+      } else { J._aK=null; J._manos=null; }
+      F.posar(J,o);
     });
+    R._mano=mano;
     // Fase 99: el árbitro y los asistentes
     try{ const RF=fmRef();
       if(RF){
@@ -36600,20 +37019,38 @@ function e3dJugadores(E){
           F.posar(J,{x:ox,z:oz,mv:Math.hypot(o.vx||0,o.vy||0),mira,gk:false,tirado:false,patada:0}); });
       }
     }catch(e){}
-    const b=FM.ball, [bx,bz]=toW(b);
-    // misma curva que drawBall3, que llega a la altura de un jugador; en 3D se
-    // ve chato, así que la parábola sube hasta ~5 m
-    const alt=b.air>0?Math.sin(Math.min(1,b.air/60)*Math.PI)*5:0;
+    const b=FM.ball; let [bx,bz]=toW(b);
+    // Fase 106: la parábola sobre el vuelo entero (antes sin(air/60·π)·5: un
+    // centro largo se veía rodando y recién al final subía y bajaba)
+    let alt=fmAlturaPelota(FM);
+    // el lateral, en las manos del que lo va a sacar
+    if(R._mano){ const J=R._mano; bx=J.raiz.position.x-Math.sin(J.yaw)*0.16*E3_ESC; bz=J.raiz.position.z-Math.cos(J.yaw)*0.16*E3_ESC; alt=2.14*E3_ESC-0.18; }
+    // la que el arquero agarró en el aire, en sus manos
+    else { const H=FM._gkHold; if(H&&H.gk&&Math.hypot(H.gk.x-b.x,H.gk.y-b.y)<40){ const J=jugs[todos.indexOf(H.gk)]; if(J&&J._manos){ bx=J._manos[0]; alt=Math.max(0,J._manos[1]-0.18); bz=J._manos[2]; } } }
     pel.position.set(bx,0.18+alt,bz);
     const bv=Math.hypot(b.vx||0,b.vy||0);
     if(bv>0.05){ pel.rotation.z-=(b.vx||0)*0.05; pel.rotation.x+=(b.vy||0)*0.05; }
     pelSom.position.set(bx+alt*0.25,0.021,bz); pelSom.scale.setScalar(Math.max(0.4,0.9-alt*0.08));
+    // estela: los últimos lugares por donde pasó, cuando va rápido o por el aire
+    { const rB=0.11*E3_ESC*1.6, ult=estHist[estHist.length-1], y=0.18+alt;
+      if(!ult||Math.hypot(ult[0]-bx,ult[2]-bz,ult[1]-y)>0.04){ estHist.push([bx,y,bz]); if(estHist.length>18) estHist.shift(); }
+      const vel=Math.hypot(b.vx||0,b.vy||0), on=FM106.estela&&FM.phase==='play'&&!R._mano&&(vel>4.6||alt>1.0);
+      for(let i=0;i<est.length;i++){ const m=est[i], q=estHist[estHist.length-2-i*2];
+        if(!on||!q){ m.visible=false; continue; }
+        m.visible=true; m.position.set(q[0],q[1],q[2]); m.scale.setScalar(rB*(0.8-i*0.08)); }
+    }
     const c=FM.my[FM.ctrl];
     let sig=-1, nb=1e9;
     if(c&&!FM.watch){ FM.my.forEach((p,i)=>{ if(i===FM.ctrl)return; const d=Math.hypot(p.x-b.x,p.y-b.y); if(d<nb){nb=d;sig=i;} }); }
     R.sig=sig;
     if(c&&!FM.watch){ const [cx,cz]=toW(c); aro.position.set(cx,0.03,cz); aro.visible=true; } else aro.visible=false;
     if(sig>=0){ const [sx,sz]=toW(FM.my[sig]); aroSig.position.set(sx,0.03,sz); aroSig.visible=true; } else aroSig.visible=false;
+    // Fase 106: mientras cargás el pase, a quién va (el mismo que elige fmPass)
+    let rv=null; try{ rv=fmPaseVista(FM); }catch(e){}
+    if(rv){ const [rx,rz]=toW(rv), dx=rx-bx, dz=rz-bz, L=Math.hypot(dx,dz);
+      aroPase.position.set(rx,0.035,rz); aroPase.visible=true; if(sig>=0&&FM.my[sig]===rv) aroSig.visible=false;
+      lineaPase.position.set(bx,0.03,bz); lineaPase.rotation.y=Math.atan2(dx,dz); lineaPase.scale.set(0.32*E3_ESC,1,Math.max(0.1,L-1.2)); lineaPase.visible=true;
+    } else { aroPase.visible=false; lineaPase.visible=false; }
     return [bx,bz,alt];
   }};
   return R;
