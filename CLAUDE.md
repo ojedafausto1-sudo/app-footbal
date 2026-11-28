@@ -24,7 +24,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107`, `fase108`, `fase109` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107`, `fase108`, `fase109`, `fase110` |
 
 ## Formato de `players-db.js`
 
@@ -10069,6 +10069,64 @@ arquero achica (Fase 106) y ataja todo desde 11 m, también en la versión vieja
   el arnés). Si se hace, es una fase propia con su A/B.
 
 `tests/fase109.js`, **39 checks** (corre el arnés dos veces: ~2 minutos).
+
+## Fase 110: la lista "Para DLS" — a quién buscar y a quién crear
+
+El presidente mandó un video de cómo se arma una "plantilla" en DLS 19: se
+crean a mano los jugadores que faltan (Traspasos → **Crear jugador**: nombre,
+apellido, puesto, apariencia, pelo, barba, dorsal, pie y nacionalidad) y
+después se copia la carpeta `Android/data/<paquete>/files`, que es el
+guardado entero. Nadie fabrica el archivo desde afuera. Su pregunta: *¿por qué
+faltan tantos jugadores, y cómo sé a quién tengo que crear?*
+
+- ⚠️ **El video usa una versión modificada.** Hay dos "Dream League"
+  instaladas (`com.firsttouchgames.dls3` y `dls3cp`), la del video tiene
+  16.777.216 monedas y dice "Liga BBVA", y el botón "Crear jugador" sale de
+  ahí. Lo de siempre (Fase 108): **no se lee ni se escribe ningún archivo de
+  DLS**. El presidente pidió además "crear un paquete y que vos lo modifiques":
+  eso es descifrar el formato del guardado y escribir encima, y no se hace.
+- **Por qué faltan**: la base del DLS 19 es de 2018 ("©2018 First Touch") y
+  trae sólo los jugadores licenciados (la pantalla lo dice: FIFPro), casi
+  todo de Europa. En el video hubo que crear a Armani y Lux, que en 2018
+  jugaban en River. Y el buscador del DLS tiene "Mostrar no disponibles: No" y
+  un valor máximo, que esconden a una parte de los que sí están.
+
+### La lista (`dlsLista` / `dlsRender`)
+
+Se abre desde el **Plantel** (`#btnDls`) y desde la **planilla** (Fase 108),
+y no necesita que sea el día del partido. Por jugador: nombre y apellido
+separados (`dlsNombre`, con las partículas: Di María, van der Sar; una sola
+palabra va al apellido), la sigla de DLS (`DLS_POS`), dorsal, pie (`D`/`I`/`A`),
+el país con nombre (`DLS_PAIS`, los ~110 códigos de la base) y la media de tu
+partida. Ordenada: primero lo que hay que crear, por línea y por media.
+
+- **Las siglas salen de las tarjetas del video**: PO, LD, LI, CN, MC, MO, MD,
+  EX (Cristiano), DC. El volante central defensivo no tiene sigla propia ahí
+  (va a MC) y los extremos de los dos lados son EX.
+- **La estimación** (`dlsEstima`) carga `players-hist-2018.js` a demanda
+  (`cargarTemporada`) y busca el mismo nombre (sin tildes) con el año de
+  nacimiento ±1: no figura → **🆕 Crealo**; jugaba en una liga europea
+  (`DLS_EUROPA`) → **🔎 Buscalo**; jugaba en otro lado → **probablemente haya
+  que crearlo**. Medido con Boca 2026: 13 para crear, 3 para buscar (Paredes,
+  Ascacíbar, Battaglia) y 14 probablemente para crear. ⚠️ Es una estimación:
+  no tenemos la lista de DLS. Sin la temporada 2018 (sin internet y sin
+  guardarla) dice "¿?" en vez de inventar.
+- **Las casillas** ("ya lo creé o lo fiché") viven en el navegador
+  (`localStorage['dt_dls_creados']`, `{club: [nombres normalizados]}`), **por
+  club y no por partida**: otra carrera con el mismo club los conserva tachados
+  y un fichaje nuevo aparece pendiente. Es la respuesta a "voy a tener que
+  crear todo cada vez": se crea una vez por club y después sólo los nuevos.
+  No va a `G` porque es del otro juego, no de la partida. El filtro de la
+  pantalla (`_dls`) también está fuera de `G`.
+- **📋 Copiar lo que falta**: una línea por jugador con `[CREAR]`/`[BUSCAR]`.
+- ⚠️ En el DLS los rivales son los suyos: no hay forma (legítima) de cargarle
+  el plantel de cada rival. La lista es para TU equipo.
+- Las filas son `.dls-f` **sin `backdrop-filter`** (viven en un modal con
+  vidrio) y la casilla mide 30 px para el dedo.
+- ⚠️ Los dorsales salen de `p.num`, que en la base son genéricos por puesto
+  (un arquero puede tener el 2). Es dato de la base, no de esta fase.
+
+`tests/fase110.js`, **32 checks**.
 
 ## Deploy
 

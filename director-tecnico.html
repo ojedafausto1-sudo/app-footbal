@@ -1347,6 +1347,23 @@ th{font-family:var(--f-data);font-weight:600;font-stretch:90%;color:var(--t3);te
 .oj-tj{font:inherit;font-size:12px;padding:4px 8px;border-radius:7px;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx);cursor:pointer}
 .oj-tj.y{border-color:#e6c200}.oj-tj.r{border-color:var(--red)}
 @media(max-width:600px){.oj-url>span{flex-basis:76px}.oj-t{font-size:11.5px}}
+/* ─── Fase 110: la lista para DLS (filas: sin backdrop-filter) ─── */
+.dls-res{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.dls-res span{font-family:var(--f-data);font-size:12px;font-weight:700;padding:3px 8px;border-radius:7px;border:1px solid var(--bdr);background:rgba(255,255,255,.03)}
+.dls-res .c{color:var(--gold)}.dls-res .b{color:#6fb6ff}.dls-res .h{color:var(--green)}
+.dls-fil{display:flex;gap:6px;margin:4px 0 8px}
+.dls-f{display:flex;gap:9px;align-items:flex-start;padding:8px 9px;margin-top:5px;border-radius:9px;border:1px solid var(--bdr);background:rgba(255,255,255,.025)}
+.dls-f.hecho{opacity:.5}
+.dls-ck{flex:0 0 30px;height:30px;border-radius:8px;border:1.5px solid var(--bdr);background:transparent;color:var(--green);font-size:17px;line-height:1;cursor:pointer;padding:0}
+.dls-f.hecho .dls-ck{border-color:var(--green);background:rgba(47,191,127,.12)}
+.dls-n{flex:1;min-width:0}
+.dls-n b{font-size:14px}.dls-n small{color:var(--t2);font-size:12px}
+.dls-d{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.dls-d i{font-style:normal;font-family:var(--f-data);font-size:11.5px;padding:1px 6px;border-radius:5px;background:var(--panel-3);border:1px solid var(--bdr);white-space:nowrap}
+.dls-d i.pos{color:var(--gold);font-weight:700}
+.dls-e{font-size:11.5px;margin-top:4px;color:var(--t2);line-height:1.35}
+.dls-e.crear b{color:var(--gold)}.dls-e.buscar b{color:#6fb6ff}.dls-e.quizas b{color:var(--t2)}
+.dls-ck:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </style>
 <script>
 /* ═══════════════════════════════════════════════════════════════════
@@ -1640,6 +1657,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
         <button class="tab" onclick="fSq('DEL',this)">DEL</button>
       </div>
       <input class="mksearch" style="margin-bottom:6px" type="text" id="sqQ" placeholder="🔍 Buscar en el plantel por nombre, puesto o nacionalidad — las tildes no importan" oninput="rSq()">
+      <button class="btn bo bs" id="btnDls" style="width:100%;margin-bottom:6px" onclick="dlsLista()">🧾 Para DLS: a quién buscar y a quién crear</button>
       <div id="sqForeignCounter" style="font-family:'Rajdhani',sans-serif;font-size:11px;padding:6px 11px;margin-bottom:6px;background:linear-gradient(160deg,var(--card-2),var(--card));-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:9px;border:1px solid rgba(255,255,255,.08);box-shadow:0 2px 10px rgba(0,0,0,.28)"></div>
       <!-- La cabecera de columnas se fue con la tabla: ahora cada jugador es
            una mini-card y lo que queda es la leyenda de lo que dice el disco. -->
@@ -22625,8 +22643,146 @@ function ojPlanilla(){
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="btn bo" style="flex:1" onclick="ojCopiar(window._ojTxt||'','📋 Planilla copiada')">📋 Copiar planilla</button>
+      <button class="btn bo" style="flex:1" onclick="dlsLista()">🧾 Para DLS: a quién crear</button>
       <button class="btn bg" style="flex:1" onclick="ojResultado()">📝 Cargar el resultado</button>
     </div>`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 110: LA LISTA PARA DLS — a quién buscar y a quién crear
+// ═══════════════════════════════════════════════════════════════════════
+// El DLS 19 trae una base de 2018 con los jugadores que tiene licenciados
+// (casi todo Europa). El que falta se crea a mano en el juego ("Crear
+// jugador"). Esto NO toca ningún archivo de DLS: arma la lista para cargar a
+// mano, con los campos en el orden de esa pantalla, y se acuerda de a quién
+// ya creaste.
+//  · La ESTIMACIÓN sale de players-hist-2018.js: si el jugador no jugaba en
+//    primera en 2018 no puede estar; si jugaba en una liga europea, buscalo;
+//    si jugaba en otro lado, probablemente no esté (en el video del
+//    presidente hubo que crear a Armani y Lux, que en 2018 jugaban en River).
+//    ⚠️ Es una estimación: no tenemos la lista de DLS.
+//  · Las SIGLAS son las que se ven en las tarjetas de DLS 19: PO, LD, LI, CN,
+//    MC, MO, MD, EX, DC. El volante central defensivo y los extremos de cada
+//    lado no tienen sigla propia ahí: van a MC y a EX.
+//  · Las CASILLAS viven en el navegador (localStorage `dt_dls_creados`), por
+//    club y no por partida: si empezás otra carrera con el mismo club, los
+//    que ya creaste siguen tachados. No van a G porque no son de la partida.
+const DLS_ANIO=2018;
+const DLS_POS={ARQ:'PO',DFC:'CN',DFD:'LD',DFI:'LI',MCD:'MC',MC:'MC',MCO:'MO',MI:'MI',MD:'MD',EI:'EX',ED:'EX',DC:'DC'};
+const DLS_PIE={der:'D',izq:'I',amb:'A',ambi:'A'};
+const DLS_EUROPA=['España','Premier','Italia','Alemania','Francia','Portugal','Holanda','Turquía','Bélgica','Grecia','Rusia'];
+const DLS_PAIS={ARG:'Argentina',BRA:'Brasil',ESP:'España',FRA:'Francia',COL:'Colombia',ITA:'Italia',ALE:'Alemania',
+  URU:'Uruguay',ING:'Inglaterra',POR:'Portugal',ECU:'Ecuador',USA:'Estados Unidos',PAR:'Paraguay',BOL:'Bolivia',
+  HOL:'Países Bajos',PER:'Perú',VEN:'Venezuela',CHI:'Chile',ARB:'Arabia Saudita',BEL:'Bélgica',MEX:'México',
+  TUR:'Turquía',RUS:'Rusia',GRE:'Grecia',MAR:'Marruecos',SEN:'Senegal',DIN:'Dinamarca',CIV:'Costa de Marfil',
+  NIG:'Nigeria',SUE:'Suecia',SER:'Serbia',JAP:'Japón',GHA:'Ghana',CRO:'Croacia',SUI:'Suiza',CAN:'Canadá',
+  AUT:'Austria',POL:'Polonia',MAL:'Malí',NOR:'Noruega',CAM:'Camerún',ESC:'Escocia',IRL:'Irlanda',ALG:'Argelia',
+  COD:'RD del Congo',BIH:'Bosnia y Herzegovina',GAL:'Gales',ALB:'Albania',GUI:'Guinea',CPV:'Cabo Verde',
+  RUM:'Rumania',AUS:'Australia',PAN:'Panamá',GNB:'Guinea-Bisáu',FIN:'Finlandia',UCR:'Ucrania',HUN:'Hungría',
+  SVN:'Eslovenia',CZE:'República Checa',ANG:'Angola',JAM:'Jamaica',BFA:'Burkina Faso',GEO:'Georgia',
+  SVK:'Eslovaquia',COR:'Corea del Sur',ISL:'Islandia',KOS:'Kosovo',GAM:'Gambia',BUL:'Bulgaria',ISR:'Israel',
+  TUN:'Túnez',SUR:'Surinam',MNE:'Montenegro',HAI:'Haití',NIR:'Irlanda del Norte',CUW:'Curazao',CRC:'Costa Rica',
+  ARM:'Armenia',CGO:'Congo',GUA:'Guatemala',NZL:'Nueva Zelanda',GAB:'Gabón',LUX:'Luxemburgo',HON:'Honduras',
+  DOM:'República Dominicana',BLR:'Bielorrusia',RSA:'Sudáfrica',TOG:'Togo',CYP:'Chipre',EGI:'Egipto',
+  TRI:'Trinidad y Tobago',MAD:'Madagascar',ZIM:'Zimbabue',UZB:'Uzbekistán',KEN:'Kenia',LTU:'Lituania',
+  EST:'Estonia',MKD:'Macedonia del Norte',KAZ:'Kazajistán',BEN:'Benín',SLV:'El Salvador',SLE:'Sierra Leona',
+  CUB:'Cuba',QAT:'Catar',CHN:'China',IRN:'Irán',IRQ:'Irak',NER:'Níger',MLT:'Malta',AZE:'Azerbaiyán'};
+function dlsPais(c){ return DLS_PAIS[c]||c||'—'; }
+// Nombre y apellido por separado, como los pide "Crear jugador". El apellido
+// es la última palabra más las partículas que la preceden (Di María, De Bruyne,
+// van der Sar); con una sola palabra (Rodrygo) va al apellido, que es lo que
+// DLS muestra en la cancha.
+const DLS_PART=new Set(['de','del','la','las','los','da','das','do','dos','di','du','van','von','der','den','ter','ten','le','el','al','mac','mc','san','st.','y','e']);
+function dlsNombre(name){
+  const t=String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(t.length<2) return {n:'',a:t[0]||''};
+  let i=t.length-1; while(i>1&&DLS_PART.has(t[i-1].toLowerCase())) i--;
+  return {n:t.slice(0,i).join(' '),a:t.slice(i).join(' ')};
+}
+let _dlsIdxCache=null;
+function _dlsIdx(H){
+  if(_dlsIdxCache&&_dlsIdxCache.H===H) return _dlsIdxCache.m;
+  const m=new Map(); H.forEach(r=>{ const k=_tsNorm(r[1]).trim(); if(!m.has(k))m.set(k,[]); m.get(k).push(r); });
+  _dlsIdxCache={H,m}; return m;
+}
+// {k:'crear'|'buscar'|'quizas'|'?', ...}. Mismo nombre (sin tildes) y año de
+// nacimiento ±1, para no mezclar homónimos.
+function dlsEstima(p){
+  const H=(window.PLAYERS_DB_HIST||{})[DLS_ANIO];
+  if(!H||H.length<200) return {k:'?'};
+  const nac=((G&&G.season)||2026)-(p.age||25), edad=DLS_ANIO-nac;
+  if(edad<16) return {k:'crear',por:'joven',edad:Math.max(0,edad)};
+  const m=(_dlsIdx(H).get(_tsNorm(p.name).trim())||[]).filter(r=>Math.abs((r[3]|0)-edad)<=1);
+  if(!m.length) return {k:'crear',por:'no'};
+  const eu=m.find(r=>DLS_EUROPA.includes(r[6]));
+  if(eu) return {k:'buscar',club:eu[5],lg:eu[6]};
+  return {k:'quizas',club:m[0][5],lg:m[0][6]};
+}
+function dlsEstTxt(e){
+  if(e.k==='crear') return e.por==='joven'?`<b>🆕 Crealo</b> · en ${DLS_ANIO} tenía ${e.edad} años: no puede estar en DLS 19`:`<b>🆕 Crealo</b> · no figura en los planteles de primera de ${DLS_ANIO}`;
+  if(e.k==='buscar') return `<b>🔎 Buscalo</b> · en ${DLS_ANIO} jugaba en ${_esc(e.club)} (${_esc(e.lg)}): seguramente esté, con los datos de esa época`;
+  if(e.k==='quizas') return `<b>🆕 Probablemente haya que crearlo</b> · en ${DLS_ANIO} jugaba en ${_esc(e.club)} (${_esc(e.lg)}), y de fuera de Europa DLS trae poco. Buscalo antes, por las dudas`;
+  return `<b>¿?</b> · no se pudo cargar la temporada ${DLS_ANIO} para estimarlo`;
+}
+// ═══ LO QUE YA CREASTE (en el navegador, por club) ═══
+const DLS_KEY='dt_dls_creados';
+function _dlsLeer(){ try{ return JSON.parse(localStorage.getItem(DLS_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function _dlsGuardar(o){ try{ localStorage.setItem(DLS_KEY,JSON.stringify(o)); }catch(e){} }
+function dlsCreados(club){ const o=_dlsLeer(); return new Set(o[club]||[]); }
+function dlsMarcar(id){
+  if(!G) return;
+  const p=(G.squad||[]).find(q=>q.id===id); if(!p) return;
+  const o=_dlsLeer(), club=G.teamName, k=_tsNorm(p.name).trim(), s=new Set(o[club]||[]);
+  if(s.has(k)) s.delete(k); else s.add(k);
+  o[club]=[...s]; _dlsGuardar(o); dlsRender();
+}
+function dlsFila(p,e,hecho){
+  const nm=dlsNombre(p.name), pos=DLS_POS[p.pos]||p.pos;
+  return {id:p.id,nombre:nm.n,apellido:nm.a,pos,posR:p.pos,num:p.num||'',pie:DLS_PIE[p.foot]||'D',pais:dlsPais(p.nat),alt:p.height||0,rat:p.rat,e,hecho};
+}
+var _dls={solo:true};          // de la pantalla, no de la partida
+function dlsLista(){
+  if(!G) return;
+  if(!temporadaCargada(DLS_ANIO)){
+    showMod(`<button class="mclose" onclick="closeMod()">✕</button><div class="mtitle">🧾 Para DLS</div><div class="note">Cargando los planteles de ${DLS_ANIO} para ver quién puede estar en DLS 19…</div>`);
+    cargarTemporada(DLS_ANIO,()=>dlsRender());
+    return;
+  }
+  dlsRender();
+}
+function dlsDatos(){
+  const creados=dlsCreados(G.teamName), ord={ARQ:0,DEF:1,MED:2,DEL:3}, peso={crear:0,quizas:1,buscar:2,'?':1};
+  return (G.squad||[]).map(p=>dlsFila(p,dlsEstima(p),creados.has(_tsNorm(p.name).trim())))
+    .sort((a,b)=>(a.hecho-b.hecho)||(peso[a.e.k]-peso[b.e.k])||((ord[pgr(a.posR)]||0)-(ord[pgr(b.posR)]||0))||(b.rat-a.rat));
+}
+function dlsRender(){
+  if(!G) return;
+  const F=dlsDatos(), crear=F.filter(f=>!f.hecho&&f.e.k!=='buscar').length, buscar=F.filter(f=>!f.hecho&&f.e.k==='buscar').length, hechos=F.filter(f=>f.hecho).length;
+  const ver=_dls.solo?F.filter(f=>!f.hecho):F;
+  window._dlsTxt=dlsTexto(F.filter(f=>!f.hecho));
+  const fila=f=>`<div class="dls-f${f.hecho?' hecho':''}">
+      <button class="dls-ck" aria-label="${f.hecho?'Destachar':'Ya lo creé o lo fiché'}" onclick="dlsMarcar('${f.id}')">${f.hecho?'✓':''}</button>
+      <div class="dls-n"><small>${_esc(f.nombre)||'(sin nombre)'}</small> <b>${_esc(f.apellido)}</b>
+        <div class="dls-d"><i class="pos">${f.pos}</i><i>#${f.num||'—'}</i><i>pie ${f.pie}</i><i>${_esc(f.pais)}</i>${f.alt?`<i>${f.alt} cm</i>`:''}<i>media ${f.rat}</i></div>
+        <div class="dls-e ${f.e.k}">${dlsEstTxt(f.e)}</div></div></div>`;
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🧾 ${_esc(G.teamName)} en DLS</div>
+    <div class="note">DLS 19 trae los jugadores de ${DLS_ANIO} que tiene licenciados (casi todo Europa). Los que no están se cargan con <b>Traspasos → Crear jugador</b>: acá van los datos en el orden de esa pantalla. Tocá la casilla cuando lo creaste o lo fichaste: queda guardado en este navegador para este club, aunque empieces otra carrera. Después de cada fichaje, entrá acá y te aparece sólo el nuevo.</div>
+    <div class="dls-res"><span class="c">🆕 Para crear: ${crear}</span><span class="b">🔎 Para buscar: ${buscar}</span><span class="h">✓ Listos: ${hechos} de ${F.length}</span></div>
+    <div class="dls-fil">
+      <button class="btn bs ${_dls.solo?'bg':'bo'}" onclick="_dls.solo=true;dlsRender()">Lo que falta</button>
+      <button class="btn bs ${_dls.solo?'bo':'bg'}" onclick="_dls.solo=false;dlsRender()">Todos</button>
+    </div>
+    ${ver.length?ver.map(fila).join(''):`<div class="note">✅ Ya tenés a todos. Cuando fiches a alguien, aparece acá.</div>`}
+    <div class="oj-nota">Siglas de DLS 19: PO arquero · LD/LI laterales · CN central · MC volante central · MO enganche · MI/MD volantes por banda · EX extremo · DC delantero. Pie: D derecho · I izquierdo · A los dos. Es una estimación: no tenemos la lista de DLS, sólo los planteles de ${DLS_ANIO}.</div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn bo" style="flex:1" onclick="ojCopiar(window._dlsTxt||'','📋 Lista copiada')">📋 Copiar lo que falta</button>
+      <button class="btn bg" style="flex:1" onclick="closeMod()">Listo</button>
+    </div>`);
+}
+function dlsTexto(F){
+  const t=f=>f.e.k==='buscar'?'BUSCAR':'CREAR';
+  return `${G.teamName} — para DLS (${F.length} pendientes)\n`+F.map(f=>`[${t(f)}] ${f.nombre?f.nombre+' | ':''}${f.apellido} · ${f.pos} · #${f.num||'—'} · pie ${f.pie} · ${f.pais} · media ${f.rat}`).join('\n');
 }
 // ═══ EL RESULTADO ═══
 // Estado del formulario: es de la pantalla, no de la partida (fuera de G).
