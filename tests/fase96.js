@@ -25,9 +25,14 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     const cs = s => getComputedStyle(document.querySelector(s));
     const rgb = c => c.replace(/\s/g, '');
     const o = {};
-    o.chapa = /linear-gradient/.test(cs('.fpill').backgroundImage) && /31,63,48|23,50,38/.test(rgb(cs('.fpill').backgroundImage));
-    o.placaNum = rgb(cs('#sPts').backgroundColor) === 'rgb(236,228,207)' && rgb(cs('#sPts').color) === 'rgb(22,25,26)';
-    o.activa = rgb(cs('#fnav .fs.on').backgroundColor) === 'rgb(236,228,207)';
+    // ⚠️ Fase 107: la chapa se reemplazó por la "noche de partido". Lo que se
+    // sigue exigiendo es lo que la chapa resolvía: una cabecera que se lee de
+    // un vistazo, números legibles y la sección activa marcada.
+    const cont = document.getElementById('fCont');
+    o.chapa = !!cont && cont.offsetWidth > 0 && !!document.querySelector('.fhead #fCont');
+    o.placaNum = rgb(cs('#sPts').color) === 'rgb(237,242,249)' && rgb(cs('#sPts').backgroundColor) !== 'rgba(0,0,0,0)';
+    const gold = rgb(getComputedStyle(document.documentElement).getPropertyValue('--gold').trim());
+    o.activa = getComputedStyle(document.querySelector('#fnav .fs.on'), '::after').content !== 'none';
     o.tileOscura = !/240,243,247/.test(rgb(cs('.ht:not(.big)').backgroundImage));
     const mayus = [...document.querySelectorAll('#fnav .fs, .ht-t, .ctitle, .stitle, .btn, th, .hm-play, .fr-mini, .ph-tab')]
       .filter(e => getComputedStyle(e).textTransform === 'uppercase').map(e => e.className || e.tagName);
@@ -36,12 +41,12 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
     o.rep = getComputedStyle(document.getElementById('repTop')).position === 'static';
     o.botones = ['btnPlay', 'dayBtn', 'btnHastaPartido'].map(id => document.getElementById(id).textContent.trim());
     o.vidrio = getComputedStyle(document.querySelector('.card')).backdropFilter !== 'none';
-    o.fondo = rgb(getComputedStyle(document.documentElement).getPropertyValue('--dark').trim()) === '#0b0e14';
+    o.fondo = rgb(getComputedStyle(document.documentElement).getPropertyValue('--dark').trim()) === '#0a1120';   // Fase 107
     return o;
   });
-  chk('la cabecera es una tabla de chapa', d.chapa);
-  chk('los números de la cabecera van en placas crema con tinta', d.placaNum);
-  chk('la sección activa es una placa', d.activa);
+  chk('la cabecera es la barra de mando, con Continuar (Fase 107 reemplazó la chapa)', d.chapa);
+  chk('los números de la cabecera van en fichas legibles', d.placaNum);
+  chk('la sección activa se marca', d.activa);
   chk('el tablero ya no son tarjetas blancas brillantes', d.tileOscura);
   chk('sin mayúsculas forzadas en navegación, títulos, botones y tablas', d.mayus === 0, d.mayus + ' ' + d.mayusEj.join(', '));
   chk('los ids de la cabecera se siguen llenando', d.ids);
