@@ -18,12 +18,13 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `tools/hist-valores.js` | Repara los `players-hist-*.js`: el extractor guardaba el **traspaso** como valor de mercado (Fase 103). `node tools/hist-valores.js --verdad` valida contra 2026, `--escribir` reescribe. Idempotente |
 | `extractor.html` | Herramienta para bajar datos de SportDB/Transfermarkt |
 | `netlify/functions/sportdb.js` | Proxy (soporta transfermarkt, flashscore, tmapi, tmcoach) |
+| `netlify/functions/kit.js` | Dibuja camisetas y escudos en PNG para cargarlos en otro juego (Fase 108). `/kit/<c1>-<c2>-<tipo>.png` |
 | `cloudflare-worker/sportdb-cache.js` | Mismo proxy + caché KV. El usuario lo tiene desplegado |
 | `three.min.js` | three.js r160, **local** (el juego no pide nada por red). Se carga recién cuando hace falta 3D (Fase 71) |
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107`, `fase108` |
 
 ## Formato de `players-db.js`
 
@@ -9912,6 +9913,53 @@ una semana vacía, o hasta el día del partido.
   fila scrollea si hace falta.
 
 `tests/fase107.js`, **61 checks**. Regresión: 39 de 39 en verde.
+
+## Fase 108: jugarlo en otro juego (planilla, camisetas por URL y el resultado a mano)
+
+El presidente quería jugar los partidos en Dream League Soccer y que todo lo
+demás pasara acá, primero "saltando a un APK" y después metiéndole los
+planteles con archivos de datos editados (`profile.dat` / `obb`) como los que
+circulan. **Eso no se hizo y no se va a hacer**: es descifrar el formato
+privado de DLS y fabricar archivos que se hagan pasar por suyos, sobre una
+copia bajada de internet, y además no se puede probar desde acá. DLS tampoco
+tiene cómo importar planteles ni devolver un resultado. Lo que sí se hizo usa
+sólo lo que el otro juego ya ofrece:
+
+- **Planilla** (`ojPlanilla`, botón 🎮 en la portada y en la previa): los dos
+  onces con dorsal, puesto, altura, pie y media, para armar el equipo lo más
+  parecido posible. El tuyo es el que va a jugar (`dtPicksXI`, como la previa);
+  el del rival sale de sus jugadores de verdad con el dibujo de su técnico
+  (`ojOnceRival`). ⚠️ La base trae **dorsales genéricos por puesto** (tres "4"
+  en una defensa): en la planilla cada uno lleva uno distinto. ⚠️ Hay
+  homónimos entre ligas: gana la liga del partido. Se copia como texto.
+- **Camisetas y escudo por dirección web** (`netlify/functions/kit.js`, sin
+  dependencias: el PNG se arma a mano con `zlib`). DLS tiene la opción oficial
+  de bajarlos desde una URL. `/kit/<c1>-<c2>-<liso|franja|rayas|mitad|arquero>.png`
+  y `/kit/<c1>-<c2>-escudo-<LETRAS>.png` (letras de 5×7 dibujadas a mano).
+  **El molde de DLS se midió** sobre una camiseta que mandó el presidente: el
+  FRENTE va al medio (x 160-352, y 180-376), la ESPALDA arriba y dada vuelta
+  (x 180-346, y 0-180), mangas a los costados y pantalón abajo; los dibujos van
+  en frente y espalda. La del arquero elige el color que más se separa de las
+  dos camisetas. Una dirección mal escrita da 400 (antes "nada" se leía como el
+  color `ada`). Desde `file://` las direcciones apuntan al sitio publicado
+  (`OJ_SITIO`). ⚠️ Las imágenes sólo existen en el sitio de Netlify (la función
+  no corre en local ni en el Worker).
+- **El resultado a mano** (`ojResultado` / `ojAplicar`): marcador, quién hizo
+  cada gol (el once, el banco o **en contra**) y el minuto, los minutos del
+  rival, las tarjetas de tu equipo y la tanda si fue empate. Entra por **el
+  mismo camino que el 11v11**: `G._fmRes` para las tarjetas, `providedScorers`
+  para los goles, `tiemposDeGoles` para el desglose y `applyMatchResult` +
+  `showMatchSummary`; el amistoso por `_amisCerrar`. Queda `m.via='otro'`.
+  - ⚠️ **El gol en contra** va como `{og:true}`: no suma a ningún jugador ni a
+    la tabla de goleadores (ni la de la liga ni la del torneo).
+  - ⚠️ **La tanda cargada** pasa por `G._penManual`, que `tandaPenales` usa una
+    vez y borra: el resto de las eliminatorias siguen sorteándose.
+  - Sin goleador en algún gol, avisa y no carga nada. El formulario vive en
+    `_oj`, fuera de `G`.
+- Lo único que viaja al otro juego son las imágenes. **No se lee ni se escribe
+  ningún archivo de DLS.**
+
+`tests/fase108.js`, **31 checks** (decodifica los PNG y mira los píxeles).
 
 ## Deploy
 

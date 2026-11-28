@@ -1322,6 +1322,31 @@ th{font-family:var(--f-data);font-weight:600;font-stretch:90%;color:var(--t3);te
 /* foco visible */
 .estr:focus-visible,.ses:focus-visible,.ind-f:focus-visible,.ht:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.fcont.partido{animation:none}}
+/* ─── Fase 108: jugarlo en otro juego ─── */
+.oj-h{font-size:13px;color:var(--t2);margin:-4px 0 10px}
+.oj-cols{display:grid;grid-template-columns:1fr;gap:12px;margin-top:8px}
+.oj-t{width:100%;border-collapse:collapse;font-size:12px}
+.oj-t th{text-align:left;font-size:11px;padding:3px 4px;border-bottom:1px solid var(--bdr)}
+.oj-t td{padding:4px;border-bottom:1px solid rgba(140,165,205,.08);white-space:nowrap}
+.oj-t td:nth-child(2){white-space:normal}
+.oj-sw{display:inline-block;width:14px;height:14px;border-radius:4px;margin-left:5px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.oj-url{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;min-width:0}
+.oj-url>span{flex:0 0 96px;color:var(--t2)}
+.oj-url code,.oj-nota code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--tx);background:var(--panel-3);border:1px solid var(--bdr);border-radius:6px;padding:4px 6px;display:block}
+.oj-nota{font-size:11.5px;color:var(--t3);margin-top:8px;line-height:1.4}
+.oj-nota code{display:inline-block;max-width:100%;vertical-align:middle}
+.oj-marcador{display:flex;align-items:flex-end;justify-content:center;gap:12px;margin:6px 0}
+.oj-marcador label{display:flex;flex-direction:column;align-items:center;gap:4px;font-family:var(--f-data);font-weight:700;font-size:13px;max-width:40%;text-align:center}
+.oj-marcador input{width:72px;text-align:center;font-family:var(--f-data);font-size:24px;font-weight:800;margin:0}
+.oj-marcador b{font-size:24px;padding-bottom:8px;color:var(--t3)}
+.oj-gol{display:flex;align-items:center;gap:6px;margin-top:6px}
+.oj-gol>span{flex:0 0 auto;font-size:12px;color:var(--t2);min-width:34px}
+.oj-gol select{flex:1;margin:0;min-width:0}
+.oj-gol input[type=number]{width:62px;margin:0}
+.oj-tjs{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.oj-tj{font:inherit;font-size:12px;padding:4px 8px;border-radius:7px;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx);cursor:pointer}
+.oj-tj.y{border-color:#e6c200}.oj-tj.r{border-color:var(--red)}
+@media(max-width:600px){.oj-url>span{flex-basis:76px}.oj-t{font-size:11.5px}}
 </style>
 <script>
 /* ═══════════════════════════════════════════════════════════════════
@@ -1555,6 +1580,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
           <button class="btn bo bs" onclick="openContinuousSim()" style="border-color:var(--gold);color:var(--gold)">⏩ SIM CONTINUA</button>
           <button class="btn bo bs" onclick="askTeamTalk(playMatch)">🎯 Jugadas clave</button>
           <button class="btn bo bs" onclick="startFullMatch(true)" style="border-color:var(--green);color:var(--green)">📺 Mirar el 11v11</button>
+          <button class="btn bo bs" id="btnOtroJuego" onclick="ojPlanilla()">🎮 Jugarlo en otro juego</button>
         </div>
         <div id="hmEspera" style="display:none;margin-top:8px">
           <button class="btn bg" id="btnHastaPartido" onclick="avanzarHastaPartido()" style="width:100%">⏭️ Simular hasta el día del partido</button>
@@ -19027,6 +19053,11 @@ function caProximaRonda(rndActual){
 // una tanda (cinco y muerte súbita) con la definición de tus cinco mejores
 // pateadores y la fuerza del rival, y queda anotada en el partido.
 function tandaPenales(m){
+  // Fase 108: si el partido se jugó en otro juego, la tanda es la que cargaste
+  if(G&&G._penManual){ const PM=G._penManual; G._penManual=null;
+    let a=Math.max(0,+PM.mios||0), b=Math.max(0,+PM.suyos||0); if(a===b)a++;
+    if(m){ m.pens=a+'-'+b; m.penGana=a>b; }
+    return {mios:a,suyos:b,gana:a>b,txt:a+'-'+b}; }
   const _xi=Object.values(G.slots||{}).map(id=>(G.squad||[]).find(p=>p.id===id)).filter(Boolean);
   const xi=(_xi.length?_xi:(G.squad||[])).filter(p=>p&&p.pos!=='ARQ');
   const tir=xi.map(p=>(p.attrs&&p.attrs.TIR)||p.rat||70).sort((a,b)=>b-a).slice(0,5);
@@ -19408,6 +19439,8 @@ function applyMatchResult(m, gf, ga, providedScorers){
   if(providedScorers && providedScorers.length){
     // Goles anotados por el jugador en el modo jugable
     providedScorers.forEach(s=>{
+      // Fase 108: un gol en contra cargado a mano no es de nadie del plantel
+      if(s.og){ scorersList.push({name:'En contra', min:s.min, assist:null, og:true}); return; }
       const p = G.squad.find(x=>x.id===s.id);
       if(p) p.goals++;
       const _a=_asistDe(s.id); _anotaAsist(_a);
@@ -19470,6 +19503,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   // Mis goleadores también cuentan para la tabla de goleadores de la liga
   if(esLigaLocal(m.comp)&&G.league){
     scorersList.forEach(s3=>{
+      if(s3.og) return;                     // Fase 108: el gol en contra no suma a ningún goleador
       if(!G.league.scorers[s3.name])G.league.scorers[s3.name]={club:G.teamName,goals:0};
       G.league.scorers[s3.name].goals++;
     });
@@ -19580,7 +19614,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   t.pj++; t.gf+=gf; t.ga+=ga;
   if(res==='W') t.pts=(t.pts||0)+3;
   else if(res==='D') t.pts=(t.pts||0)+1;
-  scorersList.forEach(s=>{ t.scorers[s.name]=(t.scorers[s.name]||0)+1; });
+  scorersList.forEach(s=>{ if(s.og)return; t.scorers[s.name]=(t.scorers[s.name]||0)+1; });
   try{ primasPartido(xiPlayers,scorersList,ga); }catch(e){}   // Fase 76: las primas pactadas
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -20585,7 +20619,8 @@ function showPreMatch(m){
       : `<div style="display:flex;gap:6px">
       <button class="btn bg" style="flex:1" onclick="closeMod();simMatch(false)">📺 Jugar con relato</button>
       <button class="btn bo" style="flex:1" onclick="closeMod();simMatch(true)">⚡ Resultado directo</button>
-    </div>`}
+    </div>
+    <button class="btn bo" style="width:100%;margin-top:6px" onclick="ojPlanilla()">🎮 Jugarlo en otro juego y cargar el resultado</button>`}
   `);
 }
 
@@ -22465,6 +22500,210 @@ function lmFinish(){
   document.getElementById('lmOv').style.display='none';
   showMatchSummary(LM.m, R.res, LM.gf, LM.ga, R.scorersList, R.stats, R.isLastMatch);
   LM=null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 108: JUGARLO EN OTRO JUEGO
+// ═══════════════════════════════════════════════════════════════════════
+// El presidente quiere jugar los partidos en Dream League Soccer y que todo lo
+// demás pase acá. DLS no importa planteles ni devuelve el resultado, así que:
+//  · la PLANILLA te da los dos onces (dorsal, puesto, altura, pie, media) para
+//    armar el equipo lo más parecido posible, y se copia como texto;
+//  · las CAMISETAS y el ESCUDO salen por dirección web (la opción oficial de
+//    DLS de bajarlos de internet): los dibuja netlify/functions/kit.js;
+//  · el RESULTADO se carga a mano (goles, quién los hizo, minutos, tarjetas y
+//    penales) y entra por el mismo camino que el partido jugado acá.
+// ⚠️ No se toca ningún archivo de DLS: lo único que va al otro juego son las
+// imágenes, por la opción que el juego ya tiene.
+const OJ_SITIO='https://stately-elf-897da3.netlify.app';
+function ojSitio(){
+  try{ if(/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname)) return location.origin; }catch(e){}
+  return OJ_SITIO;
+}
+function ojHex(c){ try{ return _kitRGB(c).map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join(''); }catch(e){ return '888888'; } }
+function ojKitURL(club,tipo){ const k=kitFor(club); return `${ojSitio()}/kit/${ojHex(k.c1)}-${ojHex(k.c2)}-${tipo||'liso'}.png`; }
+function ojEscudoURL(club){
+  const k=_kitBase(club), sig=String((typeof clubInitials==='function'?clubInitials(club):club.slice(0,2))||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'FC';
+  return `${ojSitio()}/kit/${ojHex(k.c1)}-${ojHex(k.c2)}-escudo-${sig}.png`;
+}
+// La del arquero: el color que más se separa de las dos camisetas del partido
+function ojArqURL(club,rival){
+  const a=kitFor(club), b=rival?kitFor(rival):a;
+  const cs=['#1fa34a','#2b2b2b','#f28c28','#6a2c91','#e8e8e8','#00a0b0'];
+  const d=c=>Math.min(_kitDist(c,a.c1),_kitDist(c,a.c2),_kitDist(c,b.c1),_kitDist(c,b.c2));
+  const c=ojHex(cs.sort((x,y)=>d(y)-d(x))[0]);
+  return `${ojSitio()}/kit/${c}-${c}-arquero.png`;
+}
+function ojPartido(){ return G?(G.calendar||[]).find(x=>!x.played)||null:null; }
+const OJ_PIE={der:'derecho',izq:'izquierdo',amb:'ambidiestro',ambi:'ambidiestro'};
+function ojFila(p,lbl){ return {id:p.id,num:p.num||'',name:p.name,pos:lbl||p.pos,posR:p.pos,alt:p.height||0,pie:OJ_PIE[p.foot]||'—',rat:p.rat}; }
+// Tu once, el que va a jugar: con un DT de la IA lo elige él (como en la previa)
+function ojOnceMio(){
+  try{ dtPicksXI(); }catch(e){}
+  const sl=getForm()||[];
+  return sl.map((x,i)=>{ const id=G.slots&&G.slots[i]; const p=id&&G.squad.find(q=>q.id===id); return p?ojFila(p,x.lbl||x.pos):null; }).filter(Boolean);
+}
+// El once del rival, con sus jugadores de verdad y el dibujo de su técnico.
+// ⚠️ Hay nombres repetidos entre ligas (Racing Club, tres 'Nacional'): si
+// aparecen dos, gana la liga del partido.
+function ojOnceRival(m){
+  const riv=m.home===G.teamName?m.away:m.home;
+  let pl=(G.market||[]).filter(p=>p.club===riv&&!p.injured);
+  const lgs=[...new Set(pl.map(p=>p.lg))];
+  if(lgs.length>1){
+    const local=esLigaLocal(m.comp);
+    const pref=local?lgs.find(l=>esLgMia(l)):lgs.sort((a,b)=>pl.filter(p=>p.lg===b).length-pl.filter(p=>p.lg===a).length)[0];
+    if(pref) pl=pl.filter(p=>p.lg===pref);
+  }
+  const form=(typeof formacionRival==='function')?formacionRival(riv):'4-4-2';
+  const sl=(FORMS[form]||FORMS['4-4-2']).slice(0,11);
+  const usados=new Set(), out=[];
+  const tomar=f=>{ const c=pl.filter(p=>!usados.has(p.id)&&f(p)).sort((a,b)=>b.rat-a.rat)[0]; if(c)usados.add(c.id); return c; };
+  sl.forEach(x=>{
+    const p=tomar(q=>q.pos===x.pos)||tomar(q=>q.pos2===x.pos)||tomar(q=>pgr(q.pos)===pgr(x.pos))||tomar(q=>q.pos!=='ARQ'||x.pos==='ARQ');
+    if(p) out.push(ojFila(p,x.lbl||x.pos));
+  });
+  // La base trae dorsales genéricos por puesto (tres "4" en la defensa): en la
+  // planilla cada uno lleva uno distinto, el suyo si está libre.
+  const usadosN=new Set(), pref={ARQ:[1,12,23],DEF:[2,3,4,6,13,14,15],MED:[5,8,10,16,18,20,22],DEL:[7,9,11,17,19,21]};
+  out.forEach(f=>{ let n=+f.num;
+    if(!(n>0&&n<100)||usadosN.has(n)){ const g=pgr(f.posR||f.pos)||'MED'; n=(pref[g]||[]).find(k=>!usadosN.has(k)); if(!n){ n=24; while(usadosN.has(n))n++; } }
+    usadosN.add(n); f.num=n; });
+  return {riv,form,xi:out};
+}
+function ojTablaHTML(xi){
+  return `<table class="oj-t"><thead><tr><th>#</th><th>Jugador</th><th>Puesto</th><th>Altura</th><th>Pie</th><th>Media</th></tr></thead><tbody>
+    ${xi.map(f=>`<tr><td>${f.num}</td><td>${_esc(f.name)}</td><td>${_esc(f.pos)}</td><td>${f.alt?f.alt+' cm':'—'}</td><td>${f.pie}</td><td>${rb(f.rat)}</td></tr>`).join('')}</tbody></table>`;
+}
+function ojTexto(m,mio,R){
+  const tn=G.teamName, local=m.home===tn;
+  const fila=f=>`${String(f.num).padStart(2,' ')} ${f.name} · ${f.pos} · ${f.alt?f.alt+' cm':'—'} · ${f.pie} · ${f.rat}`;
+  return `${m.comp} — ${local?tn+' vs '+R.riv:R.riv+' vs '+tn}\n\n${tn} (${G.formation||''})\n${mio.map(fila).join('\n')}\n\n${R.riv} (${R.form})\n${R.xi.map(fila).join('\n')}\n\nCamiseta: ${ojKitURL(tn,'liso')}\nEscudo: ${ojEscudoURL(tn)}`;
+}
+function ojCopiar(txt,ok){
+  const hecho=()=>flash(ok||'📋 Copiado','win');
+  try{ if(navigator.clipboard&&window.isSecureContext){ navigator.clipboard.writeText(txt).then(hecho,()=>ojCopiarViejo(txt,hecho)); return; } }catch(e){}
+  ojCopiarViejo(txt,hecho);
+}
+function ojCopiarViejo(txt,hecho){
+  const t=document.createElement('textarea'); t.value=txt; t.style.cssText='position:fixed;left:-9999px;top:0';
+  document.body.appendChild(t); t.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+  t.remove(); if(ok) hecho(); else flash('No se pudo copiar: tocá la dirección y copiala a mano','draw');
+}
+function _ojPuede(){
+  if(finFrena()||armadoFrena()||dilemaFrena()||prensaFrena()) return null;
+  const m=ojPartido(); if(!m){ showSeasonSummary(); return null; }
+  if(typeof esDiaDePartido==='function'&&(!esDiaDePartido()||m.week>G.week)){ flash('📅 Todavía no es el día del partido — hacé correr los días','draw'); return null; }
+  return m;
+}
+// ═══ LA PLANILLA ═══
+function ojPlanilla(){
+  if(!G) return;
+  const m=_ojPuede(); if(!m) return;
+  const mio=ojOnceMio(), R=ojOnceRival(m), tn=G.teamName;
+  window._ojTxt=ojTexto(m,mio,R);
+  const k=kitFor(tn), kr=kitFor(R.riv);
+  const sw=c=>`<i class="oj-sw" style="background:#${ojHex(c)}"></i>`;
+  const url=(u,t)=>`<div class="oj-url"><span>${t}</span><code>${_esc(u)}</code><button class="btn bo bs" onclick="ojCopiar('${u}','📋 Dirección copiada')">Copiar</button></div>`;
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">🎮 Jugarlo en otro juego</div>
+    <div class="oj-h">${_esc(m.comp)} · ${m.home===tn?'de local':'de visitante'} contra <b>${_esc(R.riv)}</b></div>
+    <div class="note">Armá tu equipo en el otro juego lo más parecido a esta planilla, jugá el partido y después cargá el resultado acá: los goles cuentan para tus jugadores. En DLS no se pueden pasar los planteles; las camisetas y el escudo sí, con la opción de bajarlos de internet.</div>
+    <div class="oj-cols">
+      <div><div class="mpanel-t">${_esc(tn)} · ${_esc(G.formation||'')}</div>${ojTablaHTML(mio)}</div>
+      <div><div class="mpanel-t">${_esc(R.riv)} · ${_esc(R.form)}</div>${R.xi.length?ojTablaHTML(R.xi):'<div class="note">No hay planilla del rival en la base.</div>'}</div>
+    </div>
+    <div class="mpanel" style="margin-top:10px">
+      <div class="mpanel-t">👕 Camiseta y escudo ${sw(k.c1)}${sw(k.c2)}</div>
+      ${url(ojKitURL(tn,'liso'),'Camiseta lisa')}
+      ${url(ojKitURL(tn,'franja'),'Con franja')}
+      ${url(ojKitURL(tn,'rayas'),'Con rayas')}
+      ${url(ojArqURL(tn,R.riv),'Arquero')}
+      ${url(ojEscudoURL(tn),'Escudo')}
+      <div class="oj-nota">En DLS: editar el equipo → camiseta, arquero o escudo → bajar desde una dirección, y pegás la que copiaste. Las camisetas siguen el molde de DLS (frente al medio, espalda arriba, mangas a los costados).</div>
+      <div class="oj-nota">Rival ${sw(kr.c1)}${sw(kr.c2)} · camiseta lisa: <code>${_esc(ojKitURL(R.riv,'liso'))}</code></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn bo" style="flex:1" onclick="ojCopiar(window._ojTxt||'','📋 Planilla copiada')">📋 Copiar planilla</button>
+      <button class="btn bg" style="flex:1" onclick="ojResultado()">📝 Cargar el resultado</button>
+    </div>`);
+}
+// ═══ EL RESULTADO ═══
+// Estado del formulario: es de la pantalla, no de la partida (fuera de G).
+var _oj=null;
+function ojResultado(){
+  if(!G) return;
+  const m=_ojPuede(); if(!m) return;
+  const mio=ojOnceMio();
+  const banco=(G.squad||[]).filter(p=>!mio.some(f=>f.id===p.id)&&!p.injured).sort((a,b)=>b.rat-a.rat).map(p=>ojFila(p));
+  if(!_oj||_oj.mid!==(m.week+'|'+m.comp+'|'+m.home)) _oj={mid:m.week+'|'+m.comp+'|'+m.home,gf:0,ga:0,gol:[],min:[],sus:[],tarj:{},pm:'',ps:''};
+  _oj.xi=mio; _oj.banco=banco;
+  ojResRender(m);
+}
+function ojResRender(m){
+  m=m||ojPartido(); if(!m||!_oj) return;
+  const O=_oj, tn=G.teamName, riv=m.home===tn?m.away:m.home;
+  const opts=(sel)=>`<option value="">— elegí —</option>`+O.xi.map(f=>`<option value="${f.id}"${sel===f.id?' selected':''}>${_esc(f.name)} (${_esc(f.pos)})</option>`).join('')
+    +`<optgroup label="Entró desde el banco">${O.banco.map(f=>`<option value="${f.id}"${sel===f.id?' selected':''}>${_esc(f.name)} (${_esc(f.pos)})</option>`).join('')}</optgroup>`
+    +`<option value="og"${sel==='og'?' selected':''}>Gol en contra del rival</option>`;
+  const goles=[...Array(O.gf)].map((_,i)=>`<div class="oj-gol"><span>⚽ ${i+1}</span>
+      <select class="sb" onchange="_oj.gol[${i}]=this.value">${opts(O.gol[i]||'')}</select>
+      <input class="sb" type="number" min="1" max="120" placeholder="min" value="${O.min[i]||''}" oninput="_oj.min[${i}]=this.value"></div>`).join('');
+  const suyos=O.ga?`<div class="oj-gol"><span>${_esc(riv)}</span><input class="sb" placeholder="minutos de sus goles, separados por coma (opcional)" value="${O.sus.join(', ')}" oninput="_oj.sus=this.value.split(/[ ,;]+/).filter(Boolean)" style="flex:1"></div>`:'';
+  const tj=O.xi.concat(O.banco.filter(f=>O.gol.includes(f.id))).map(f=>{ const t=O.tarj[f.id]||'';
+    return `<button class="oj-tj${t?' '+t:''}" onclick="ojTarj('${f.id}')">${t==='r'?'🟥':t==='y'?'🟨':'▫️'} ${_esc(f.name.split(' ').pop())}</button>`; }).join('');
+  const ko=O.gf===O.ga;
+  showMod(`<button class="mclose" onclick="closeMod()">✕</button>
+    <div class="mtitle">📝 Cargar el resultado</div>
+    <div class="oj-h">${_esc(m.comp)} · ${m.home===tn?_esc(tn)+' vs '+_esc(riv):_esc(riv)+' vs '+_esc(tn)}</div>
+    <div class="oj-marcador">
+      <label>${_esc(tn)}<input class="sb" type="number" min="0" max="20" value="${O.gf}" onchange="_oj.gf=Math.max(0,Math.min(20,this.value|0));ojResRender()"></label>
+      <b>–</b>
+      <label>${_esc(riv)}<input class="sb" type="number" min="0" max="20" value="${O.ga}" onchange="_oj.ga=Math.max(0,Math.min(20,this.value|0));ojResRender()"></label>
+    </div>
+    ${O.gf?`<div class="mpanel-t" style="margin-top:10px">Tus goles: quién y en qué minuto</div>${goles}`:''}
+    ${suyos}
+    <div class="mpanel-t" style="margin-top:10px">Tarjetas de tu equipo (tocá para 🟨 y otra vez para 🟥)</div>
+    <div class="oj-tjs">${tj}</div>
+    ${ko?`<div class="mpanel-t" style="margin-top:10px">Si se definió por penales (sólo cuenta en eliminatorias)</div>
+      <div class="oj-marcador"><label>${_esc(tn)}<input class="sb" type="number" min="0" max="30" value="${O.pm}" oninput="_oj.pm=this.value"></label><b>–</b><label>${_esc(riv)}<input class="sb" type="number" min="0" max="30" value="${O.ps}" oninput="_oj.ps=this.value"></label></div>`:''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn bo" style="flex:1" onclick="ojPlanilla()">← Planilla</button>
+      <button class="btn bg" style="flex:2" onclick="ojAplicar()">✅ Cargar ${O.gf} – ${O.ga}</button>
+    </div>`);
+}
+function ojTarj(id){ if(!_oj)return; const t=_oj.tarj[id]||''; _oj.tarj[id]=t===''?'y':t==='y'?'r':''; ojResRender(); }
+function ojAplicar(){
+  if(!G||!_oj) return;
+  const m=_ojPuede(); if(!m) return;
+  const O=_oj, gf=O.gf|0, ga=O.ga|0;
+  // todos los goles con autor (o en contra) y minutos válidos
+  for(let i=0;i<gf;i++){ if(!O.gol[i]){ flash(`Falta quién hizo el gol ${i+1}`,'draw'); return; } }
+  try{ dilFitTick(); }catch(e){}
+  try{ matchStrengths(m); }catch(e){}           // la planilla del resumen sale de acá
+  const usados=new Set(), minDe=i=>{ let v=Math.max(1,Math.min(120,parseInt(O.min[i],10)||0)); if(!O.min[i]){ v=8+Math.round((i+0.5)/Math.max(1,gf)*80); } while(usados.has(v))v++; usados.add(v); return v; };
+  const todos=O.xi.concat(O.banco);
+  const goles=[...Array(gf)].map((_,i)=>{ const id=O.gol[i], min=minDe(i);
+    if(id==='og') return {og:true,name:'En contra',min};
+    const f=todos.find(x=>x.id===id); return {id,name:f?f.name:'',min}; });
+  const sus=(O.sus||[]).map(x=>parseInt(x,10)).filter(x=>x>0&&x<=120).slice(0,ga);
+  const fin=()=>{ _oj=null; G._penManual=null; };
+  if(m.friendly){ _amisCerrar(m,gf,ga); relojTrasPartido(m); G.day=1; m.via='otro'; fin(); closeMod(); updateUI();
+    flash(`Amistoso cargado: ${gf}-${ga}`,gf>ga?'win':gf===ga?'draw':'loss'); return; }
+  const rojas=Object.keys(O.tarj).filter(k=>O.tarj[k]==='r');
+  G._fmRes={y:Object.keys(O.tarj).filter(k=>O.tarj[k]==='y'), r:rojas};
+  G._fmLes=[];
+  G._penManual=(gf===ga&&O.pm!==''&&O.ps!=='')?{mios:+O.pm,suyos:+O.ps}:null;
+  try{ G._tiempos=tiemposDeGoles(goles.filter(g=>!g.og||true),sus,gf,ga,G._S); }catch(e){ G._tiempos=null; }
+  m.via='otro';
+  const prov=goles.length?goles:[];
+  closeMod();
+  // ⚠️ Con 0 goles propios applyMatchResult no inventa goleadores (no hay
+  // ninguno que inventar); con goles, van los que cargaste.
+  const R=applyMatchResult(m,gf,ga,prov);
+  fin(); updateUI();
+  showMatchSummary(m,R.res,gf,ga,R.scorersList,R.stats,R.isLastMatch);
+  lg('🎮',`Partido cargado desde otro juego: ${gf}-${ga} ante ${m.home===G.teamName?m.away:m.home}`);
 }
 
 // =============================================

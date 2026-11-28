@@ -21,3 +21,10 @@
   for = "/manifest.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"
+
+# Fase 108: camisetas y escudos por URL, para cargarlos en otro juego
+# (Dream League Soccer y otros tienen la opción de bajarlos desde una dirección).
+[[redirects]]
+  from = "/kit/*"
+  to = "/.netlify/functions/kit/:splat"
+  status = 200
