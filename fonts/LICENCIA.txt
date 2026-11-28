@@ -1,0 +1,4 @@
+Tipografías: Rajdhani, Chakra Petch, Archivo y Plus Jakarta Sans.
+Bajadas de Google Fonts. Las cuatro se distribuyen bajo la SIL Open Font
+License 1.1 (https://openfontlicense.org), que permite incluirlas en este
+proyecto. Se guardan sólo los subconjuntos latin y latin-ext.
