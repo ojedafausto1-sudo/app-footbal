@@ -1135,6 +1135,191 @@ body.bg3d-on .main{background:transparent}
   #fm-watchbar>div:not(:nth-child(2)){display:none!important}
 }
 </style>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   FASE 107: NOCHE DE PARTIDO — la interfaz del mánager
+   Reemplaza el "club de chapa" de la Fase 96 adentro del juego (el
+   tablero del inicio se queda: es la tapa).
+   · Tinta azul de noche de estadio, paneles con una franja de cabecera
+     y una sola letra para todo lo que se lee de un vistazo: Archivo
+     variable, angosta (font-stretch) en títulos, botones y números.
+     El texto corrido sigue en Plus Jakarta Sans.
+   · Lo memorable es UNO: la barra de mando de arriba, con la fecha y el
+     botón CONTINUAR, que lleva el juego al próximo momento desde
+     cualquier pantalla.
+   · Reglas que siguen: el fondo no cambia por club (el club pone el
+     ACENTO), el vidrio va en los contenedores, no en las filas.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{--dark:#0a1120;--d2:#0e1628;--d3:#121b2e;--mid:#1a2640;
+  --panel:#111b2d;--panel-2:#17233a;--panel-3:#0c1525;
+  --card:rgba(17,27,45,.92);--card-2:rgba(23,35,58,.86);
+  --bdr:rgba(140,165,205,.15);--tx:#edf2f9;--t2:#a9b5c8;--t3:#8796ad;
+  --green:#2fbf7f;--green-d:#22a06a;--red:#ef5a5a;
+  --f-data:'ArchivoVF','Archivo','Plus Jakarta Sans',sans-serif;--r:12px}
+body{background:var(--dark);background-image:
+  radial-gradient(ellipse 120% 60% at 50% -18%,rgba(120,150,210,.10),transparent 60%),
+  radial-gradient(ellipse 80% 50% at 100% 0%,rgba(var(--gold-rgb),.05),transparent 55%)}
+/* Una sola letra para lo que se lee de un vistazo. Muchas plantillas traen
+   la familia escrita en línea: se pisan acá, sin tocar cada una. */
+.stitle,.ctitle,.mtitle,.btn,.tab,.hm-comp,.hm-name,.hm-vs,.hm-play,.ht-t,.hb-t,.hb-kpis b,.hb-aprob b,
+.stat-tile .sv-n,.stat-tile .sv-l,.rb,.cbadge,.fr-top,.fr-mini,.fr-niv,.fr-bar b,.fr-money,#fnav .fs,.cname,.fp-n,
+.sv,.pv,.vc,.ac,.mpanel-t,.ph-tab,.plc-r,.estr b,.ses b,
+[style*="Rajdhani"],[style*="Chakra Petch"]{font-family:var(--f-data)!important}
+.stitle,.ctitle,.mtitle,.ht-t,.hb-t,.hm-name,.hm-play,#fnav .fs,.cname,.fp-n,.estr b,.ses b{font-stretch:84%}
+.sv,.pv,.vc,.ac,.rb,.stat-tile .sv-n,.hb-kpis b,.fr-top,.fr-money,.cbadge{font-variant-numeric:tabular-nums;font-stretch:90%}
+/* ─── la barra de mando ─── */
+.fhead{background:linear-gradient(180deg,#0d1628,#0b1322);border-bottom:1px solid var(--bdr);
+  padding:10px 18px;gap:14px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.fpill,.fpill.r{background:none!important;border:0!important;box-shadow:none!important;padding:0!important;border-radius:0!important;color:var(--tx)}
+.fpill .cbadge{width:44px!important;height:44px!important;box-shadow:0 0 0 2px rgba(255,255,255,.06),0 4px 14px rgba(0,0,0,.4)}
+.fp-n,.cname.fp-n{color:var(--tx)!important;font-size:22px;font-weight:800;letter-spacing:-.01em;line-height:1}
+.fp-s{color:var(--t2)!important;font-size:12px}
+.fp-s3{color:var(--gold)!important;font-size:10.5px;font-weight:700}
+.fpill.r .cbadge{display:none!important}
+.fr-col{gap:5px}
+.fr-top{color:var(--t2);gap:6px}
+.fr-mini{color:var(--t3);font-size:11px;gap:5px;align-items:center;font-weight:600}
+.fr-mini .pv,.fr-mini b,#wTop,.fr-money,.fr-niv{background:var(--panel-2)!important;color:var(--tx)!important;border:1px solid var(--bdr);
+  border-radius:6px;padding:1px 7px;box-shadow:none!important;font-weight:700}
+#wTop{font-size:13px!important;color:#fff!important;background:var(--mid)!important}
+.fr-money{height:22px;font-size:13px}
+.fr-money .pv{background:none!important;border:0;padding:0;color:var(--tx)!important}
+.fr-bar{background:var(--panel-3);border:1px solid var(--bdr);border-radius:6px;height:20px}
+.fr-bar span{background:linear-gradient(90deg,rgba(var(--gold-rgb),.55),rgba(var(--gold-rgb),.85))}
+.fr-bar b{color:#fff;font-size:11px;line-height:20px}
+.fhbtn{background:var(--panel-2);border:1px solid var(--bdr);color:var(--t2);border-radius:8px}
+/* CONTINUAR: el botón que lleva el juego al próximo momento */
+.fcont{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:132px;
+  padding:7px 16px 7px 14px;border:0;border-radius:10px;cursor:pointer;color:var(--dark);
+  background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0) 55%),var(--gold);
+  box-shadow:0 0 0 1px rgba(0,0,0,.25),0 8px 22px rgba(var(--gold-rgb),.28);flex-shrink:0}
+.fcont b{font-family:var(--f-data);font-stretch:84%;font-weight:800;font-size:19px;line-height:1}
+.fcont span{font-family:var(--f-data);font-size:11px;font-weight:600;opacity:.78;line-height:1.1;white-space:nowrap}
+.fcont:hover{filter:brightness(1.07)}
+.fcont.partido{animation:fcont 2.4s ease-in-out infinite}
+@keyframes fcont{0%,100%{box-shadow:0 0 0 1px rgba(0,0,0,.25),0 8px 22px rgba(var(--gold-rgb),.28)}50%{box-shadow:0 0 0 1px rgba(0,0,0,.25),0 8px 30px rgba(var(--gold-rgb),.55)}}
+.fcont:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* ─── secciones ─── */
+@media(min-width:601px){
+  #fnav.fnav{gap:4px;padding:0 18px;background:#0b1322;border-bottom:1px solid var(--bdr);align-items:stretch}
+  #fnav .fs,#fnav .fs.on{font-size:17px;font-weight:700;padding:11px 14px 10px;border-radius:0;color:var(--t2);background:none;box-shadow:none;text-shadow:none}
+  #fnav .fs:hover{color:var(--tx);background:rgba(255,255,255,.03)}
+  #fnav .fs.on{color:#fff}
+  #fnav .fs.on::after{display:block;content:'';position:absolute;left:12px;right:12px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--gold);box-shadow:none}
+  #fnav .fs .fs-n{top:3px;right:-8px}
+  #fnav .fs{margin-right:8px}
+}
+@media(max-width:600px){
+  #fnav.fnav{background:#0d1628;border-top:1px solid var(--bdr)}
+  #fnav .fs{color:var(--t3)}
+  #fnav .fs.on{color:#fff}
+  #fnav .fs.on::after{background:var(--gold)}
+  .fhead{padding:8px 10px;gap:8px}
+  .fcont{min-width:0;padding:6px 11px}
+  .fcont b{font-size:16px}
+  .fcont span{display:none}
+  .ht.dash{grid-column:1/-1;min-height:0}
+}
+/* ─── paneles: franja de cabecera + cuerpo ─── */
+.card{background:linear-gradient(180deg,var(--card-2),var(--card));border:1px solid var(--bdr);border-radius:var(--r);
+  box-shadow:0 10px 30px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04)}
+.card:hover{border-color:rgba(140,165,205,.24)}
+.card>.ctitle:first-child,.card>div>.ctitle:first-child{margin:-12px -12px 10px!important;padding:10px 12px 9px!important;
+  background:rgba(255,255,255,.025);border:0;border-bottom:1px solid var(--bdr);border-radius:var(--r) var(--r) 0 0;
+  box-shadow:inset 3px 0 0 var(--gold)}
+.ctitle{background:none;border-left:0;color:var(--tx);font-size:15px;font-weight:700;text-transform:none;letter-spacing:0}
+.stitle{color:var(--tx);font-size:28px;font-weight:800;text-transform:none;letter-spacing:-.01em;border-bottom:1px solid var(--bdr)}
+.mtitle{color:var(--tx);font-size:22px;font-weight:800;letter-spacing:-.01em}
+.modal{background:linear-gradient(180deg,#18243b,#111b2d);border-color:var(--bdr);border-radius:14px}
+.mpanel{background:rgba(255,255,255,.028);border:1px solid var(--bdr);border-radius:10px}
+.mpanel-t{font-size:12px;font-weight:700;color:var(--tx);text-transform:none;letter-spacing:0}
+.note{background:rgba(120,150,210,.06);border:1px solid var(--bdr);border-radius:8px;color:var(--t2)}
+.sr{border-bottom:1px solid rgba(140,165,205,.08)}
+/* ─── botones y pestañas ─── */
+.btn{border-radius:8px;font-size:13px;font-weight:700;letter-spacing:0;text-transform:none;font-stretch:90%}
+.bg{background:var(--gold);color:var(--dark);box-shadow:0 0 0 1px rgba(0,0,0,.2),0 4px 12px rgba(0,0,0,.25)}
+.bo{border:1px solid rgba(140,165,205,.28);color:var(--tx);background:rgba(255,255,255,.02)}
+.bo:hover{border-color:var(--gold);color:#fff;background:rgba(var(--gold-rgb),.08)}
+.tabs{background:var(--panel-3);border:1px solid var(--bdr);border-radius:10px;padding:3px}
+.tab{font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--t2);border-radius:7px;padding:7px 6px}
+.tab.on{background:var(--mid);color:#fff;box-shadow:inset 0 -2px 0 var(--gold)}
+th{font-family:var(--f-data);font-weight:600;font-stretch:90%;color:var(--t3);text-transform:none;letter-spacing:0}
+/* ─── tablero de cada sección: paneles con datos, no clip-art ─── */
+.ht{background:linear-gradient(180deg,var(--card-2),var(--card))!important;color:var(--tx)!important;border:1px solid var(--bdr)!important;
+  border-radius:var(--r)!important;box-shadow:0 10px 26px rgba(0,0,0,.30)!important;padding:12px 14px!important;min-height:132px}
+.ht:hover{border-color:rgba(var(--gold-rgb),.45)!important}
+.ht-t{color:var(--tx)!important;font-size:19px!important;font-weight:800;border-bottom:1px solid var(--bdr)!important;padding-bottom:7px;text-transform:none}
+.ht-s{color:var(--t2)!important;font-size:13px}
+.ht-i{font-size:22px!important;opacity:.85!important;right:12px!important;top:11px!important;bottom:auto!important;filter:none!important}
+.ht-badge{background:var(--red);color:#fff;border-radius:20px}
+.ht.big{background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(var(--gold-rgb),.10),transparent 60%),linear-gradient(180deg,#17233a,#0f182a)!important;
+  border:1px solid rgba(140,165,205,.2)!important}
+.hb-kpis div{background:var(--panel-3);border:1px solid var(--bdr);border-radius:8px}
+.hb-btn{background:var(--gold);color:var(--dark);border-radius:8px;font-family:var(--f-data);font-weight:800;font-stretch:84%;font-size:16px}
+.stat-tile{background:var(--panel-3);border:1px solid var(--bdr);border-radius:10px}
+.stat-tile .sv-n{color:#fff;font-weight:800}
+.stat-tile .sv-l{font-size:11px;color:var(--t3);text-transform:none;letter-spacing:0}
+/* el partido de la portada */
+.hm-comp{color:var(--gold);font-size:12px;letter-spacing:0;text-transform:none;font-weight:700}
+.hm-name{font-size:18px;font-weight:800;text-transform:none;letter-spacing:-.01em}
+.hm-vs{color:var(--t3);font-weight:800;font-size:20px}
+.hm-play{background:var(--gold);color:var(--dark);border-radius:10px;font-weight:800;font-size:19px;letter-spacing:0;text-transform:none;
+  box-shadow:0 0 0 1px rgba(0,0,0,.25),0 8px 22px rgba(var(--gold-rgb),.25)}
+/* ─── los paneles del tablero de Central (Fase 107) ─── */
+.dash .ht-s{font-size:12.5px}
+.dsh-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dsh-row{display:flex;align-items:center;gap:8px;font-size:12.5px;min-width:0}
+.dsh-row>span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
+.dsh-row b{color:var(--tx);font-weight:700}
+.dsh-chip{font-family:var(--f-data);font-stretch:90%;font-weight:700;font-size:12px;padding:1px 7px;border-radius:6px;background:var(--panel-3);border:1px solid var(--bdr);color:var(--tx);white-space:nowrap}
+.dsh-big{display:flex;align-items:center;gap:12px;margin-top:10px}
+.dsh-big .rb{min-width:44px;height:44px;border-radius:50%;font-size:17px}
+.dsh-meter{height:6px;border-radius:4px;background:var(--panel-3);overflow:hidden;margin-top:6px}
+.dsh-meter i{display:block;height:100%;background:var(--gold)}
+/* ─── estrategias ─── */
+.estr-lee{font-size:12.5px;color:var(--t2);margin-bottom:9px}
+.estr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:8px}
+.estr{display:flex;flex-direction:column;gap:5px;text-align:left;cursor:pointer;padding:10px 11px;border-radius:10px;
+  background:rgba(255,255,255,.025);border:1px solid var(--bdr);color:var(--tx);font:inherit}
+.estr:hover:not(:disabled){border-color:rgba(var(--gold-rgb),.5)}
+.estr:disabled{cursor:default;opacity:.7}
+.estr.on{border-color:var(--gold);background:rgba(var(--gold-rgb),.07);box-shadow:inset 0 0 0 1px rgba(var(--gold-rgb),.35)}
+.estr-h{display:flex;align-items:center;gap:7px}
+.estr-h b{font-size:16px;font-weight:800}
+.estr-i{font-size:17px}
+.estr-on{margin-left:auto;font-family:var(--f-data);font-size:11px;font-weight:700;color:var(--dark);background:var(--gold);border-radius:20px;padding:1px 8px}
+.estr-d{font-size:12px;color:var(--t2);line-height:1.35}
+.estr-bar{position:relative;height:6px;border-radius:4px;margin-top:3px;background:linear-gradient(90deg,#3a7bd5,#6b7a90 50%,#e07a3a)}
+.estr-bar i{position:absolute;top:-4px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.5)}
+.estr-bl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--t3)}
+.estr-f{display:flex;justify-content:space-between;gap:6px;font-size:12px;font-weight:600}
+.estr-fam{color:var(--t2);white-space:nowrap}
+.estr-men{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.estr-men>span{font-family:var(--f-data);font-weight:700;font-size:13px;margin-right:4px}
+.estr-nota{font-size:11.5px;color:var(--t3);margin-top:7px;line-height:1.4}
+/* ─── entrenamiento ─── */
+.ses-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.ses{display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;padding:10px;border-radius:10px;
+  background:rgba(255,255,255,.025);border:1px solid var(--bdr);color:var(--tx);font:inherit}
+.ses:hover:not(:disabled){border-color:rgba(var(--gold-rgb),.5)}
+.ses:disabled{opacity:.45;cursor:default}
+.ses.on{border-color:var(--green);background:rgba(47,191,127,.08)}
+.ses-i{font-size:19px}.ses b{font-size:15px;font-weight:800}
+.ses-d{font-size:12px;color:var(--t2)}.ses-c{font-size:11.5px;color:var(--gold)}.ses-ok{font-size:11.5px;color:var(--green);font-weight:700}
+.ses-nota{grid-column:1/-1;font-size:11.5px;color:var(--t3);margin-top:2px}
+.ind-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;margin-top:8px}
+.ind-f{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,.025);border:1px solid var(--bdr);
+  color:var(--tx);cursor:pointer;text-align:left;font:inherit;min-width:0}
+.ind-f:hover{border-color:rgba(var(--gold-rgb),.5)}
+.ind-n{display:flex;flex-direction:column;flex:1;min-width:0}
+.ind-n b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ind-n span{font-size:11px;color:var(--t3)}
+.ind-foco{font-family:var(--f-data);font-stretch:90%;font-size:11.5px;font-weight:700;color:var(--gold);white-space:nowrap}
+.ind-foco.vacio{color:var(--t3);font-weight:600}
+/* foco visible */
+.estr:focus-visible,.ses:focus-visible,.ind-f:focus-visible,.ht:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.fcont.partido{animation:none}}
+</style>
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    FASE 99 · VISTA CELULAR AUNQUE EL NAVEGADOR PIDA "VERSIÓN PARA COMPU"
@@ -1243,6 +1428,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
         <div class="ts-roles">
           <button onclick="setModo('pres',this)" class="diff-btn modo-btn ts-rol diff-sel" data-m="pres"><b>🏛️ Presidente</b><span>La plata, el mercado y los contratos. El técnico arma el equipo.</span></button>
           <button onclick="setModo('dt',this)" class="diff-btn modo-btn ts-rol" data-m="dt"><b>🧠 Director técnico</b><span>El once, la táctica y el entrenamiento. Los refuerzos se los pedís al presidente.</span></button>
+          <button onclick="setModo('ambos',this)" class="diff-btn modo-btn ts-rol" data-m="ambos"><b>🎩 Presidente y DT</b><span>Todo es tuyo: armás el plantel con la plata del club y lo hacés jugar como quieras.</span></button>
         </div>
       </section>
       <section class="ts-grupo">
@@ -1308,7 +1494,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
       <button class="fhbtn" onclick="newGame()" title="Volver al inicio" style="opacity:.6">↩</button>
       <div class="fpill r">
         <div class="fr-col">
-          <div class="fr-top"><span class="pv" id="wTop" style="color:#374151!important;font-size:13px!important">S1</span>
+          <div class="fr-top"><span class="pv" id="wTop">S1</span>
             <span class="fr-mini">G-E-P <span class="pv" id="rTop">0-0-0</span></span>
             <span class="fr-mini">Pts <span class="pv" id="sPts">0</span></span>
             <span class="fr-mini">Aprob. <b id="fAprob">—</b></span>
@@ -1320,6 +1506,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
         </div>
         <div class="cbadge" id="fBadge2">BJ</div>
       </div>
+      <button class="fcont" id="fCont" onclick="continuar()" title="Llevar el juego al próximo momento"><b>Continuar</b><span id="fContTxt">hasta el partido</span></button>
     </div>
   </div>
   <!-- Cinco secciones, como el menú de carrera del FIFA. Cada una abre un
@@ -1486,7 +1673,7 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
       </div>
       <div class="card" style="margin-bottom:9px"><div id="xi"></div></div>
       <div class="card" style="margin-bottom:9px">
-        <div class="ctitle">🎛️ Estilo de juego</div>
+        <div class="ctitle">🧭 Estrategia</div>
         <div id="styleOpts" style="margin-top:6px"></div>
         <div id="tacOpts" style="margin-top:6px"></div>
       </div>
@@ -1546,10 +1733,10 @@ function setVista(v){ try{ localStorage.setItem('dt_vista',v); }catch(e){} celVi
       <div class="stitle">🏋️ Entrenamiento</div>
       <div class="card" style="margin-bottom:10px" id="trainIntensity"></div>
       <div class="card" style="margin-bottom:10px" id="trainFocusBox"></div>
-      <div class="ctitle">⚡ Sesión extra de la semana</div>
-      <div class="g3" style="margin-bottom:12px" id="trainOpts"></div>
+      <div class="card" style="margin-bottom:10px"><div class="ctitle">⚡ La sesión de la semana</div>
+        <div class="ses-grid" id="trainOpts"></div></div>
       <div class="card" style="margin-bottom:10px" id="mentorBox"></div>
-      <div class="card"><div class="ctitle">Entrenamiento individual</div><div class="note">€0.1M por sesión · +3 al atributo elegido</div><div id="indTrain"></div></div>
+      <div class="card"><div class="ctitle">🎯 Foco individual</div><div class="note">Tocá un jugador y elegí qué trabaja aparte. Es gratis y va de a poco, hasta su techo.</div><div id="indTrain"></div></div>
     </div>
 
     <!-- ESTADIO -->
@@ -6500,6 +6687,7 @@ function initGame(teamId){
   G.modo = (typeof _modoSel!=='undefined'&&_modoSel==='dt')?'dt':'pres';
   if(typeof eventoActivo==='function'&&eventoActivo()){ G.dbSeason='LEY'; G.evento=eventoNombre(); }
   if(G.modo==='dt') try{ modoDTArmar(); }catch(e){ console.error('modoDTArmar',e); }
+  if(typeof _modoSel!=='undefined'&&_modoSel==='ambos') try{ modoAmbosArmar(); }catch(e){ console.error('modoAmbosArmar',e); }
   // Fase 100: el pool de técnicos se arma ACÁ y no en el primer dibujo: en un
   // año viejo le pone a tu club el técnico de ese año (dtPoolAnio) antes de
   // que la galería de técnicos anote al de 2026.
@@ -6989,6 +7177,7 @@ function dtAskList(){
 }
 function openDtTalk(){
   if(!G||!G.dt)return;
+  if(typeof modoAmbos==='function'&&modoAmbos()){ flash('🧠 El técnico sos vos: el ayudante te prepara los informes en el celular','draw'); return; }
   const rel=(G.dtRel===undefined?65:G.dtRel), rl=dtRelLabel();
   const ds=dtAskList();
   showMod(`
@@ -7097,6 +7286,7 @@ function dtResolve(i,how){
 // el equipo rinde menos y el DT termina renunciando.
 function setDtRel(delta){
   if(!G)return;
+  if(typeof modoAmbos==='function'&&modoAmbos()) return;   // Fase 107: la relación con el DT es con vos mismo
   if(G.dtRel===undefined)G.dtRel=65;
   const before=G.dtRel;
   // Se mostraba con la basura del punto flotante (99.27999999999999)
@@ -7325,6 +7515,17 @@ function dtGuardarEnPool(dt){
   try{ ensureDtPool(); }catch(e){}
   const o=(G.dtPool||[]).find(x=>x.name===dt.name);
   if(o){ o.attrs=Object.assign({},dt.attrs); o.rat=dt.rat; }
+}
+// Fase 107: el técnico que dejás para sentarte vos vuelve al mercado de DTs
+// como libre. Si no estaba en la lista (el DT de la base de tu club), entra.
+function dtVuelveAlMercado(dt){
+  if(!G||!dt||!dt.name||dt.custom||/Interino/.test(dt.name)) return;
+  try{ ensureDtPool(); }catch(e){}
+  G.dtPool=G.dtPool||[];
+  dtGuardarEnPool(dt);
+  let o=G.dtPool.find(x=>x.name===dt.name);
+  if(!o){ o=JSON.parse(JSON.stringify(dt)); delete o.contract; G.dtPool.push(o); }
+  o.club=null; o.until=0;
 }
 
 // ═══ SI LE VA MUY MAL, PONE LA RENUNCIA A DISPOSICIÓN ═══
@@ -8106,7 +8307,7 @@ function updateUI(){
   $('rTop').textContent=G.wins+'-'+G.draws+'-'+G.losses;
   $('repTop').textContent=Math.round(G.rep);
   if($('stadTop'))$('stadTop').textContent=G.stadium.name.replace('La ','').replace('El ','');
-  $('dtTop').textContent='DT: '+G.dt.name;
+  $('dtTop').textContent=(typeof modoAmbos==='function'&&modoAmbos()&&G.dt.soyYo)?'Presidente y DT':'DT: '+G.dt.name;
   if($('mktStatusTop')){const open=isTransferWindowOpen();$('mktStatusTop').textContent=open?'Abierto':'Cerrado';$('mktStatusTop').style.color=open?'#0fb866':'#e84545';}
   if($('winStatusTop')){const w=G.week||1;const open=isTransferWindowOpen();$('winStatusTop').textContent=open?(w<=5?'☀️ VERANO':'❄️ INVIERNO'):'⭐ PRESIDENTE';}
   if($('teamNameTop'))$('teamNameTop').textContent=G.teamName||'Boca Juniors';
@@ -8168,6 +8369,7 @@ function updateUI(){
   if(G.trainFocus===undefined)G.trainFocus='general';
   try{ if(typeof ensureDtPool==='function')ensureDtPool(); }catch(e){}
   rBotonesPartido();
+  try{ rContinuar(); }catch(e){}
   rNews();
   rFBtns();
   if(typeof rFriendlies==='function')rFriendlies();
@@ -10695,21 +10897,31 @@ function setForm(f){
 function rStyle(){
   const el = document.getElementById('styleOpts');
   if(!el||!G) return;
-  const styles = ['Posesión equilibrada','Ataque directo','Contraataque','Presión alta','Control'];
-  const desc = {'Posesión equilibrada':'Construcción + transiciones','Ataque directo':'Pelota larga','Contraataque':'Defensivo + salida rápida','Presión alta':'Pressing agresivo','Control':'Paciencia, toca y espera'};
-  const isCustom = G.style === 'Personalizado';
-  el.innerHTML = styles.map(s=>`
-    <div class="card" style="padding:7px;cursor:pointer;margin-bottom:5px;${G.style===s?'border-color:var(--gold);background:rgba(var(--gold-rgb),.06)':''}" onclick="setStyle('${s}')">
-      <div style="font-size:12px;font-weight:600">${s}</div>
-      <div style="font-size:10px;color:var(--t3)">${desc[s]}</div>
-    </div>
-  `).join('') + `
-    <div class="card" style="padding:7px;margin-bottom:5px;${isCustom?'border-color:var(--gold);background:rgba(var(--gold-rgb),.06)':'cursor:pointer'}" onclick="setStyle('Personalizado')">
-      <div style="font-size:12px;font-weight:600">✍️ Personalizado</div>
-      <div style="font-size:10px;color:var(--t3)">Definí tu propio estilo de juego</div>
-      ${isCustom ? `<textarea id="customStyleInput" class="sb" style="margin-top:6px;font-size:11px;height:52px;resize:none" placeholder="Ej: Presión alta con salida corta y extremos..." oninput="G.customStyleDesc=this.value">${G.customStyleDesc||''}</textarea>` : ''}
-    </div>
-  `;
+  // Fase 107: las estrategias. Cada tarjeta dice cuánto ataca, cuánto le calza
+  // a tu once contra el próximo rival y cuánto la tiene aprendida el plantel.
+  let R=null; try{ R=estrategiasLectura(); }catch(e){ console.error('estrategias',e); }
+  if(!R){ el.innerHTML=''; return; }
+  const bloq=(typeof tacBloqueada==='function')&&tacBloqueada();
+  const tarjeta=(info,r,on)=>{
+    const [ct,cc]=calzaTxt(r.goles);
+    return `<button class="estr${on?' on':''}" ${bloq?'disabled':''} onclick="${info.k==='propia'?'':`estrategiaAplicar('${info.k}')`}">
+      <span class="estr-h"><span class="estr-i">${info.i}</span><b>${info.n}</b>${on?'<span class="estr-on">en uso</span>':''}</span>
+      <span class="estr-d">${info.d}</span>
+      <span class="estr-bar" title="Defensa ↔ Ataque"><i style="left:${r.ataque}%"></i></span>
+      <span class="estr-bl"><span>Defensa</span><span>Ataque</span></span>
+      <span class="estr-f"><span style="color:${cc}">${ct}${Math.abs(r.goles)>=0.01?` (${r.goles>0?'+':''}${r.goles.toFixed(2)} goles)`:''}</span>
+        <span class="estr-fam" title="Qué tan aprendida la tiene el plantel">🧠 ${Math.round(r.fam)}%</span></span>
+    </button>`;
+  };
+  const men=mentActual();
+  el.innerHTML=`<div class="estr-lee">${R.rival?`Próximo rival: <b>${_esc(R.rival)}</b> (${R.oppRat}) · tu once ${R.avgR} · velocidad media ${R.spd}`:'Sin partido a la vista'}
+      ${bloq?'<br>🔒 La estrategia la elige el técnico. Con un <b>DT propio</b> (o siendo presidente y DT) la elegís vos.':''}</div>
+    <div class="estr-grid">${R.L.map(r=>tarjeta(estrategiaInfo(r.k),r,R.actual===r.k)).join('')}
+      ${R.actual==='propia'?tarjeta(ESTR_PROPIA,R.propia,true):''}</div>
+    <div class="estr-men"><span>Mentalidad</span>
+      ${['Defensivo','Equilibrado','Ofensivo'].map(m=>`<button class="btn bs ${men===m?'bg':'bo'}" ${bloq?'disabled':''} onclick="setTacticM('${m}');rStyle()">${{Defensivo:'🛡️ Defensiva',Equilibrado:'⚖️ Equilibrada',Ofensivo:'⚔️ Ofensiva'}[m]}</button>`).join('')}</div>
+    <div class="estr-nota">Ofensiva: más goles para los dos lados (le conviene al favorito). Defensiva: menos para los dos (le conviene al que corre de atrás). Lo que dice cada tarjeta sale de la misma cuenta que la simulación; en el partido que manejás, la estrategia cambia los pases y la presión.</div>
+    <div class="ctitle" style="margin-top:10px">🎚️ Ajuste fino</div>`;
 }
 function setStyle(s){ if(!G) return;
   if(tacBloqueada()) return tacAviso()&&undefined; G.style=s; lg('🎯','Estilo: '+s); rStyle(); }
@@ -10764,7 +10976,124 @@ function rTacOpts(){
     </div>
   `).join('');
 }
-function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undefined; G[k]=v; rTacOpts(); if(typeof updateUI==='function')updateUI(); }
+function setTac(k,v){ if(!G) return; if(tacBloqueada()) return tacAviso()&&undefined;
+  if(G[k]===v) return;
+  G[k]=v;
+  // Fase 107: tocar una perilla suelta te deja en tu propio planteo, que es
+  // otra idea que el plantel tiene que aprender.
+  try{ G.style=estrategiaInfo(estrategiaActual()).n; }catch(e){}
+  rTacOpts(); try{ rStyle(); }catch(e){} if(typeof updateUI==='function')updateUI(); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 107: ESTRATEGIAS DE JUEGO
+// ═══════════════════════════════════════════════════════════════════════
+// Las ocho perillas de arriba ya escribían sobre el perfil de juego, pero había
+// que tocarlas de a una y nada te decía si le servían a tu plantel. Una
+// estrategia es un juego completo de perillas + la mentalidad. Cada una:
+//  · le calza más o menos a tu once y al rival del domingo (planFit, la misma
+//    cuenta que usa la simulación: presionar sin piernas cuesta, la contra
+//    rinde contra el que es mejor que vos);
+//  · se aprende: cada estrategia tiene su FAMILIARIDAD (G.tacFamPor), que sube
+//    jugándola y entrenándola, y baja de a poco si no la usás. Cambiar de idea
+//    todas las semanas te deja jugando a medias.
+// ⚠️ Antes había cinco "estilos" (Posesión equilibrada, Ataque directo…) que
+// sólo guardaban un texto en G.style: no los leía nadie.
+const ESTRATEGIAS=[
+  {k:'posesion',n:'Tener la pelota',i:'🎯',d:'Toque corto, paciencia y el equipo adelantado. Pide técnica.',ment:'Equilibrado',
+   v:{pressure:'Media',linea:'Adelantada',tempo:'Lento',width:'Amplio',salida:'Jugada',ataque:'Equilibrado',contra:'Nunca',actitud:'Limpia'}},
+  {k:'presion',n:'Presión alta',i:'🔥',d:'Recuperar arriba y atacar rápido. Pide piernas y físico.',ment:'Ofensivo',
+   v:{pressure:'Alta',linea:'Adelantada',tempo:'Rápido',width:'Normal',salida:'Mixta',ataque:'Equilibrado',contra:'Buscarla',actitud:'Fuerte'}},
+  {k:'contra',n:'Contraataque',i:'⚡',d:'Bloque bajo y salida rápida. Rinde contra rivales mejores.',ment:'Defensivo',
+   v:{pressure:'Baja',linea:'Retrasada',tempo:'Rápido',width:'Estrecho',salida:'Directa',ataque:'Centro',contra:'Buscarla',actitud:'Normal'}},
+  {k:'bandas',n:'Por las bandas',i:'↔️',d:'Equipo abierto y centros al área. Pide extremos rápidos.',ment:'Equilibrado',
+   v:{pressure:'Media',linea:'Media',tempo:'Normal',width:'Amplio',salida:'Mixta',ataque:'Bandas',contra:'Normal',actitud:'Normal'}},
+  {k:'directo',n:'Juego directo',i:'🚀',d:'Pelota larga al nueve y a pelear la segunda. Pide físico.',ment:'Ofensivo',
+   v:{pressure:'Media',linea:'Media',tempo:'Rápido',width:'Normal',salida:'Directa',ataque:'Centro',contra:'Buscarla',actitud:'Fuerte'}},
+  {k:'atras',n:'Salir desde atrás',i:'🧩',d:'Construir desde el arquero, sin apuro. Pide técnica en el fondo.',ment:'Equilibrado',
+   v:{pressure:'Media',linea:'Media',tempo:'Normal',width:'Amplio',salida:'Jugada',ataque:'Centro',contra:'Normal',actitud:'Limpia'}},
+  {k:'cerrojo',n:'Cerrar el arco',i:'🛡️',d:'Todos atrás y a cortar el juego. Para cuidar un resultado.',ment:'Defensivo',
+   v:{pressure:'Baja',linea:'Retrasada',tempo:'Lento',width:'Estrecho',salida:'Directa',ataque:'Equilibrado',contra:'Normal',actitud:'Fuerte'}},
+];
+const ESTR_PROPIA={k:'propia',n:'Tu idea',i:'✍️',d:'Tus propias perillas, una por una, en el ajuste fino de abajo.'};
+const TACFAM_OTRA=40, TACFAM_SEM=5, TACFAM_OLVIDO=1.5, TACFAM_SESION=12;
+function estrategiaInfo(k){ return ESTRATEGIAS.find(e=>e.k===k)||ESTR_PROPIA; }
+function estrategiaActual(){
+  if(!G) return 'propia';
+  const men=mentActual();
+  const e=ESTRATEGIAS.find(e=>e.ment===men&&Object.keys(e.v).every(k=>G[k]===e.v[k]));
+  return e?e.k:'propia';
+}
+function tacFamDe(k){
+  const T=(G&&G.tacFamPor)||{};
+  if(typeof T[k]==='number') return T[k];
+  // Lo que ya venía jugando el equipo (la idea heredada) arranca aprendido.
+  if(k==='propia') return (typeof G.tacFam==='number')?G.tacFam:TACFAM_INI;
+  return TACFAM_OTRA;
+}
+function estrategiaAplicar(k){
+  if(!G) return;
+  if(tacBloqueada()) return tacAviso()&&undefined;
+  const e=ESTRATEGIAS.find(x=>x.k===k); if(!e) return;
+  const ant=estrategiaActual();
+  Object.assign(G,e.v);
+  G.tactic=G.tactic||{style:'Posesión',mentality:'Equilibrado'};
+  G.tactic.mentality=e.ment;
+  G.style=e.n;
+  try{ ['def','eq','of'].forEach(x=>{ const el=document.getElementById('tac-'+x); if(el){ el.classList.remove('bg'); el.classList.add('bo'); } });
+       const el=document.getElementById('tac-'+({Defensivo:'def',Equilibrado:'eq',Ofensivo:'of'}[e.ment])); if(el){ el.classList.remove('bo'); el.classList.add('bg'); } }catch(x){}
+  if(ant!==k){ lg(e.i,`Estrategia: ${e.n} (familiaridad ${Math.round(tacFamDe(k))}%)`); flash(`${e.i} ${e.n}`,'draw'); }
+  try{ rStyle(); rTacOpts(); }catch(x){}
+  if(typeof updateUI==='function')updateUI();
+}
+// Lo que la familiaridad hace cada semana: la idea de ahora se afianza, las
+// otras se olvidan de a poco (nunca por debajo de 30).
+function tacFamSemana(){
+  if(!G||!(typeof dtIsMine==='function'&&dtIsMine())) return;
+  const T=G.tacFamPor=G.tacFamPor||{}, cur=estrategiaActual();
+  ESTRATEGIAS.map(e=>e.k).concat(['propia']).forEach(k=>{
+    const a=tacFamDe(k);
+    if(k===cur) T[k]=Math.min(100,Math.round((a+TACFAM_SEM)*10)/10);
+    else if(typeof T[k]==='number'||k==='propia') T[k]=Math.max(30,Math.round((a-TACFAM_OLVIDO)*10)/10);
+  });
+}
+// ¿Qué tan atacante es un perfil? 0 = todo atrás, 100 = todo arriba. Sólo se
+// dibuja: la cuenta del partido es planFit + MENT_XG.
+function estrategiaAtaque(prof,men){
+  let a=50+(prof.press-0.5)*36+(prof.line-0.5)*36+(prof.tempo-0.5)*14+(0.5-(prof.counter||0.5))*8;
+  a+=men==='Ofensivo'?16:men==='Defensivo'?-16:0;
+  return Math.max(4,Math.min(96,Math.round(a)));
+}
+// Cuánto le calza cada estrategia al once de hoy contra el próximo rival, con
+// la misma cuenta que la simulación (planFit) y la familiaridad de cada una.
+function estrategiasLectura(){
+  if(!G) return null;
+  const m=(G.calendar||[]).find(x=>!x.played&&!x.friendly);
+  const xiIds=Object.values(G.slots||{}).filter(Boolean);
+  const xi=xiIds.length>=8?xiIds.map(id=>G.squad.find(p=>p.id===id)).filter(Boolean):[...G.squad].sort((a,b)=>b.rat-a.rat).slice(0,11);
+  xi.forEach(ensureAttrs);
+  const avgR=xi.length?xi.reduce((a,p)=>a+p.rat,0)/xi.length:70;
+  let oppRat=avgR, rival=null;
+  if(m){ const s0=G._S, f0=G._tacFit;
+    try{ const S=matchStrengths(m); oppRat=S.oppRat; rival=S.oppName; }catch(e){}
+    G._S=s0; G._tacFit=f0; }
+  const gap=(avgR-oppRat)/100;
+  const guardo={}; TAC_INSTR.forEach(t=>guardo[t.k]=G[t.k]);
+  const mult=dtTacMult(G.dt);
+  const fila=(k,v)=>{
+    if(v) Object.assign(G,v);
+    let prof={}; try{ prof=dtProfile(G.dt); }catch(e){}
+    const pf=planFit(prof,xi,gap), fam=tacFamDe(k);
+    const plan=Math.max(-0.075,Math.min(0.075,pf.tFit*0.55*mult))*(0.4+0.6*fam/100);
+    TAC_INSTR.forEach(t=>G[t.k]=guardo[t.k]);
+    return {k,plan,fam,prof,goles:Math.round(plan*PLAN_PUNTOS/26*2.6*100)/100};
+  };
+  const L=ESTRATEGIAS.map(e=>fila(e.k,e.v));
+  // el ataque de cada tarjeta, con SU perfil
+  L.forEach(r=>{ r.ataque=estrategiaAtaque(r.prof,estrategiaInfo(r.k).ment); });
+  const propia=fila('propia',null); propia.ataque=estrategiaAtaque(propia.prof,mentActual());
+  return {rival,oppRat:Math.round(oppRat),avgR:Math.round(avgR),L,propia,actual:estrategiaActual(),spd:Math.round(planFit({press:.5,line:.5,direct:.5,counter:.5,width:.5,cyn:.5,disc:.5},xi,0).spd)};
+}
+function calzaTxt(g){ return g>=0.10?['Le calza muy bien','var(--green)']:g>=0.03?['Le calza','var(--green)']:g>-0.03?['Ni fu ni fa','var(--t2)']:g>-0.10?['No le calza','var(--gold)']:['Le calza mal','var(--red)']; }
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGNADOS: capitán, pateadores, quién sube al córner y marca personal
@@ -11904,6 +12233,7 @@ function weeklyTraining(){
   const ctr=(G.youth&&G.youth.upgrades&&G.youth.upgrades.some(u=>u.id==='yt'&&u.built)?1.15:1)*facilityTrainMult();
   G.squad.forEach(p=>{
     ensureAttrs(p);
+    try{ focoSemana(p,intMul); }catch(e){}   // Fase 107
     if(p.dev===undefined)p.dev=0;
     // ═══ EL RENDIMIENTO MANDA ═══
     // rf: qué tan bien viene jugando (−1 malo .. +1 excelente). Sale de si es
@@ -12021,7 +12351,7 @@ function weeklyTraining(){
     // Subir un punto de foco al atributo elegido cuando acumula
     if(foc.attr&&p.dev>=6){
       const a=foc.attr[~~(Math.random()*foc.attr.length)];
-      if(p.attrs[a]!==undefined)p.attrs[a]=Math.min(99,p.attrs[a]+1);
+      if(p.attrs[a]!==undefined&&p.attrs[a]<techoAttr(p))p.attrs[a]=p.attrs[a]+1;
     }
     if(p.dev>=10){
       p.rat=Math.min(p.pot,p.rat+1);
@@ -12044,93 +12374,148 @@ function rTrain(){
   try{ rMentor(); }catch(e){}
   const el = document.getElementById('trainOpts');
   if(!el||!G) return;
-  const types = [
-    {id:'fis',l:'⚡ Velocidad',d:'VEL +2 (campo)',a:'VEL'},
-    {id:'tec',l:'🪄 Técnico',d:'REG +2 · Arqueros REF +2',a:'REG',gk:'REF'},
-    {id:'tac',l:'💪 Físico',d:'FIS +2 (todos)',a:'FIS'},
-    {id:'fin',l:'🎯 Finalización',d:'TIR +2 · Arqueros ATA +2',a:'TIR',gk:'ATA'},
-    {id:'def',l:'🧱 Defensivo',d:'DEF +2 · Arqueros POS +2',a:'DEF',gk:'POS'},
-    {id:'men',l:'🧘 Mental',d:'Moral +5',a:null},
-  ];
-  el.innerHTML = types.map(t=>`
-    <div class="card" style="cursor:pointer;padding:9px;${G.trainedWeek===G.week&&G.trainingType===t.id?'border-color:var(--gold);':''}" onclick="doTrain('${t.id}','${t.a||''}','${t.gk||''}')">
-      <div style="font-size:18px">${t.l.split(' ')[0]}</div>
-      <div style="font-weight:600;font-size:12px;margin:2px 0">${t.l.split(' ').slice(1).join(' ')}</div>
-      <div style="font-size:10px;color:var(--t3)">${t.d}</div>
-      ${G.trainedWeek===G.week&&G.trainingType===t.id?'<div style="font-size:9px;color:var(--green);margin-top:2px">✓ Aplicado</div>':''}
-    </div>
-  `).join('');
+  const hecho=G.trainedWeek===G.week;
+  const mio=(typeof dtIsMine==='function')&&dtIsMine();
+  el.innerHTML = SESIONES.map(t=>{
+    const on=hecho&&G.trainingType===t.id;
+    const nota=t.id==='tact'?(mio?`${estrategiaInfo(estrategiaActual()).n}: ${Math.round(tacFam())}% aprendida`:'Con un DT de la IA, la idea ya la conoce: suma química'):t.d;
+    return `<button class="ses${on?' on':''}" ${hecho&&!on?'disabled':''} onclick="doTrain('${t.id}')">
+      <span class="ses-i">${t.i}</span><b>${t.n}</b><span class="ses-d">${nota}</span>
+      ${t.fit?`<span class="ses-c">⚡ −${t.fit}% de físico</span>`:''}${on?'<span class="ses-ok">✓ hecha esta semana</span>':''}</button>`;
+  }).join('') + `<div class="ses-nota">Una sesión por semana. Los atributos suben hasta un techo cerca de la media de cada jugador (los pibes, cerca de su potencial): entrenar velocidad no convierte a un central en un velocista.</div>`;
 }
-
-function doTrain(id, attr, gkAttr){
+// ═══ FASE 107: LA SESIÓN DE LA SEMANA, CON TECHO ═══
+// Antes cada sesión daba +2 al atributo a TODO el plantel, gratis, todas las
+// semanas y sin techo: en una temporada se podía llevar la velocidad del
+// plantel entero a 99. Ahora sube +1 (+2 a los de 21 o menos) sólo a los que
+// están por debajo de su techo (`techoAttr`), y las sesiones pesadas cansan.
+// Se suman la sesión táctica (afianza la estrategia en uso) y la de
+// recuperación.
+const SESIONES=[
+  {id:'fis',i:'⚡',n:'Velocidad',d:'VEL +1 (campo)',a:'VEL',fit:3},
+  {id:'tec',i:'🪄',n:'Técnica',d:'REG +1 · arqueros REF +1',a:'REG',gk:'REF'},
+  {id:'tac',i:'💪',n:'Físico',d:'FIS +1 (todos)',a:'FIS',fit:4},
+  {id:'fin',i:'🎯',n:'Definición',d:'TIR +1 · arqueros ATA +1',a:'TIR',gk:'ATA'},
+  {id:'def',i:'🧱',n:'Defensa',d:'DEF +1 · arqueros POS +1',a:'DEF',gk:'POS'},
+  {id:'pas',i:'🔁',n:'Pases',d:'PAS +1 · arqueros SAQ +1',a:'PAS',gk:'SAQ'},
+  {id:'tact',i:'🧠',n:'Táctica',d:'La estrategia en uso +12% aprendida'},
+  {id:'rec',i:'🛌',n:'Recuperación',d:'Físico +8 a todos y moral +2'},
+  {id:'men',i:'🧘',n:'Charla grupal',d:'Moral del equipo +5'},
+];
+function techoAttr(p){
+  let t=(p.rat||70)+8;
+  if((p.age||25)<=23) t=Math.max(t,(p.pot||p.rat||70)+4);
+  return Math.min(99,t);
+}
+function doTrain(id){
   if(!G) return;
   if(G.trainedWeek>=G.week){ flash('⚠️ Ya entrenaste esta semana','draw'); return; }
+  const t=SESIONES.find(x=>x.id===id); if(!t) return;
   G.trainingType=id; G.trainedWeek=G.week;
-  if(id==='men'){ G.morale=Math.min(100,G.morale+5); lg('🧘','Mental: moral plantel +5'); }
-  else if(attr){
+  if(id==='men'){ G.morale=Math.min(100,(G.morale===undefined?70:G.morale)+5); lg('🧘','Charla grupal: moral del equipo +5'); }
+  else if(id==='rec'){
+    G.squad.forEach(p=>{ if(!p.injured){ p.fit=Math.min(100,(p.fit===undefined?100:p.fit)+8);
+      p.morale=Math.min(100,(p.morale===undefined?60:p.morale)+2); } });
+    lg('🛌','Recuperación: físico +8 y moral +2');
+  }
+  else if(id==='tact'){
+    if(dtIsMine()) tacFamMover(TACFAM_SESION,'sesión táctica');
+    else { G.chem=Math.min(100,(G.chem||0)+3); lg('🧠','Sesión táctica: química +3'); }
+  }
+  else if(t.a){
     let c=0;
     G.squad.forEach(p=>{
+      if(p.injured) return;
       ensureAttrs(p);
-      const a = p.attrs[attr]!==undefined ? attr : (gkAttr && p.attrs[gkAttr]!==undefined ? gkAttr : null);
-      if(a){ p.attrs[a]=Math.min(99,p.attrs[a]+2); c++; }
+      const a = p.attrs[t.a]!==undefined ? t.a : (t.gk && p.attrs[t.gk]!==undefined ? t.gk : null);
+      if(a&&p.attrs[a]<techoAttr(p)){ p.attrs[a]=Math.min(techoAttr(p),p.attrs[a]+((p.age||25)<=21?2:1)); c++; }
+      if(t.fit) p.fit=Math.max(40,(p.fit===undefined?100:p.fit)-t.fit);
     });
-    lg('🏋️',`${id}: +2 en ${c} jugadores`);
+    lg('🏋️',`${t.n}: suben ${c} jugadores${t.fit?` (−${t.fit}% de físico)`:''}`);
   }
-  rTrain(); updateUI(); flash('✅ Entrenamiento aplicado','win');
+  rTrain(); updateUI(); flash(`✅ Sesión de ${t.n.toLowerCase()} hecha`,'win');
 }
 
+// ═══ FASE 107: EL FOCO INDIVIDUAL ═══
+// A cada jugador se le puede marcar un atributo para trabajar aparte (p._foco,
+// un texto). Es gratis y lento: ~1 punto cada 4 semanas en un pibe, cada 6 en
+// uno de 24-29 y cada 10 en un veterano, siempre hasta su techo (techoAttr).
+// ⚠️ La "clase particular" de antes (+3 por €0,1M) además le subía la MEDIA:
+// con dos clases el jugador ganaba un punto de media, o sea que con €2M un 70
+// llegaba a 80. Ahora la clase da +2 al atributo, una por jugador cada 4
+// semanas, y la media la siguen moviendo las notas (Fase 76).
+const IND_CADA=4;
 function rInd(){
   const el = document.getElementById('indTrain');
   if(!el||!G) return;
-  el.innerHTML = G.squad.slice(0,14).map(p=>`
-    <div class="pr" onclick="openInd('${p.id}')">
-      <div>${rb(p.rat)}</div>
-      <div><div class="pn">${p.name}</div>${ptag(p.pos)}</div>
-      <div class="ac">${p.nat}</div>
-      <div class="ac">${p.age}</div>
-      <div class="vc">${fv(p.val)}</div>
-      <div class="ac">${p.goals}⚽</div>
-      <button class="btn bg bs" onclick="event.stopPropagation();openInd('${p.id}')">Entrenar</button>
-    </div>
-  `).join('');
+  const sq=[...G.squad].sort((a,b)=>({ARQ:0,DEF:1,MED:2,DEL:3}[pgr(a.pos)]-{ARQ:0,DEF:1,MED:2,DEL:3}[pgr(b.pos)])||b.rat-a.rat);
+  el.innerHTML = `<div class="ind-lista">`+sq.map(p=>{
+    ensureAttrs(p);
+    const f=p._foco&&p.attrs[p._foco]!==undefined?p._foco:null, inf=f?(ATTR_INFO[f]||{icon:'',label:f}):null;
+    const tope=f&&p.attrs[f]>=techoAttr(p);
+    return `<button class="ind-f" onclick="openInd('${p.id}')">
+      ${rb(p.rat)}<span class="ind-n"><b>${_esc(p.name)}</b><span>${p.pos} · ${p.age} años</span></span>
+      <span class="ind-foco${f?'':' vacio'}">${f?`${inf.icon} ${inf.label} ${p.attrs[f]}${tope?' · en su techo':''}`:'Sin foco'}</span></button>`;
+  }).join('')+`</div>`;
 }
-
 function openInd(id){
   if(!G) return;
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
   ensureAttrs(p);
+  const techo=techoAttr(p), libre=!p._claseW||((G.season||0)*60+(G.week||0))-p._claseW>=IND_CADA;
   showMod(`
     <button class="mclose" onclick="closeMod()">✕</button>
-    <div class="mtitle">Entrenar: ${p.name}</div>
+    <div class="mtitle">🎯 ${_esc(p.name)}</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">${vbadges(p)}</div>
-    <div class="note">Costo: €0.1M · Mejora +3 al atributo elegido</div>
+    <div class="note">Elegí <b>un atributo para trabajar aparte</b> (gratis, lento y constante). Techo de este jugador: <b>${techo}</b>.
+      La <b>clase particular</b> suma +2 en el acto por €0,1M, una cada ${IND_CADA} semanas${libre?'':' — <b>ya tuvo una hace poco</b>'}.</div>
     ${Object.entries(p.attrs).map(([k,v])=>{
-      const inf=ATTR_INFO[k]||{icon:'',label:k};
+      const inf=ATTR_INFO[k]||{icon:'',label:k}, on=p._foco===k;
       return `
       <div class="sr">
         <span class="sl" style="flex:1">${inf.icon} ${inf.label} <span style="color:var(--t3);font-size:9px">${k}</span></span>
         <div class="sbar"><div class="sbf" style="width:${v}%;background:${attrColor(v)}"></div></div>
         <span class="sv" style="min-width:22px;color:${attrColor(v)}">${v}</span>
-        <button class="btn bg bs" style="margin-left:4px" onclick="trAttr('${p.id}','${k}')">+3</button>
+        <button class="btn ${on?'bg':'bo'} bs" style="margin-left:4px" onclick="setFoco('${p.id}','${k}')">${on?'✓ Foco':'Foco'}</button>
+        <button class="btn bo bs" style="margin-left:3px" ${(!libre||v>=techo)?'disabled':''} onclick="trAttr('${p.id}','${k}')">+2</button>
       </div>`;
     }).join('')}
+    ${p._foco?`<div style="text-align:center;margin-top:8px"><button class="btn bo bs" onclick="setFoco('${p.id}',null)">Sacar el foco</button></div>`:''}
   `);
 }
-
+function setFoco(id,k){
+  const p=G&&G.squad.find(x=>x.id===id); if(!p) return;
+  if(k) p._foco=k; else delete p._foco;
+  p._focoAcc=0;
+  openInd(id); try{ rInd(); }catch(e){}
+  if(k) flash(`🎯 ${p.name}: trabaja ${(ATTR_INFO[k]||{}).label||k}`,'draw');
+}
 function trAttr(id, attr){
   if(!G) return;
   if(G.budget<0.1){ flash('❌ Sin presupuesto','loss'); return; }
   const p = G.squad.find(x=>x.id===id);
   if(!p) return;
-  p.attrs[attr] = Math.min(99, p.attrs[attr]+3);
+  ensureAttrs(p);
+  const ahora=(G.season||0)*60+(G.week||0);
+  if(p._claseW&&ahora-p._claseW<IND_CADA){ flash(`⏳ ${p.name} ya tuvo una clase hace poco`,'draw'); return; }
+  if(p.attrs[attr]>=techoAttr(p)){ flash(`${p.name} ya está en su techo de ${attr}`,'draw'); return; }
+  p.attrs[attr] = Math.min(techoAttr(p), p.attrs[attr]+2);
+  p._claseW=ahora;
   G.budget = Math.round((G.budget-.1)*10)/10;
   finAnota('otros_out',0.1,'Entrenamiento individual de '+p.name);
-  const avg = Math.round(Object.values(p.attrs).reduce((a,b)=>a+b,0)/Object.values(p.attrs).length);
-  if(avg>p.rat){ p.rat = Math.min(p.pot,p.rat+1); p.val = calcVal(p); }
-  lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]}`);
+  lg('🏋️',`${p.name}: ${attr} → ${p.attrs[attr]} (clase particular)`);
   closeMod(); updateUI();
   flash(`✅ ${p.name}: ${attr} ${p.attrs[attr]}`,'win');
+}
+// Lo llama weeklyTraining: el foco individual avanza de a poco, para todas las edades.
+function focoSemana(p,intMul){
+  const k=p._foco; if(!k||!p.attrs||p.attrs[k]===undefined) return;
+  if(p.injured) return;
+  const ritmo=(p.age<=23?0.25:p.age<=29?0.17:0.10)*intMul;
+  p._focoAcc=Math.round(((p._focoAcc||0)+ritmo)*1000)/1000;   // sin la basura del punto flotante (0,1×20 = 1,9999)
+  if(p._focoAcc>=1){ p._focoAcc-=1;
+    if(p.attrs[k]<techoAttr(p)) p.attrs[k]+=1; }
 }
 
 // La nacionalización es hacia el país de la liga que dirigís, no siempre
@@ -13033,8 +13418,17 @@ function openCustomDTModal(){
         ${positions.map(p=>`<button class="btn ${_cdtPos.includes(p)?'bg':'bo'} bs" data-pos="${p}" onclick="toggleCdtPos(this,'${p}')">${p}</button>`).join('')}
       </div>
     </div>
+    ${(!editing&&_cdtClausula()>0)?`<div class="note R" style="margin-bottom:8px">Para sentarte en el banco hay que pagarle la cláusula a <b>${_esc(G.dt.name)}</b>: <b>${fv(_cdtClausula())}</b>. Vuelve al mercado de técnicos.</div>`:''}
     <button class="btn bg" style="width:100%;padding:9px" onclick="confirmCustomDT()">${editing ? '💾 Guardar cambios' : '✅ Crear DT'}</button>
   `);
+}
+// Fase 107: ponerte de DT ya no es gratis si hay un técnico con contrato.
+// Antes el que estaba desaparecía sin cobrar ni volver al mercado.
+function _cdtClausula(){
+  const d=G&&G.dt; if(!d||d.custom||/Interino/.test(d.name||'')) return 0;
+  const cl=(d.contract&&d.contract.clause)||'media';
+  const weeks=cl==='baja'?10:cl==='alta'?35:20;
+  return Math.round((d.salary||0)*weeks/1000*10)/10;
 }
 function toggleCdtPos(btn,pos){
   if(_cdtPos.includes(pos)){ _cdtPos=_cdtPos.filter(p=>p!==pos); btn.className='btn bo bs'; }
@@ -13050,7 +13444,20 @@ function confirmCustomDT(){
   const editing = G && G.dt && G.dt.custom;
   const customProf={};
   document.querySelectorAll('.cdtProf').forEach(sl=>{customProf[sl.dataset.k]=(+sl.value)/100;});
-  G.dt={name,nat:'—',age:0,rat:75,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true,customProf};
+  const _cost=editing?0:_cdtClausula();
+  if(_cost>0){
+    if(G.budget<_cost){ flash('❌ No alcanza para pagarle la cláusula a '+G.dt.name,'loss'); return; }
+    G.budget=Math.round((G.budget-_cost)*10)/10;
+    finAnota('cuerpo',_cost,'Cláusula de '+G.dt.name+' (te sentaste en el banco)');
+    try{ dtVuelveAlMercado(G.dt); }catch(e){}
+    G._dtSalida='lo reemplazaste vos';
+  }
+  // Fase 107: un técnico que arranca vale 68 y aprende con los resultados
+  // (antes salía 75 de regalo). Editando conserva lo que ya aprendió.
+  const _ant=editing?G.dt:null;
+  G.dt={name,nat:'—',age:0,rat:_ant?(_ant.rat||68):68,style,str:'Tu propio cuerpo técnico',salary:0,trait,wantedPos,philosophy:'El fútbol que vos querés jugar',custom:true,customProf,soyYo:true};
+  if(_ant&&_ant.attrs) G.dt.attrs=_ant.attrs;
+  if(!editing){ G.dtRequests=[]; G.dtRel=75; }
   // Técnico nuevo, borrón y cuenta nueva con el plantel
   (G.squad||[]).forEach(q=>q.dtRel=58+~~(Math.random()*10));
   // Ya sos vos el DT (recién asignamos customProf), así que el once que había
@@ -13486,6 +13893,7 @@ function checkPressDemands(){
 
 function genDtRequest(){
   if(!G||!G.dtRequests) return;
+  if(modoAmbos()) return;          // Fase 107: no te vas a pedir refuerzos a vos mismo
   // Max 3 active requests
   const pending=G.dtRequests.filter(r=>!r.approved&&!r.rejected);
   if(pending.length>=3) return;
@@ -18406,11 +18814,11 @@ function matchStrengths(m){
   // Difficulty modifier (more pronounced)
   const diffMod = G.diff===0 ? 0.16 : G.diff===2 ? -0.16 : 0;
   // Tactic modifier
+  // ⚠️ Fase 107: la mentalidad YA NO es un bono. Ofensivo sumaba +0,07 a un
+  // tacMod que tiene techo en 0,045, o sea que era la manera gratis de pegarse
+  // al techo, y Defensivo era siempre peor. Ahora es un ida y vuelta: más
+  // goles para los dos lados o menos para los dos (`MENT_XG`, en xgDeS).
   let tacMod = 0;
-  if(G.tactic){
-    if(G.tactic.mentality==='Ofensivo') tacMod=0.07;
-    else if(G.tactic.mentality==='Defensivo') tacMod=-0.05;
-  }
   // DT trait modifiers — cada especialidad da un bono real
   if(G.dt){
     const tr = G.dt.trait;
@@ -18428,41 +18836,19 @@ function matchStrengths(m){
   // con un equipo lento te cuesta caro, contragolpear a un grande funciona, y
   // jugar por abajo sin técnica no sirve.
   const myProfS=dtProfile(G.dt);
-  const attrOf=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
-  const fieldXI=xi.filter(p=>p.pos!=='ARQ');
-  const avgOf=(k)=>fieldXI.length?fieldXI.reduce((a,p)=>a+attrOf(p,k),0)/fieldXI.length:70;
-  const spd=avgOf('VEL'), tec=avgOf('REG'), phy=avgOf('FIS'), def=avgOf('DEF');
   const gapVsOpp=(avgR-oppRat)/100;                    // + si sos mejor que el rival
-  // TS acota cuánto puede inclinar la cancha el planteo: un buen plan te da una
-  // ventaja real, pero NUNCA reemplaza tener mejores jugadores.
-  const TS=0.55;
-  let tFit=0;
-  // Presión alta: exige piernas y físico. Bien ejecutada ahoga al rival.
-  const pressFit=((spd+phy)/2-70)/40;                  // -1..+1 aprox
-  tFit += (myProfS.press-0.5)*(0.16*pressFit - 0.05*Math.max(0,-gapVsOpp*2));
-  // Línea alta: sólo si tenés defensores rápidos; si no, te la tiran atrás
-  const lineFit=(spd-70)/38 + (def-70)/55;
-  tFit += (myProfS.line-0.5)*0.15*lineFit;
-  // Juego directo: necesita delanteros potentes; posesión necesita técnica
-  tFit += (myProfS.direct-0.5)*0.13*((phy-70)/38);
-  tFit += (0.5-myProfS.direct)*0.13*((tec-70)/38);
-  // Contragolpe: rinde mucho más contra un rival superior (te deja espacios)
-  tFit += (myProfS.counter-0.5)*(gapVsOpp<0?0.20:0.05)*(0.5+(spd-68)/45);
-  // Amplitud: aprovecha extremos rápidos
-  tFit += (myProfS.width-0.5)*0.07*((spd-70)/40);
-  // Juego brusco: corta el juego rival pero arriesga expulsiones
-  tFit += (myProfS.cyn-0.5)*0.05 - Math.max(0,myProfS.cyn-0.75)*0.06;
-  // Disciplina táctica: un equipo ordenado sufre menos sorpresas
-  tFit += (myProfS.disc-0.5)*0.06;
-  // La táctica del DT decide cuánto se le saca al planteo (Fase 75); el techo
-  // y el piso no se mueven.
-  tacMod += Math.max(-0.075,Math.min(0.075,tFit*TS*dtTacMult(G.dt)));  // techo y piso del planteo
+  // ⚠️ Fase 107: el PLAN va APARTE del tope de tacMod. Antes se sumaba adentro
+  // y el tope (±0,045) se lo comía: medido, tacMod quedaba clavado en el
+  // techo con cualquier planteo, así que la táctica no cambiaba el partido.
+  // Ahora es `planMod` (su propio tope, ±0,075) y la familiaridad con el
+  // planteo decide cuánto se le saca (`tacFamMult`). Las instrucciones
+  // sueltas (presión alta +0,02, tempo rápido +0,02) eran bonos sin
+  // condición; su efecto de verdad ya está en el plan (presionar sin piernas
+  // cuesta), así que se fueron.
+  const _pf=planFit(myProfS,xi,gapVsOpp);
+  const planMod=Math.max(-0.075,Math.min(0.075,_pf.tFit*0.55*dtTacMult(G.dt)))*tacFamMult();
   // Guardamos el diagnóstico para mostrarlo en la previa del partido
-  G._tacFit={pressFit:Math.round(pressFit*100)/100,lineFit:Math.round(lineFit*100)/100,spd:Math.round(spd),tec:Math.round(tec),phy:Math.round(phy)};
-  // Instrucciones tácticas afectan el partido
-  if(G.pressure==='Alta') tacMod+=0.02;
-  if(G.pressure==='Baja') tacMod-=0.015;
-  if(G.tempo==='Rápido' && atkPow>=75) tacMod+=0.02;
+  G._tacFit={pressFit:Math.round(_pf.pressFit*100)/100,lineFit:Math.round(_pf.lineFit*100)/100,spd:Math.round(_pf.spd),tec:Math.round(_pf.tec),phy:Math.round(_pf.phy),plan:Math.round(planMod*1000)/1000};
   // Sesgo de la formación elegida
   const fb = FORM_BIAS[G.formation]||{atk:0,def:0};
   tacMod += fb.atk*.5 + fb.def*.5;
@@ -18505,7 +18891,7 @@ function matchStrengths(m){
   // esa fuerza: 1 es un club "normal" como los de la IA.
   const myS0 = avgR/100*.54 + atkPow/100*.10 + defPow/100*.09 + 0.70*.13 + 0.70*.14;
   const modF = myS0>0 ? myS/myS0 : 1;
-  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod, defFit, defCansada, myRatEq, modF};
+  const _out={xi, avgR, atkPow, defPow, oppName, oppRat, homeBonus, myS, oppS, diffMod, tacMod, climaMod, relMod, defFit, defCansada, myRatEq, modF, planMod, ment:mentActual()};
   // La última medición de fuerzas queda a mano: applyMatchResult arma la
   // planilla del partido con ella y no tiene la S en su scope (lo llaman la
   // simulación rápida, el 11v11 y las jugadas clave, cada uno por su lado).
@@ -19384,6 +19770,7 @@ function applyMatchResult(m, gf, ga, providedScorers){
   weeklyReconv();
   weeklyPrestamosIn();
   weeklyTraining();
+  try{ tacFamSemana(); }catch(e){}   // Fase 107: la estrategia se aprende jugándola
   } // fin de la primera parte semanal (Fase 98)
   // La intensidad del entrenamiento ajusta la condición física del plantel
   const intCfg=TRAIN_INTENSITY[G.trainIntensity||'normal'];
@@ -19826,9 +20213,70 @@ function csResumen(rows,start,trophies0){
 // la gestión (`modF`), contra el rival tal cual lo ve la IA, y la cuenta es la
 // de `arSimPair` (+2 de localía, techo de ±8, 2,6/2,5). El planteo y la
 // dificultad se suman ahí, en puntos de fuerza.
-const TAC_CENTRO=0.042;    // tacMod típico: medido, queda en el techo (0,045) en Boca, Lanús y San Martín
+// tacMod típico. Era 0,042 (pegado al techo). Fase 107: sin la mentalidad ni
+// el plan adentro, medido sobre los 30 clubes de la Liga ARG y los 20 de
+// LaLiga, el desvío medio que entra a xgDeS (tacMod + planMod) quedaba 0,1
+// puntos más abajo que antes; con 0,040 queda igual.
+const TAC_CENTRO=0.040;
 const TAC_PUNTOS=60;       // ±0,045 de planteo → ±1,5 puntos alrededor del centro
 const DIF_PUNTOS=20;       // fácil/difícil: ±0,16 → ±3,2 puntos (más los ±7 del rival)
+// ═══ FASE 107: EL PLANTEO Y LA MENTALIDAD CAMBIAN EL PARTIDO ═══
+// planMod (±0,075) entra fuera del tope de tacMod: ±1,8 puntos de fuerza, que
+// son ~±0,18 goles esperados. Un plan que le calza al plantel y al rival suma;
+// presionar con un equipo lento o tocar sin técnica resta.
+const PLAN_PUNTOS=24;
+// La mentalidad multiplica los goles de los dos lados. Con Poisson: el
+// favorito saca +0,04 puntos por partido atacando, el que corre de atrás
+// +0,07 cerrándose, y parejos conviene el equilibrio. Antes Ofensivo era un
+// bono gratis y Defensivo una pérdida segura.
+const MENT_XG={Ofensivo:{my:1.13,op:1.17},Defensivo:{my:0.84,op:0.82}};
+function mentActual(){ const m=G&&G.tactic&&G.tactic.mentality; return (m==='Ofensivo'||m==='Defensivo')?m:'Equilibrado'; }
+// Cuánto le calza un perfil de juego a este once contra este rival. Es la
+// misma cuenta que estaba adentro de matchStrengths (Fase 75), sacada afuera
+// para que la pantalla de Táctica pueda mostrar qué estrategia le conviene.
+function planFit(prof,xi,gapVsOpp){
+  const attrOf=(p,k)=>(p.attrs&&p.attrs[k])||p.rat||70;
+  const fieldXI=(xi||[]).filter(p=>p.pos!=='ARQ');
+  const avgOf=(k)=>fieldXI.length?fieldXI.reduce((a,p)=>a+attrOf(p,k),0)/fieldXI.length:70;
+  const spd=avgOf('VEL'), tec=avgOf('REG'), phy=avgOf('FIS'), def=avgOf('DEF');
+  let tFit=0;
+  // Presión alta: exige piernas y físico. Bien ejecutada ahoga al rival.
+  const pressFit=((spd+phy)/2-70)/40;                  // -1..+1 aprox
+  tFit += (prof.press-0.5)*(0.16*pressFit - 0.05*Math.max(0,-gapVsOpp*2));
+  // Línea alta: sólo si tenés defensores rápidos; si no, te la tiran atrás
+  const lineFit=(spd-70)/38 + (def-70)/55;
+  tFit += (prof.line-0.5)*0.15*lineFit;
+  // Juego directo: necesita delanteros potentes; posesión necesita técnica
+  tFit += (prof.direct-0.5)*0.13*((phy-70)/38);
+  tFit += (0.5-prof.direct)*0.13*((tec-70)/38);
+  // Contragolpe: rinde mucho más contra un rival superior (te deja espacios)
+  tFit += (prof.counter-0.5)*(gapVsOpp<0?0.20:0.05)*(0.5+(spd-68)/45);
+  // Amplitud: aprovecha extremos rápidos
+  tFit += (prof.width-0.5)*0.07*((spd-70)/40);
+  // Juego brusco: corta el juego rival pero arriesga expulsiones
+  tFit += (prof.cyn-0.5)*0.05 - Math.max(0,prof.cyn-0.75)*0.06;
+  // Disciplina táctica: un equipo ordenado sufre menos sorpresas
+  tFit += (prof.disc-0.5)*0.06;
+  return {tFit,pressFit,lineFit,spd,tec,phy,def};
+}
+// ═══ FAMILIARIDAD TÁCTICA ═══
+// Un planteo se aprende entrenándolo. Con un DT de la IA el equipo ya conoce
+// su idea (85); con tu DT depende de cuánto lo trabajaste (G.tacFam, 0-100).
+// A 0 se le saca el 40% al plan, a 100 el 100%.
+const TACFAM_IA=85, TACFAM_INI=70;
+function tacFam(){
+  if(!G)return TACFAM_INI;
+  if(!(typeof dtIsMine==='function'&&dtIsMine()))return TACFAM_IA;
+  return tacFamDe(estrategiaActual());
+}
+function tacFamMult(){ return 0.4+0.6*tacFam()/100; }
+function tacFamMover(d,motivo){
+  if(!G||!(typeof dtIsMine==='function'&&dtIsMine()))return;
+  const k=estrategiaActual(), a=tacFamDe(k);
+  const T=G.tacFamPor=G.tacFamPor||{};
+  T[k]=Math.round(Math.max(0,Math.min(100,a+d))*10)/10;
+  if(motivo&&Math.abs(d)>=8) lg(d>0?'🧠':'🔄',`Familiaridad con ${estrategiaInfo(k).n}: ${Math.round(a)} → ${Math.round(T[k])}% (${motivo})`);
+}
 function xgDeS(S){
   if(S.myRatEq===undefined){
     // Una S vieja (de antes de la Fase 82, guardada en G._S): la cuenta de antes
@@ -19840,7 +20288,8 @@ function xgDeS(S){
   // ⚠️ El factor de gestión va a MEDIA potencia (raíz): entero, la moral del
   // que gana todo lo hacía más fuerte y el grande se escapaba (+0,17 puntos
   // esperados por partido sobre la IA), y el mediano se hundía (−0,24).
-  const mia=(S.myRatEq||70)*Math.sqrt(S.modF||1)+((S.tacMod||0)-TAC_CENTRO)*TAC_PUNTOS+(S.diffMod||0)*DIF_PUNTOS;
+  const mia=(S.myRatEq||70)*Math.sqrt(S.modF||1)+((S.tacMod||0)-TAC_CENTRO)*TAC_PUNTOS+(S.diffMod||0)*DIF_PUNTOS
+           +(S.planMod||0)*PLAN_PUNTOS;          // Fase 107: el planteo, fuera del tope de tacMod
   const suya=(S.oppRat||70);
   // Como en arSimPair: el que es local suma 2, d se mide desde el local
   // las instalaciones del estadio (`homeEdge`) suman encima de los 2 de siempre
@@ -19848,7 +20297,10 @@ function xgDeS(S){
   const pa=local?mia+2+_edge:suya+2, pb=local?suya:mia;
   const d=Math.max(-8,Math.min(8,pa-pb))/26;
   const xL=Math.max(0.25,1.35+d*2.6), xV=Math.max(0.25,1.35-d*2.5);
-  return local?{my:xL,op:xV}:{my:xV,op:xL};
+  const r=local?{my:xL,op:xV}:{my:xV,op:xL};
+  // Fase 107: la mentalidad es un ida y vuelta, no un bono (ver MENT_XG).
+  const M=MENT_XG[S.ment]; if(M){ r.my*=M.my; r.op*=M.op; }
+  return r;
 }
 // ═══ FASE 84: LA ROJA CAMBIA EL PARTIDO ═══
 // La misma probabilidad que tenía cards() (1,2% por jugador × lo picante del
@@ -32759,7 +33211,7 @@ function openPhone(){
   if(btn) btn.style.display = 'none';
   if(G && G.phoneMsgs) G.phoneMsgs.forEach(m=>m.read=true);
   const tdt=document.querySelector('.ph-tab[onclick*="\'dt\'"]');
-  if(tdt) tdt.textContent=chatModoDT()?'🏛️ Presidente':'💬 Chat DT';
+  if(tdt) tdt.textContent=chatModoDT()?'🏛️ Presidente':modoAmbos()?'🧢 Ayudante':'💬 Chat DT';
   const an=document.getElementById('phAppName'); if(an) an.textContent=chatModoDT()?'📲 VESTUARIO DEL DT':'📲 OFICINA DEL PRESIDENTE';
   const sub = document.getElementById('phSubtitle');
   if(sub && G) sub.textContent = 'Semana '+G.week+' · Temporada '+(G.season||2026);
@@ -32986,7 +33438,7 @@ function dtReplyCtx(kind,pid){
     const p=G.squad.find(x=>x.id===pid); if(!p) return 'Ese ya no está en el plantel, presidente.';
     const fit=p.fit===undefined?100:p.fit, np=p.notaProm;
     const comp=_candidatos(p.pos).filter(q=>q!==p&&Object.values(G.slots||{}).includes(q.id)).sort((a,b)=>b.rat-a.rat)[0];
-    if(p.injured) return `${_esc(_ap(p))} está lesionado, presidente: le faltan ${p.injWeeks||p.injured||'unas'} semanas.`;
+    if(p.injured) return `${_esc(_ap(p))} está lesionado, presidente: le faltan ${p.injuredWeeks||'unas'} semanas.`;
     if(p.susp>0) return `Está suspendido, presidente. Vuelve en ${p.susp} partido${p.susp>1?'s':''}.`;
     if(fit<75) return `Lo estoy cuidando: tiene ${Math.round(fit)}% de físico. Si lo pongo así, en dos fechas se me rompe.`;
     if(typeof np==='number'&&np<6.2) return `Viene con un promedio de ${np.toFixed(1)} en los últimos partidos. Cuando recupere el nivel, vuelve.`;
@@ -33083,7 +33535,7 @@ function playerReplyCtx(p,kind){
   const per=pPersona(p), m=(p.morale===undefined?70:p.morale);
   if(kind==='lesion'){
     if(!p.injured) return 'Estoy bien, físicamente al cien.';
-    const w=p.injWeeks||p.injured; return `Va mejorando. El médico dice ${typeof w==='number'?w+' semanas':'unas semanas más'}. ${per==='picante'?'Quiero volver ya.':'Voy a volver más fuerte.'}`;
+    const w=p.injuredWeeks; return `Va mejorando. El médico dice ${typeof w==='number'?w+' semanas':'unas semanas más'}. ${per==='picante'?'Quiero volver ya.':'Voy a volver más fuerte.'}`;
   }
   if(kind==='gol'){ p.morale=Math.min(100,m+3); return per==='humilde'?'Gracias, el gol es de todos.':per==='picante'?'¡Y vienen más! Que me sigan llegando.':'¡Gracias! Ese gol lo soñé toda la semana.'; }
   if(kind==='contrato'){
@@ -33606,6 +34058,41 @@ function rBotonesPartido(){
     const q=7-curDay();
     txt.textContent=`Se juega el domingo — ${q===1?'falta 1 día':'faltan '+q+' días'}. Mientras tanto negociá, entrená y arreglá el club.`;
   }
+}
+// ═══ FASE 107: CONTINUAR ═══
+// El botón de la barra de mando lleva el juego al próximo momento desde
+// cualquier pantalla, en este orden: lo que te frena (te echaron, un dilema,
+// la prensa), el día del armado, el día del partido (abre la previa, donde
+// elegís jugarlo, simularlo o mirarlo) o, si no, hasta el día del partido.
+// No juega nada solo: el partido lo arrancás vos desde la previa.
+function continuarQue(){
+  if(!G) return {t:'',a:null};
+  try{ if(juegoTerminado&&juegoTerminado()) return {t:'fin del ciclo',a:'fin'}; }catch(e){}
+  try{ if(dilemaBloqueante&&dilemaBloqueante()) return {t:'hay una decisión',a:'dilema'}; }catch(e){}
+  try{ if(prensaPend&&prensaPend()) return {t:'te espera la prensa',a:'prensa'}; }catch(e){}
+  try{ if(armadoActivo&&armadoActivo()) return {t:'día '+((G.armado&&G.armado.dia)||0)+' del armado',a:'armado'}; }catch(e){}
+  const m=(G.calendar||[]).find(x=>!x.played);
+  if(!m) return {t:'cerrar la temporada',a:'temporada'};
+  if(esDiaDePartido()) return m.week<=G.week?{t:'ir al partido',a:'partido'}:{t:'pasar la semana',a:'dia'};
+  return {t:'hasta el partido',a:'avanzar'};
+}
+function continuar(){
+  if(!G) return;
+  const q=continuarQue();
+  if(q.a==='fin'){ try{ finFrena(); }catch(e){} return; }
+  if(q.a==='dilema'){ dilemaFrena(); return; }
+  if(q.a==='prensa'){ prensaFrena(); return; }
+  if(q.a==='armado'){ advanceDay(); return; }
+  if(q.a==='temporada'){ try{ showSeasonSummary(); }catch(e){} return; }
+  if(q.a==='dia'){ advanceDay(); return; }
+  if(q.a==='partido'){ const m=G.calendar.find(x=>!x.played); if(m) showPreMatch(m); return; }
+  avanzarHastaPartido();
+}
+function rContinuar(){
+  const b=document.getElementById('fCont'), t=document.getElementById('fContTxt'); if(!b||!G) return;
+  const q=continuarQue();
+  if(t) t.textContent=q.t;
+  b.classList.toggle('partido',q.a==='partido');
 }
 // Pasar todos los días de una hasta llegar al partido, sin jugarlo.
 function avanzarHastaPartido(){
@@ -34821,6 +35308,7 @@ function weeklyDtPlan(){
 function weeklyDtVoice(){
   if(!G||!G.dt)return;
   if(chatModoDT()) return weeklyPresVoz();   // Fase 94: siendo DT te escribe el presidente, no vos mismo
+  if(modoAmbos()) return weeklyAyudanteVoz();   // Fase 107: el técnico sos vos: te escribe el ayudante
   if(Math.random()>0.45)return;
   const dt=G.dt, rel=(G.dtRel===undefined?65:G.dtRel), sq=G.squad||[];
   const xi=Object.values(G.slots||{}).filter(Boolean);
@@ -34928,6 +35416,7 @@ function rPhone(){
   // ═══ CHAT CON EL DT ═══
   if(_phTab==='dt'){
     if(chatModoDT()) return rPhonePres(scr);
+    if(modoAmbos()) return rPhoneAyudante(scr);    // Fase 107
     const th=G.chats.dt;
     scr.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
@@ -36119,13 +36608,49 @@ function rHub(){
 // lado las cuatro chicas. Se dibuja con la portada (`_TAB_R.ov`).
 function rOvTiles(){
   const el=document.getElementById('ovTiles'); if(!el||!G)return;
-  const nl=(G.phoneMsgs||[]).filter(m=>!m.read).length;
-  el.innerHTML=[
-    {t:'Celular',i:'📲',fn:'openPhone()',s:()=>nl?`${nl} sin leer`:'Al día'},
-    {t:'Noticias',i:'📰',tab:'news',s:()=>'El diario'},
-    {t:'Tabla',i:'🏆',fn:"irSec('temporada')",s:()=>{try{return statsLiga().pj?'Vas '+myLeaguePos()+'º':'Sin partidos todavía';}catch(e){return '';}}},
-    {t:'Redes',i:'📱',tab:'social',s:()=>'La hinchada'},
-  ].map(fTile).join('');
+  // Fase 107: cuatro paneles con DATOS en vez de cuatro dibujos. Cada uno se
+  // toca y lleva a donde se resuelve lo que muestra.
+  const panel=(cls,on,t,i,body)=>`<div class="ht dash ${cls}" onclick="${on}" tabindex="0"><div class="ht-t">${t}</div><div class="ht-i">${i}</div>${body}</div>`;
+  const out=[];
+  try{
+    const M=(G.phoneMsgs||[]).slice(0,3), nl=(G.phoneMsgs||[]).filter(m=>!m.read).length;
+    const txt=h=>String(h||'').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
+    out.push(panel('d-bandeja','openPhone()','Bandeja','📲',
+      `<div class="ht-s">${nl?`<b style="color:var(--gold)">${nl} sin leer</b>`:'Al día'}</div>
+       <div class="dsh-list">${M.length?M.map(m=>`<div class="dsh-row"><span>${m.icon||'💬'}</span><span><b>${_esc(txt(m.from||''))}</b> ${_esc(txt(m.body||'').slice(0,90))}</span></div>`).join(''):'<div class="dsh-row"><span></span><span>Sin mensajes</span></div>'}</div>`));
+  }catch(e){}
+  try{
+    const sq=G.squad||[], xi=Object.values(G.slots||{}).filter(Boolean).map(id=>sq.find(p=>p.id===id)).filter(Boolean);
+    const les=sq.filter(p=>p.injured).length, sus=sq.filter(p=>p.susp||p.suspended).length, can=xi.filter(p=>(p.fit===undefined?100:p.fit)<75).length;
+    const mio=dtIsMine();
+    const e=estrategiaInfo(estrategiaActual()), fam=Math.round(tacFam());
+    const men={Defensivo:'defensiva',Equilibrado:'equilibrada',Ofensivo:'ofensiva'}[mentActual()];
+    out.push(panel('d-equipo',"irTab('tac')",'Tu equipo','🧭',
+      `<div class="ht-s">${mio?`${e.i} <b>${e.n}</b> · mentalidad ${men}`:`Lo arma <b>${_esc(G.dt&&G.dt.name||'el DT')}</b> · ${_esc(G.formation||'')}`}</div>
+       ${mio?`<div class="dsh-meter" title="Familiaridad con la estrategia"><i style="width:${fam}%"></i></div><div class="dsh-row" style="margin-top:3px"><span></span><span>La tiene ${fam}% aprendida</span></div>`:''}
+       <div class="dsh-list"><div class="dsh-row"><span class="dsh-chip" style="color:${les?'var(--red)':'var(--tx)'}">🚑 ${les}</span><span>lesionados</span>
+         <span class="dsh-chip" style="color:${sus?'var(--gold)':'var(--tx)'}">🟥 ${sus}</span><span>suspendidos</span></div>
+         <div class="dsh-row"><span class="dsh-chip" style="color:${can?'var(--gold)':'var(--tx)'}">⚡ ${can}</span><span>titulares bajo 75% de físico</span></div></div>`));
+  }catch(e){}
+  try{
+    const sq=G.squad||[];
+    const con=sq.filter(p=>(p._nVent||[]).length>=3).map(p=>({p,v:p._nVent.slice(-5).reduce((a,b)=>a+b,0)/Math.min(5,p._nVent.length)})).sort((a,b)=>b.v-a.v);
+    const f=con[0]||{p:sq.slice().sort((a,b)=>b.rat-a.rat)[0],v:null};
+    if(f&&f.p) out.push(panel('d-figura',`openP('${f.p.id}')`,f.v!==null?'Viene en racha':'La figura','⭐',
+      `<div class="dsh-big">${rb(f.p.rat)}<div style="min-width:0"><div style="font-family:var(--f-data);font-stretch:86%;font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(f.p.name)}</div>
+        <div class="ht-s">${_esc(f.p.pos)} · ${f.p.age} años${f.v!==null?` · nota ${f.v.toFixed(1)} en los últimos ${Math.min(5,f.p._nVent.length)}`:''}</div>
+        <div class="ht-s">${f.p.goals||0} goles · ${f.p.assists||0} asistencias · ${f.p.apps||0} PJ</div></div></div>`));
+  }catch(e){}
+  try{
+    const ab=(typeof isTransferWindowOpen==='function')&&isTransferWindowOpen();
+    const of=(G.offers||[]).length, ng=(G.negs||[]).filter(x=>x.stage!=='cerrada').length, fi=(G.firmas||[]).length;
+    out.push(panel('d-mercado',"irTab('mkt')",'Mercado','💼',
+      `<div class="ht-s" style="color:${ab?'var(--green)':'var(--t2)'}">${_esc(getWindowStatus().replace(/^\S+\s/,''))}</div>
+       <div class="dsh-list"><div class="dsh-row"><span class="dsh-chip">${of}</span><span>ofertas por tus jugadores</span></div>
+       <div class="dsh-row"><span class="dsh-chip">${ng}</span><span>negociaciones abiertas</span></div>
+       <div class="dsh-row"><span class="dsh-chip">${fi}</span><span>firmas por cerrar</span></div></div>`));
+  }catch(e){}
+  el.innerHTML=out.join('');
   _tilt(document.getElementById('ovGrid')||el);
 }
 
@@ -38037,10 +38562,16 @@ function abrirReunion(){
 // ⚠️ G.modo falta en todo save viejo, y eso es exactamente "presidente".
 function modoJuego(){ return (typeof G==='object'&&G&&G.modo==='dt')?'dt':'pres'; }
 function modoDT(){ return modoJuego()==='dt'; }
+// Fase 107: PRESIDENTE Y DT A LA VEZ. No es un tercer valor de G.modo: es el
+// modo presidente con un DT propio (customProf), que ya existía escondido en
+// Táctica ("Ponerme de DT"). Se DERIVA, así contratar un técnico de verdad te
+// devuelve al rol de presidente solo, sin un campo que se desincronice.
+function modoAmbos(){ return !modoDT()&&typeof dtIsMine==='function'&&dtIsMine(); }
+function rolJuego(){ return modoDT()?'dt':modoAmbos()?'ambos':'pres'; }
 var _modoSel='pres';
-try{ _modoSel=(localStorage.getItem('dt_modo')==='dt')?'dt':'pres'; }catch(e){}
+try{ const _m=localStorage.getItem('dt_modo'); _modoSel=(_m==='dt'||_m==='ambos')?_m:'pres'; }catch(e){}
 function setModo(m,btn){
-  _modoSel=(m==='dt')?'dt':'pres';
+  _modoSel=(m==='dt'||m==='ambos')?m:'pres';
   try{ localStorage.setItem('dt_modo',_modoSel); }catch(e){}
   document.querySelectorAll('.modo-btn').forEach(b=>b.classList.toggle('diff-sel',b.dataset.m===_modoSel));
 }
@@ -38094,6 +38625,112 @@ function modoDTArmar(){
   const P=presIA(), pf=presPerfil();
   addPhoneMsg('board',P.name,`🏛️ Bienvenido, profe. Soy <b>${_esc(P.name)}</b>, presidente de ${_esc(G.teamName)}. Usted se ocupa del equipo; los contratos, la plata y el mercado los manejo yo. Si necesita a alguien, pídamelo y lo vemos. ${pf.e} <i>${pf.d}</i>`,'🏛️');
   lg('🧠',`Arrancás como DT. Presidente: ${P.name} (${pf.n})`);
+}
+
+// ═══ FASE 107: PRESIDENTE Y DT A LA VEZ ═══
+// Te sentás en el banco con la idea de juego del técnico que estaba (para que
+// el plantel no cambie de golpe), media 68 y los cinco atributos de un DT que
+// arranca: aprenden con los resultados (dtEvaluarPartido), igual que en modo DT.
+// El técnico que estaba vuelve al mercado de DTs como libre.
+function modoAmbosArmar(){
+  if(!G)return;
+  const viejo=G.dt||{};
+  let pr={press:.5,line:.5,width:.5,tempo:.5,direct:.5,counter:.5};
+  try{ const P=dtProfile(viejo); ['press','line','width','tempo','direct','counter'].forEach(k=>{ if(typeof P[k]==='number') pr[k]=Math.round(P[k]*100)/100; }); }catch(e){}
+  try{ dtVuelveAlMercado(viejo); }catch(e){}
+  G.dt={name:'Vos',nat:'—',age:0,rat:68,style:viejo.style||G.formation||'4-4-2',str:'Presidente y técnico',
+    salary:0,trait:viejo.trait||'Equilibrado',wantedPos:viejo.wantedPos||['DC','MCD','DFC'],
+    philosophy:'Tu idea de juego',custom:true,customProf:pr,soyYo:true};
+  if(typeof FORMS==='object'&&FORMS[G.dt.style]) G.formation=G.dt.style;
+  G.dtRequests=[]; G.dtRel=75;
+  G.tacFamPor={propia:80};
+  addPhoneMsg('dt','Ayudante de campo',`🧢 Jefe, a la orden. Usted arma el equipo y maneja el club; yo le preparo los informes: qué nos falta, cómo está el físico, quién viene bien y cómo juega el rival. Me escribe por acá.`,'🧢');
+  lg('🎩',`Arrancás como presidente y técnico de ${G.teamName}`);
+}
+// ═══ EL AYUDANTE DE CAMPO ═══
+// Siendo presidente y DT no hay un técnico que te pida cosas ni con quien
+// pelearte: el celular te pone con el ayudante, que contesta con DATOS del
+// plantel (no frases sueltas).
+function ayudanteInforme(k){
+  const sq=G.squad||[], xi=Object.values(G.slots||{}).filter(Boolean).map(id=>sq.find(p=>p.id===id)).filter(Boolean);
+  const ap=p=>_esc((p.name||'').split(' ').pop());
+  if(k==='falta'){
+    let P=null; try{ P=pedidoDelDT(); }catch(e){}
+    if(!P) return 'Jefe, el plantel está completo: no veo un puesto que pida refuerzo urgente.';
+    const c=(P.c||[]).slice(0,3).map(x=>`<b>${_esc(x.p.name)}</b> (${x.p.rat}, ${fv(askingPrice(x.p))})`).join(', ');
+    return `${P.n.motivo.replace(/^./,m=>m.toUpperCase())}. ${c?'En el mercado miraría a '+c+'.':'Necesitamos un '+_esc(P.n.pos)+'.'}${isTransferWindowOpen()?'':' Ojo que el mercado está cerrado.'}`;
+  }
+  if(k==='fisico'){
+    const can=xi.filter(p=>(p.fit===undefined?100:p.fit)<80).sort((a,b)=>(a.fit||0)-(b.fit||0));
+    const les=sq.filter(p=>p.injured);
+    let t=can.length?`En el once hay ${can.length} por debajo del 80%: ${can.slice(0,4).map(p=>ap(p)+' '+Math.round(p.fit)+'%').join(', ')}. ${can.some(p=>p.fit<65)?'Yo rotaría o haría una sesión de recuperación.':'Se puede jugar, pero cuidado al final.'}`:'El once está entero, todos arriba del 80%.';
+    if(les.length) t+=` Lesionados: ${les.slice(0,4).map(p=>ap(p)+' ('+(p.injuredWeeks||'?')+' sem.)').join(', ')}.`;
+    return t;
+  }
+  if(k==='forma'){
+    const con=sq.filter(p=>(p._nVent||[]).length>=3).map(p=>({p,v:(p._nVent.slice(-5).reduce((a,b)=>a+b,0)/Math.min(5,p._nVent.length))}));
+    if(con.length<3) return 'Todavía hay pocos partidos para decir quién viene bien, jefe.';
+    con.sort((a,b)=>b.v-a.v);
+    const mal=con.filter(x=>x.v<6.2).slice(-2);
+    return `Los que vienen mejor: ${con.slice(0,3).map(x=>`<b>${ap(x.p)}</b> (${x.v.toFixed(1)})`).join(', ')}.${mal.length?` Los que están flojos: ${mal.map(x=>ap(x.p)+' ('+x.v.toFixed(1)+')').join(', ')}.`:''}`;
+  }
+  if(k==='rival'){
+    const m=(G.calendar||[]).find(x=>!x.played&&!x.friendly); if(!m) return 'No hay partido oficial a la vista.';
+    const riv=m.home===G.teamName?m.away:m.home;
+    let R=null; try{ R=estrategiasLectura(); }catch(e){}
+    const form=(typeof formacionRival==='function')?formacionRival(riv):'';
+    let dtr=null; try{ dtr=dtDelRival(riv); }catch(e){}
+    const figuras=(G.market||[]).filter(p=>p.club===riv).sort((a,b)=>b.rat-a.rat).slice(0,3);
+    let t=`<b>${_esc(riv)}</b>${R?` (${R.oppRat} contra nuestro ${R.avgR})`:''}${form?`, juega ${form}`:''}${dtr&&dtr.name?` con ${_esc(dtr.name)}`:''}.`;
+    if(figuras.length) t+=` Hay que cuidarse de ${figuras.map(p=>`<b>${_esc(p.name)}</b> (${p.pos}, ${p.rat})`).join(', ')}.`;
+    if(R&&modoAmbos()){
+      const best=R.L.slice().sort((a,b)=>b.goles-a.goles)[0], bi=estrategiaInfo(best.k);
+      const men=R.oppRat>=R.avgR+3?'defensiva':R.oppRat<=R.avgR-3?'ofensiva':'equilibrada';
+      t+=` Con este plantel yo iría con <b>${bi.n}</b>${best.fam<55?` (aunque la tenemos poco trabajada: ${Math.round(best.fam)}%)`:''} y mentalidad ${men}.`;
+    }
+    return t;
+  }
+  if(k==='pibes'){
+    const pb=sq.filter(p=>p.age<=21).sort((a,b)=>(b.pot||b.rat)-(a.pot||a.rat)).slice(0,3);
+    if(!pb.length) return 'No tenemos pibes de 21 o menos en el plantel. En Juveniles hay chicos para subir.';
+    return `Los pibes con más techo: ${pb.map(p=>`<b>${ap(p)}</b> (${p.age}, ${p.rat} → ${p.pot||p.rat}, ${p.apps||0} PJ)`).join(', ')}. Crecen jugando: si no tienen minutos, se estancan.`;
+  }
+  return 'A la orden, jefe.';
+}
+const AYU_PREG={falta:'¿Qué nos falta?',fisico:'¿Cómo está el físico?',forma:'¿Quién viene bien?',rival:'¿Cómo juega el rival?',pibes:'¿Cómo vienen los pibes?'};
+function ayudanteMsg(k){
+  if(!G)return; ensureChats(); if(!G.chats.ayu) G.chats.ayu=[];
+  chatPush(G.chats.ayu,'me',AYU_PREG[k]||k);
+  const txt=ayudanteInforme(k);
+  setTimeout(()=>{ if(!G)return; chatPush(G.chats.ayu,'them',txt); if(_phTab==='dt')rPhone(); updatePhoneBadge(); },500+Math.random()*500);
+  rPhone();
+}
+function rPhoneAyudante(scr){
+  ensureChats(); if(!G.chats.ayu) G.chats.ayu=[];
+  const th=G.chats.ayu;
+  scr.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 2px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-d));display:flex;align-items:center;justify-content:center;font-size:16px">🧢</div>
+      <div><div style="font-size:12px;font-weight:700">Ayudante de campo</div><div style="font-size:10px;color:var(--t3)">Sos presidente y técnico: él te prepara los informes</div></div>
+    </div>
+    ${th.length?th.map(m=>`<div class="ph-bub ${m.from==='me'?'ph-me':'ph-them'}">${m.txt}<div style="font-size:8px;opacity:.5;margin-top:2px">Sem ${m.w}</div></div>`).join(''):'<div class="ph-empty">Preguntale lo que necesites saber antes de armar el equipo.</div>'}
+    <div class="ph-qr">${Object.entries(AYU_PREG).map(([k,t])=>`<button class="ph-qrbtn" onclick="ayudanteMsg('${k}')">${t}</button>`).join('')}</div>`;
+  scr.scrollTop=scr.scrollHeight;
+}
+// Te escribe solo cuando hay algo que decir (una vez cada tanto)
+function weeklyAyudanteVoz(){
+  if(!G||Math.random()>0.30) return;
+  const sq=G.squad||[], xi=Object.values(G.slots||{}).filter(Boolean).map(id=>sq.find(p=>p.id===id)).filter(Boolean);
+  let k=null;
+  if(xi.some(p=>(p.fit===undefined?100:p.fit)<65)) k='fisico';
+  else { const m=(G.calendar||[]).find(x=>!x.played&&!x.friendly);
+    if(m&&typeof isBigMatch==='function'&&isBigMatch(m)) k='rival';
+    else if(isTransferWindowOpen()) k='falta';
+    else k=Math.random()<0.5?'forma':'pibes'; }
+  const txt=ayudanteInforme(k);
+  ensureChats(); if(!G.chats.ayu) G.chats.ayu=[];
+  chatPush(G.chats.ayu,'them',txt);
+  addPhoneMsg('dt','Ayudante de campo','🧢 '+txt,'🧢');
 }
 
 // ═══ LO QUE SÓLO HACE EL PRESIDENTE ═══

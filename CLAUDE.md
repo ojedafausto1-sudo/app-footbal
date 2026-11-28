@@ -23,7 +23,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107` |
 
 ## Formato de `players-db.js`
 
@@ -556,6 +556,13 @@ con un callback adentro, va a fallar ahí.
   mirarla desbloqueada hace falta `dtIsMine()`.
 
 ## Sistema de diseño — Tactical Dark Glassmorphism
+
+⚠️ **Desde la Fase 107 los valores de esta tabla los pisa el bloque "NOCHE DE
+PARTIDO"** (al final del `<head>`): fondo `#0a1120`, paneles `#111b2d` /
+`#17233a`, borde azulado `rgba(140,165,205,.15)`, verde `#2fbf7f`, rojo
+`#ef5a5a`, y la letra de títulos, botones y números es **Archivo variable**
+(`ArchivoVF`, local en `fonts/`). Las reglas de abajo (el club pone el acento,
+el vidrio en los contenedores) siguen igual. Ver la Fase 107.
 
 Los tokens viven en `:root` y **el acento lo pisa `applyTheme()` al arrancar**,
 así que un color de acento nuevo va en `UI_THEMES`, no en el `:root`.
@@ -9745,6 +9752,150 @@ brazos arriba) o baja (se agacha).
 - 🛑 Igual que siempre: **sin medir en un celular de verdad**.
 
 `tests/fase106.js`, **45 checks** (corre el arnés con `--det`).
+
+## Fase 107: presidente y DT a la vez, estrategias que cambian el partido, entrenamiento con techo, "noche de partido"
+
+El presidente mandó capturas de un juego de mánager y pidió: interfaz en ese
+estilo (no igual), letra más profesional, paneles, mejores colores, más cosas
+para hacer, **ser presidente y DT a la vez**, más variables de táctica y
+mejoras en el entrenamiento. Se tomó el GÉNERO (tablero de paneles, botón
+Continuar, tarjetas de estrategia con barra defensa–ataque) con identidad
+propia; no se copió el aspecto de ese juego.
+
+### El rol "Presidente y DT" no es un tercer modo: se deriva
+
+Ya existía escondido: el **DT personalizado** (`customProf`) en modo
+presidente, con el botón "🎯 Ponerme de DT" de Táctica. Lo nuevo:
+
+- Tercer botón en el inicio (`data-m="ambos"`, `_modoSel`/`dt_modo` aceptan
+  `'ambos'`). `G.modo` sigue en `'pres'` y **`modoAmbos()` / `rolJuego()` se
+  derivan** de `!modoDT() && dtIsMine()`: contratar un técnico de verdad te
+  devuelve al rol de presidente solo, sin un campo que se desincronice.
+- `modoAmbosArmar()` (desde `initGame`): DT "Vos" de **media 68** con la idea
+  de juego del que estaba, como el modo DT. El técnico que estaba **vuelve al
+  mercado** (`dtVuelveAlMercado`: si no estaba en `G.dtPool`, entra).
+- Nadie te pide nada ni se pelea con vos: `genDtRequest` no corre, `setDtRel`
+  no mueve nada, `openDtTalk` avisa que el técnico sos vos, y en el celular la
+  pestaña del DT es el **🧢 Ayudante de campo** (`rPhoneAyudante`,
+  `ayudanteInforme`): qué nos falta, el físico, quién viene bien, cómo juega
+  el rival (con la estrategia que mejor le calza) y los pibes. Todo con datos.
+  `weeklyDtVoice` pasa a `weeklyAyudanteVoz`.
+- ⚠️ **Ponerte de DT ya no es gratis** si hay un técnico con contrato:
+  `confirmCustomDT` cobra su cláusula (`_cdtClausula`, la cuenta de `fireDT`)
+  y el que estaba vuelve al mercado. Antes desaparecía sin cobrar. Y el DT
+  propio nuevo arranca en **68** (antes 75 de regalo); editándolo conserva
+  media y atributos.
+- La cabecera dice "Presidente y DT". De paso: el chat decía **"le faltan true
+  semanas"** (`p.injWeeks||p.injured`, y `injured` es booleano). Ahora
+  `injuredWeeks`.
+
+### ⚠️ La táctica no cambiaba la simulación: el tope se la comía
+
+Medido antes de tocar: `tacMod` (con techo ±0,045) quedaba **clavado en el
+techo** en Boca y San Martín, porque la mentalidad Ofensiva sumaba +0,07 sola.
+Ofensivo era un bono gratis, Defensivo una pérdida segura, y el planteo
+(`tFit`) se sumaba adentro del mismo tope: elegir bien o mal no movía nada.
+
+- **El plan va aparte**: `planFit(prof,xi,gap)` es la cuenta de la Fase 75
+  sacada a una función (la usan `matchStrengths` y la pantalla), y entra como
+  `S.planMod` (tope ±0,075) **fuera del tope de tacMod**, por `PLAN_PUNTOS=24`:
+  al tope son **+0,18 goles esperados**. Presionar con piernas suma (+0,066 de
+  tFit) y sin piernas resta (−0,057); la contra rinde más contra un rival mejor.
+- **La mentalidad es un ida y vuelta** (`MENT_XG`, en `xgDeS`): Ofensiva ×1,13
+  tus goles y ×1,17 los del rival; Defensiva ×0,84 y ×0,82. Con Poisson, el
+  favorito saca +0,05 puntos por partido atacando (2,389 → 2,436) y el que
+  corre de atrás +0,07 cerrándose (0,427 → 0,497). Equilibrada = lo de siempre.
+- Se fueron los bonos sueltos `pressure==='Alta'` +0,02 y `tempo==='Rápido'`
+  +0,02: eran sin condición, y su efecto de verdad está en el plan.
+- **`TAC_CENTRO` 0,042 → 0,040**, medido: sin la mentalidad ni el plan adentro,
+  el desvío medio que entra a `xgDeS` sobre los 30 clubes de la Liga ARG y los
+  20 de LaLiga quedaba 0,1 puntos más abajo que antes. `fase82` sigue verde:
+  Boca 2,16 contra 2,08 de la IA, San Martín 0,53 contra 0,67.
+- Una `G._S` vieja no tiene `planMod` ni `ment` y da lo mismo que antes.
+
+### Estrategias (`ESTRATEGIAS`, `rStyle`)
+
+Siete juegos completos de perillas (`TAC_INSTR`) + mentalidad: Tener la
+pelota, Presión alta, Contraataque, Por las bandas, Juego directo, Salir desde
+atrás y Cerrar el arco; si tocás una perilla suelta, jugás **"Tu idea"**
+(`'propia'`). `estrategiaActual()` se **deriva** de las perillas, no se guarda.
+Cada tarjeta muestra la barra defensa–ataque (`estrategiaAtaque`, sólo
+dibujo), **cuánto le calza a tu once contra el próximo rival** (misma cuenta
+que la simulación, `estrategiasLectura`, que guarda y restaura `G._S` y
+`G._tacFit` porque `matchStrengths` los escribe) y la familiaridad.
+
+⚠️ **Los cinco "estilos" de antes (Posesión equilibrada, Ataque directo…)
+guardaban un texto en `G.style` que no leía nadie.**
+
+**Familiaridad** (`G.tacFamPor`, por estrategia, números planos): a 0% se le
+saca el 40% al plan, a 100% el 100% (`tacFamMult`). Una nueva arranca en 40,
+"tu idea" (la heredada) en 80; la que usás sube 5 por semana
+(`tacFamSemana`, en el bloque semanal), las otras bajan 1,5 hasta 30, y la
+sesión táctica suma 12. Con un DT de la IA vale 85 fijo (el plantel ya conoce
+su idea). Sólo se eligen con DT propio (`tacBloqueada`).
+
+### Entrenamiento
+
+- ⚠️ **La sesión de la semana daba +2 a TODO el plantel, gratis y sin techo**:
+  en una temporada llevaba la velocidad del plantel entero a 99. Ahora
+  (`SESIONES`, `doTrain`) sube +1 (+2 a los de 21 o menos) sólo hasta el techo
+  de cada uno (`techoAttr`: media+8, o potencial+4 en los de 23 o menos), y
+  velocidad y físico cansan (−3 / −4). Nuevas: **Pases**, **Táctica**
+  (familiaridad +12; con DT de la IA, química +3) y **Recuperación** (físico
+  +8, moral +2).
+- ⚠️ **La clase particular le subía la MEDIA**: +3 al atributo y si el
+  promedio pasaba la media, media+1. Dos clases = un punto: con €2M un 70
+  llegaba a 80, salteando las notas de la Fase 76. Ahora +2 al atributo, una
+  por jugador cada 4 semanas (`IND_CADA`), con techo, y la media no se toca.
+- **Foco individual** (`p._foco`, gratis): ~1 punto cada 4 semanas en un pibe,
+  6 en uno de 24-29 y 10 en un veterano, hasta su techo (`focoSemana`, desde
+  `weeklyTraining`). El acumulador se redondea: `0,1×20` daba 1,9999 y el
+  segundo punto no llegaba nunca.
+
+### La interfaz: "noche de partido"
+
+Bloque CSS al final del `<head>`, que pisa a la Fase 96 sin tocar ids ni
+pestañas. Lo memorable es UNO: la **barra de mando** con la fecha y el botón
+**Continuar** (`continuar()` / `continuarQue()` / `rContinuar()`), que lleva
+el juego al próximo momento desde cualquier pantalla: lo que te frena
+(destitución, dilema, prensa), el día del armado, la previa el día del partido
+(se marca, y vos elegís jugarlo o simularlo; **no juega nada solo**), pasar
+una semana vacía, o hasta el día del partido.
+
+- Letra: **Archivo variable** (`fonts/ArchivoVar-*.woff2`, 176 KB, SIL OFL,
+  bajada de Google Fonts una vez y guardada local; `sw.js` la cachea sola
+  porque lee `fonts.css`) para títulos, botones, navegación y números
+  (`font-stretch` 84-90%, `tabular-nums`); el texto sigue en Plus Jakarta
+  Sans. Las plantillas con `font-family:'Rajdhani'` o `'Chakra Petch'` en
+  línea se pisan por selector de atributo, sin tocar cada una.
+- Paneles: cada `.card` con `.ctitle` arriba tiene una franja de cabecera con
+  el tic del acento. Contraste medido: el gris más claro (`--t3`) da 5,2:1
+  sobre el panel más claro; todo pasa AA.
+- **Central**: las cuatro tarjetas con dibujos (Celular, Noticias, Tabla,
+  Redes) son ahora paneles con datos (`rOvTiles`): Bandeja (últimos
+  mensajes), Tu equipo (estrategia, familiaridad, lesionados, suspendidos,
+  cansados), el que viene en racha (por las notas) y Mercado (ventana,
+  ofertas, negociaciones, firmas). En el celular van a lo ancho.
+- Las tarjetas de estrategia, de sesión y del foco individual **no llevan
+  `backdrop-filter`** (son filas): el test lo verifica.
+- El tablero de chapa del inicio se queda: es la tapa.
+
+### Lo que se pidió y no se hizo
+
+- **Jugar el partido en Dream League Soccer**: DLS no tiene cómo importar
+  planteles ni devolver el resultado. Meterle los nuestros es descompilar y
+  modificar el APK (contra sus condiciones; el presidente tiene además una
+  copia bajada de internet). No se hace. La alternativa propuesta para la
+  fase siguiente: planilla del partido + camisetas para la opción oficial de
+  DLS de cargar kits por URL + cargar el resultado a mano. La altura, el pie,
+  la nacionalidad y las estadísticas **ya están en la base**.
+- El ±0,18 de un plan perfecto es modesto a propósito: un buen planteo no
+  reemplaza tener mejores jugadores (la regla de la Fase 82). La diferencia
+  típica entre estrategias con un plantel parejo es 0,03-0,06 goles por
+  partido, y crece con un plantel extremo (muy rápido, muy técnico, muy lento).
+- 🛑 Como siempre: **sin medir en un celular de verdad**.
+
+`tests/fase107.js`, **61 checks**.
 
 ## Deploy
 
