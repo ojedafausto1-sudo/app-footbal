@@ -28,7 +28,8 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   });
   chk('el asistente se dibuja al abrir (un let en zona muerta lo dejaba en blanco)', ini.wiz > 1000, ini.wiz + ' caracteres');
   chk('con temporadas en la carpeta ofrece los eventos especiales', ini.ev);
-  chk('se elige el rol: presidente (por defecto) o DT', ini.modo === 2 && ini.presSel);
+  // Fase 107: hay un tercer rol, presidente y DT a la vez
+  chk('se elige el rol: presidente (por defecto), DT o los dos', ini.modo === 3 && ini.presSel);
   const dif = await pg.evaluate(() => { setDiff(2, document.getElementById('diff-2')); const r = document.querySelector('.modo-btn[data-m="pres"]').classList.contains('diff-sel'); setDiff(1, document.getElementById('diff-1')); return r; });
   chk('elegir la dificultad no desmarca el rol', dif);
 
