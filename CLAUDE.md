@@ -24,7 +24,7 @@ comercial. El usuario habla español rioplatense; respondele en ese registro.
 | `sw.js` + `manifest.webmanifest` | Service worker e instalación: el juego se guarda en el celular y abre **sin internet** (Fase 79). Subí `DT_VER` en cada deploy |
 | `fonts/` | Las cuatro tipografías **locales** (woff2, latin + latin-ext, SIL OFL) con su `fonts.css`. Antes salían de Google |
 | `icons/` | Íconos de la app (180, 192, 512 y 512 *maskable*) |
-| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107`, `fase108` |
+| `tests/*.js` | Las verificaciones que SÍ están en el repo: `hist-lazy`, `extractor-sumar`, `ui-fifa`, `fase72`, `fase73`, `fase74`, `fase75`, `fase76`, `fase77`, `fase78`, `fase79`, `fase80`, `fase81`, `fase82`, `fase83`, `fase84`, `fase85`, `fase86`, `fase87`, `fase88`, `fase89`, `fase90`, `fase91`, `fase92`, `fase93`, `fase94`, `fase95`, `fase96`, `fase97`, `fase98`, `fase99`, `fase100`, `fase101`, `fase102`, `fase103`, `fase104`, `fase105`, `fase106`, `fase107`, `fase108`, `fase109` |
 
 ## Formato de `players-db.js`
 
@@ -9960,6 +9960,115 @@ sólo lo que el otro juego ya ofrece:
   ningún archivo de DLS.**
 
 `tests/fase108.js`, **31 checks** (decodifica los PNG y mira los píxeles).
+
+## Fase 109: el jugador que manejás tiene inercia, toca la pelota y el pase llega
+
+El presidente: *"quiero que la jugabilidad sea lo más parecida a DLS, con los
+mismos movimientos y físicas"*. Se tomó la SENSACIÓN de juego (peso del
+jugador, la pelota que se toca, el remate con efecto, la pelota que pica, la
+cámara que mira adelante) y **no** el aspecto ni nada de DLS. **Todo es del
+jugador que manejás o es dibujo**: el 11v11 mirado da el mismo partido, métrica
+por métrica (arnés pareado, `0↑ 0↓` en las 11).
+
+Medido antes, con fmCtrl + fmBall aislados (`scratchpad/p109/control.js`):
+daba la vuelta a fondo en **7 ticks** y la pelota iba clavada a **24,0-24,7 px**
+del centro, y al darse vuelta **saltaba 180° alrededor del cuerpo en un tick**.
+
+### Inercia (`FM109`, `fmMoverHumano`)
+
+| | antes | ahora |
+|---|---|---|
+| 90% de la velocidad desde parado | 14 ticks | **26** |
+| media vuelta a fondo | 7 ticks | **26** (frena, planta y sale; se pasa ~14 px) |
+| giro de 90° a fondo | 22 ticks | 16-19 (doblar fuerte cuesta velocidad) |
+| velocidad máxima | — | **la misma** (`fmVelTope` es la terminal de fmMove) |
+
+- La IA sigue con `fmMove`: su balance está medido con el arnés. Sólo el que
+  manejás tiene la rampa, el giro con tope (`wStop`→`wTop`) y el frenado.
+- El rumbo se guarda en `p._hd109` con el tick; si recién agarrás a un jugador,
+  sale de su velocidad.
+
+### La pelota: toques a fondo, pegada al trote (`fmConduceHumano`)
+
+- **A fondo la toca adelante y la corre**: 22-34 px, un toque cada ~43 ticks,
+  y la pierna se ve en el dibujo. El empujón sale de **cuánto tiene que
+  adelantarse** (`toqGan` px, con el rozamiento de fmBall), no de un múltiplo
+  de la velocidad: con `v·1,30` un jugador rápido (2,35) la mandaba a 42 px,
+  fuera de alcance.
+- **Al trote, frenando, preparando un pase o un remate, o doblando fuerte**, va
+  pegada y **rodea el cuerpo** (≤9° por tick): nunca lo atraviesa.
+- **Soltando el joystick la pisa.** Antes el jugador frenaba, la pelota seguía
+  de largo y se cancelaba el remate que estabas cargando (al arco 3,0 → 1,9 por
+  partido con el bot, sólo con la inercia).
+- Si **un rival está más cerca de la pelota**, la perdiste: no se la vuelve a
+  pegar. Es la misma regla de la IA (`f.poss`).
+- ⚠️ **Los toques largos son SÓLO a fondo.** Tocarla larga también al trote
+  costaba el 17% de la posesión (la IA se la queda apenas no está pegada).
+
+### ⚠️ El pase del que manejás moría a 2,3 de velocidad (bug viejo)
+
+Lo destapó el check de esta fase, y estaba desde siempre: después del pase el
+control saltaba al receptor, pero el tick siguiente **el cambio automático te
+devolvía al que pasó** (es el más cercano a la pelota los primeros ticks) y la
+conducción vieja **le volvía a pegar la pelota al pie con tope de velocidad**.
+Medido con un pase de 12 m moviendo el joystick (lo normal en el celular):
+
+| | llegan | velocidad en los primeros 15 ticks |
+|---|---|---|
+| antes | **0 de 20** | 26% de la salida |
+| ahora | **20 de 20** | 86% |
+
+Tres arreglos: mientras viaja tu pase manejás al receptor (`f._pase109`, como
+en DLS); recién soltada la pelota no se conduce (`trasPatear`); y el primer
+toque amortigua sólo la pelota que **viene** hacia vos (amortiguaba también tu
+remate de toque). Con el bot: pases propios completos **17-22% → 33-45%**, y
+los cambios de jugador de **~320 a ~120** por partido.
+
+### Bot, 3 semillas × 8 partidos
+
+| bot | antes | ahora |
+|---|---|---|
+| conduce al trote | 1,21-1,71 · G4 E6 P14 | 1,50-1,54 · G9 E9 P6 |
+| conduce a fondo | 1,58-1,29 · G9 E9 P6 | 1,75-1,46 · G9 E9 P6 |
+
+El que corre a fondo con la pelota rinde parecido (pierde algo de posesión por
+los toques, que es el riesgo de DLS); el del trote mejora porque los pases ya
+no se mueren. No quedó un humano invencible.
+
+### Comba (`fmComba109`, `fmCombaCruce`)
+
+Hasta `combaVent` ticks después de patear, el joystick de costado le da efecto.
+⚠️ **La comba no cambia adónde va el remate**: la pelota sale un poco abierta y
+vuelve a la línea por la que iba (se resuelve simulando la física de fmBall, en
+3 pasos). Sin compensar, efecto para adentro la mandaba al arquero y para
+afuera, afuera: no servía y desarmaba la puntería calibrada en la Fase 104.
+Panza medida: 8 px a 11 m, ~26 px a 20 m, hasta 48 desde un costado.
+⚠️ En el barro el remate se frena antes de la línea: ahí apunta a donde se
+frenaba (la primera versión se rendía y no daba efecto).
+⚠️ **No se pudo medir si cambia los goles**: en un mano a mano aislado el
+arquero achica (Fase 106) y ataja todo desde 11 m, también en la versión vieja.
+
+### Dibujo (no tocan el partido)
+
+- **El pique** (`fmBote109` en `fm106Post` → `b._hB`): al caer de un pelotazo
+  pica con la gravedad de su propio vuelo (`g = 8H/T²`), perdiendo dos tercios
+  de la altura por pique (1,02 → 0,33 → 0,10 m). Se corta si alguien la toca.
+  ⚠️ **La repetición graba un campo más de la pelota** (`st = n·14+8`): el
+  check de `fase106` que contaba 7 se actualizó.
+- **La pelota pegada del que la lleva** (la IA, o vos al trote) va y viene al
+  ritmo del paso (`toqueVis`): en el motor sigue pegada.
+- **La cámara se adelanta** hacia donde va la pelota (`camAdel`, tope `camMax`
+  7 m), suave, y nada en la pelota parada ni en la repetición.
+- 0 `Math.random` al dibujar.
+
+### Lo que no se hizo
+
+- **Los gráficos de DLS**: no se copian. Y la animación de un juego nativo con
+  captura de movimiento no se iguala con un 3D de navegador.
+- **La IA con inercia**: cambiaría el balance entero del 11v11 (está medido con
+  el arnés). Si se hace, es una fase propia con su A/B.
+
+`tests/fase109.js`, **39 checks** (corre el arnés dos veces: ~2 minutos).
 
 ## Deploy
 

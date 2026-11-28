@@ -280,7 +280,8 @@ const ARRANCAR = (watch) => {
     f.phase = 'play'; f._rp = null;
     const p = f.my[7], g = f.opp.find(q => q.isGK);
     for (let i = 0; i < 40; i++) { if (i === 10) { p._toqK = TOQ106.chilena; p._toqT = f.ticks; } if (i === 12) { g._dvT0 = f.ticks; g._dvTc = 20; g._dvY = g.y - 60; g._dvH = 1.2; } p.x += 3; fmRpGrabar(f); f.ticks++; }
-    o.stride = f._rp.st === (f.my.length + f.opp.length) * 14 + 7;
+    // 14 por jugador + 8 de la pelota (la Fase 109 sumó el pique, b._hB)
+    o.stride = f._rp.st === (f.my.length + f.opp.length) * 14 + 8;
     const vivo = { x: p.x, k: p._toqK, t: p._toqT, gt: g._dvT0 };
     fmRpPoner(f, 20.5);
     o.toq = p._toqK === TOQ106.chilena && Math.abs((f.ticks - p._toqT) - 10.5) < 1e-6;

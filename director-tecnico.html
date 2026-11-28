@@ -28762,13 +28762,13 @@ function fmRpToggle(btn){
 // reloj del partido está quieto, así que el tick vivo no sirve.
 const _RP_POR=14;  // x, y, vx, vy, _kickT, _slideT, _diveT, _tiradoT, toque, su edad, edad de la estirada, _dvY, _dvTc, _dvH
 function fmRpGrabar(f){
-  const n=f.my.length+f.opp.length, st=n*_RP_POR+7, cap=RP.tick+24;
+  const n=f.my.length+f.opp.length, st=n*_RP_POR+8, cap=RP.tick+24;
   if(!f._rp||f._rp.st!==st) f._rp={st,cap,buf:new Float32Array(cap*st),tot:0};
   const R=f._rp, B=R.buf; let k=(R.tot%cap)*st;
   const put=p=>{ B[k++]=p.x;B[k++]=p.y;B[k++]=p.vx||0;B[k++]=p.vy||0;B[k++]=p._kickT||0;B[k++]=p._slideT||0;B[k++]=p._diveT||0;B[k++]=p._tiradoT||0;
     B[k++]=p._toqK||0; B[k++]=p._toqK?f.ticks-(p._toqT||0):999; B[k++]=p._dvT0?f.ticks-p._dvT0:-1; B[k++]=p._dvY||0; B[k++]=p._dvTc||0; B[k++]=p._dvH||0; };
   for(let i=0;i<f.my.length;i++)put(f.my[i]); for(let i=0;i<f.opp.length;i++)put(f.opp[i]);
-  const b=f.ball; B[k++]=b.x;B[k++]=b.y;B[k++]=b.vx||0;B[k++]=b.vy||0;B[k++]=b.air||0;B[k++]=b._air0||0;B[k++]=b._mano?f.ticks-b._mano:-1;
+  const b=f.ball; B[k++]=b.x;B[k++]=b.y;B[k++]=b.vx||0;B[k++]=b.vy||0;B[k++]=b.air||0;B[k++]=b._air0||0;B[k++]=b._mano?f.ticks-b._mano:-1;B[k++]=b._hB||0;
   R.tot++;
 }
 const _RP_CAMPOS=['x','y','vx','vy','_kickT','_slideT','_diveT','_tiradoT','_toqK','_toqT','_dvT0','_dvY','_dvTc','_dvH'];
@@ -28787,17 +28787,17 @@ function fmRpPoner(f,c){
     p._toqK=B[k+8]; p._toqT=f.ticks-(B[k+9]+fr); p._dvT0=B[k+10]<0?0:f.ticks-(B[k+10]+fr); p._dvY=B[k+11]; p._dvTc=B[k+12]; p._dvH=B[k+13];
     k+=_RP_POR; k2+=_RP_POR; };
   for(const p of f.my)take(p); for(const p of f.opp)take(p);
-  const b=f.ball; sv.push(b.x,b.y,b.vx,b.vy,b.air,b._air0,b._mano,f.phase);
+  const b=f.ball; sv.push(b.x,b.y,b.vx,b.vy,b.air,b._air0,b._mano,b._hB,f.phase);
   let bx=B[k],by=B[k+1],ba=B[k+4];
   if(sig){ const x2=B[k2],y2=B[k2+1],a2=B[k2+4]; if((x2-bx)*(x2-bx)+(y2-by)*(y2-by)<S2*2.25){ bx+=(x2-bx)*fr; by+=(y2-by)*fr; } if(Math.abs(a2-ba)<8) ba+=(a2-ba)*fr; }
-  b.x=bx;b.y=by;b.vx=B[k+2];b.vy=B[k+3];b.air=ba;b._air0=B[k+5];b._mano=B[k+6]<0?0:f.ticks-(B[k+6]+fr);
+  b.x=bx;b.y=by;b.vx=B[k+2];b.vy=B[k+3];b.air=ba;b._air0=B[k+5];b._mano=B[k+6]<0?0:f.ticks-(B[k+6]+fr); b._hB=sig?B[k+7]+(B[k2+7]-B[k+7])*fr:B[k+7];
   f.phase='play';            // se dibuja como juego, sin el velo de pelota parada
 }
 function fmRpSacar(f){
   const sv=f._rpSv; if(!sv)return; let j=0;
   const back=p=>{ for(const c of _RP_CAMPOS) p[c]=sv[j++]; };
   for(const p of f.my)back(p); for(const p of f.opp)back(p);
-  const b=f.ball; b.x=sv[j++];b.y=sv[j++];b.vx=sv[j++];b.vy=sv[j++];b.air=sv[j++];b._air0=sv[j++];b._mano=sv[j++]; f.phase=sv[j++];
+  const b=f.ball; b.x=sv[j++];b.y=sv[j++];b.vx=sv[j++];b.vy=sv[j++];b.air=sv[j++];b._air0=sv[j++];b._mano=sv[j++];b._hB=sv[j++]; f.phase=sv[j++];
   f._rpSv=null;
 }
 function fmRpEmpezar(){
@@ -28864,7 +28864,7 @@ function fmAlturaM(air,air0){
   const H=T<=16?0.05*T+0.1:Math.min(11,2.2*T*T/(52*(T-13)));
   return 4*H*u*(1-u);
 }
-function fmPatea(p){ if(!p)return; p._kickT=9; const f=FM; if(f)(f._kq||(f._kq=[])).push(p); }
+function fmPatea(p){ if(!p)return; p._kickT=9; const f=FM; if(f){ (f._kq||(f._kq=[])).push(p); if(f.ball)f.ball._spin=0; } }   // Fase 109: cada patada nueva borra la comba
 function fmToqueAereo(p){ const f=FM; if(f&&p)(f._kqA||(f._kqA=[])).push(p); }
 function fmToqueArquero(p,h){ const f=FM; if(!f||!p)return; p._toqK=TOQ106.atrapa; p._toqT=f.ticks; if(!p._dvT0||f.ticks-p._dvT0>(p._dvTc||0)+6) p._dvH=h; }
 function _fm106Rel(f,txt,fuerte){
@@ -28939,6 +28939,36 @@ function fm106Post(f){
     // (la tocó otro: la pelota cambió de sentido o perdió fuerza)
     else if(el<tc-Math.min(tc,24)&&((b.vx||0)*(g._dvV||0)<=0||Math.abs(b.vx||0)<Math.abs(g._dvV||0)*0.4)) g._dvT0=0;
   }
+  fmBote109(f,pateo);
+}
+// ═══ FASE 109: EL PIQUE (sólo dibujo) ═══
+// La pelota que caía de un pelotazo quedaba pegada al pasto en el tick en que
+// se terminaba el vuelo. Ahora pica: con la gravedad de su propio vuelo
+// (g = 8H/T², la misma parábola de fmAlturaM) y perdiendo dos tercios de la
+// altura en cada pique (FM109.bote). Si la toca alguien o cambia de rumbo, se
+// termina. No toca el partido: es b._hB, que lee fmAlturaPelota (y graba la
+// repetición).
+function fmBote109(f,pateo){
+  const b=f.ball, a=b.air||0;
+  if(a>0){ b._T109=Math.max(b._air0||0,a); b._bote=null; b._hB=0; return; }
+  if(pateo||f.phase!=='play'||!FM109.on){ b._bote=null; b._hB=0; b._T109=0; return; }
+  const v=Math.hypot(b.vx||0,b.vy||0);
+  if(b._T109>0){                                       // acaba de caer
+    const T=b._T109, H=T<=16?0.05*T+0.1:Math.min(11,2.2*T*T/(52*(T-13)));
+    const h1=Math.min(FM109.boteMax,H*FM109.bote);
+    b._bote=(h1>0.06&&v>0.4)?{t:f.ticks,g:8*H/(T*T),h:h1,vx:b.vx,vy:b.vy}:null;
+    b._T109=0;
+  }
+  const B=b._bote; if(!B){ b._hB=0; return; }
+  const cos=(b.vx*B.vx+b.vy*B.vy)/((Math.hypot(B.vx,B.vy)||1)*(v||1));
+  let toca=false;
+  if(v>=0.2&&cos>=0.94){ for(const q of f.my.concat(f.opp)){ if(Math.hypot(q.x-b.x,q.y-b.y)<q.r+6){ toca=true; break; } } }
+  if(v<0.2||cos<0.94||toca){ b._bote=null; b._hB=0; return; }
+  B.vx=b.vx; B.vy=b.vy;
+  let e=f.ticks-B.t, h=B.h, dur=2*Math.sqrt(2*h/B.g);
+  while(e>dur&&h>0.06){ e-=dur; h*=FM109.bote; dur=2*Math.sqrt(2*h/B.g); }
+  if(h<=0.06){ b._bote=null; b._hB=0; return; }
+  const u=e/dur; b._hB=4*h*u*(1-u);
 }
 // ── interpolación ──
 function fmInterpGuardar(f){
@@ -29005,6 +29035,7 @@ function fmAnim106(p,f){
 // de las manos y la que tiene el arquero agarrada.
 function fmAlturaPelota(f){
   const b=f.ball; let h=fmAlturaM(b.air||0,b._air0||0);
+  if(!(b.air>0)&&b._hB>0) h=Math.max(h,b._hB);       // Fase 109: el pique
   if(b._mano){ const a=f.ticks-b._mano; if(a>=0&&a<16) h=Math.max(h,2.2*(1-a/16)); }
   const H=f._gkHold; if(H&&H.gk&&Math.hypot(H.gk.x-b.x,H.gk.y-b.y)<34) h=Math.max(h,0.85);
   return h;
@@ -29367,7 +29398,12 @@ function fmTick(dt){
     // Auto-switch: always control the non-GK closest to the ball
     const cp=f.my[f.ctrl],b2=f.ball;
     const cpD=cp?Math.hypot(cp.x-b2.x,cp.y-b2.y):9999;
-    if(cpD>38){
+    // ⚠️ Fase 109: mientras viaja TU pase, manejás al que lo va a recibir (como
+    // en DLS). Antes el cambio automático te devolvía al que pasó —es el más
+    // cercano a la pelota los primeros ticks— y la conducción le volvía a pegar
+    // la pelota al pie: el pase moría a 2,3 de velocidad.
+    const _viaja=FM109.on&&f._pase109&&f.ticks<f._pase109.hasta&&f._lastTouch==='my'&&f.my[f._pase109.i]===cp;
+    if(cpD>38&&!_viaja){
       let bestI=f.ctrl,bestD=cpD;
       f.my.forEach((p,i)=>{
         if(p.isGK||i===f.ctrl)return;
@@ -29437,6 +29473,174 @@ function fmTick(dt){
   document.getElementById('fm-pw')&&(document.getElementById('fm-pw').style.display='none');
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FASE 109: EL JUGADOR QUE MANEJÁS TIENE INERCIA Y TOCA LA PELOTA
+// ═══════════════════════════════════════════════════════════════════════
+// Medido antes (scratchpad/p109/control.js, fmCtrl + fmBall aislados): a
+// toda velocidad daba la vuelta en 7 ticks y volvía a correr a fondo para el
+// otro lado en 22, sin pasarse ni 5 px; la pelota iba clavada a 24 px del
+// centro (24,0-24,7 todo el tiempo) y al dar la vuelta saltaba 180° alrededor
+// del cuerpo en UN tick. Eso es un cursor, no un jugador.
+// Ahora, SÓLO para el que manejás (la IA sigue con fmMove: su balance está
+// medido con el arnés):
+//  · arranca con una rampa (aUp) en vez de estar a fondo en 14 ticks,
+//  · gira con un máximo por tick que baja con la velocidad (wStop → wTop),
+//  · a toda velocidad no da vuelta en el lugar: frena, planta y sale (aBrake),
+//  · y doblar fuerte cuesta velocidad (curvaPierde).
+// La velocidad MÁXIMA es la misma de antes (fmVelTope es la cuenta terminal
+// de fmMove), así que nadie corre más ni menos: cambia cómo se llega.
+const FM109={on:true, inercia:true, toques:true,
+  aUp:1/30, aUpBall:1/34, aStop:1/20, aBrake:1/9,
+  wStop:0.26, wTop:0.065, wBall:0.82, frenar:2.4, vGiro:0.45, curvaPierde:0.28,
+  // conducción: rápido la toca adelante y la corre; despacio la lleva pegada
+  vToque:0.75, toqGan:12, giroCerca:0.45, toqCada:5, cerca:7, latMax:0.9, pegarPaso:2.4, pegarW:0.16,
+  // remate con comba: el joystick de costado justo después de patear
+  comba:0.009, combaVent:12, combaDec:0.985, combaMin:1.6,
+  // el pique al caer (sólo dibujo)
+  bote:0.32, boteMax:1.6,
+  // dibujo: el toque de la pelota pegada (m) y la cámara que mira adelante
+  toqueVis:0.42, camAdel:40, camMax:7, camSig:0.04,
+  trasPatear:14};
+
+// La velocidad a la que llega fmMove con ese pedido (el tope o la terminal
+// de v·0,93 + spd·ac): la misma cuenta, para no cambiar quién corre más.
+function fmVelTope(p,mag,sprint,accMul){
+  const st=p.stam===undefined?100:p.stam, fatigue=0.72+0.28*(st/100);
+  const spd=p.spd*fatigue*wxNow().spd*(p._lesSpd||1);
+  const ac=(sprint?0.106:0.077)*(0.45+0.55*Math.min(1,mag))*(accMul==null?1:accMul)*(p.acel||1);
+  return Math.min(spd*1.28, spd*ac/0.07);
+}
+function _ang109(d){ while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; return d; }
+// Mueve al que manejás. Devuelve true si está frenando para dar la vuelta.
+function fmMoverHumano(p,ix,iy,mag,sprint,dt,o){
+  const f=FM; o=o||{};
+  if(p._tiradoT>0){ fmMove(p,0,0,dt,0); return false; }   // en el piso: lo resuelve fmMove
+  const vMax=fmVelTope(p,1,true)||1;
+  let v=Math.hypot(p.vx||0,p.vy||0);
+  // el rumbo se guarda; si recién lo agarrás (cambio de jugador), sale de su velocidad
+  let a=(p._hd109!=null&&p._hd109T===f.ticks-1)?p._hd109:(v>0.05?Math.atan2(p.vy,p.vx):Math.atan2(iy||0,ix||1));
+  const r=Math.min(1,v/vMax);
+  let frena=false;
+  if(mag>0.06){
+    const want=Math.atan2(iy,ix);
+    const vT=fmVelTope(p,mag,sprint,o.accMul);
+    let d=_ang109(want-a);
+    if(v<0.35) a=want;                                                // parado: gira en el lugar
+    else if(Math.abs(d)>FM109.frenar&&r>FM109.vGiro) frena=true;     // a fondo y para atrás: planta
+    else { const w=(FM109.wStop+(FM109.wTop-FM109.wStop)*r)*(o.conPelota?FM109.wBall:1)*dt; a+=Math.max(-w,Math.min(w,d)); }
+    d=_ang109(want-a);
+    if(frena) v=Math.max(0,v-vMax*FM109.aBrake*dt);
+    else {
+      const tgt=vT*(1-FM109.curvaPierde*Math.min(1,Math.abs(d)/(Math.PI/2))*r);
+      const up=vMax*(o.conPelota?FM109.aUpBall:FM109.aUp)*dt;
+      v=v<tgt?Math.min(tgt,v+up):Math.max(tgt,v-vMax*FM109.aStop*dt);
+    }
+  } else v=Math.max(0,v-vMax*FM109.aStop*dt);
+  p._hd109=_ang109(a); p._hd109T=f.ticks;
+  p.vx=Math.cos(p._hd109)*v; p.vy=Math.sin(p._hd109)*v;
+  p.x+=p.vx*dt; p.y+=p.vy*dt;
+  // gasta igual que en fmMove
+  if(!p.isGK&&p.stam!==undefined){
+    const fis=(p.attrs&&p.attrs.FIS)||p.rat||70;
+    p.stam=Math.max(52,p.stam-v*dt*0.0036*(1.75-fis/80)*wxNow().stam);
+  }
+  return frena;
+}
+// La pelota del que manejás: rápido, TOQUES (la adelanta y la corre); despacio,
+// frenando o preparando un pase/remate, pegada al pie y girando ALREDEDOR del
+// cuerpo (nunca lo atraviesa).
+function fmConduceHumano(p,b,ix,iy,sprint,dt,cerca){
+  const f=FM, v=Math.hypot(p.vx||0,p.vy||0);
+  let hx,hy;
+  if(v>0.3){hx=p.vx/v;hy=p.vy/v;}
+  else if(ix||iy){const m=Math.hypot(ix,iy)||1;hx=ix/m;hy=iy/m;}
+  else if(p._hd109!=null){hx=Math.cos(p._hd109);hy=Math.sin(p._hd109);}
+  else {const m=Math.hypot(b.x-p.x,b.y-p.y)||1;hx=(b.x-p.x)/m;hy=(b.y-p.y)/m;}
+  const rx=b.x-p.x, ry=b.y-p.y, along=rx*hx+ry*hy, lat=-rx*hy+ry*hx;
+  // ⚠️ Si un rival está más cerca de la pelota, la perdiste: no se la vuelve a
+  // pegar al pie (la IA juega con la misma regla, f.poss). Sin esto la pelota
+  // pegada era un imán: medido con el bot, 40% más de ticks con la pelota.
+  const dMe=Math.hypot(rx,ry);
+  for(const q of f.opp){ if(!q._sentOff&&Math.hypot(q.x-b.x,q.y-b.y)<dMe) return; }
+  // doblando fuerte a fondo también la trae al pie: con la pelota adelantada y
+  // el joystick a 90°, seguía derecho y la perdía (26 ticks fuera de alcance)
+  const gira=(ix||iy)&&Math.abs(_ang109(Math.atan2(iy,ix)-Math.atan2(hy,hx)))>FM109.giroCerca;
+  if(cerca||gira||!sprint||v<FM109.vToque||along<p.r*0.3){
+    // pegada: la pelota rota alrededor del jugador hacia el rumbo, a 9 px del cuerpo
+    const R=p.r+9, aB=Math.atan2(ry,rx), aT=Math.atan2(hy,hx);
+    const w=Math.max(FM109.pegarW, FM109.pegarPaso/R)*dt;
+    const aN=aB+Math.max(-w,Math.min(w,_ang109(aT-aB)));
+    const dR=Math.hypot(rx,ry), Rn=dR+Math.max(-FM109.pegarPaso*dt,Math.min(FM109.pegarPaso*dt,R-dR));
+    b.x=p.x+Math.cos(aN)*Rn; b.y=p.y+Math.sin(aN)*Rn;
+    b.vx=p.vx||0; b.vy=p.vy||0; b.air=0;
+    f._lastTouch='my';
+    return;
+  }
+  const bvA=b.vx*hx+b.vy*hy, t0=p._toq109==null?-99:p._toq109;
+  // la alcanzó, se le abrió (y la tiene a mano: no se toca una pelota a un metro) o quedó muerta adelante
+  const toca=along<p.r+FM109.cerca||(Math.abs(lat)>p.r*FM109.latMax&&along<p.r+14)||(bvA<0.3&&along<p.r+16);
+  if(toca&&f.ticks-t0>=FM109.toqCada){
+    // ⚠️ El empujón sale de cuánto tiene que adelantarse (toqGan px), no de un
+    // múltiplo de la velocidad: con v·1,30 un jugador rápido (2,35) la mandaba
+    // a 42 px, más allá de donde la puede tocar. Con el rozamiento de fmBall
+    // (0,9908 + 0,004), adelantarse G px pide (vb−v)² ≈ 2·desaceleración·G.
+    // Y se cuenta desde donde está la pelota: el tope es el mismo toque la
+    // tome donde la tome (tocándola de costado a 28 px, sumaba 12 más y la perdía).
+    const dec=(1-wFric(.9908))*(v+0.85)+0.004*wxNow().ballFric;
+    const gan=Math.max(3,p.r+FM109.cerca+FM109.toqGan-along);
+    const vb=v+Math.sqrt(2*dec*gan);
+    b.vx=hx*vb+hy*lat*0.05; b.vy=hy*vb-hx*lat*0.05; b.air=0;
+    p._toq109=f.ticks; f._lastTouch='my';
+  }
+}
+// Comba: hasta FM109.combaVent ticks después del remate, el joystick de
+// costado le da efecto; fmBall la curva y el efecto se gasta.
+// ⚠️ La comba NO cambia adónde va el remate: al darle efecto, la pelota sale
+// un poco abierta y vuelve a la línea por la que iba (como un remate con
+// rosca de verdad). Sin compensar, efecto para adentro la mandaba al cuerpo
+// del arquero y para afuera, afuera: no servía para nada y sí desarmaba la
+// puntería que calibró la Fase 104. Se decide UNA vez, con el primer toque.
+function fmComba109(f,ix,iy,moving){
+  const C=f._comba109; if(!C)return;
+  const b=f.ball;
+  if(C.aplicada||f.ticks-C.t>FM109.combaVent||b.isShot!=='my'){ f._comba109=null; return; }
+  if(!moving)return;
+  const m=Math.hypot(ix,iy)||1, lat=(-C.dy*ix+C.dx*iy)/m;     // de costado respecto del remate
+  if(Math.abs(lat)<0.35)return;
+  const spin=Math.sign(lat)*FM109.comba*Math.min(1,Math.abs(lat));
+  // dónde cruzaba la línea yendo derecho (o dónde se frenaba, en el barro), y
+  // cuánto hay que abrirla para volver ahí
+  const R0=fmCombaCruce(b,0,0,f.myAttRight?f.rightGL:f.leftGL);
+  const px=R0.x, yRecta=R0.y, d=Math.abs(px-b.x);
+  if(d<40) return;
+  let ang=0;
+  for(let it=0;it<3;it++){
+    const y=fmCombaCruce(b,spin,ang,px).y;
+    ang-=Math.atan2(y-yRecta,d)*(f.myAttRight?1:-1);
+  }
+  const c=Math.cos(ang), s2=Math.sin(ang), vx=b.vx;
+  b.vx=vx*c-b.vy*s2; b.vy=vx*s2+b.vy*c; b._spin=spin;
+  C.aplicada=true;
+}
+// La pelota, sin nadie, con este efecto y abierta `ang`: ¿a qué altura cruza el
+// plano x = gx? Si se frena antes, dónde se frenó. La misma física de fmBall
+// (aire, pasto, rozamiento y comba). Devuelve {x,y}.
+function fmCombaCruce(b,spin,ang,gx){
+  const c=Math.cos(ang), s=Math.sin(ang);
+  let x=b.x, y=b.y, vx=b.vx*c-b.vy*s, vy=b.vx*s+b.vy*c, air=b.air||0, sp=spin;
+  for(let t=0;t<400;t++){
+    if(air>0) air=Math.max(0,air-1);
+    const v=Math.hypot(vx,vy), fr=air>0?wFric(.999):v>0.3?wFric(.9908):wFric(.97);
+    vx*=fr; vy*=fr;
+    if(!(air>0)){ const v2=Math.hypot(vx,vy), dec=0.004*wxNow().ballFric; if(v2<=dec) return {x,y}; const k=(v2-dec)/v2; vx*=k; vy*=k; }
+    if(sp){ if(Math.hypot(vx,vy)<FM109.combaMin) sp=0; else { const cs=Math.cos(sp), sn=Math.sin(sp), ox=vx; vx=ox*cs-vy*sn; vy=ox*sn+vy*cs; sp*=FM109.combaDec; } }
+    const nx=x+vx, ny=y+vy;
+    if((nx-gx)*(x-gx)<=0){ const u=(gx-x)/((nx-x)||1e-9); return {x:gx,y:y+(ny-y)*u}; }
+    x=nx; y=ny;
+  }
+  return {x,y};
+}
+
 function fmCtrl(dt){
   const f=FM,k=f.keys,p=f.my[f.ctrl];if(!p)return;
   const b=f.ball,bd=Math.hypot(p.x-b.x,p.y-b.y);
@@ -29494,15 +29698,32 @@ function fmCtrl(dt){
 
   // === MOVIMIENTO (sprint con SHIFT o joystick al borde; cargar te frena) ===
   const sprint=(k.sprint||mag>0.93)&&recMul===1;
-  const acc=(sprint?0.106:0.077)*(moving?(0.45+0.55*mag):1)*recMul*(chargingNow?0.5:1);
-  fmMove(p,ix,iy,dt,acc);
+  let frena109=false;
+  if(FM109.on&&FM109.inercia) frena109=fmMoverHumano(p,ix,iy,mag,sprint,dt,{accMul:recMul*(chargingNow?0.5:1),conPelota:hasBall});
+  else {
+    const acc=(sprint?0.106:0.077)*(moving?(0.45+0.55*mag):1)*recMul*(chargingNow?0.5:1);
+    fmMove(p,ix,iy,dt,acc);
+  }
   p.x=Math.max(p.r,Math.min(f.VW-p.r,p.x));
   p.y=Math.max(p.r,Math.min(f.VH-p.r,p.y));
+  fmComba109(f,ix,iy,moving);
 
   // IA aprende: gambeta = llevás la pelota pegada mientras te movés
   if(hasBall&&moving)f.learn.dribbleTicks+=dt;
+  // Fase 109: con toques (rápido) o pegada y girando alrededor del cuerpo (despacio)
+  // ⚠️ Medido con el bot: tocarla larga también al trote costaba el 17% de la
+  // posesión (la IA se la queda apenas la pelota no está pegada). Los toques
+  // largos son SÓLO a fondo; al trote va pegada. Y soltando el joystick, la
+  // pisa: si no, el jugador frenaba, la pelota seguía de largo y se cancelaba
+  // el remate que estabas cargando (al arco: 3,0 → 1,9 por partido).
+  // ⚠️ y no la conduce recién soltada: el tick siguiente al pase la volvía a
+  // pegar al pie y el pase no salía nunca (medido con el bot: 8-13% de pases
+  // completos contra 17-22%, y 40% más de ticks con la pelota).
+  const _recien=f.ticks-(p._solto==null?-99:p._solto)<FM109.trasPatear;
+  if(FM109.on&&FM109.toques&&hasBall&&!_recien) fmConduceHumano(p,b,ix,iy,sprint&&moving,dt,!moving||frena109||chargingNow||f.xHold>0||k.f);
   // CONDUCCIÓN estilo DLS: la pelota queda pegada al pie al correr (no rebota)
-  if(hasBall&&moving){
+  // (la vieja, sólo con la Fase 109 apagada: si no, recién soltada la volvía a tirar)
+  else if(!(FM109.on&&FM109.toques)&&hasBall&&moving){
     const lead=p.r+9;
     const dm=Math.hypot(ix,iy)||1;
     const txb=p.x+ix/dm*lead,tyb=p.y+iy/dm*lead;
@@ -29520,8 +29741,14 @@ function fmCtrl(dt){
 
   if(hasBall){
     // CONTROL DE RECEPCIÓN: amortigua la pelota que llega rápido (primer toque)
+    // (Fase 109: no frena la pelota que él mismo acaba de tocar para adelante)
     {const bv2=Math.hypot(b.vx,b.vy);const pv2=Math.hypot(p.vx||0,p.vy||0);
-     if(bv2>Math.max(2.4,pv2*1.5)){b.vx*=Math.pow(0.85,dt);b.vy*=Math.pow(0.85,dt);}}
+      const _mio=FM109.on&&f.ticks-(p._toq109==null?-99:p._toq109)<45;
+     // ⚠️ Fase 109: amortiguaba TAMBIÉN el pase que él mismo acababa de dar
+     // (la pelota sale a 6+ y sigue a su alcance 3-4 ticks: perdía 15% por
+     // tick). Sólo se amortigua la pelota que VIENE hacia él.
+     const _viene=!FM109.on||(b.vx*(p.x-b.x)+b.vy*(p.y-b.y))>0;
+     if(!_mio&&_viene&&bv2>Math.max(2.4,pv2*1.5)){b.vx*=Math.pow(0.85,dt);b.vy*=Math.pow(0.85,dt);}}
     // Fase 105: hacia dónde va el pase (el joystick, o hacia donde corrés)
     const _pd=fmPaseDir(p,ix,iy,moving);
     // ════ CON PELOTA (ataque) ════
@@ -29572,6 +29799,7 @@ function fmCtrl(dt){
       // siempre. Medido con un bot: 31 remates en 6 partidos, 0 al arco, 0 goles.
       b.isShot='my'; p._solto=f.ticks;
       fmPatea(p);
+      f._comba109=FM109.on?{t:f.ticks,dx:dxk,dy:dyk}:null;   // Fase 109: la comba se da después
       fmSndKick(pow);
       fmStat('my','shots');   // Fase 98: lo que hace el humano también cuenta
       // IA aprende
@@ -29739,7 +29967,7 @@ function fmLofted(fromIdx,pow,dir){
   fmPatea(p); p._solto=f.ticks;      // Fase 104: el que la soltó no la vuelve a tocar (tiene IA desde ya)
   fmSndKick(0.55);
   f.learn.lofted++;f.learn.passes++;fmStat('my','pass');
-  if(recv>=0)f.ctrl=recv;
+  if(recv>=0){ f.ctrl=recv; f._pase109={i:recv,hasta:f.ticks+Math.min(120,b.air+12)}; }
 }
 
 // Fase 106: a quién va el pase raso, sin patear (sin azar). La usa fmPass al
@@ -29804,7 +30032,7 @@ function fmPass(fromIdx,through,dir){
     b.vx=(dx/d)*pwr;b.vy=(dy/d)*pwr;
     f._lastTouch='my';fmStat('my','pass');
     fmPatea(p); p._solto=f.ticks;
-    f.ctrl=best;
+    f.ctrl=best; f._pase109={i:best,hasta:f.ticks+Math.min(90,d/pwr+10)};
     return;
   }
   const t=f.my[best];
@@ -29817,7 +30045,7 @@ function fmPass(fromIdx,through,dir){
   f._lastTouch='my';fmStat('my','pass');
   fmPatea(p); p._solto=f.ticks;
   fmSndKick(0.3);
-  f.ctrl=best;
+  f.ctrl=best; f._pase109={i:best,hasta:f.ticks+Math.min(90,d/(3.2+d*.0115)+10)};
 }
 
 // Fase 105: con F apretado y sin la pelota, el compañero más cercano a la
@@ -31593,6 +31821,14 @@ function fmBall(dt){
     const _s=Math.hypot(b.vx,b.vy), _dec=0.004*wxNow().ballFric*dt;
     if(_s<=_dec){ b.vx=0; b.vy=0; }
     else if(_s>0){ const _k=(_s-_dec)/_s; b.vx*=_k; b.vy*=_k; }
+  }
+  // Fase 109: la COMBA. Sólo el remate tuyo con efecto (fmComba109): la
+  // velocidad gira b._spin radianes por tick y el efecto se gasta. Si la toca
+  // alguien (isShot se borra) o pierde fuerza, se va.
+  if(b._spin){
+    if(b.isShot!=='my'||Math.hypot(b.vx,b.vy)<FM109.combaMin) b._spin=0;
+    else { const th=b._spin*dt, c=Math.cos(th), s=Math.sin(th), vx=b.vx;
+      b.vx=vx*c-b.vy*s; b.vy=vx*s+b.vy*c; b._spin*=Math.pow(FM109.combaDec,dt); }
   }
   b.x+=b.vx*dt;b.y+=b.vy*dt;
   // Mientras el arquero la tiene en las manos, la pelota va con él
@@ -37739,6 +37975,8 @@ function e3dJugadores(E){
       let [x,z]=toW(p);
       const o={x,z,mv:Math.hypot(p.vx||0,p.vy||0),mira,gk:p.isGK,
         tirado:(p._slideT||0)>0||(p._diveT||0)>0||(p._tiradoT||0)>0, patada:(p._kickT||0)>0?Math.sin((p._kickT/9)*Math.PI):0};
+      // Fase 109: el toque de la conducción (el tuyo, a fondo) se ve en la pierna
+      if(p._toq109!=null&&!FM._rpOn){ const ag=FM.ticks-p._toq109; if(ag>=0&&ag<8) o.patada=Math.max(o.patada,Math.sin(ag/8*Math.PI)*0.55); }
       // ═══ Fase 106: la animación que corresponde a lo que hizo el motor ═══
       let A=null; try{ A=fmAnim106(p,FM); }catch(e){}
       if(A){
@@ -37787,6 +38025,18 @@ function e3dJugadores(E){
       }
     }catch(e){}
     const b=FM.ball; let [bx,bz]=toW(b);
+    // Fase 109: la pelota del que la lleva PEGADA (la IA, o vos al trote) se ve
+    // tocada: va y viene adelante al ritmo de su paso. Sólo dibujo: en el motor
+    // sigue pegada. La que vos tocás a fondo tiene velocidad propia y no se toca.
+    { const P=FM.poss;
+      if(FM109.on&&FM.phase==='play'&&!FM._rpOn&&P&&!(b.air>0)&&!(b._hB>0)){
+        const pv=Math.hypot(P.vx||0,P.vy||0), rel=Math.hypot((b.vx||0)-(P.vx||0),(b.vy||0)-(P.vy||0));
+        const J=jugs[todos.indexOf(P)];
+        if(J&&pv>0.5&&rel<0.25&&Math.hypot(P.x-b.x,P.y-b.y)<P.r+18){
+          const u=((J.ph/(4*Math.PI))%1+1)%1, k=u<0.18?u/0.18:1-(u-0.18)/0.82, A=FM109.toqueVis*Math.min(1,pv/1.5);
+          const nx=(P.vx||0)/w()*E.L, nz=(P.vy||0)/FM.VH*E.A, nl=Math.hypot(nx,nz)||1;
+          bx+=nx/nl*A*(k-0.4); bz+=nz/nl*A*(k-0.4);
+        } } }
     // Fase 106: la parábola sobre el vuelo entero (antes sin(air/60·π)·5: un
     // centro largo se veía rodando y recién al final subía y bajaba)
     let alt=fmAlturaPelota(FM);
@@ -38420,6 +38670,13 @@ function fm3DFrame(){
   // La cámara de juego sigue a TU jugador (con la pelota adentro del cuadro);
   // mirando, sigue a la pelota.
   if(juego){ const [px,pz]=_FM3.J.toW(c), k=_FM3.modo==='detras'?0.3:0.6; tx=px*k+b[0]*(1-k); tz=pz*k+b[1]*(1-k); }
+  // Fase 109: como una transmisión, la cámara se adelanta hacia donde va la
+  // pelota (lo que tiene adelante es lo que importa). Suave, con tope, y nada
+  // en la pelota parada ni en la repetición.
+  { const L0=_FM3.lead||(_FM3.lead={x:0,z:0}); let ax=0, az=0;
+    if(FM109.on&&FM.phase==='play'&&!FM._rpOn){ const B=FM.ball, [lx,lz]=_FM3.J.toW({x:B.x+(B.vx||0)*FM109.camAdel,y:B.y+(B.vy||0)*FM109.camAdel});
+      ax=lx-b[0]; az=(lz-b[1])*0.5; const L=Math.hypot(ax,az); if(L>FM109.camMax){ ax*=FM109.camMax/L; az*=FM109.camMax/L; } }
+    L0.x+=(ax-L0.x)*FM109.camSig; L0.z+=(az-L0.z)*FM109.camSig; tx+=L0.x; tz+=L0.z; }
   // Fase 100: en una pelota parada la pelota salta de lugar (saque de arco,
   // tiro libre lejos); con el 8% fijo la cámara tardaba un segundo en llegar y
   // la jugada arrancaba fuera de cuadro.
