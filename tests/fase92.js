@@ -39,7 +39,8 @@ const chk = (n, c, d) => { if (c) { ok++; console.log('  ✓ ' + n + (d ? ' — 
   chk('el título es un tablero de 15 placas', d.placas === 'DIRECTORTÉCNICO', d.placas);
   chk('las placas usan Chakra Petch (local)', /Chakra Petch/.test(d.fuente));
   chk('en la compu: dos columnas, el panel a la izquierda', d.lado);
-  chk('los dos roles explican qué hace cada uno adentro del botón', d.roles.length === 2 && d.roles.every(x => +x.split(':')[1] > 30), d.roles.join(' '));
+  // Fase 107: tres roles (presidente, DT, presidente y DT)
+  chk('los tres roles explican qué hace cada uno adentro del botón', d.roles.length === 3 && d.roles.every(x => +x.split(':')[1] > 30), d.roles.join(' '));
   chk('la dificultad sigue con sus ids y arranca en Normal', d.dif);
   chk('los eventos van debajo de los países', d.evDespues);
   chk('ningún rótulo en mayúsculas forzadas', d.mayus === 0, d.mayus + ' rótulos');
