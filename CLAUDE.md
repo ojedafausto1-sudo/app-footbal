@@ -9895,7 +9895,23 @@ una semana vacía, o hasta el día del partido.
   partido, y crece con un plantel extremo (muy rápido, muy técnico, muy lento).
 - 🛑 Como siempre: **sin medir en un celular de verdad**.
 
-`tests/fase107.js`, **61 checks**.
+### Los tests viejos que hubo que tocar, y por qué
+
+- `fase83` y `fase92` contaban **exactamente dos** botones de rol: ahora son tres.
+- `fase96` verificaba la chapa (cabecera verde, números en placas crema), que
+  esta fase reemplaza a propósito. Los chequeos de lo que la chapa resolvía
+  (cabecera que se lee, números legibles, sección activa marcada, sin
+  mayúsculas forzadas, vidrio en las tarjetas) siguen, contra lo nuevo.
+- `fase94` armaba al lesionado con `injured=3` / `injWeeks=3`, campos que el
+  juego no usa (pone `injured=true` e `injuredWeeks`): el test pasaba con un
+  dato que el juego nunca produce, y el juego real decía "le faltan true
+  semanas". Y su "el DT contesta" esperaba 1,7 s fijos: ahora espera la
+  respuesta con tope de 5 s (era el flaky anotado en la Fase 102).
+- `fase79` agarró un problema real: con la letra nueva, las cinco pestañas del
+  Mercado quedaban 15 px más anchas que un celular de 360. Achicadas, y la
+  fila scrollea si hace falta.
+
+`tests/fase107.js`, **61 checks**. Regresión: 39 de 39 en verde.
 
 ## Deploy
 

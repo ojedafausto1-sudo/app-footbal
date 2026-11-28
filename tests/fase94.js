@@ -72,8 +72,9 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
   chk('al que se le vence el contrato, botón para hablarlo', /contrato/.test(P.botones));
   chk('en modo presidente la pestaña es "Chat DT", con el DT y caja para escribir', /Chat DT/.test(P.tab) && P.dtNombre && P.input);
   chk('lo que escribís no mete HTML en la pantalla', P.escapado);
-  await espera(1700);
-  const resp = await pg.evaluate(() => { const t = G.chats.dt; return t[t.length - 1] && t[t.length - 1].from === 'them'; });
+  // Fase 107: esperar a que conteste (tope 5 s) en vez de 1,7 s fijos, que con
+  // la máquina cargada no alcanzaban (la respuesta tarda 0,65-1,35 s).
+  const resp = await pg.waitForFunction(() => { const t = G.chats.dt; return t[t.length - 1] && t[t.length - 1].from === 'them'; }, null, { timeout: 5000 }).then(() => true).catch(() => false);
   chk('y el DT contesta lo escrito', resp);
 
   // ── MODO DT: el celular es del presidente ──

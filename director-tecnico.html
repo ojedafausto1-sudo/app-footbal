@@ -1219,6 +1219,9 @@ body{background:var(--dark);background-image:
   .fcont b{font-size:16px}
   .fcont span{display:none}
   .ht.dash{grid-column:1/-1;min-height:0}
+  /* con la letra nueva, las cinco pestañas del Mercado no entraban en 360 px */
+  .tab{font-size:12px;padding:7px 3px;letter-spacing:-.01em}
+  .tabs{overflow-x:auto;scrollbar-width:none}
 }
 /* ─── paneles: franja de cabecera + cuerpo ─── */
 .card{background:linear-gradient(180deg,var(--card-2),var(--card));border:1px solid var(--bdr);border-radius:var(--r);
@@ -33438,7 +33441,7 @@ function dtReplyCtx(kind,pid){
     const p=G.squad.find(x=>x.id===pid); if(!p) return 'Ese ya no está en el plantel, presidente.';
     const fit=p.fit===undefined?100:p.fit, np=p.notaProm;
     const comp=_candidatos(p.pos).filter(q=>q!==p&&Object.values(G.slots||{}).includes(q.id)).sort((a,b)=>b.rat-a.rat)[0];
-    if(p.injured) return `${_esc(_ap(p))} está lesionado, presidente: le faltan ${p.injuredWeeks||'unas'} semanas.`;
+    if(p.injured) return `${_esc(_ap(p))} está lesionado, presidente: le faltan ${p.injuredWeeks||(typeof p.injured==='number'?p.injured:'unas')} semanas.`;
     if(p.susp>0) return `Está suspendido, presidente. Vuelve en ${p.susp} partido${p.susp>1?'s':''}.`;
     if(fit<75) return `Lo estoy cuidando: tiene ${Math.round(fit)}% de físico. Si lo pongo así, en dos fechas se me rompe.`;
     if(typeof np==='number'&&np<6.2) return `Viene con un promedio de ${np.toFixed(1)} en los últimos partidos. Cuando recupere el nivel, vuelve.`;
@@ -33535,7 +33538,7 @@ function playerReplyCtx(p,kind){
   const per=pPersona(p), m=(p.morale===undefined?70:p.morale);
   if(kind==='lesion'){
     if(!p.injured) return 'Estoy bien, físicamente al cien.';
-    const w=p.injuredWeeks; return `Va mejorando. El médico dice ${typeof w==='number'?w+' semanas':'unas semanas más'}. ${per==='picante'?'Quiero volver ya.':'Voy a volver más fuerte.'}`;
+    const w=p.injuredWeeks||(typeof p.injured==='number'?p.injured:null); return `Va mejorando. El médico dice ${typeof w==='number'?w+' semanas':'unas semanas más'}. ${per==='picante'?'Quiero volver ya.':'Voy a volver más fuerte.'}`;
   }
   if(kind==='gol'){ p.morale=Math.min(100,m+3); return per==='humilde'?'Gracias, el gol es de todos.':per==='picante'?'¡Y vienen más! Que me sigan llegando.':'¡Gracias! Ese gol lo soñé toda la semana.'; }
   if(kind==='contrato'){
