@@ -51,7 +51,7 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
     // ¿por qué no juega?
     const banco = _mejorEnBanco(); o.porqueBanco = banco ? dtReplyCtx('porque', banco.id) : '';
     // botones según el momento: lesionado y contrato
-    const j = G.squad.find(p => p.pos !== 'ARQ'); j.injured = 3; j.injWeeks = 3; j.contract = G.season;
+    const j = G.squad.find(p => p.pos !== 'ARQ'); j.injured = true; j.injuredWeeks = 3; j.contract = G.season;   // Fase 107: los campos que usa el juego
     o.botones = chatBotonesJugador(j); o.lesion = playerReplyCtx(j, 'lesion');
     // el celular: pestaña de chat con el DT y la caja de texto
     openPhone(); o.tab = document.querySelector('.ph-tab[onclick*="\'dt\'"]').textContent;
