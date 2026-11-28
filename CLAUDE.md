@@ -10128,6 +10128,12 @@ partida. Ordenada: primero lo que hay que crear, por línea y por media.
 
 `tests/fase110.js`, **32 checks**.
 
+🔶 **`fase79` ("la tarjeta dice el estado real") también falla con la máquina
+cargada**: dio rojo en la regresión y en una corrida suelta mientras seguían
+los otros tests, y verde tres veces seguidas corrido solo (y con la versión
+anterior). Se suma a `fase80`, `fase90`, `fase94` y `ui-fifa`: si lo ves
+rojo, corrélo solo antes de creerle.
+
 ## Deploy
 
 Rama `claude/stoic-euler-7hUcb` → commit → push → ff-merge a `main` → push.
